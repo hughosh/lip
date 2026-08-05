@@ -313,6 +313,22 @@ def bd(*args: str) -> str:
     return (p.stdout or "") + (p.stderr or "")
 
 
+def park(unit: str, skip: set[str] | None = None) -> None:
+    """Take a unit out of the ready queue DURABLY.
+
+    An in-memory skip set does not survive a restart, so every restart re-picked
+    each parked unit and spent a codex driver turn re-deciding it -- observed on
+    lip-52l and lip-9r3, both operator-only, both re-driven after each restart.
+
+    `bd defer` is the right primitive: deferred is neither blocked nor closed.
+    The obligation stays open and revisitable, which is what parking means; it
+    just stops presenting itself as ready work.
+    """
+    bd("defer", unit)
+    if skip is not None:
+        skip.add(unit)
+
+
 def next_unit(skip: set[str]) -> str | None:
     for i in re.findall(r"\b(lip-[0-9a-z]+)\b", bd("ready")):
         if i in skip:
@@ -590,7 +606,7 @@ def main() -> int:
                    f"OPERATOR_ONLY at iteration {it}: {directive.get('scope','')}")
                 bd("tag", unit, "operator-only")
                 ledger(f"## {now()} — {unit} OPERATOR_ONLY — parked, still owed")
-                skip.add(unit); st["parked"] += 1; save_state(st); continue
+                park(unit, skip); st["parked"] += 1; save_state(st); continue
 
             if dec0 == "SPEC_CONFLICT":
                 log("  SPEC_CONFLICT -> parking for supervision")
@@ -598,7 +614,7 @@ def main() -> int:
                    f"SPEC_CONFLICT at iteration {it}: {directive.get('scope','')}")
                 bd("tag", unit, "spec-patch")
                 ledger(f"## {now()} — {unit} SPEC_CONFLICT — needs a human")
-                skip.add(unit); st["parked"] += 1; save_state(st); continue
+                park(unit, skip); st["parked"] += 1; save_state(st); continue
 
             allowed = set(directive.get("allowed_paths") or [])
 
@@ -620,7 +636,7 @@ def main() -> int:
                 bd("tag", unit, "operator-only")
                 ledger(f"## {now()} — {unit} needs a control-plane edit "
                        f"({sorted(undirectable)}) — operator-only, parked")
-                skip.add(unit); st["parked"] += 1; save_state(st); continue
+                park(unit, skip); st["parked"] += 1; save_state(st); continue
 
             # ---- implement ----------------------------------------------
             d_text = json.dumps(directive, indent=2)
@@ -758,7 +774,7 @@ def main() -> int:
                 subprocess.run(["git", "checkout", "--", "."], cwd=LIP)
                 subprocess.run(["git", "clean", "-fd", "go/harness",
                                 "go/cmd/harness"], cwd=LIP)
-                skip.add(unit)
+                park(unit, skip)
                 st["parked"] += 1
                 st["pending"] = {}
             else:

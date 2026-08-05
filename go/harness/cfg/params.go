@@ -111,17 +111,17 @@ type Params struct {
 func Default() Params {
 	return Params{
 		NMarkets:       6,
-		CapitalMax:     num.MoneyFromDollars(500),
+		CapitalMax:     num.MoneyFromDollars(100),
 		CapitalReserve: 0.25,
 		Concentration:  2.0,
 
-		S:       num.QtyFromFloat(100),
-		SMax:    num.QtyFromFloat(400),
-		InvSoft: num.QtyFromFloat(25),
-		InvHard: num.QtyFromFloat(60),
-		InvKill: num.QtyFromFloat(150),
+		S:       num.QtyFromFloat(12),
+		SMax:    num.QtyFromFloat(48),
+		InvSoft: num.QtyFromFloat(3),
+		InvHard: num.QtyFromFloat(7),
+		InvKill: num.QtyFromFloat(18),
 
-		PnLKill: num.MoneyFromDollars(-75),
+		PnLKill: num.MoneyFromDollars(-15),
 
 		Debounce:        250 * time.Millisecond,
 		RequoteInterval: 5 * time.Second,

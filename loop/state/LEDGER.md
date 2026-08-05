@@ -16,3 +16,15 @@ Append-only. Conductor-owned. A finding already disposed of here is closed on si
 - reachability: With §10.3's six live markets, a one-sided fill can leave q nonzero. H-HALT-3 then permits a concrete deployed sequence: SIGTERM latches global WINDING_DOWN while the process, monitor, and reducers remain alive; at close_time-close_lead (1h), that market transitions REDUCING to SETTLING and retains its reducer until final_lead. The mutation suppresses observation exactly then. The global-state test uses only REDUCING markets, while both new SETTLING transitions use global RUNNING, so neither exercises this reachable conjunction.
 - mutation: `harness/risk/monitor.go`
 
+## 2026-08-05T17:44:58Z — lip-4yy ALREADY_SATISFIED, verified by `TestMonitorSamplesInEveryMarketState`
+
+## 2026-08-05T17:48:39Z — lip-52l OPERATOR_ONLY — parked, still owed
+
+## 2026-08-05T17:50:45Z — lip-9r3 OPERATOR_ONLY — parked, still owed
+
+## 2026-08-05T17:53:09Z — lip-afr SPEC_CONFLICT — needs a human
+
+## 2026-08-05T17:55:11Z — lip-428 OPERATOR_ONLY — parked, still owed
+
+## 2026-08-05T17:57:31Z — lip-8a8 SPEC_CONFLICT — needs a human
+

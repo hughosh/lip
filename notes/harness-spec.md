@@ -410,15 +410,32 @@ Let `q` = signed net position in contracts (YES-positive), `S` = base quote size
                      │ |q| > inv_soft      │
                      ▼                     │
                   SKEWED ──────────────────┘
-                     │ |q| > inv_hard, or market halt trigger,
-                     │ or program end, or close lead
+                     │ |q| > inv_hard, market halt trigger,
+                     │ or program end
                      ▼
                  REDUCING ──── q == 0 ────► IDLE
                      │
-                     │ close_time − final_lead
+                     │ close_time − close_lead        (H-CLOSE-2)
                      ▼
                  SETTLING ──── close ────► CLOSED
 ```
+
+`SETTLING` is also entered directly from `QUOTING` or `SKEWED` at
+`close_time − close_lead`; it is not reachable only via `REDUCING`.
+
+**Corrected 2026-08-05.** This diagram previously labelled the
+`REDUCING → SETTLING` edge `close_time − final_lead`, and routed the close lead
+into `REDUCING` instead. Both contradicted H-CLOSE-2, which enters `SETTLING` at
+`close_time − close_lead`, and H-CLOSE-3, where `final_lead` is when the capped
+reducer is finally cancelled — not when `SETTLING` begins.
+
+The gap between the two readings is exactly the window H-CLOSE-2a exists to
+protect: under the old diagram `SETTLING` began 60 seconds before close rather
+than an hour, so the interval in which A4 requires a resting reducer all but
+vanished — which is **M13**, the highest-value finding of the adversarial round,
+reintroduced through the picture rather than the prose. Found by the loop's
+driver turn while implementing §5.2 (`lip-8a8`), which returned `SPEC_CONFLICT`
+rather than guessing.
 
 | State | Adding side | Reducing side | Notes |
 |---|---|---|---|
@@ -1221,7 +1238,9 @@ while the program is paying) — and it is still our only exit. It stays.
 
 ### H-CLOSE-2 — The close lead
 
-At `close_time − close_lead` (default **4h**):
+At `close_time − close_lead` (default **1h** — see §16; this line said 4h until
+2026-08-05, which the v2 revision missed when it cut the window to bound
+HR-011, leaving the spec stating two different values for one parameter):
 
 - The adding side is cancelled if it is not already, and **exchange-confirmed
   absent**.
@@ -1412,10 +1431,41 @@ opening configuration, to be raised only after §14's gates are green:
 
 ```
 n_markets      = 6
-capital_max    = $500
-S              = 100 contracts/side
-inv_soft       = 25    inv_hard = 60    inv_kill = 150
+capital_max    = $100
+S              = 12 contracts/side
+inv_soft       = 3     inv_hard = 7     inv_kill = 18
 ```
+
+**Rescaled 2026-08-05 to $100, and the previous figures did not satisfy
+H-CAP-8.** The operator is funding the account with $100 until the first
+returns, so $500 was never going to be the opening capital. But the old block
+was *also* internally inconsistent at its own stated size, which is the defect
+that surfaced it:
+
+> H-CAP-8 rejects a configuration whose worst permitted simultaneous fill set
+> cannot be funded. At `n_markets · S · max_price` with the 99c bound H-SEL-7
+> permits, `6 · 100 · $0.99 = $594 > $500`. **The recommended opening
+> configuration was required to reject itself at startup**, so no implementation
+> could satisfy §10.3 and H-CAP-8 at once.
+
+Found by the loop's driver turn on `lip-afr`, which returned `SPEC_CONFLICT`
+rather than quietly picking a reading. It is the same class as HR-005 — a
+capital rule forbidding the configuration it recommends — arrived at from the
+opposite direction.
+
+The replacement is derived rather than chosen. With `capital_reserve` = 0.25,
+$100 leaves $75 deployable, so `6 · S · $0.99 ≤ $75` gives `S ≤ 12`; worst case
+`6 · 12 · $0.99 = $71.28`. Six markets are kept over larger size because S6 says
+market selection dominates it. The inventory ladder and `S_max` keep their
+ratios to `S` (0.25 / 0.6 / 1.5 / 4×), because they are expressed in units of a
+quote, not in absolute contracts — leaving `inv_hard = 60` beside `S = 12` would
+mean holding five quotes' worth of inventory before reducing at all.
+
+**`pos_drift_hard` is deliberately NOT rescaled** and is flagged for review: at
+5 contracts against a 12-contract quote it is 42% of a quote rather than the 5%
+it was at `S = 100`. It is a "our position model is wrong" tripwire, so whether
+it should be proportional or an absolute floor is a judgement the operator has
+not yet made.
 
 The capacity model puts $500 at ~$596/day gross across 38 markets, so 6 markets
 is deliberately well inside the modelled curve. Those figures are **modelled,
@@ -1776,15 +1826,15 @@ Every knob, one place. All are in `run` at startup.
 | Name | Default | Unit | Section |
 |---|---|---|---|
 | `n_markets` | 6 | count | §10.3 |
-| `capital_max` | 500 | USD | H-CAP-1 |
+| `capital_max` | **100** (was 500) | USD | H-CAP-1 — §10.3 rescale |
 | `capital_reserve` | 0.25 | fraction | H-CAP-3 |
 | `concentration` | 2.0 | × | H-CAP-2 |
-| `S` (base quote size) | 100 | contracts/side | §6.2 |
-| `S_max` | 400 | contracts/side | §6.2 |
-| `inv_soft` | 25 | contracts | §6.2 |
-| `inv_hard` | 60 | contracts | §6.2 |
-| `inv_kill` | 150 | contracts | §6.4 |
-| `pnl_kill` | −75 | USD | §12 |
+| `S` (base quote size) | **12** (was 100) | contracts/side | §6.2 |
+| `S_max` | **48** (was 400) | contracts/side | §6.2 — 4·S |
+| `inv_soft` | **3** (was 25) | contracts | §6.2 — 0.25·S |
+| `inv_hard` | **7** (was 60) | contracts | §6.2 — 0.6·S |
+| `inv_kill` | **18** (was 150) | contracts | §6.4 — 1.5·S |
+| `pnl_kill` | **−15** (was −75) | USD | §12 — 15% of capital, as before |
 | `debounce_s` | 0.250 | s | H-Q-7 |
 | `requote_interval_s` | 5.0 | s/side/market | §6.6 |
 | `stale_bid_ticks` | 8 | ticks | H-Q-8 |
