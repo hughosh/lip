@@ -199,8 +199,19 @@ def run_claude(prompt: str, art: Path, st: dict,
     for attempt in range(attempts):
         if STOP_FILE.exists():
             return None
+        # acceptEdits auto-approves file edits; the implementer also has to run
+        # the gates, go, gofmt and bd, so Bash is granted. The protections that
+        # actually matter are conductor-side and do not depend on what Claude is
+        # permitted to do: control-plane hashes, the scope allowlist, and the
+        # fact that only the conductor ever commits. What IS fenced off here is
+        # the small set of commands that could destroy evidence or rewrite
+        # history faster than those checks could notice.
         argv = [CLAUDE, "-p", prompt, "--output-format", "json",
-                "--permission-mode", "acceptEdits", "--max-turns", "120"]
+                "--permission-mode", "acceptEdits", "--max-turns", "120",
+                "--disallowedTools",
+                "Bash(git push),Bash(git reset),Bash(git clean),"
+                "Bash(git checkout),Bash(git commit),Bash(git rebase),"
+                "Bash(rm -rf),Bash(sqlite3),Bash(bd dolt)"]
         if ROTATE and st.get("claude_session"):
             argv += ["--resume", st["claude_session"]]
         try:
