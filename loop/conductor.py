@@ -369,6 +369,41 @@ def run_mutation(f: dict, wd: Path) -> tuple[str, str]:
     return "admitted", "SURVIVED every existing gate"
 
 
+CHALLENGE_MIN_COVERAGE = 0.60
+
+
+def coverage_of(paths: set[str]) -> tuple[float, str]:
+    """Statement coverage of the packages a diff touched.
+
+    The challenge turn is only informative where there is coverage to hole. At
+    ~10% implementation it was admitting 3 of 3 findings, 0 refuted -- not
+    because the challenger was sharp but because almost nothing was tested yet,
+    so every mutation trivially survived. "SURVIVED every existing gate" then
+    means "this area has no tests", which is already known and does not need a
+    max-effort adversarial turn to discover.
+
+    Worse, it inverted the mechanism's purpose: mutation-survival is meant to
+    REFUTE findings the gates already catch, and so bound the finding stream.
+    Refuting nothing, it became an unbounded generator of coverage gaps that
+    displaced the planned ladder work.
+    """
+    pkgs = set()
+    for p in paths:
+        if p.startswith("go/") and p.endswith(".go"):
+            pkgs.add("./" + str(Path(p).relative_to("go").parent))
+    if not pkgs:
+        return 0.0, "no Go packages touched"
+    r = subprocess.run(["go", "test", "-cover", "-count=1", *sorted(pkgs)],
+                       cwd=LIP / "go", capture_output=True, text=True,
+                       env={**os.environ, "CGO_ENABLED": "0"})
+    pcts = [float(m) for m in re.findall(r"coverage: ([\d.]+)% of statements",
+                                         r.stdout)]
+    if not pcts:
+        return 0.0, f"no coverage reported for {sorted(pkgs)}"
+    worst = min(pcts) / 100.0
+    return worst, f"{sorted(pkgs)} worst coverage {worst:.0%}"
+
+
 def tmpl(name: str, **kw) -> str:
     t = (PROTO / name).read_text()
     for k, v in kw.items():
@@ -599,7 +634,13 @@ def main() -> int:
             # ---- audit || challenge (fresh threads) ----------------------
             # The challenge is spent ONCE per unit and is never renewed for a
             # repair. That non-renewal is the convergence guarantee.
-            do_challenge = unit not in st["unit_challenged"]
+            cov, cov_why = coverage_of(set(touched))
+            do_challenge = (unit not in st["unit_challenged"]
+                            and cov >= CHALLENGE_MIN_COVERAGE)
+            if unit not in st["unit_challenged"] and not do_challenge:
+                log(f"  challenge SUSPENDED: {cov_why}, below "
+                    f"{CHALLENGE_MIN_COVERAGE:.0%}. A surviving mutation here "
+                    f"would only restate that the package is untested.")
             a_p = tmpl("audit.md", DIRECTIVE=json.dumps(directive, indent=2),
                        DIFF=diff[:120000], GATES=gout)
             with ThreadPoolExecutor(max_workers=2) as ex:

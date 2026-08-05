@@ -25,12 +25,34 @@ review the spec, or to find everything wrong with the codebase.
 
 ## Standard
 
+**Correctness only.** `DRIFT` and `NEW-BREAK` are for defects, not for taste.
+This is an unattended loop: every verdict you return costs a full round of the
+operator's quota, and a unit gets three. One earlier audit returned `DRIFT` with
+every gate GREEN and safety CLEAN because a test *comment* mentioned something
+it disliked. That spent a round and improved nothing.
+
+`DRIFT` requires **one of**:
+
+- the directive's acceptance criteria are not met by the code;
+- the code contradicts a clause named in `spec_ids`;
+- a test asserts on source text rather than behaviour, or cannot fail;
+- a file outside `allowed_paths` was modified.
+
+`NEW-BREAK` requires **one of**:
+
+- a test, assertion, or gate was deleted, weakened, or narrowed;
+- behaviour outside the directive's scope changed;
+- the gates are RED.
+
+**Not DRIFT and not NEW-BREAK:** wording, comment content, naming you would
+have chosen differently, missing extras the directive did not ask for, or work
+you think belongs in a different unit. If the directive is satisfied and nothing
+is broken, return FAITHFUL + CLEAN and put the observation in `notes`.
+
 - Read the spec clauses named in `spec_ids` before judging fidelity. The
   directive is a summary; the spec is the contract.
 - **Cite evidence.** A bare label is inadmissible: say which line, which clause,
-  which test. "Looks fine" is not an audit.
-- A test that asserts on source text rather than behaviour is DRIFT.
-- A deleted or weakened assertion is NEW-BREAK regardless of gate colour.
+  which test. "Looks fine" is not an audit, and neither is "it feels wrong".
 - Gate output is authoritative over anything the implementer claimed.
 
 ## Return
