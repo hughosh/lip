@@ -33,6 +33,27 @@ implemented as written, do **not** patch the spec and do **not** invent a
 reading. Return `decision: "SPEC_CONFLICT"` with the conflicting clause IDs.
 The spec is unwritable while nobody is watching.
 
+## Paths you may NOT put in `allowed_paths`
+
+These are hash-pinned. A directive naming one is unimplementable: the attempt
+would pass the scope check and the gates, be accepted, and then halt the entire
+run at the next iteration's drift check with nobody awake to restart it. The
+conductor now rejects such a directive outright, so naming one wastes the unit.
+
+```
+notes/harness-spec.md      scripts/check.py
+loop/conductor.py          loop/gates.sh          loop/protocol/*.md
+testdata/FROZEN.sha256     testdata/READONLY.sha256
+```
+
+Also unavailable: `go/core`, `go/feed`, `go/store`, `go/cmd/rig`, any frozen
+Python, and any `*.db`.
+
+If the obligation genuinely requires changing one of these, return
+`decision: "SKIP"` with a reason naming the file. It is operator work, not
+agent work. `scripts/harness_negative_control.py` is the exception — it is a
+ratchet, so mutations may be ADDED to it, never removed or renamed.
+
 ## Return
 
 A single fenced ```json block, and nothing that matters outside it:

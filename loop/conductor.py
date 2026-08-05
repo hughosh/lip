@@ -226,15 +226,19 @@ def run_claude(prompt: str, art: Path, st: dict,
     for attempt in range(attempts):
         if STOP_FILE.exists():
             return None
-        # acceptEdits auto-approves file edits; the implementer also has to run
-        # the gates, go, gofmt and bd, so Bash is granted. The protections that
-        # actually matter are conductor-side and do not depend on what Claude is
-        # permitted to do: control-plane hashes, the scope allowlist, and the
-        # fact that only the conductor ever commits. What IS fenced off here is
-        # the small set of commands that could destroy evidence or rewrite
-        # history faster than those checks could notice.
+        # `acceptEdits` auto-approves EDITS ONLY -- it denies Bash, with no
+        # human present to approve. Measured on the first real run: 11 of 11
+        # Bash calls denied, so the implementer could not run the gates, the
+        # tests, or bd, and burned a $1.00 turn discovering it could not work.
+        #
+        # The protections that actually matter are conductor-side and do not
+        # depend on what Claude is permitted to do: the control-plane hashes,
+        # the scope allowlist, and the fact that only the conductor ever
+        # commits. What is fenced off below is the small set of commands that
+        # could destroy evidence or rewrite history faster than those checks
+        # would notice.
         argv = [CLAUDE, "-p", prompt, "--output-format", "json",
-                "--permission-mode", "acceptEdits", "--max-turns", "120",
+                "--permission-mode", "bypassPermissions", "--max-turns", "120",
                 "--disallowedTools",
                 "Bash(git push),Bash(git reset),Bash(git clean),"
                 "Bash(git checkout),Bash(git commit),Bash(git rebase),"
@@ -503,6 +507,26 @@ def main() -> int:
 
             allowed = set(directive.get("allowed_paths") or [])
 
+            # A directive may not target the control plane. Found by the
+            # implementer itself, which refused to write and explained why:
+            # such an attempt passes the scope check (the path IS in
+            # allowed_paths), passes the gates, and is ACCEPTED -- and then
+            # kills the run at the next iteration's drift check, with the
+            # operator asleep. The driver cannot see CONTROL_FILES, so this is
+            # enforcement rather than convention, per RULES.md's own stance.
+            undirectable = allowed & set(CONTROL_FILES)
+            if undirectable:
+                log(f"  directive targets the control plane {sorted(undirectable)} "
+                    f"-- parking for the operator")
+                bd("update", unit, "--append-notes",
+                   f"OPERATOR-ONLY at iteration {it}: the work requires editing "
+                   f"{sorted(undirectable)}, which is hash-pinned. An agent "
+                   f"cannot do this without halting the run.")
+                bd("tag", unit, "operator-only")
+                ledger(f"## {now()} — {unit} needs a control-plane edit "
+                       f"({sorted(undirectable)}) — operator-only, parked")
+                skip.add(unit); st["parked"] += 1; save_state(st); continue
+
             # ---- implement ----------------------------------------------
             result = run_claude(tmpl("implement.md", UNIT=unit,
                                      DIRECTIVE=json.dumps(directive, indent=2)),
@@ -514,8 +538,17 @@ def main() -> int:
 
             ok, gout = gates(quick=False)
             (wd / "gates.txt").write_text(gout)
-            diff = subprocess.run(["git", "diff", "HEAD"], cwd=LIP,
-                                  capture_output=True, text=True).stdout
+            # Exclude tool-owned paths from the diff the reviewers see. bd
+            # rewrites .beads/interactions.jsonl on every command, and the
+            # auditor reasonably flagged it as an out-of-scope write -- noise
+            # that costs an audit round and teaches the reviewer to distrust
+            # the scope signal.
+            diff = subprocess.run(
+                ["git", "diff", "HEAD", "--", ".",
+                 ":(exclude)loop", ":(exclude).beads",
+                 ":(exclude)notes/harness-negative-control.md",
+                 ":(exclude)notes/harness-negative-control.partial.md"],
+                cwd=LIP, capture_output=True, text=True).stdout
             (wd / "02.patch").write_text(diff)
 
             nc_ok, nc_why = nc_ratchet_ok(nc_before)
