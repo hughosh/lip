@@ -39,6 +39,11 @@ HERE = Path(__file__).resolve().parent
 LIP = HERE.parent
 GO = LIP / "go"
 MANIFEST = LIP / "testdata" / "FROZEN.sha256"
+RO_MANIFEST = LIP / "testdata" / "READONLY.sha256"
+
+# harness-spec.md H-TOP-2. Read-only to the harness: it consumes these and adds
+# nothing to them. Whole trees, not a file list, so an ADDED file is caught too.
+READONLY_TREES = ["go/core", "go/feed", "go/store", "go/cmd/rig"]
 
 # port-spec.md §2's frozen list, plus the fixtures the numeric gates rest on.
 FROZEN = [
@@ -71,6 +76,13 @@ SLOP = [
 def go_files(tests: bool = True) -> list[Path]:
     return sorted(p for p in GO.rglob("*.go")
                   if tests or not p.name.endswith("_test.go"))
+
+
+def readonly_files() -> list[Path]:
+    out = []
+    for tree in READONLY_TREES:
+        out.extend((LIP / tree).rglob("*.go"))
+    return sorted(out)
 
 
 def sha256(path: Path) -> str:
@@ -142,6 +154,74 @@ def check_frozen() -> list[str]:
     return bad
 
 
+def check_readonly() -> list[str]:
+    """harness-spec.md H-TOP-2 — the read-only Go trees.
+
+    §9.5 freezes Python. Nothing froze Go, and H-TOP-2 marks four Go trees
+    read-only on the strength of an argument, not a check:
+
+        go/core   go/feed   go/store   go/cmd/rig
+
+    Their correctness argument is port-spec §8 — gates 1-7 plus a seven-day
+    shadow run **on the artifact that ships**. An edit to any of them silently
+    voids the most expensive evidence in the plan, and until now nothing in this
+    repository would have noticed. Convention is not a control when the editor
+    is an unattended agent.
+
+    Unlike FROZEN this hashes a TREE, so it also catches an added or deleted
+    file, which is the shape an agent's mistake actually takes.
+    """
+    if not RO_MANIFEST.exists():
+        return [f"no manifest at {RO_MANIFEST.relative_to(LIP)}; run "
+                f"--freeze-readonly once, deliberately, while the trees are "
+                f"known good"]
+    want = {}
+    for line in RO_MANIFEST.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            digest, name = line.split(None, 1)
+            want[name] = digest
+
+    got = {str(p.relative_to(LIP)): sha256(p) for p in readonly_files()}
+    bad = []
+    for name in sorted(set(want) | set(got)):
+        if name not in got:
+            bad.append(f"{name}: READ-ONLY FILE DELETED (H-TOP-2)")
+        elif name not in want:
+            bad.append(f"{name}: ADDED to a read-only tree (H-TOP-2)")
+        elif got[name] != want[name]:
+            bad.append(
+                f"{name}: MODIFIED\n"
+                f"      was {want[name][:16]}…  now {got[name][:16]}…\n"
+                f"      H-TOP-2 marks this tree read-only; editing it voids "
+                f"port-spec §8's correctness argument. Revert it.")
+    return bad
+
+
+def freeze_readonly() -> int:
+    files = readonly_files()
+    if not files:
+        print("FATAL: no files found in the read-only trees; refusing to write "
+              "an empty manifest")
+        return 1
+    lines = [
+        "# harness-spec.md H-TOP-2 — read-only Go tree checksums.",
+        "#",
+        "# go/core, go/feed, go/store and go/cmd/rig are consumed by the",
+        "# harness and added to by nothing. Their correctness argument is",
+        "# port-spec §8, which is evidence about the artifact that ships; an",
+        "# edit here voids it. Regenerating this manifest to make a change pass",
+        "# is the same gate failure as regenerating FROZEN.sha256.",
+        "",
+    ]
+    for p in files:
+        lines.append(f"{sha256(p)}  {p.relative_to(LIP)}")
+    RO_MANIFEST.write_text("\n".join(lines) + "\n")
+    print(f"froze {len(files)} read-only files -> "
+          f"{RO_MANIFEST.relative_to(LIP)}")
+    return 0
+
+
 def freeze() -> int:
     lines = [
         "# port-spec.md §9.5 — frozen-artifact checksums.",
@@ -169,15 +249,22 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--freeze", action="store_true",
                     help="(re)generate the checksum manifest; see the caveat above")
+    ap.add_argument("--freeze-readonly", action="store_true",
+                    help="(re)generate the H-TOP-2 read-only tree manifest; "
+                         "same caveat — this is a tightening mechanism, not an "
+                         "escape hatch for a change you already made")
     a = ap.parse_args()
     if a.freeze:
         return freeze()
+    if a.freeze_readonly:
+        return freeze_readonly()
 
     failures = 0
     for title, section, fn in (
         ("slop scan", "§9.4", check_slop),
         ("confidence trailers", "§9.1", check_trailers),
         ("frozen artifacts", "§9.5", check_frozen),
+        ("read-only Go trees", "H-TOP-2", check_readonly),
     ):
         bad = fn()
         if bad:

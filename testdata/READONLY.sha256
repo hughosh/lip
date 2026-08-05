@@ -1,0 +1,28 @@
+# harness-spec.md H-TOP-2 — read-only Go tree checksums.
+#
+# go/core, go/feed, go/store and go/cmd/rig are consumed by the
+# harness and added to by nothing. Their correctness argument is
+# port-spec §8, which is evidence about the artifact that ships; an
+# edit here voids it. Regenerating this manifest to make a change pass
+# is the same gate failure as regenerating FROZEN.sha256.
+
+5031e6022ce3aca8c7458f48b304b03f7c0b1dc78c3af8e7e08622a5f0881f0a  go/cmd/rig/main.go
+812466d901359ed1c2351943a8de249d32f6116174af7f348e02d14640930129  go/cmd/rig/main_test.go
+8f7c72812ae2dfa8e800fb87717ac2b2fbd193a4285c07b508e09f2223c402d3  go/core/book.go
+39bf7491ec860b05eb4c9e252e79a4e4a04309386968c438400652645770119b  go/core/book_test.go
+b29ffa505f6dbd9627655653ff68fe3d0d2e7f8e8b382b5485dfa1d83f849c38  go/core/levels.go
+65a04bc92d7d7ed3413e21ae7f03249a1167c1d93dbe5dfc424e3a5e8ed7a4c3  go/core/levels_test.go
+330540c7e28371771e67469775d2bb606009e23eac657ac997a012456008bbd8  go/core/num.go
+975baaaed3d2cc03eb73845ea7d1bc7ab5a58dcd82131d8de0bfb16116d5358d  go/core/num_test.go
+93a4d3dac9930346f59a8289f38999109e771fecfa5d5b2a34510f79a4dde5d1  go/core/reconnect_test.go
+27200b01523e1b59a33f4836341088f32f5ef6449efed817067132b798ed3772  go/core/rig.go
+7dc4ac715525fecfd9afc44b94300d77754f237343fe45572de245da86fbb03b  go/core/rig_test.go
+e46cbadf544d263407b9a69435de332792c5432c2d0e673bb0245fe2e3ca55e1  go/core/sum_test.go
+e100dd3e18126bc60425e8e86dca04662d907911f34a726b652f24ddaeac0b6e  go/feed/auth.go
+24f100109f89d171acc0132fb56628ae27184cd132ba98d0d40735348ca36db4  go/feed/auth_test.go
+cb7be1b31231649b861570e33db01617b5da43295ac04609f5b5c414c4bb0a0b  go/feed/feed.go
+59223e048871c38321d576ca10b8f1e0ae141f16bdee3ce474f46541b88e0bf1  go/feed/feed_test.go
+cf1ec70c9b2476ebdaae3ad73effed4d3a3dc875a2f82a2f0503c39dda788da1  go/feed/universe.go
+656a9a44c4bf8461ed8fa2c4f1ca6b411bfabdbc03498caf980e3db23cd17213  go/store/resolve_test.go
+d0ab45112d0572e7c2e912de06c3bc1a7c89df3bed780aab85190df53676fb72  go/store/store.go
+335c84b6536b3b93f1e6e226a316b49485983a30460fc143ff5b0bf2f7320a3b  go/store/store_test.go
