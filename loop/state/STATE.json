@@ -1,0 +1,33 @@
+{
+  "iteration": 0,
+  "advanced": 0,
+  "parked": 0,
+  "revised": 0,
+  "claude_session": null,
+  "claude_ctx": 0,
+  "claude_window": 1000000,
+  "codex_thread": null,
+  "unit_rounds": {},
+  "unit_challenged": [],
+  "raised": 0,
+  "refuted": 0,
+  "admitted": 0,
+  "inadmissible": 0,
+  "control": {
+    "notes/harness-spec.md": "ce911112af9c00b7a02e73dd9aa20bb53819926d60004115ce4e472c95480040",
+    "scripts/check.py": "c609110426f4e186d34a57dc5081ca12b4c03c088e634d61f745ac7f8fe80fb4",
+    "scripts/harness_negative_control.py": "e9adb033db9205c9c0adaab458a2e40fb7be1e97037a6cc59df8649bc18b46a4",
+    "testdata/FROZEN.sha256": "c727f4595bb54c0f45a0cbe62ac350429d5c95ed6f44da402a086eff9fe01264",
+    "testdata/READONLY.sha256": "a02375e3f242a3a0d58524dc6ac306abb38e6612d602d356c40742f98b136444",
+    "loop/conductor.py": "5bc5a882a088930d53b40c2b3c14e17df9cfbc8686bf1b2fcc4bea2f9b04e350",
+    "loop/gates.sh": "f5af1b9b6aa6e04cbfeea71eaf34335cf83cfa4e0483517297809fc7dcee4999",
+    "loop/protocol/RULES.md": "0a91c2b0db43805deedfc0a78fbb3299775d5c7777681fdbcfaeb1d5ca7602ec",
+    "loop/protocol/driver.md": "0d017a28ebfb9607a08f6ec7cd50f768c41a602ae3095fe2d5233c45f47dfa6f",
+    "loop/protocol/implement.md": "10be251f845660b12d9236c62ee9791731b2982b8fe0816d49c516df1bccd8de",
+    "loop/protocol/audit.md": "75482747e37062ef99dfdd68b4184191986fa139d764ef075416f5a7ff91c833",
+    "loop/protocol/challenge.md": "9e2585aef7d38c7ad3b4b575d404178e71e26faba532163c3e7c5798d238c0ac",
+    "loop/protocol/adjudicate.md": "a5c16a35212c17f4e9d068ce46a22ff776ebb5ad1c5d148e47273cfd8e1ba6d0"
+  },
+  "started": "2026-08-05T11:53:44Z",
+  "terminal": null
+}

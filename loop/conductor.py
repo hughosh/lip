@@ -334,6 +334,19 @@ def changed_paths() -> list[str]:
 
 
 def main() -> int:
+    global MAX_ITERATIONS, DEADLINE_HOURS
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--max-iterations", type=int, default=MAX_ITERATIONS,
+                    help="stop after N units; use 1 for a supervised smoke run")
+    ap.add_argument("--deadline-hours", type=float, default=DEADLINE_HOURS)
+    ap.add_argument("--dry-run", action="store_true",
+                    help="check startup, control pinning and unit selection, "
+                         "then exit without invoking a model")
+    args = ap.parse_args()
+    MAX_ITERATIONS = args.max_iterations
+    DEADLINE_HOURS = args.deadline_hours
+
     for d in (STATE_DIR, RUN_DIR):
         d.mkdir(parents=True, exist_ok=True)
     if LOCK_FILE.exists():
@@ -354,8 +367,18 @@ def main() -> int:
     deadline = time.time() + DEADLINE_HOURS * 3600
     skip: set[str] = set()
     terminal = "ALLOWED_QUEUE_EXHAUSTED"
-    log(f"conductor start; deadline {DEADLINE_HOURS}h; rotate={ROTATE}; "
+    log(f"conductor start; max_iterations={MAX_ITERATIONS}; "
+        f"deadline {DEADLINE_HOURS}h; rotate={ROTATE}; "
         f"{len(st['control'])} control files pinned")
+
+    if args.dry_run:
+        ok, gout = gates(quick=True)
+        u = next_unit(set())
+        log(f"dry-run: gates={'GREEN' if ok else 'RED'}; next_unit={u}; "
+            f"codex={'found' if Path(CODEX).exists() else 'MISSING'}; "
+            f"claude={CLAUDE}")
+        LOCK_FILE.unlink(missing_ok=True)
+        return 0 if (ok and u) else 1
 
     try:
         while st["iteration"] < MAX_ITERATIONS:

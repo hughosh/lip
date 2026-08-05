@@ -92,3 +92,22 @@ The five model turns have never run end-to-end. Everything else — control-plan
 pinning, unit selection, all five mutation classification paths, template
 rendering, JSON extraction, gate propagation — was tested before launch. Watch
 the first iteration.
+
+## Gotcha: STATE.json pins the control-plane hashes
+
+If you edit `loop/conductor.py` or anything in `loop/protocol/`, the next start
+will see control-plane drift and halt (by design). After a deliberate edit:
+
+```
+rm loop/state/STATE.json
+```
+
+That re-pins on the next start. Do NOT delete it to silence a drift you did not
+make — that is the same failure as re-freezing a manifest to pass a gate.
+
+## Checking it before a long run
+
+```
+python loop/conductor.py --dry-run                 # startup, gates, unit pick
+python loop/conductor.py --max-iterations 1        # one supervised unit
+```
