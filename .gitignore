@@ -44,3 +44,11 @@ loop/state/STOP
 loop/state/conductor.log
 loop/state/stdout.log
 loop/run/
+
+# Live collector artifacts. shadow/ is 4.3GB of tape + db + logs; rig.log grows
+# continuously, and a SQLite journal appears and vanishes under the running
+# collectors. Untracked-but-unignored files show up in `git status --porcelain`,
+# which is what the conductor's scope check reads.
+shadow/
+*.db-journal
+*.db-wal
