@@ -160,6 +160,7 @@ def load_state() -> dict:
     return {"iteration": 0, "advanced": 0, "parked": 0, "revised": 0,
             "claude_session": None, "claude_ctx": 0, "claude_window": 1_000_000,
             "codex_thread": None, "unit_rounds": {}, "unit_challenged": [],
+            "pending": {},
             "raised": 0, "refuted": 0, "admitted": 0, "inadmissible": 0,
             "control": None, "started": now(), "terminal": None}
 
@@ -483,7 +484,16 @@ def main() -> int:
             wd.mkdir(parents=True, exist_ok=True)
             log(f"=== iteration {it} ===")
 
-            unit = next_unit(skip)
+            # A REVISE must return to the SAME unit. Previously the decision
+            # fell through to next_unit(), which re-queried `bd ready` and
+            # picked whatever sorted first -- so the repair instruction was
+            # discarded, the unit was abandoned mid-flight, and its uncommitted
+            # work stayed in the tree to be folded into the NEXT unit's audit
+            # diff. Observed: lip-gmf was REVISEd, then lip-6qe was started
+            # while 161 lines of lip-gmf's work sat in the working tree.
+            pending = st.get("pending") or {}
+            unit = pending.get("unit") or next_unit(skip)
+            repair = pending.get("repair", "")
             if not unit:
                 log("  no ready work"); terminal = "ALLOWED_QUEUE_EXHAUSTED"; break
             rounds = st["unit_rounds"].get(unit, 0) + 1
@@ -536,8 +546,15 @@ def main() -> int:
                 skip.add(unit); st["parked"] += 1; save_state(st); continue
 
             # ---- implement ----------------------------------------------
+            d_text = json.dumps(directive, indent=2)
+            if repair:
+                d_text += (f"\n\nTHIS IS A REPAIR ROUND ({rounds}/{MAX_ROUNDS}). "
+                           f"Your previous attempt is already in the working "
+                           f"tree and was NOT accepted. Apply exactly this "
+                           f"repair on top of it; do not start over and do not "
+                           f"widen scope:\n\n{repair}")
             result = run_claude(tmpl("implement.md", UNIT=unit,
-                                     DIRECTIVE=json.dumps(directive, indent=2)),
+                                     DIRECTIVE=d_text),
                                 wd / "02-implement", st)
             save_state(st)
             if result is None:
@@ -645,6 +662,7 @@ def main() -> int:
                     cwd=LIP)
                 bd("close", unit)
                 st["advanced"] += 1
+                st["pending"] = {}
                 st["control"] = control_hashes()   # conductor's own commit is legitimate
             elif decision in ("PARK", "SPEC_CONFLICT") or rounds >= MAX_ROUNDS:
                 bd("update", unit, "--append-notes",
@@ -659,8 +677,11 @@ def main() -> int:
                                 "go/cmd/harness"], cwd=LIP)
                 skip.add(unit)
                 st["parked"] += 1
+                st["pending"] = {}
             else:
                 st["revised"] += 1
+                st["pending"] = {"unit": unit,
+                                 "repair": str(adj.get("repair", ""))[:4000]}
 
             if ROTATE and st["claude_ctx"] / max(st["claude_window"], 1) >= ROTATE_AT_FRACTION:
                 log(f"  rotating claude ({st['claude_ctx']/st['claude_window']:.1%})")
