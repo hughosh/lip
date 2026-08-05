@@ -33,3 +33,14 @@ loop/run/*/raw-*.log
 .dolt/
 .beads-credential-key
 .beads/proxieddb/
+
+# Loop runtime state. Tracked STATE.json was reverted by the conductor's own
+# scope-violation handler, wiping its counters mid-run.
+loop/state/STATE.json
+loop/state/STATE.json.tmp
+loop/state/HEARTBEAT
+loop/state/LOCK
+loop/state/STOP
+loop/state/conductor.log
+loop/state/stdout.log
+loop/run/

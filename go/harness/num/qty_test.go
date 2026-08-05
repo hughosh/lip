@@ -44,6 +44,60 @@ func TestQtyIsFlatIsExact(t *testing.T) {
 	}
 }
 
+// TestQtyIsFlatRejectsNonzero pins the other half of H-CO-4a: IsFlat means
+// EXACTLY zero, in both directions.
+//
+// TestQtyIsFlatIsExact proves flat is reachable -- a net-zero fill sequence
+// lands on true. It says nothing about the converse, so an IsFlat that answered
+// true for a small nonzero position would still pass it. That direction is the
+// dangerous one: §5.2 lets REDUCING leave for IDLE only at q == 0, and H-HALT-3
+// lets the process exit only when every market is flat or closed. An IsFlat
+// that is generous about zero does not stall the harness -- it abandons an open
+// position, deselects the market that still holds it, and lets SIGTERM report a
+// drain that never happened.
+//
+// The table is in raw Qty, not QtyFromFloat, so the boundary is not obscured by
+// a float conversion on the way in: Qty(1) is exactly one quantum, one
+// hundredth of a contract, the smallest long the exchange can express, and
+// Qty(-1) is its symmetric short.
+func TestQtyIsFlatRejectsNonzero(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		q    Qty
+		want bool
+		why  string
+	}{
+		{
+			name: "exact zero",
+			q:    Qty(0),
+			want: true,
+			why:  "§5.2: REDUCING reaches IDLE at q == 0",
+		},
+		{
+			name: "smallest long",
+			q:    Qty(1),
+			want: false,
+			why: "a long of one quantum (0.01) is a position; calling it " +
+				"flat lets REDUCING leave for IDLE and lets SIGTERM " +
+				"report a drain, both while still holding inventory",
+		},
+		{
+			name: "smallest short",
+			q:    Qty(-1),
+			want: false,
+			why: "a short of one quantum (-0.01) is a position; the " +
+				"boundary is symmetric about zero and neither sign is flat",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.q.IsFlat(); got != tc.want {
+				t.Fatalf("Qty(%d).IsFlat() = %v, want %v (%s = %q) -- %s",
+					int64(tc.q), got, tc.want, tc.name, tc.q.Wire(), tc.why)
+			}
+		})
+	}
+}
+
 func TestQtyRoundTripAndFormat(t *testing.T) {
 	for _, tc := range []struct {
 		in   float64
