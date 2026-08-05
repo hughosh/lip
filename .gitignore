@@ -1,0 +1,30 @@
+# Databases. Two collector processes (rig.py and shadow/rig) are writing these
+# RIGHT NOW; they are the evidence base, not source, and they must never be
+# staged, stashed, or reverted by anything.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Captured tapes. The live one is 4.3GB and still growing.
+*.jsonl.gz
+raw-*.jsonl
+
+# Compiled binaries (the shadow collector binary is 4GB of build output).
+shadow/rig
+go/shadow/rig
+go/cmd/rig/rig
+go/cmd/harness/harness
+go/cmd/replay/replay
+
+__pycache__/
+*.pyc
+.DS_Store
+
+# Loop transport artifacts. The raw model logs are large and low-signal; the
+# durable state the loop actually reasons over (QUEUE, LEDGER, STATE, briefs and
+# adjudications) IS tracked, because the audit trail is the point.
+loop/raw-*.log
+loop/run/*/raw-*.log

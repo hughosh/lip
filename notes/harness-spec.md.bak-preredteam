@@ -1,0 +1,1209 @@
+# Harness spec — the 24/7 LIP quoting harness
+
+**Status:** design contract. Written 2026-08-04, before any Go is written.
+**Audience:** whoever (human or agent) implements the harness.
+**Rule:** this document outranks your judgement about what a market maker
+should do. Where it contradicts `notes/phase2-spec.md`, this file wins; where it
+contradicts `notes/port-spec.md`, port-spec wins and you escalate.
+
+---
+
+## 0. The one-sentence contract
+
+Quote at the touch in N Liquidity Incentive Program markets, continuously, to
+farm the incentive pool — **never crossing the spread, never abandoning
+inventory, and never going quiet about either.**
+
+Everything below exists to make those three negations mechanically true rather
+than aspirationally true.
+
+---
+
+## 1. What is already settled, and is not reopened here
+
+These are inputs. Do not re-derive them, do not re-measure them, do not build a
+probe to re-check them.
+
+| # | Settled fact | Source |
+|---|---|---|
+| S1 | **Never cross.** `E[settlement − mid_5m]` is statistically zero in every drawdown bucket, so stopping out has no expected benefit while costing ~2.4–2.8c/contract with certainty (half-spread ~1.07c + taker fee 1.31–1.75c). | `reeval-verdict.md` §2, `scripts/holdvsflat.py` |
+| S2 | **Maker fees are $0.00.** Taker fees are `0.07·C·P·(1−P)` dollars, verified to 4dp against the account's own `fee_cost`. A never-crossing harness pays zero trading fees. | `reeval-verdict.md` C2 |
+| S3 | **The two-sided gate is market-level, not per-user.** "Resting orders sufficient to meet the Target Size on each side of the market." A user's score is the sum of their own normalised yes and no scores, so a one-sided quoter still scores at full weight on the side it quotes. | CFTC filing, read raw; `reeval-verdict.md` C7 |
+| S4 | **Uptime is revenue.** Reward = time-weighted share integrated over the *whole* period × pool. The model reproduced the one verified payout to −1.0% ($7.574 predicted vs $7.65 actual) at 37.8% uptime. Downtime is a direct multiplicative loss. | `reeval-verdict.md` §4, `scripts/revmodel.py` |
+| S5 | **A matched two-sided fill self-liquidates at a profit** whenever `yes_bid + no_bid < 100`. Kalshi nets offsetting YES/NO holdings on the spot; `market_exposure_dollars` returns to 0 without waiting for settlement. Only a **one-sided** fill creates a problem. | `phase2-spec.md` §3 lesson 3, verified on the account |
+| S6 | **Market selection dominates size.** DF=0.5 crushes everything more than a few ticks behind the touch, so a market's total qualifying score can be tiny even when its depth is large. Rank by pool ÷ field qualifying score. | `reeval-verdict.md` §5 |
+| S7 | **Latency is not binding.** Scoring is 0.9999 at 10ms requote latency and 0.9962 at 1s. Nothing in this spec should be built for speed. | `notes/economics.md` §4 |
+
+**The economics thread is closed.** No proposal in this document is a
+measurement run, and no section of it may be implemented as one.
+
+---
+
+## 2. The defect this harness exists to not have
+
+The probe lost $9.32 of trading damage against $7.65 of reward. The
+decomposition reads "strategy 73% / harness 27%", **and that reading is wrong.**
+The timeline says otherwise:
+
+- `probebot.py`'s `halt()` cancels resting orders and **never flattens**.
+- The snapshot loop `break`s in the same control-loop iteration.
+- Measured consequence: **2 snapshots recorded over the following 6.14 hours**,
+  while 61 contracts sat naked and directional.
+- The market fell 57 → 49 unobserved. It then **settled YES at $1.00**; holding
+  all 111 contracts would have returned **+$51.73** instead of −$7.39.
+
+The fault is not the entry, the drift, or the fee. It is that **the safety
+mechanism was a stop button on the wrong system.** It stopped the observer and
+left the risk running.
+
+Two structural rules follow, and they are the load-bearing rules in this
+document. Everything else is detail.
+
+> **I1 — The harness never exits, halts, or degrades in a way that leaves
+> inventory unmanaged and unobserved.** Every stop path stops *adding* risk. No
+> stop path stops *reducing* it, and no stop path stops watching it.
+
+> **I2 — The monitoring path is structurally unreachable from the quoting
+> path's control flow.** Monitoring runs on its own goroutine, with its own
+> lifetime, and cannot be terminated by any decision the quote engine makes.
+> There is no `break` in the quote engine that a monitor can observe.
+
+I2 is stated structurally, not behaviourally, on purpose. "Remember to keep
+sampling after a halt" is the kind of rule that gets unlearned. "The sampler is
+not in that function and has no way to be" is not.
+
+---
+
+## 3. Topology
+
+### H-TOP-1 — A new binary, `cmd/harness`
+
+The harness is a **separate process in the same Go module**, not an extension of
+`cmd/rig`. It uses `core` as a library and gets its own `core.Rig` instance and
+its own websocket connection.
+
+Rationale, recorded so it is not re-litigated:
+
+- `cmd/rig`'s entire correctness argument is port-spec §8: gates 1–7 plus a
+  seven-day shadow run, **on the artifact that ships**. Adding a trading path to
+  that binary invalidates the most expensive piece of evidence in the plan.
+- `rig.db` collection is the evidence base for everything. A harness crash must
+  not be able to stop it.
+- `core` was built to be exactly this: pure, deterministic, clock-free, I/O-free.
+  Instantiating a second `core.Rig` costs one map and some level structs.
+
+Cost accepted: two websocket connections to Kalshi, and two independently
+reconstructed books. The books are not compared; `rig.db` remains the
+measurement record and `harness.db` is the operational record.
+
+### H-TOP-2 — What may not be touched
+
+| Path | Status |
+|---|---|
+| `go/core/**` | **Read-only.** Every P-rule in port-spec §4 binds. The harness consumes it and adds nothing to it. |
+| `go/feed/**` | **Read-only.** P25, P25a, P26, P27 bind, and P-rules require the *absence* of a read deadline and a ping. The harness needs both, so it cannot use this package. |
+| `go/store/**` | **Read-only.** Its `fill` INSERT hard-codes `source='observed'`. |
+| `go/cmd/rig/**` | **Read-only.** |
+| `lip/rig.py replay.py score.py auth.py scripts/diffdb.py testdata/*.tsv` | **Frozen.** `scripts/check.py` must stay green. Re-freezing to pass a gate is itself a failure. |
+
+### H-TOP-3 — New packages
+
+```
+harness/wsx     websocket client WITH read deadline, ping/pong, and
+                resolution fallback. A sibling of feed/, never a patch to it.
+harness/rest    signed REST client: portfolio reads, order writes, market and
+                orderbook reads. Reuses feed.Signer.Headers verbatim (it is
+                REST-general — it signs timestamp+METHOD+path for any path).
+harness/quote   the per-market state machine, skew function, priority queue.
+                Pure: no clock, no I/O, no goroutines. Differentially testable
+                like core.
+harness/risk    position model, capital allocator, invariant assertions.
+                Pure.
+harness/hstore  harness.db writer.
+harness/ping    anomaly journal + queued ntfy delivery.
+harness/sim     the deterministic simulated exchange (§14).
+cmd/harness     wiring, goroutines, signals, supervision.
+```
+
+**`harness/quote` and `harness/risk` are pure by the same rule that makes `core`
+pure** (port-spec §3: no clock, no I/O, no goroutines). This is not stylistic —
+it is what makes §14's simulator able to replay a tape and produce a
+deterministic, comparable trace. Anything needing a clock lives in `cmd/harness`
+and is passed in.
+
+### H-TOP-4 — Concurrency
+
+Same discipline as the rig: a single owner goroutine mutates all state.
+
+| Goroutine | Owns | May touch |
+|---|---|---|
+| **owner** | `core.Rig`, all books, all `quote` state, all `risk` state, `hstore` | everything |
+| **pump** | the socket read loop | pushes `[]byte` onto `frames`; touches no book, no row, no DB |
+| **rest-worker** ×K | outbound HTTP | consumes `orderReq` from a channel, pushes `orderResp` back. Never touches state. |
+| **monitor** | nothing | reads a lock-free snapshot published by the owner; writes only to its own tables. **This is the I2 goroutine.** |
+| **ping** | the delivery queue | reads the journal, POSTs, marks delivered |
+| **signal** | the shutdown latch | sets one flag |
+
+`harness/quote` and `harness/risk` carry no mutex, exactly as `core` carries
+none. Safety is single-writer, not locking.
+
+**The monitor does not read owner state directly.** The owner publishes an
+immutable snapshot struct via `atomic.Pointer[Snapshot]` after each tick; the
+monitor reads the pointer. This is what makes I2 structural: the monitor has no
+reference to anything the quote engine can stop.
+
+---
+
+## 4. Coordinate systems — get this wrong and everything else is noise
+
+There are **three** representations in play and they are not interchangeable.
+
+| Representation | Used by | Shape |
+|---|---|---|
+| **Book terms** | LIP scoring, `core`, `probescore.py`, this spec | yes bids at cents, no bids at cents. Both sides are *bids*. |
+| **Wire terms** | the V2 order API | `side` ∈ {`bid`,`ask`} on the **YES leg only**; `price` is a YES-denominated dollar string |
+| **Position terms** | `/portfolio/positions` | one signed number per market, YES-positive |
+
+### H-CO-1 — The transform, pinned
+
+```
+book (side="yes", p cents)  ->  wire {"side":"bid", "price": p/100}
+book (side="no",  p cents)  ->  wire {"side":"ask", "price": (100-p)/100}
+```
+
+A NO bid at 42c **is** a YES ask at 58c. From
+`kalshi.py:create_order`, verified against `docs.kalshi.com/openapi.yaml`
+(`CreateOrderV2Request`, `BookSide`) on 2026-07-25:
+
+> "`bid` means buy YES, `ask` means sell YES. (Selling YES is economically
+> equivalent to buying NO at `1 - price`…)"
+
+### H-CO-2 — Wire encoding
+
+`count` and `price` are **fixed-point STRINGS**, not JSON numbers. Sending
+numbers is a schema violation.
+
+```go
+Count: fmt.Sprintf("%.2f", count)          // "50.00"
+Price: fmt.Sprintf("%.4f", yesCents/100.0) // "0.5800"
+```
+
+The legacy `POST /portfolio/orders` returns **HTTP 410
+`deprecated_v1_order_endpoint`**. The live endpoints are:
+
+```
+POST   /trade-api/v2/portfolio/events/orders
+DELETE /trade-api/v2/portfolio/events/orders/{order_id}
+```
+
+`DELETE` returns `{order_id, client_order_id, reduced_by, ts_ms}` — `reduced_by`
+is the count actually cancelled, **not** a full order object. A partial cancel
+is possible and must be handled.
+
+### H-CO-3 — The orderbook read
+
+`GET /markets/{ticker}/orderbook` returns levels under **`orderbook_fp`** with
+keys `yes_dollars` / `no_dollars`, **best level last** (ascending by price).
+Reverse before use. `core.ParsePriceCents` (banker's rounding on the exact
+binary product, P1) is the only permitted price parser; `core.ParseSize` is the
+only permitted size parser. Do not write a second one.
+
+### H-CO-4 — Sizes are floats
+
+`size` is contracts and is **fractional for ~45% of observed rows**. Our own
+position, our own fills, and every size the harness computes are `float64`.
+There is no `int` count anywhere in the position model. A partial fill of an
+integer-count order can leave a fractional resting remainder.
+
+### H-CO-5 — Self-trade prevention
+
+Every order carries `"self_trade_prevention_type": "taker_at_cross"`. This
+cancels the **incoming** order on a self-match and leaves our resting maker
+alive. `maker` would do the opposite and silently destroy the scoring presence
+we are paid for. Do not change it, and do not omit it.
+
+### H-CO-6 — Never self-cross
+
+Never place an order that would make `our_yes_price + our_no_price ≥ 100`
+against our own resting order on the other side. Check before every placement,
+against our own current resting state, not against the book.
+
+---
+
+## 5. State machines
+
+### 5.1 Global state
+
+```
+        ┌─────────┐  reconcile ok   ┌──────────┐
+        │STARTING ├────────────────►│ RUNNING  │
+        └────┬────┘                 └────┬─────┘
+             │                           │ global halt trigger
+             │ reconcile fails           ▼
+             │                      ┌──────────┐
+             └─────────────────────►│ WINDING  │ ── all markets flat ──► DRAINED
+                                    │  _DOWN   │
+                                    └──────────┘
+```
+
+| State | Adding quotes | Reducing quotes | Monitoring | Process |
+|---|---|---|---|---|
+| `STARTING` | **no** | **no** | yes | alive |
+| `RUNNING` | yes | yes | yes | alive |
+| `WINDING_DOWN` | **no, permanently** | **yes** | yes | **alive** |
+| `DRAINED` | no | no (nothing to reduce) | yes | alive, idle |
+
+**`WINDING_DOWN` is not "stopped".** It is the state the probe should have
+entered and did not. There is no transition from `WINDING_DOWN` back to
+`RUNNING` without an operator action (§10.4).
+
+**`DRAINED` does not exit the process.** It idles, keeps monitoring, keeps
+heartbeating, and waits for an operator. Exiting on drain would mean the one
+moment the harness is safe is also the moment it stops being able to tell you
+anything.
+
+### 5.2 Per-market state
+
+Let `q` = signed net position in contracts (YES-positive), `S` = base quote size.
+
+```
+  IDLE ──select──► QUOTING ◄──────────────┐
+                     │                     │  |q| falls back under inv_soft
+                     │ |q| > inv_soft      │
+                     ▼                     │
+                  SKEWED ──────────────────┘
+                     │ |q| > inv_hard, or market halt trigger,
+                     │ or program end, or close lead
+                     ▼
+                 REDUCING ──── q == 0 ────► IDLE
+                     │
+                     │ close_time − final_lead
+                     ▼
+                 SETTLING ──── close ────► CLOSED
+```
+
+| State | Adding side | Reducing side | Notes |
+|---|---|---|---|
+| `IDLE` | — | — | flat, not selected, or waiting for capital |
+| `QUOTING` | size `S` at touch | size `S` at touch | the normal state; symmetric |
+| `SKEWED` | tapered (§6.2) | `min(\|q\|+S, S_max)` at touch | continuous, no cliff |
+| `REDUCING` | **cancelled** | `min(\|q\|+S, S_max)` at touch | one-sided; still scores (S3) |
+| `SETTLING` | cancelled | capped at `\|q\|` — cannot flip us | see §8 |
+| `CLOSED` | — | — | position settled; terminal |
+
+**Note what is absent: there is no `HALTED` per-market state that cancels
+everything.** A market-level halt trigger sends the market to `REDUCING`, which
+keeps the exit alive. That is the inversion.
+
+---
+
+## 6. Quoting
+
+### 6.1 Placement
+
+- **H-Q-1 — Join the touch, both sides, `N = 0`.** With DF = 0.5, one tick back
+  halves the score. No fill-avoidance benefit repays that.
+- **H-Q-2 — Never improve the touch.** Improving moves the Reference Price to
+  us, makes the whole book score against a reference we set, and widens adverse
+  selection for no scoring gain — we are at `N = 0` either way.
+- **H-Q-3 — Never take.** `post_only: true` on every order the harness ever
+  sends, with no exception, no flag, and no code path that sets it false.
+  This is enforced structurally: `harness/rest` has **no parameter** for it.
+- **H-Q-4 — Quote only into a qualifying book.** If the market's own qualifying
+  walk fails on either side (`core.Book.Qualifies() == 0`), the snapshot is
+  excluded for everyone (S3's gate) and our presence earns nothing. Do not
+  place; do not cancel what is already resting. Record the interval as gated-out
+  in the uptime accounting so it is excluded from the denominator, not counted
+  as our downtime.
+
+### 6.2 The skew function — the only inventory-reduction mechanism
+
+Reducing side `R` = `"no"` if `q > 0`, `"yes"` if `q < 0`, none if `q == 0`.
+Adding side `A` = the opposite.
+
+```
+              ┌ S                                            |q| ≤ inv_soft
+size_A(q) =   │ S · (1 − (|q| − inv_soft)/(inv_hard − inv_soft))   inv_soft < |q| ≤ inv_hard
+              └ 0                                            |q| > inv_hard
+
+size_R(q) = min( |q| + S , S_max )
+```
+
+Both quoted at their own side's touch.
+
+- The taper is **linear and continuous** so a single contract never flips the
+  whole quote on and off. A cliff produces order churn against the rate limit
+  for no scoring benefit.
+- `size_R` includes the full `|q|`: **a single sweep flattens us.** If the whole
+  reducing quote fills we land at `−S` on the other side — a normal-sized
+  position, on what is now the reducing side. The system is self-correcting.
+- **The reducing quote is a scoring quote.** It sits at the touch, inside the
+  qualifying walk, and by S3 it earns full weight on its side. Skewing to flat
+  costs nothing in reward terms. This is the fact that makes S1 affordable.
+
+### 6.3 Reduction is unconditional
+
+**H-Q-5 — There is no loss guard on the reducing quote.** `probebot.py` refused
+to flatten above `max_flatten_loss_c = 6.0` cents. That guard was correct for a
+*taker* exit, which pays a certain cost. It is wrong for a maker reduction: by
+S1 the mid is a martingale, so reducing at the touch is EV-neutral against
+holding, and it frees capital that has a positive expected use. Reduce at
+whatever the market gives. Do not port the guard.
+
+### 6.4 What happens when the reducing quote does not fill
+
+This is the case that killed the probe, so it is specified rather than implied.
+
+**Nothing escalates.** In order:
+
+1. The reducing quote keeps resting, and is requoted to follow the touch under
+   §6.5 like any other quote.
+2. The adding side stays off (`REDUCING`).
+3. Monitoring continues at full cadence. **This is not conditional on anything.**
+4. If `|q| > inv_hard` has held for longer than `stuck_s`, emit an anomaly ping
+   of class `INVENTORY_STUCK` (§11). This is information, not an alarm — the
+   operator may choose to act; the harness will not.
+5. If `|q| > inv_kill`, the *global* state goes to `WINDING_DOWN` — every
+   market stops adding — and a `SEV1` ping fires. The reducing quote in the
+   affected market stays live.
+6. At the close lead, §8 takes over and the position settles.
+
+**At no point does the harness cross the spread**, and at no point does it stop
+observing. If the reducing quote never fills, the position settles at $0.00 or
+$1.00 and that outcome is accepted (S1: it is EV-neutral against the alternative
+we are forbidden from taking anyway).
+
+### 6.5 Requote policy
+
+- **H-Q-6** Requote only when the reference moves **against** us, leaving our
+  order ≥1 tick behind the touch. Do not requote when it moves in our favour —
+  our order is then the best bid and already scores at `N = 0`.
+- **H-Q-7 — Debounce 250ms.** Requote only once the new touch has held for
+  250ms. Bursts under 100ms are 52.6% of all moves and 0.1% of scored time;
+  chasing them buys ~0.0003 of multiplier while multiplying order rate.
+- **H-Q-8 — Stranded brake.** If our resting price is `stale_bid_ticks` (8) or
+  more behind the external touch, snap back to the external touch regardless of
+  which direction it moved. This catches the case where our own order is the
+  only thing holding a price level nobody else wants.
+- **H-Q-9 — Place-then-cancel on an upward requote.** A requote moves our bid
+  *up*. Placing the new order before cancelling the old one avoids a presence
+  gap; both are bids on the same side and cannot cross each other. It is
+  permitted **only** when the new price still satisfies H-CO-6 against our other
+  side, and **only** when the momentary doubled size is within `S_max` and the
+  capital cap. Otherwise cancel-then-place. Presence gaps are revenue (S4), so
+  the ordering is not cosmetic.
+- **H-Q-10 — External book.** Every touch used for a placement decision comes
+  from `external_best(side)`: the book with **our own resting size subtracted
+  from its price level**. Reading the raw book means reading our own order and
+  chasing ourselves. `probebot.py:external_levels` is the reference behaviour.
+
+### 6.6 The order priority queue
+
+With N markets live, the write budget is the binding constraint, not latency.
+Every intended write enters one queue with a class:
+
+| Class | Contents | Starves? |
+|---|---|---|
+| **P0** | any cancel; any write in `WINDING_DOWN` | never — bypasses the bucket |
+| **P1** | reducing-side placement where `\|q\| > inv_soft` | never |
+| **P2** | presence restoration (a qualifying side with nothing resting) | no |
+| **P3** | requote (we are ≥1 tick behind) | yes, bounded |
+| **P4** | top-up after a partial fill | yes, bounded |
+
+- P0 bypasses rate limiting entirely. A cancel is the one write that can only
+  reduce exposure, and it must never be queued behind a requote.
+- **Anti-starvation:** any queued intent older than `max_queue_age` (30s) is
+  promoted one class. An intent whose triggering condition is no longer true is
+  dropped, not sent — the queue holds *intents*, re-evaluated at dequeue, not
+  pre-built requests.
+
+---
+
+## 7. Order lifecycle
+
+### 7.1 Client order IDs
+
+**H-ORD-1 — Deterministic, not random.**
+
+```
+coid = "lipH-{runID}-{marketIdx:03d}-{side}-{seq:08d}"
+```
+
+`runID` is a ULID-like string fixed at process start. `probebot.py` used a fresh
+`uuid.uuid4()` per order, which makes a timed-out write unresolvable without a
+full order scan. A deterministic, greppable coid makes reconciliation a lookup
+and makes every order in `harness.db` traceable to the state that produced it.
+
+The `lipH-` prefix is load-bearing: it is how startup adoption (§7.5)
+distinguishes our orders from anything else on the account.
+
+### 7.2 The write protocol
+
+```
+INTENT  ──dequeue──►  SENDING  ──2xx──►  ACKED  ──►  RESTING
+                          │
+                          ├──4xx (definite)──►  REJECTED
+                          │
+                          └──timeout / 5xx / conn error──►  UNKNOWN
+```
+
+**H-ORD-2 — The harness never retries a write it cannot prove did not happen.**
+
+This is the single most dangerous path in the whole system and it is specified
+tightly. On any ambiguous outcome — request timeout, connection reset, 5xx, or
+any response the client cannot parse — the order goes to `UNKNOWN`:
+
+1. It is **not** retried. Not with the same coid, not with a new one.
+2. A `RECONCILE_NOW` is scheduled immediately.
+3. Reconciliation resolves it by searching for the coid in
+   `GET /portfolio/orders` (all statuses) and `GET /portfolio/fills`.
+   - found resting → adopt as `RESTING`
+   - found filled/cancelled → record the terminal state
+   - absent from both, twice, `unknown_resolve_s` apart → declare it never
+     landed; the intent may be re-queued
+4. While any order in a market is `UNKNOWN`, that market places **no new
+   orders** on that side. It may still cancel (P0).
+5. An `UNKNOWN` unresolved for `unknown_ping_s` (120s) emits `SEV2`.
+
+We do not know whether Kalshi dedupes on `client_order_id`. This protocol is
+correct under either answer, which is why it is specified this way instead of
+assuming one. Confirming the dedupe behaviour is V1.7 in §14; if it dedupes, the
+protocol may later be relaxed, and not before.
+
+### 7.3 Amend
+
+**H-ORD-3 — There is no amend.** The primitive is cancel-then-place, or
+place-then-cancel under H-Q-9. `probebot.py` had no amend path and neither does
+this. If an amend endpoint is later confirmed to exist and to preserve queue
+position, it is a follow-on optimisation with its own gate — not an assumption
+in v1.
+
+### 7.4 Cancel
+
+`DELETE` returns `reduced_by`. **A cancel can be partial.** Treat
+`reduced_by < requested` as "the remainder filled between our decision and the
+exchange's" — do not treat it as an error, do reconcile immediately, and do
+expect the position to have moved.
+
+**H-ORD-4 — Cancel-all is verified, not assumed.** After issuing cancels,
+re-read `GET /portfolio/orders?status=resting` and confirm nothing of ours
+remains. `probebot.py` did this ("sweep") and it is the only thing that turns a
+cancel into a fact. A sweep that still finds our orders retries once, then pings
+`SEV1`.
+
+### 7.5 Startup adoption — the exchange is authoritative
+
+**H-ORD-5 — Reconcile before quoting. Always. No exceptions.**
+
+`STARTING` runs, in this order, and does not place a single order until all of
+it succeeds:
+
+1. `GET /portfolio/positions` → seed `q` for every market with a non-zero
+   position, **including markets not in the selection set.**
+2. `GET /portfolio/orders?status=resting` → every resting order on the account.
+3. `GET /portfolio/fills` → paginate back `backfill_h` (24h) into `our_fill`.
+4. `GET /portfolio/balance` → seed the capital model.
+5. Classify every resting order:
+   - coid matches `lipH-*` → **adopt** into the state machine at its stated
+     price and size.
+   - coid does not match → **not ours.** Do not cancel it. Ping `SEV2`
+     (`FOREIGN_ORDER`) and exclude that market from selection entirely — an
+     account with unexplained orders on it is an account whose position model we
+     cannot trust.
+6. Any market with `q ≠ 0` enters at `REDUCING`, **not** `QUOTING`, regardless
+   of size. Adopted inventory is inventory whose provenance we do not know.
+7. Emit a `STARTUP` ping summarising adopted position and orders.
+
+If any of steps 1–4 fails after `startup_retries` (3), the harness goes to
+`WINDING_DOWN` and pings `SEV1`. It does **not** proceed to quote against an
+unknown position, and it does **not** exit.
+
+### 7.6 Fill attribution — the `source='ours'` path
+
+Attribution is a **join on `trade_id`**, not a heuristic.
+
+- `GET /portfolio/fills` is the authoritative record of our fills. Each fill
+  carries `order_id`, `count`, `price`, `side`, `is_taker`, `fee_cost`, and —
+  **to be confirmed, V1.8** — `trade_id`.
+- The public `trade` websocket stream carries the same `trade_id`. `core`
+  already writes it as `fill.trade_id` in `rig.db`.
+- Therefore: a `rig.db` fill row is ours iff its `trade_id` appears in
+  `harness.db.our_fill`.
+
+**H-ORD-6** — `harness.db.our_fill` has `PRIMARY KEY (trade_id)` and is written
+`INSERT OR IGNORE`. `probe.db.our_fill` was incomplete (8 rows against 12 real
+fills) and mis-attributed `run_id` because run 3 backfilled historical fills
+under its own id. The fix is structural: fills are keyed by their own identity,
+`run_id` is recorded as "the run that first observed this fill" with a separate
+`backfilled` boolean, and it is never used as a filter for correctness.
+
+**H-ORD-7 — The harness does not write to `rig.db`.** Two collectors already
+write it, SQLite has one writer, and a third live writer is a contention and
+corruption risk for the evidence base. The `source='ours'` marking is done
+offline by `scripts/importfills.py`, a single-writer, opt-in, idempotent step
+that `UPDATE fill SET source='ours' WHERE trade_id IN (...)`. `store.go`'s
+hard-coded `'observed'` INSERT stays as it is.
+
+**H-ORD-8 — `is_taker` must be false on every one of our fills, forever.** A
+single fill with `is_taker = true` means H-Q-3 has been violated by something —
+a `post_only` that did not take effect, a marketable price, an API change. It is
+an immediate `SEV1` ping and global `WINDING_DOWN`. This is the cheapest
+possible detector for the most expensive possible bug, and `fee_cost > 0` on any
+fill is the independent corroborator (S2).
+
+---
+
+## 8. Position monitoring
+
+### 8.1 What "position" means
+
+Per market, exactly one number: `q`, signed float64 net contracts,
+YES-positive. `q > 0` is long YES; `q < 0` is long NO. Kalshi nets offsetting
+holdings on the spot (S5), so there is no separate "YES holding" and "NO
+holding" to track — a matched pair self-liquidates and leaves `q` unchanged.
+
+### 8.2 Two derivations, always both
+
+| | Source | Cadence | Role |
+|---|---|---|---|
+| `q_local` | incrementally updated from our own acks and observed fills | every event | reaction speed |
+| `q_exch` | `GET /portfolio/positions` | `position_poll_s` = **5s** | truth |
+
+**H-POS-1 — The exchange is authoritative and overwrites.** On every poll,
+`q_local := q_exch`. `probebot.py` did this ("the exchange is authoritative")
+and it is correct. `q_local` exists so we can react between polls, not so we can
+argue with the exchange.
+
+**H-POS-2 — Every disagreement is recorded, and a sustained one is an
+anomaly.** Write `(ts, ticker, q_local, q_exch, delta, agreed)` to
+`position_poll` on every poll — including agreements, because a table with only
+disagreements in it cannot distinguish "no drift" from "not polling".
+
+- `|delta| > 0` for one poll: normal (a fill landed between events). Record.
+- `|delta| > pos_drift_tol` (0.01 contracts) for **two consecutive polls**:
+  `SEV2` ping (`POSITION_DRIFT`), market → `REDUCING`.
+- `|delta| > pos_drift_hard` (5 contracts) at any single poll: `SEV1`, global
+  `WINDING_DOWN`. Our model of our own risk is wrong; stop adding to it.
+
+**H-POS-3 — `/portfolio/positions` is O(1) in N.** One call returns every
+market. Do not poll per-market. The same holds for `/portfolio/orders` and
+`/portfolio/fills`. Position monitoring cost does not scale with market count,
+which is what makes N-market operation viable at a 5s cadence.
+
+**H-POS-4 — Resting orders are reconciled the same way.**
+`GET /portfolio/orders?status=resting` on the same 5s tick **replaces** our
+order map wholesale. An order we believe is resting and the exchange does not
+report is either filled or cancelled; either way our belief is wrong and the
+exchange's is not.
+
+### 8.3 The monitor loop (the I2 goroutine)
+
+Runs at 1 Hz, independent of everything:
+
+1. Read the published `Snapshot` pointer.
+2. Compute, per market, our predicted LIP share from the live book and our own
+   resting orders, using a Go port of `probescore.py`
+   (`combined_share`/`our_side_share`). **This is not a re-derivation** — the
+   Python is the reference and `scripts/checkscore.py` already verifies its
+   equivalence to the frozen `score.py`; the Go port is gated against the Python
+   the same way (V1.5).
+3. Write one `snap` row per market: our size and price per side, field
+   qualifying score per side, `gated`, and our share.
+4. Integrate presence and share into `uptime`.
+5. Every `heartbeat_s`, publish liveness (§11.4).
+
+**This loop has no reference to the quote engine, the order queue, or the REST
+client.** It cannot be stopped by them. It stops when the process stops, and
+the process does not stop while inventory is open (I1).
+
+---
+
+## 9. Close and program-end handling
+
+Two different deadlines, two different meanings. Both are per-market.
+
+| Boundary | Source | Meaning |
+|---|---|---|
+| `program.end_date` | `/incentive_programs?status=active` | reward accrual stops |
+| `market.close_time` | `/markets/{ticker}` | trading stops; position settles |
+
+`close_time` may fall before or after `end_date`. Both are polled at
+`schedule_poll_s` (300s) and cached; neither is assumed static.
+
+### H-CLOSE-1 — Program end
+
+At `end_date`, the market goes to `REDUCING`. There is no reward left to earn,
+so the adding quote has no purpose, but the reducing quote costs nothing and is
+still our only exit. It stays.
+
+### H-CLOSE-2 — The close lead
+
+At `close_time − close_lead` (default **4h**):
+
+- The adding side is cancelled if it is not already.
+- The market goes to `SETTLING`.
+- **The reducing quote remains, capped at `|q|`** — it cannot flip us, so it
+  takes no new inventory, which is what decision 2 forbids.
+- Remaining inventory settles. The forfeited reward during this window is
+  accepted.
+
+> **Interpretation flagged for review.** Decision 2 as stated is "stop quoting
+> at a fixed lead time before market close and let remaining inventory settle."
+> Read strictly, that cancels everything including the reducing quote. This spec
+> keeps a reducing quote capped at `|q|`, on the reasoning that (a) it can only
+> move us toward flat and so takes no new inventory, (b) it is free by S3, and
+> (c) cancelling it is the exact shape of the probe's defect — removing the exit
+> and keeping the risk. **Config knob `close_lead_keep_reducing` (default
+> `true`); set it `false` for the strict reading.** This is the one place the
+> spec extends a locked decision rather than implementing it literally, and it
+> is called out here rather than buried.
+
+### H-CLOSE-3 — Final cancel
+
+At `close_time − final_lead` (default **60s**), cancel everything in that
+market and verify with a sweep (H-ORD-4). Nothing of ours rests into the close.
+
+### H-CLOSE-4 — Early close
+
+Markets with `can_close_early: true` can settle before `close_time`, so the lead
+is not a guarantee. This is accepted settlement risk under decision 2. Selection
+(§10) **prefers** markets without it, but does not exclude them — the thin books
+where the opportunity lives (S6) frequently have it.
+
+---
+
+## 10. Market selection and capital
+
+### 10.1 Selection
+
+**H-SEL-1 — Rank by `pool ÷ field qualifying score`, not by pool.** DF = 0.5
+crushes depth more than a few ticks behind the touch, so a market's total
+qualifying score can be tiny even when its book is large. The audited example
+`KXUST10AD-26AUG05-T4.65`: pool $80, target 1000, field qualifying score 34.41
+(yes) / 17.30 (no) — 400 contracts at the touch buys share 0.92/0.96. The
+probe's market had a field score of ~2,450, **70× thicker**, for less pool. It
+picked the wrong market.
+
+Filters, all mandatory:
+
+| # | Filter | Value |
+|---|---|---|
+| H-SEL-2 | `/incentive_programs` fetched **with `status=active`** | omitting it returns a different, wrong set — this is what made the prior "economics are thin" claim wrong |
+| H-SEL-3 | elapsed fraction of the program period | ≤ 25% |
+| H-SEL-4 | both sides qualify now, and still qualify after adding our size | `core.Book.Qualifies()` |
+| H-SEL-5 | depth slack on the thinner side | ≥ 1.3 × Target Size |
+| H-SEL-6 | mid | 10c – 90c |
+| H-SEL-7 | `yes_bid + no_bid` | ≤ 99 (required for both sides to rest, and what makes a matched fill profitable — S5) |
+| H-SEL-8 | market settles within | `max_tenor_d` (30 days) — a one-sided fill in a Jan-2028 market is an 18-month directional hold |
+| H-SEL-9 | predicted share | ≤ 50%. **Above ~50% is a red flag, not an opportunity** — it means the qualifying depth is far behind the touch and something unmodelled is holding others out. |
+
+**H-SEL-10 — Re-selection is slow and hysteretic.** Re-rank every
+`reselect_s` (3600s). A market already held is only dropped if it falls
+`hysteresis` (30%) below the marginal candidate — churning markets means
+repeatedly paying entry and re-accruing presence from zero, and presence is the
+whole revenue model (S4).
+
+**H-SEL-11 — A market with `q ≠ 0` is never deselected.** It goes to `REDUCING`
+and stays under management until flat or closed. Deselecting a market we hold is
+literally the probe's bug.
+
+### 10.2 Capital
+
+Collateral for a two-sided quote of `S` contracts per side at book prices
+`p_yes`, `p_no`:
+
+```
+capital(market) = S · (p_yes + p_no) / 100        dollars
+```
+
+Upper bound, and conservative: Kalshi may net more favourably, and we do not
+depend on it doing so.
+
+| # | Rule | |
+|---|---|---|
+| H-CAP-1 | global deployed capital ≤ `capital_max` | hard, checked before every placement |
+| H-CAP-2 | per-market ≤ `capital_max / n_markets · concentration` | `concentration` = 2.0 |
+| H-CAP-3 | reserve `capital_reserve` (25%) unallocated | so a fill never strands the reducing quote |
+| H-CAP-4 | **reducing quotes are funded before adding quotes, globally** | if capital is short, the adding side is what gets cut. Always. |
+| H-CAP-5 | an `insufficient_balance` reject is a **correctness failure**, not a market condition | our accounting is wrong → `SEV1`, global `WINDING_DOWN` |
+
+### 10.3 First live configuration
+
+Several markets live from day one, per the operator's decision. Recommended
+opening configuration, to be raised only after §14's gates are green:
+
+```
+n_markets      = 6
+capital_max    = $500
+S              = 100 contracts/side
+inv_soft       = 25    inv_hard = 60    inv_kill = 150
+```
+
+The capacity model puts $500 at ~$596/day gross across 38 markets, so 6 markets
+is deliberately well inside the modelled curve. Those figures are **modelled,
+not verified** (`reeval-verdict.md` §5 lists five specific reasons they may not
+hold, competitive response first). Nothing in this harness depends on them being
+right; they set an opening size, not an expectation.
+
+### 10.4 Restart from `WINDING_DOWN`
+
+Only by operator action: remove the sentinel file `harness.resume.ok` guard and
+restart the process. The harness never self-clears a global halt. It also never
+requires a restart to keep managing inventory — that is the whole point of
+`WINDING_DOWN` being a live state.
+
+---
+
+## 11. Failure modes
+
+Every row: how it is detected, what the harness does, and whether it pings. "Adds
+no risk" always means the reducing quote survives.
+
+| # | Failure | Detection | Response | Ping |
+|---|---|---|---|---|
+| F1 | **Half-open socket** (hung 1,268s in probe run 1) | client **ping every 10s, pong expected within 5s**; plus a 60s read deadline as backstop | close, reconnect with backoff (1s doubling to 60s), full resnapshot, `RECONCILE_NOW` | `SEV2` if > 60s |
+| F2 | **Clean disconnect** (close 1000/1001) | `IsCleanClose` | reconnect immediately, keep state — matches P25a | none |
+| F3 | **Abnormal disconnect** | any other close/error | backoff, then reset book state and resnapshot | `SEV2` if > 60s |
+| F4 | **Disconnect > `disconnect_halt_s` (60s)** | wall clock since last connected | affected markets → `REDUCING`; **cancels are still attempted over REST**, which is a separate transport | `SEV1` |
+| F5 | **Wedged feed, single market** | book silent > 60s while socket healthy → `GET /markets/{t}/orderbook`, compare **touch price only** | agree → reset the staleness clock, keep quoting. Disagree → that market → `REDUCING` | `SEV2` on disagree |
+| F6 | **macOS DNS wedge** (system-wide, ~every 2.5h; `nslookup` still works and masks it) | any resolution failure to a host that resolved before | fall back to **last-known-good IP with SNI preserved**; cached resolutions have a floor TTL of 1h | `SEV2`, queued |
+| F7 | **Host sleep / process stall** | per tick, compare wall-clock delta against monotonic delta; divergence > 5s | treat the gap as downtime, force resnapshot + `RECONCILE_NOW`, record the interval in `uptime` | `SEV2` |
+| F8 | **429 rate limit** | HTTP 429 | halve the token bucket rate, exponential retry with jitter, restore rate after 60s clean | `SEV2` if sustained > 60s |
+| F9 | **Order reject, definite (4xx)** | HTTP 4xx with a parseable reason | record; if reject rate > 10% over the last 50 orders **in one market**, that market → `REDUCING` | `SEV2` |
+| F10 | **`insufficient_balance` reject** | reject reason | global `WINDING_DOWN` (H-CAP-5) | `SEV1` |
+| F11 | **`post_only` would cross** | reject reason | our book view disagrees with the exchange's → force F5's REST cross-check on that market immediately | `SEV2` if repeated |
+| F12 | **Ambiguous write (timeout/5xx)** | no parseable response | §7.2 `UNKNOWN` protocol. **No retry.** | `SEV2` after 120s unresolved |
+| F13 | **Position drift** | `q_local` vs `q_exch` (§8.2) | tolerance → record; sustained → market `REDUCING`; hard → global `WINDING_DOWN` | `SEV2` / `SEV1` |
+| F14 | **A taker fill of ours** (`is_taker` or `fee_cost > 0`) | fill poll | global `WINDING_DOWN` immediately | `SEV1` |
+| F15 | **Foreign order on the account** | coid does not match `lipH-*` | exclude that market from selection; do **not** cancel it | `SEV2` |
+| F16 | **Inventory stuck** | `\|q\| > inv_hard` for > `stuck_s` (1800s) | nothing mechanical — already `REDUCING` | `SEV2` |
+| F17 | **Inventory beyond `inv_kill`** | position poll | global `WINDING_DOWN` | `SEV1` |
+| F18 | **Harness process death** | absence of the heartbeat (§11.4) | external — supervision restarts it (§12); startup adoption (§7.5) recovers | operator sees missing heartbeat |
+| F19 | **SQLite write failure** | error from `hstore` | **keep trading, keep monitoring**, buffer to an on-disk journal. Losing the record is not a reason to stop managing the risk. | `SEV1` |
+| F20 | **Ping delivery failure** | POST error | queue and retry with backoff; never block the owner goroutine | none (it is the ping channel) |
+| F21 | **Clock step** | wall vs monotonic (as F7) | recompute all deadlines from the new wall clock; never let a step skip a close lead | `SEV2` |
+
+**H-FAIL-1 — No failure response is "exit".** Not one row above terminates the
+process. The only process exits are: operator SIGINT/SIGTERM (which enters
+`WINDING_DOWN` and keeps running until drained, then exits), and SIGKILL or
+power loss (which are recovered by §7.5 on restart).
+
+**H-FAIL-2 — REST and the websocket are independent transports.** A dead
+websocket does not imply a dead REST path. Cancels, position polls and pings all
+continue during a feed outage, and F4's response depends on that.
+
+---
+
+## 12. Halt semantics — the inversion, enumerated
+
+Every trigger, and what the system looks like afterwards. Compare the row
+"monitoring" against `probebot.py`, where every one of these produced *2
+snapshots in 6.14 hours*.
+
+| Trigger | Scope | Adding quotes | Reducing quote | Monitoring | Process |
+|---|---|---|---|---|---|
+| `inv_hard` breach | market | off | **live** | **full** | alive |
+| `inv_kill` breach | **global** | off everywhere | **live** | **full** | alive |
+| P&L ≤ `pnl_kill` | **global** | off everywhere | **live** | **full** | alive |
+| Reject rate > 10%/50 | market | off | **live** | **full** | alive |
+| Feed wedge (F5) | market | off | **live** | **full** | alive |
+| Disconnect > 60s | affected markets | off | **live** (cancels over REST) | **full** | alive |
+| Taker fill detected | **global** | off everywhere | **live** | **full** | alive |
+| `insufficient_balance` | **global** | off everywhere | **live** | **full** | alive |
+| Position drift, hard | **global** | off everywhere | **live** | **full** | alive |
+| Program `end_date` | market | off | **live** | **full** | alive |
+| Close lead | market | off | live, capped at `\|q\|` | **full** | alive |
+| Sentinel file `harness.stop` | **global** | off everywhere | **live** | **full** | alive |
+| SIGINT / SIGTERM | **global** | off everywhere | **live** | **full** | alive until drained |
+
+**H-HALT-1** — The word "halt" does not appear in the codebase. The states are
+`WINDING_DOWN` and `REDUCING`. This is deliberate: `halt()` is a name that
+invites the semantics that lost the money.
+
+**H-HALT-2** — There is exactly one place in the codebase that transitions the
+global state, and exactly one that transitions a market's state. Both write a
+`state_event` row with the trigger. A grep for those two functions enumerates
+every stop path in the system.
+
+**H-HALT-3** — SIGTERM does not exit. It sets `WINDING_DOWN`, keeps the process
+alive, and exits only when every market is flat or closed, or after
+`drain_timeout_h` (default 12h) with a `SEV1` ping at the timeout. An operator
+who genuinely wants the process gone with inventory open must SIGKILL, which is
+an explicit and recoverable act (§7.5), not an accident.
+
+> This deliberately diverges from `cmd/rig`, where SIGTERM rolls the transaction
+> back to reproduce Python's unhandled-signal behaviour (port-spec §6a.3). That
+> faithfulness rule binds the rig, not the harness. The harness has inventory;
+> the rig does not.
+
+---
+
+## 13. Anomaly ping contract
+
+### 13.1 Two legs, and only one of them can fail
+
+- **The journal** — every anomaly is appended to `harness.db.anomaly` and to a
+  plain-text file, *synchronously, before* any delivery is attempted. This leg
+  cannot be lost to a network outage and is the record of record.
+- **The push** — `POST https://ntfy.sh/{topic}`, from the `ping` goroutine,
+  reading the journal. Best effort, retried, never blocking.
+
+The topic is read from `~/.kalshi/env` as `NTFY_TOPIC` and is **never logged,
+printed, or written to any table.** It is a bearer secret: anyone with the topic
+can read the pings.
+
+### 13.2 Severity
+
+| Level | Meaning | Push |
+|---|---|---|
+| `SEV1` | risk state is wrong or unmanaged; act now | immediate, `priority: urgent`, bypasses rate limiting |
+| `SEV2` | something is degraded but the risk is managed; act today | rate limited per class |
+| `SEV3` | informational (startup, selection change, drain complete) | batched into the next heartbeat |
+
+### 13.3 Rate limiting
+
+Per `(class, market)` token bucket: **1 push per 15 minutes**, burst 1.
+Suppressed pings are still journalled, and the next push in that class carries a
+`(suppressed: n)` count so nothing is silently dropped.
+
+`SEV1` bypasses the bucket entirely but is deduplicated: the same
+`(class, market)` at `SEV1` re-pushes at most every 5 minutes.
+
+### 13.4 The heartbeat — the dead-man's switch
+
+**H-PING-1** — A `SEV3` heartbeat pushes every `heartbeat_s` (**3600s**)
+carrying: global state, per-market state, `q` per market, total capital
+deployed, integrated share per market, uptime fraction since start, and the
+count of journalled-but-undelivered anomalies.
+
+This exists because **an anomaly-only channel cannot report its own death.**
+F18 is detected by the *absence* of a heartbeat, which is the operator's job
+unless a dead-man's-switch service is added later. The heartbeat is what makes
+silence informative instead of ambiguous.
+
+### 13.5 Queue durability
+
+Undelivered pings persist across restarts (they are rows, not memory). On
+recovery from an outage the queue is drained oldest-first with each message
+carrying its original timestamp, so an F6 DNS wedge produces a delayed but
+complete record rather than a gap.
+
+---
+
+## 14. Deployment
+
+| # | Rule | |
+|---|---|---|
+| H-DEP-1 | **`CGO_ENABLED=0`** | module-wide already; also means Go uses its **pure-Go resolver**, which reads `/etc/resolv.conf` directly and bypasses `getaddrinfo`/`mDNSResponder`. **Hypothesis: the harness is immune to the macOS DNS wedge (F6).** This is a hypothesis, not a fact — V4.6 tests it *during* an actual outage, because `nslookup` works throughout and masks the failure. |
+| H-DEP-2 | **`launchd`, `KeepAlive: true`** | not `nohup`, not a terminal. Restart on any exit, including exit 0. |
+| H-DEP-3 | **`caffeinate`** | the launchd job execs `/usr/bin/caffeinate -is <harness>`, so the assertion lives exactly as long as the process. The Mac idle-sleeps and a sleep silently voids everything (F7). |
+| H-DEP-4 | stdout/stderr to a rotated file | the log is not the record; `harness.db` is. |
+| H-DEP-5 | one instance only | a PID lockfile, checked at startup. Two harnesses on one account is an unrecoverable position-model conflict. |
+| H-DEP-6 | credentials by path only | `~/.kalshi/kalshi.pem`, `~/.kalshi/env`. Never logged, never printed, never in a table, never in a ping. |
+
+---
+
+## 15. Persistence — `harness.db`
+
+Separate from `rig.db` (H-ORD-7). Opened with `journal_mode=WAL`,
+`synchronous=NORMAL`, single writer.
+
+| Table | Key | Written when | Why it exists |
+|---|---|---|---|
+| `run` | `run_id` | once at start | config snapshot: every parameter in §16, verbatim |
+| `market` | `(run_id, ticker, selected_ms)` | on select/deselect | pool, target, df, period, close_time, rank, reason |
+| `order_intent` | `intent_id` | on enqueue | class, market state, `q`, the touch, why |
+| `order_event` | `(coid, seq)` | place/ack/reject/cancel/sweep/unknown/resolved | with HTTP status and latency |
+| `our_fill` | **`trade_id`** | fill poll | `INSERT OR IGNORE`; `backfilled` flag separate from `run_id` (H-ORD-6) |
+| `position_poll` | `(ts_ms, ticker)` | every 5s | `q_local`, `q_exch`, `delta`, `agreed` — **including agreements** |
+| `snap` | `(ts_ms, ticker)` | every 1s | our size/price per side, field score per side, `gated`, our share |
+| `balance_poll` | `ts_ms` | every 60s | the payout is observable only as a balance delta |
+| `state_event` | `event_id` | every transition | global and per-market, with trigger. H-HALT-2's audit trail. |
+| `anomaly` | `anomaly_id` | before any delivery attempt | class, sev, text, first_ms, delivered_ms, attempts, suppressed_count |
+| `uptime` | `(ticker, start_ms)` | on interval close | presence intervals, with a `gated_out` flag so market-gate exclusions are not counted as our downtime |
+
+**H-STORE-1 — `position_poll` records agreements too.** A table containing only
+disagreements cannot distinguish "no drift" from "not polling", and "not
+polling" is the failure that actually happened.
+
+---
+
+## 16. Parameters
+
+Every knob, one place. All are in `run` at startup.
+
+| Name | Default | Unit | Section |
+|---|---|---|---|
+| `n_markets` | 6 | count | §10.3 |
+| `capital_max` | 500 | USD | H-CAP-1 |
+| `capital_reserve` | 0.25 | fraction | H-CAP-3 |
+| `concentration` | 2.0 | × | H-CAP-2 |
+| `S` (base quote size) | 100 | contracts/side | §6.2 |
+| `S_max` | 400 | contracts/side | §6.2 |
+| `inv_soft` | 25 | contracts | §6.2 |
+| `inv_hard` | 60 | contracts | §6.2 |
+| `inv_kill` | 150 | contracts | §6.4 |
+| `pnl_kill` | −75 | USD | §12 |
+| `debounce_s` | 0.250 | s | H-Q-7 |
+| `requote_interval_s` | 5.0 | s/side/market | §6.6 |
+| `stale_bid_ticks` | 8 | ticks | H-Q-8 |
+| `max_queue_age` | 30 | s | §6.6 |
+| `write_rate` | 5 | writes/s global | §6.6 |
+| `write_burst` | 10 | writes | §6.6 |
+| `position_poll_s` | 5 | s | H-POS-1 |
+| `balance_poll_s` | 60 | s | §15 |
+| `schedule_poll_s` | 300 | s | §9 |
+| `reselect_s` | 3600 | s | H-SEL-10 |
+| `hysteresis` | 0.30 | fraction | H-SEL-10 |
+| `pos_drift_tol` | 0.01 | contracts | H-POS-2 |
+| `pos_drift_hard` | 5 | contracts | H-POS-2 |
+| `ping_interval_s` (ws) | 10 | s | F1 |
+| `pong_timeout_s` | 5 | s | F1 |
+| `read_deadline_s` | 60 | s | F1 |
+| `quiet_s` | 60 | s | F5 |
+| `disconnect_halt_s` | 60 | s | F4 |
+| `stuck_s` | 1800 | s | F16 |
+| `unknown_resolve_s` | 10 | s | §7.2 |
+| `unknown_ping_s` | 120 | s | §7.2 |
+| `close_lead` | 4 | h | H-CLOSE-2 |
+| `final_lead` | 60 | s | H-CLOSE-3 |
+| `close_lead_keep_reducing` | true | bool | H-CLOSE-2 |
+| `max_tenor_d` | 30 | days | H-SEL-8 |
+| `drain_timeout_h` | 12 | h | H-HALT-3 |
+| `heartbeat_s` | 3600 | s | H-PING-1 |
+| `backfill_h` | 24 | h | §7.5 |
+
+---
+
+## 17. Verification plan
+
+**This is the part that matters.** The economics are closed; harness correctness
+is the open question, and this section is the answer to "how do you know?"
+rather than "why do you believe?".
+
+The methodology is the one port-spec §2 already established and proved on this
+codebase: **layered gates, cheapest first, and a negative control on the gates
+themselves.** A gate that has never been shown to fail is not evidence.
+
+### V1 — Pure unit tests (`harness/quote`, `harness/risk`, `harness/rest`)
+
+These packages are clock-free and I/O-free, so every one of these is a table
+test with no fixtures beyond literals.
+
+| # | Pins | Fails if |
+|---|---|---|
+| V1.1 | The H-CO-1 transform, both directions, all 99 prices | a NO bid at 42c does not encode as `{"side":"ask","price":"0.5800"}` |
+| V1.2 | The exact wire payload, byte-for-byte, against `kalshi.py`'s pinned examples | `count`/`price` become JSON numbers, or `.2f`/`.4f` formatting drifts |
+| V1.3 | `size_A`/`size_R` across the whole `q` domain, including `q=0`, `q=±inv_soft`, `q=±inv_hard`, fractional `q` | the taper has a discontinuity, or `size_R` can overshoot past `−S` |
+| V1.4 | H-CO-6: no `(yes,no)` price pair the skew function can emit sums to ≥100 | a self-cross is reachable |
+| V1.5 | The Go port of `probescore.py` against the Python, over randomised books | `combined_share`/`our_side_share` diverge by more than 0 |
+| V1.6 | The capital formula against hand-computed cases | reserve or concentration is mis-applied |
+| V1.7 | **Does Kalshi dedupe on `client_order_id`?** — a live, one-off, minimum-size experiment | — (this is a fact-finding item, not an assertion; its answer is recorded and §7.2 is unchanged either way) |
+| V1.8 | **Does `/portfolio/fills` return `trade_id`?** — same | if not, H-ORD-6's join key is unavailable and attribution must be re-specified before v1 ships |
+| V1.9 | Priority queue ordering and anti-starvation | a P3 requote can precede a P0 cancel |
+| V1.10 | Close-lead computation across timezone strings, DST, and a `close_time` that moves | a lead is computed against a stale schedule |
+
+### V2 — The simulated exchange (`harness/sim`) — the centrepiece
+
+A deterministic, in-process fake implementing the REST and websocket surface,
+driven by a **real captured tape** from `lip/raw-*.jsonl.gz` or `lip/archive/`.
+
+- Book state comes from replaying the tape through `core` — the same code the
+  live harness uses.
+- **Fill model:** a resting order of ours at price `P` fills for
+  `min(our_size, print_size)` when a public print occurs at or through `P`. This
+  is exactly the `trade_through` logic `core` already computes and `rig.db`
+  already records, so the fill model is not invented — it is the measured one.
+- Clock is injected and steppable. `time.Now()` appears nowhere in the tested
+  path.
+- The sim can inject every failure in §11 on command.
+
+**This makes the entire harness replayable and deterministic**, which is what
+turns every scenario below from a manual exercise into a test. It is the
+analogue of `cmd/replay`, and it earns its cost the same way.
+
+### V3 — Invariant assertions, enabled in the simulator *and in production*
+
+Each is checked every tick. In the sim a violation fails the test; in production
+it emits `SEV1` and forces `WINDING_DOWN`.
+
+| # | Invariant |
+|---|---|
+| A1 | No order ever sent with `post_only != true` |
+| A2 | No fill of ours ever has `is_taker == true` or `fee_cost > 0` |
+| A3 | `our_yes_price + our_no_price < 100` for every resting pair of ours |
+| A4 | While `q ≠ 0` in any market, that market has a reducing quote resting **or** an in-flight intent to place one **or** is in `SETTLING` |
+| A5 | The monitor has written a `snap` row within the last 3 seconds, for every selected market, in every global state |
+| A6 | `\|q_local − q_exch\| ≤ pos_drift_tol` at every poll, or a `position_poll` row records the disagreement |
+| A7 | Deployed capital ≤ `capital_max` at every placement decision |
+| A8 | No market in `REDUCING` ever has an adding-side order resting or in flight |
+| A9 | Every state transition has a `state_event` row |
+| A10 | No write is retried while its outcome is `UNKNOWN` |
+
+**A4 and A5 are the two that encode the probe's defect directly.** A5 in
+particular: *"in every global state"* is the clause that would have caught 2
+snapshots in 6.14 hours, at the first tick after the halt.
+
+### V4 — Fault injection matrix
+
+Each row: injected in the simulator as a test, **and** drilled once live in
+dry-run (V6) before any capital.
+
+| # | Fault | Injection | Expected observable |
+|---|---|---|---|
+| V4.1 | Half-open socket | sim stops delivering frames, never closes | ping/pong fails within 15s; reconnect; resnapshot; `SEV2` |
+| V4.2 | Clean close | sim closes 1000 | immediate reconnect, state retained, **no** ping |
+| V4.3 | Abnormal close | sim closes 1006 | backoff, book reset, resnapshot |
+| V4.4 | Disconnect > 60s | sim refuses reconnect | markets → `REDUCING`; **cancels still issued over REST**; `SEV1` |
+| V4.5 | Wedged feed, one market | sim serves a stale book for one ticker; REST disagrees | that market → `REDUCING`; others unaffected; `SEV2` |
+| V4.6 | **macOS DNS wedge** | **live only** — wait for a real outage (~2.5h cycle) and exercise the harness *during* it | H-DEP-1's hypothesis confirmed or refuted. **`nslookup` works throughout and masks the failure — testing after recovery proves nothing.** |
+| V4.7 | Host sleep | `pmset sleepnow` with inventory open, live dry-run | gap detected, resnapshot, reconcile, `uptime` records the interval, `SEV2` |
+| V4.8 | 429 storm | sim returns 429 for 90s | bucket halves, no order lost, no order duplicated, `SEV2` |
+| V4.9 | Reject storm | sim rejects 20% of placements | market → `REDUCING` after the 10%/50 threshold, others unaffected |
+| V4.10 | `insufficient_balance` | sim returns it once | global `WINDING_DOWN`, `SEV1` |
+| V4.11 | Ambiguous write | sim accepts, then times out the response | order → `UNKNOWN`; **zero retries**; resolved at the next poll; no duplicate order exists |
+| V4.12 | Position drift | sim reports a `q_exch` we did not derive | recorded; sustained → `REDUCING`; hard → global |
+| V4.13 | Taker fill | sim reports a fill with `is_taker: true` | global `WINDING_DOWN` within one poll, `SEV1` |
+| V4.14 | Foreign order | sim reports a resting order with a non-`lipH-` coid | market excluded; the order **not** cancelled; `SEV2` |
+| V4.15 | SQLite failure | sim store returns errors | trading and monitoring continue; `SEV1`; journal buffers |
+| V4.16 | ntfy unreachable | sim ping endpoint refuses | owner goroutine never blocks; queue drains in order on recovery |
+| V4.17 | **SIGKILL with inventory** | `kill -9` mid-run, then restart | §7.5 recovers `q` from the exchange, market enters `REDUCING`, resting orders adopted by coid, `STARTUP` ping fires |
+| V4.18 | Clock step | sim jumps wall clock ±1h | deadlines recomputed; **no close lead is skipped** |
+
+### V5 — Negative control: the gate on the gate
+
+port-spec §2 gate 7, applied here. For each invariant in V3, apply a mutation
+that violates it and confirm a named test catches it. **Any mutation that
+survives every gate is a defect in the verification, and the harness does not
+ship until the gate is strengthened** — unless the mutation is positively
+established to be behaviourally inert, argued explicitly and never assumed.
+
+Mutations must be semantic. A mutation caught only because it left an import
+unused tests the Go compiler, not the gate.
+
+The mandatory ones, each named for what it reproduces:
+
+| # | Mutation | Must be caught by |
+|---|---|---|
+| M1 | **`break` the monitor loop when global state leaves `RUNNING`** — *this is `probebot.py`'s exact defect* | A5 |
+| M2 | Cancel the reducing quote on a market halt instead of keeping it | A4 |
+| M3 | `os.Exit` on SIGTERM instead of draining | a lifecycle test asserting the process outlives SIGTERM with `q ≠ 0` |
+| M4 | Retry an `UNKNOWN` write once | A10 + V4.11's duplicate check |
+| M5 | Set `post_only: false` on the reducing quote | A1, A2 |
+| M6 | Deselect a market that has `q ≠ 0` | H-SEL-11 test + A4 |
+| M7 | Drop the `size_R` cap so a fill can overshoot past flat | V1.3 |
+| M8 | Poll positions but skip writing agreeing rows | a `position_poll` density test |
+| M9 | Use the raw book instead of `external_best` | a self-chase test: our own order must never move the quote |
+| M10 | Reverse the H-CO-1 transform for the NO side | V1.1, V1.2 |
+| M11 | Place before reconciling at startup | an ordering test on the `STARTING` sequence |
+| M12 | Skip the cancel-sweep verification | H-ORD-4 test with a sim that ignores the first cancel |
+
+**M1 is the regression test for the $9.32 loss.** It is written first, before
+the harness works, and it must fail against the mutation and pass against the
+real code. If M1 ever stops failing against its mutation, the verification is
+broken regardless of what else is green.
+
+### V6 — Dry run against the live feed
+
+**H-VER-1 — The dry-run guard is structural, not a flag.**
+`harness/rest` refuses any non-GET request unless **two independent conditions**
+hold: `--live` on the command line *and* a `live_ok` file present at a
+configured path. This reproduces `probebot.py`'s `DryRunViolation` pattern,
+which is the one piece of that bot's safety design worth porting verbatim.
+
+Run **72 hours**, real feed, real market selection, all state machines live,
+zero writes. Gates:
+
+- zero non-GET requests attempted (asserted, not observed)
+- every per-market state reached at least once, including `REDUCING` (forced by
+  a synthetic position injected into the model)
+- uptime ≥ 99% of non-gated seconds
+- every fault in V4 drilled at least once
+- V3's invariants held throughout
+- at least one real DNS wedge survived (V4.6)
+- at least one real macOS sleep survived, if one occurs; otherwise forced (V4.7)
+
+### V7 — Live minimum-size run
+
+One market, `S = 1` contract per side, real orders, real capital (~$1).
+
+| # | Must be demonstrated, not asserted |
+|---|---|
+| V7.1 | Every placed order appears in `/portfolio/orders` with our coid |
+| V7.2 | Every cancel is confirmed by a sweep |
+| V7.3 | Every fill appears in `our_fill` keyed by `trade_id`, and `is_taker` is false with `fee_cost == 0.00` |
+| V7.4 | `q_local == q_exch` on every one of ≥1000 consecutive polls |
+| V7.5 | **A deliberately induced one-sided fill is reduced to flat by a resting quote on the opposite side, with zero taker fills** — the core claim of this design |
+| V7.6 | `scripts/importfills.py` marks exactly our `trade_id`s in a copy of `rig.db` as `source='ours'`, and no others |
+| V7.7 | SIGKILL and restart mid-position recovers correctly (V4.17, live) |
+| V7.8 | The realised payout is within the band the integrated `snap` share predicts |
+
+### V8 — Definition of done
+
+- V1 green; V1.7 and V1.8 answered and recorded.
+- V2 simulator replays a real multi-hour tape deterministically: same tape, same
+  trace, twice.
+- V3's ten invariants asserted in both sim and production builds.
+- V4's eighteen faults injected, each with the expected observable recorded.
+- **V5 green: every mutation caught, with the catching test named**, recorded in
+  `notes/harness-negative-control.md`. M1 first.
+- V6's 72-hour dry run complete, with its gates met.
+- V7 complete, all eight rows demonstrated.
+- One cross-model adversarial review round (codex `gpt-5.6-sol`, `xhigh`,
+  read-only sandbox), primed to assume the harness is wrong, that stops finding
+  findings that are **reachable in the deployed configuration**. Reachability is
+  argued in writing, never assumed, in either direction.
+- `scripts/check.py` green; no frozen artifact modified.
+
+**The order is not interchangeable.** V5 before V6, because a dry run gated by
+untested gates is 72 hours of evidence about nothing. V6 before V7, because the
+first live order should not be the first time a state machine is exercised.
+
+---
+
+## 18. Explicitly out of scope
+
+- **Any economics measurement.** No liquidity probes, no pool-size re-derivation,
+  no capture-curve verification, no maker-edge study. That thread is closed.
+- **Taker orders of any kind**, including "emergency" ones. There is no such
+  code path and adding one is a spec change, not an implementation decision.
+- **Improving the touch** (H-Q-2).
+- **Any change to `core`, `feed`, `store`, `cmd/rig`, or any frozen Python.**
+- **Amend orders** (H-ORD-3) — a follow-on with its own gate.
+- **Writing to `rig.db` from the harness** (H-ORD-7).
+- **Cross-market or cross-venue hedging.** Inventory is reduced in the market
+  that created it, by quote skew, or it settles.
+
+---
+
+## 19. Decisions this spec made, that the reader should check
+
+Mechanical decisions are recorded inline. These four are judgement calls where a
+different answer is defensible, collected here so review is cheap:
+
+1. **§9 H-CLOSE-2 keeps a reducing quote inside the close-lead window**, capped
+   at `|q|` so it cannot take new inventory. Decision 2 read strictly would
+   cancel everything. Reasoning is stated at the rule; knob is
+   `close_lead_keep_reducing`. **This is the one place the spec extends a locked
+   decision rather than implementing it literally.**
+2. **§6.2 sizes the reducing quote at `|q| + S`, not `S`.** A full fill flattens
+   us in one sweep and leaves a normal position on the other side. The
+   alternative — cap at `S` — reduces more slowly and consumes less capital.
+3. **§7.5 does not cancel foreign orders**, it excludes the market and pings.
+   Cancelling someone else's — or a previous incarnation's — orders is a
+   destructive act taken on incomplete information.
+4. **§12 H-HALT-3 makes SIGTERM non-terminal.** This diverges deliberately from
+   `cmd/rig`, where SIGTERM rolls back to reproduce Python. Stated at the rule.
+
+---
+
+## 20. Definition of done for *this document*
+
+Done. It pins order lifecycle (§7), position monitoring (§8), exit behaviour
+(§6.2–6.4), close handling (§9), failure modes (§11), halt semantics (§12), the
+ping contract (§13), and the verification plan (§17) precisely enough to
+implement without re-litigating design.
+
+**The next session implements. It does not redesign.** If implementation finds a
+rule that is wrong, patch this document and say why — a recurring "fix" applied
+twice in code is a spec bug, not a code bug (port-spec §7.4).

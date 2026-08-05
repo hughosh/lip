@@ -1,0 +1,1789 @@
+{
+  "probed_at": "2026-08-05T04:41:42Z",
+  "endpoints": {
+    "positions": {
+      "path": "/portfolio/positions",
+      "params": {},
+      "C4_limit_bounds": {
+        "0": {
+          "ok": true,
+          "returned": 1,
+          "cursor_present": false
+        },
+        "1": {
+          "ok": true,
+          "returned": 1,
+          "cursor_present": false
+        },
+        "100": {
+          "ok": true,
+          "returned": 1,
+          "cursor_present": false
+        },
+        "200": {
+          "ok": true,
+          "returned": 1,
+          "cursor_present": false
+        },
+        "201": {
+          "ok": true,
+          "returned": 1,
+          "cursor_present": false
+        },
+        "1000": {
+          "ok": true,
+          "returned": 1,
+          "cursor_present": false
+        },
+        "1001": {
+          "ok": true,
+          "returned": 1,
+          "cursor_present": false
+        },
+        "5000": {
+          "ok": true,
+          "returned": 1,
+          "cursor_present": false
+        }
+      },
+      "C6_large_walk": {
+        "item_key": "x",
+        "pages": [
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": true,
+            "top_level_keys": [
+              "cursor",
+              "event_positions",
+              "market_positions"
+            ],
+            "ms": 165
+          }
+        ],
+        "n_pages": 1,
+        "n_items": 1,
+        "n_unique": 1,
+        "duplicates": [],
+        "cursor_keys_seen": [
+          "cursor"
+        ],
+        "first_cursor_decoded": null,
+        "second_cursor_decoded": null
+      },
+      "C1_cursor_keys": [
+        "cursor"
+      ],
+      "C2_terminal": "cursor key present but empty on final page",
+      "C3_item_key": "market_positions",
+      "C5_ordering": {
+        "verdict": "too few items to determine"
+      },
+      "C7_cursor_shape": {
+        "first": null,
+        "second": null
+      },
+      "C6_small_walk": {
+        "item_key": "x",
+        "pages": [
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": true,
+            "top_level_keys": [
+              "cursor",
+              "event_positions",
+              "market_positions"
+            ],
+            "ms": 165
+          }
+        ],
+        "n_pages": 1,
+        "n_items": 1,
+        "n_unique": 1,
+        "duplicates": [],
+        "cursor_keys_seen": [
+          "cursor"
+        ],
+        "first_cursor_decoded": null,
+        "second_cursor_decoded": null
+      },
+      "C6_agreement": {
+        "large_only": [],
+        "small_only": [],
+        "n_large_only": 0,
+        "n_small_only": 0,
+        "sets_equal": true,
+        "large_has_dupes": [],
+        "small_has_dupes": []
+      }
+    },
+    "orders": {
+      "path": "/portfolio/orders",
+      "params": {},
+      "C4_limit_bounds": {
+        "0": {
+          "ok": false,
+          "status": 400,
+          "body": "{\"msg\":\"Parameter validation failed for GetOrders: Key: 'GetOrdersParams.Limit' Error:Field validation for 'Limit' failed on the 'min' tag\"}"
+        },
+        "1": {
+          "ok": true,
+          "returned": 1,
+          "cursor_present": true
+        },
+        "100": {
+          "ok": true,
+          "returned": 9,
+          "cursor_present": false
+        },
+        "200": {
+          "ok": true,
+          "returned": 9,
+          "cursor_present": false
+        },
+        "201": {
+          "ok": true,
+          "returned": 9,
+          "cursor_present": false
+        },
+        "1000": {
+          "ok": true,
+          "returned": 9,
+          "cursor_present": false
+        },
+        "1001": {
+          "ok": false,
+          "status": 400,
+          "body": "{\"msg\":\"Parameter validation failed for GetOrders: Key: 'GetOrdersParams.Limit' Error:Field validation for 'Limit' failed on the 'max' tag\"}"
+        },
+        "5000": {
+          "ok": false,
+          "status": 400,
+          "body": "{\"msg\":\"Parameter validation failed for GetOrders: Key: 'GetOrdersParams.Limit' Error:Field validation for 'Limit' failed on the 'max' tag\"}"
+        }
+      },
+      "C6_large_walk": {
+        "item_key": "x",
+        "pages": [
+          {
+            "n": 9,
+            "cursor_key": "cursor",
+            "cursor_empty": true,
+            "top_level_keys": [
+              "cursor",
+              "orders"
+            ],
+            "ms": 168
+          }
+        ],
+        "n_pages": 1,
+        "n_items": 9,
+        "n_unique": 9,
+        "duplicates": [],
+        "cursor_keys_seen": [
+          "cursor"
+        ],
+        "first_cursor_decoded": null,
+        "second_cursor_decoded": null
+      },
+      "C1_cursor_keys": [
+        "cursor"
+      ],
+      "C2_terminal": "cursor key present but empty on final page",
+      "C3_item_key": "orders",
+      "C5_ordering": {
+        "created_time": "descending",
+        "ticker": "ascending"
+      },
+      "C7_cursor_shape": {
+        "first": null,
+        "second": null
+      },
+      "C6_small_walk": {
+        "item_key": "x",
+        "pages": [
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "orders"
+            ],
+            "ms": 171
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "orders"
+            ],
+            "ms": 198
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "orders"
+            ],
+            "ms": 185
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "orders"
+            ],
+            "ms": 182
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "orders"
+            ],
+            "ms": 192
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "orders"
+            ],
+            "ms": 192
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "orders"
+            ],
+            "ms": 187
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "orders"
+            ],
+            "ms": 185
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": true,
+            "top_level_keys": [
+              "cursor",
+              "orders"
+            ],
+            "ms": 186
+          }
+        ],
+        "n_pages": 9,
+        "n_items": 9,
+        "n_unique": 9,
+        "duplicates": [],
+        "cursor_keys_seen": [
+          "cursor"
+        ],
+        "first_cursor_decoded": {
+          "raw_len": 46,
+          "raw_prefix": "EhIKEAzwevh9KkUbizfRy9wY",
+          "b64_hex": "12120a100cf07af87d2a451b8b37d1cbdc183f0b1a0c088bf6cad3061098bb8a8b02"
+        },
+        "second_cursor_decoded": {
+          "raw_len": 46,
+          "raw_prefix": "EhIKEA8KLO6rZEwfmBRQ5ftP",
+          "b64_hex": "12120a100f0a2ceeab644c1f981450e5fb4f22a31a0c08c990a5d3061098c8ecdb01"
+        }
+      },
+      "C6_agreement": {
+        "large_only": [],
+        "small_only": [],
+        "n_large_only": 0,
+        "n_small_only": 0,
+        "sets_equal": true,
+        "large_has_dupes": [],
+        "small_has_dupes": []
+      }
+    },
+    "fills": {
+      "path": "/portfolio/fills",
+      "params": {},
+      "C4_limit_bounds": {
+        "0": {
+          "ok": false,
+          "status": 400,
+          "body": "{\"msg\":\"Parameter validation failed for GetFills: Key: 'GetFillsParams.Limit' Error:Field validation for 'Limit' failed on the 'min' tag\"}"
+        },
+        "1": {
+          "ok": true,
+          "returned": 1,
+          "cursor_present": true
+        },
+        "100": {
+          "ok": true,
+          "returned": 15,
+          "cursor_present": false
+        },
+        "200": {
+          "ok": true,
+          "returned": 15,
+          "cursor_present": false
+        },
+        "201": {
+          "ok": true,
+          "returned": 15,
+          "cursor_present": false
+        },
+        "1000": {
+          "ok": true,
+          "returned": 15,
+          "cursor_present": false
+        },
+        "1001": {
+          "ok": false,
+          "status": 400,
+          "body": "{\"msg\":\"Parameter validation failed for GetFills: Key: 'GetFillsParams.Limit' Error:Field validation for 'Limit' failed on the 'max' tag\"}"
+        },
+        "5000": {
+          "ok": false,
+          "status": 400,
+          "body": "{\"msg\":\"Parameter validation failed for GetFills: Key: 'GetFillsParams.Limit' Error:Field validation for 'Limit' failed on the 'max' tag\"}"
+        }
+      },
+      "C6_large_walk": {
+        "item_key": "x",
+        "pages": [
+          {
+            "n": 15,
+            "cursor_key": "cursor",
+            "cursor_empty": true,
+            "top_level_keys": [
+              "cursor",
+              "fills"
+            ],
+            "ms": 167
+          }
+        ],
+        "n_pages": 1,
+        "n_items": 15,
+        "n_unique": 15,
+        "duplicates": [],
+        "cursor_keys_seen": [
+          "cursor"
+        ],
+        "first_cursor_decoded": null,
+        "second_cursor_decoded": null
+      },
+      "C1_cursor_keys": [
+        "cursor"
+      ],
+      "C2_terminal": "cursor key present but empty on final page",
+      "C3_item_key": "fills",
+      "C5_ordering": {
+        "created_time": "descending",
+        "ts": "descending",
+        "market_ticker": "ascending",
+        "ticker": "ascending"
+      },
+      "C7_cursor_shape": {
+        "first": null,
+        "second": null
+      },
+      "C6_small_walk": {
+        "item_key": "x",
+        "pages": [
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "fills"
+            ],
+            "ms": 158
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "fills"
+            ],
+            "ms": 177
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "fills"
+            ],
+            "ms": 194
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "fills"
+            ],
+            "ms": 190
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "fills"
+            ],
+            "ms": 213
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "fills"
+            ],
+            "ms": 186
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "fills"
+            ],
+            "ms": 181
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "fills"
+            ],
+            "ms": 182
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "fills"
+            ],
+            "ms": 182
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "fills"
+            ],
+            "ms": 179
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "fills"
+            ],
+            "ms": 173
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "fills"
+            ],
+            "ms": 180
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "fills"
+            ],
+            "ms": 187
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "cursor",
+              "fills"
+            ],
+            "ms": 178
+          },
+          {
+            "n": 1,
+            "cursor_key": "cursor",
+            "cursor_empty": true,
+            "top_level_keys": [
+              "cursor",
+              "fills"
+            ],
+            "ms": 187
+          }
+        ],
+        "n_pages": 15,
+        "n_items": 15,
+        "n_unique": 15,
+        "duplicates": [],
+        "cursor_keys_seen": [
+          "cursor"
+        ],
+        "first_cursor_decoded": {
+          "raw_len": 46,
+          "raw_prefix": "EhIKEBWCiEofZHwg-rS0BGit",
+          "b64_hex": "12120a101582884a1f647c20fab4b40468ad5df61a0c08c990a5d3061098c8ecdb01"
+        },
+        "second_cursor_decoded": {
+          "raw_len": 46,
+          "raw_prefix": "EhIKEJN7zeNKfFHox3Xe6U0s",
+          "b64_hex": "12120a10937bcde34a7c51e8c775dee94d2c63911a0c08bb90a5d30610a8ca9c8f01"
+        }
+      },
+      "C6_agreement": {
+        "large_only": [],
+        "small_only": [],
+        "n_large_only": 0,
+        "n_small_only": 0,
+        "sets_equal": true,
+        "large_has_dupes": [],
+        "small_has_dupes": []
+      }
+    },
+    "incentive_programs": {
+      "path": "/incentive_programs",
+      "params": {
+        "status": "active"
+      },
+      "C4_limit_bounds": {
+        "0": {
+          "ok": true,
+          "returned": 100,
+          "cursor_present": true
+        },
+        "1": {
+          "ok": true,
+          "returned": 1,
+          "cursor_present": true
+        },
+        "100": {
+          "ok": true,
+          "returned": 100,
+          "cursor_present": true
+        },
+        "200": {
+          "ok": true,
+          "returned": 200,
+          "cursor_present": true
+        },
+        "201": {
+          "ok": true,
+          "returned": 201,
+          "cursor_present": true
+        },
+        "1000": {
+          "ok": true,
+          "returned": 1000,
+          "cursor_present": true
+        },
+        "1001": {
+          "ok": true,
+          "returned": 1001,
+          "cursor_present": true
+        },
+        "5000": {
+          "ok": true,
+          "returned": 4170,
+          "cursor_present": false
+        }
+      },
+      "C6_large_walk": {
+        "item_key": "x",
+        "pages": [
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 294
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 216
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 230
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 231
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 232
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 252
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 399
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 228
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 236
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 253
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 236
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 303
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 285
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 222
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 227
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 228
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 238
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 217
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 244
+          },
+          {
+            "n": 200,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 220
+          },
+          {
+            "n": 170,
+            "cursor_key": "next_cursor",
+            "cursor_empty": true,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 354
+          }
+        ],
+        "n_pages": 21,
+        "n_items": 4170,
+        "n_unique": 4170,
+        "duplicates": [],
+        "cursor_keys_seen": [
+          "next_cursor"
+        ],
+        "first_cursor_decoded": {
+          "raw_len": 70,
+          "raw_prefix": "CgwIyIrJ0wYQmN2HpAISJDdk",
+          "b64_hex": "0a0c08c88ac9d3061098dd87a402122437646432366264322d363162392d343962612d383232372d326530393435313332396434"
+        },
+        "second_cursor_decoded": {
+          "raw_len": 68,
+          "raw_prefix": "CgsI2-HH0wYQ2M-wCRIkZjIz",
+          "b64_hex": "0a0b08dbe1c7d30610d8cfb009122466323361356361632d666164622d343862392d623862332d363961333237373539343831"
+        }
+      },
+      "C1_cursor_keys": [
+        "next_cursor"
+      ],
+      "C2_terminal": "cursor key present but empty on final page",
+      "C3_item_key": "incentive_programs",
+      "C5_ordering": {
+        "verdict": "no tested field is monotonic"
+      },
+      "C7_cursor_shape": {
+        "first": {
+          "raw_len": 70,
+          "raw_prefix": "CgwIyIrJ0wYQmN2HpAISJDdk",
+          "b64_hex": "0a0c08c88ac9d3061098dd87a402122437646432366264322d363162392d343962612d383232372d326530393435313332396434"
+        },
+        "second": {
+          "raw_len": 68,
+          "raw_prefix": "CgsI2-HH0wYQ2M-wCRIkZjIz",
+          "b64_hex": "0a0b08dbe1c7d30610d8cfb009122466323361356361632d666164622d343862392d623862332d363961333237373539343831"
+        }
+      },
+      "C6_small_walk": {
+        "item_key": "x",
+        "pages": [
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 202
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 183
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 190
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 212
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 196
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 206
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 191
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 260
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 196
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 192
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 192
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 204
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 185
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 191
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 247
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 191
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 179
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 195
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 208
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 181
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 199
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 191
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 187
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 201
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 198
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 193
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 193
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 230
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 194
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 190
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 202
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 195
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 175
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 197
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 181
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 200
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 193
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 179
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 204
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 188
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 192
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 197
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 183
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 185
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 196
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 183
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 200
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 192
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 208
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 230
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 202
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 217
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 211
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 194
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 187
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 196
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 189
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 185
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 193
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 193
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 189
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 206
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 199
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 186
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 187
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 243
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 207
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 197
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 188
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 180
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 196
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 182
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 209
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 182
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 180
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 198
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 187
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 192
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 198
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 332
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 192
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 208
+          },
+          {
+            "n": 50,
+            "cursor_key": "next_cursor",
+            "cursor_empty": false,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 191
+          },
+          {
+            "n": 20,
+            "cursor_key": "next_cursor",
+            "cursor_empty": true,
+            "top_level_keys": [
+              "incentive_programs",
+              "next_cursor"
+            ],
+            "ms": 238
+          }
+        ],
+        "n_pages": 84,
+        "n_items": 4170,
+        "n_unique": 4170,
+        "duplicates": [],
+        "cursor_keys_seen": [
+          "next_cursor"
+        ],
+        "first_cursor_decoded": {
+          "raw_len": 70,
+          "raw_prefix": "CgwI7sLJ0wYQwPG7sQMSJDll",
+          "b64_hex": "0a0c08eec2c9d30610c0f1bbb103122439653537333266652d356661352d343162632d383036342d393061356331643137616132"
+        },
+        "second_cursor_decoded": {
+          "raw_len": 62,
+          "raw_prefix": "CgYI4MHJ0wYSJGNiZTI4MGYw",
+          "b64_hex": "0a0608e0c1c9d306122463626532383066302d663635612d343434312d393036322d306266386235336265316262"
+        }
+      },
+      "C6_agreement": {
+        "large_only": [],
+        "small_only": [],
+        "n_large_only": 0,
+        "n_small_only": 0,
+        "sets_equal": true,
+        "large_has_dupes": [],
+        "small_has_dupes": []
+      }
+    }
+  },
+  "C8_filter_interaction": {
+    "orders_status_resting": {
+      "n_items": 0,
+      "n_pages": 1,
+      "n_unique": 0,
+      "cursor_keys": [
+        "cursor"
+      ]
+    },
+    "orders_no_filter": {
+      "n_items": 9,
+      "n_pages": 9,
+      "n_unique": 9,
+      "cursor_keys": [
+        "cursor"
+      ]
+    }
+  },
+  "request_counts": {
+    "get": 169,
+    "post": 0,
+    "delete": 0,
+    "retry": 0,
+    "reject": 6,
+    "dry": 0
+  }
+}

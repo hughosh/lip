@@ -1,0 +1,16 @@
+# port-spec.md §9.5 — frozen-artifact checksums.
+#
+# These are the artifacts §2 forbids any agent from modifying. Regenerating
+# this file to make `check.py` pass is itself a gate failure, identical to
+# editing the artifact directly: it records the change as if it had always
+# been there. If a check fails, revert the artifact.
+
+ff090590ca06057c89e077cff02b86677065433371b5b78dc5d621ce6eba0309  rig.py
+68fa6c1c506536817c3f10972eadb16245eb037fd8a2eb18721671d081adbb93  replay.py
+32d7acfddf779f04235826766771235c9e405bf1923efc38a8ae8ffc6035a631  score.py
+21cfb69eebd83bde163885b699dd4ec7931a69a0aac9804f8b39459c0afbd5d0  auth.py
+0ed9cd21c92e64415c101e917b80e509cdc53375ab62f8564bd72d1bea2c427f  scripts/diffdb.py
+26816f63bbae038c85babfa3ee2f68d1d2e30cd2eef1c53c394a816c98ea8f04  testdata/prices.tsv
+d3476e4deb5dfc74dc551a8c1adbaef23dbdffd739c35f691f0ca46e40819ef9  testdata/sizes.tsv
+99ad55e996e862612c72e9ae830450de9f5dad32284a44c0a851ed933e009297  testdata/sums.tsv
+7402b84b6e791c0a6cee6e611ab6680f75ea0a7851159e2c097a6c5313bc917e  testdata/NULLABILITY.tsv

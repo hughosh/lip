@@ -1,0 +1,53 @@
+# Pre-resolved None-versus-zero mapping for the Python -> Go port.
+#
+# Analogue of Bun's LIFETIMES.tsv: the one ambiguity that recurs across every
+# file, resolved once, centrally, so implementers grep this table instead of
+# re-deriving it per site. Getting a row wrong is invisible at compile time and
+# silently corrupts a column -- a Go zero value written where Python wrote SQL
+# NULL is indistinguishable from a legitimate zero after the fact.
+#
+# USE THE go_type COLUMN VERBATIM. Do not infer it from the surrounding code.
+# If a site you need is missing, stop and add it here first; do not guess
+# locally. See port-spec.md 9.6.
+#
+# can_be_none : can the Python expression evaluate to None?
+# sql_null    : does None reach a SQL column as NULL? (n/a = not persisted)
+#
+# Line refs are against rig.py as of 2026-07-24 (672 lines).
+#
+py_site	py_expr	can_be_none	go_type	sql_null	evidence
+rig.py:357	m["trade_id"]	no	string	no	fill PK; INSERT OR IGNORE means the first row for an id wins
+rig.py:329	int(m["ts_ms"])	no	int64	no	every trade frame on the wire carries ts_ms as a JSON int
+rig.py:324	m["market_ticker"]	no	string	no	the books.get() lookup at 325 returns before use if absent
+rig.py:337	resting_side	no	string	no	always exactly "no" or "yes"; never empty
+rig.py:338	price	no	int	no	round(float*100) of a wire string that is always present
+rig.py:330	float(m["count_fp"])	no	float64	no	count_fp is always a 2-dp string on the wire
+rig.py:333	m.get("taker_side") or ""	no	string	no	absent/None collapses to EMPTY STRING, never NULL (P17)
+rig.py:348	int(best_resting is not None and price < best_resting)	no	int	no	always 0 or 1
+rig.py:341	max(pre_yes) if pre_yes else None	yes	*int	yes	empty yes side -> pre_best_yes NULL
+rig.py:342	max(pre_no) if pre_no else None	yes	*int	yes	empty no side -> pre_best_no NULL
+rig.py:359	pre_yes.get(best_yes, 0.0) if best_yes is not None else 0.0	no	float64	no	ZERO, NOT NULL, when the side is empty (P18)
+rig.py:360	pre_no.get(best_no, 0.0) if best_no is not None else 0.0	no	float64	no	ZERO, NOT NULL, when the side is empty (P18)
+rig.py:361	_mid_of(pre_yes, pre_no)	yes	*float64	yes	NULL when EITHER side is empty; contrast the two rows above
+rig.py:362	(100 - best_yes - best_no) if both not None else None	yes	*int	yes	NULL when either best is None
+rig.py:364	resting_pre.get(price, 0.0)	no	float64	no	ZERO, NOT NULL, when nothing rests at the print price (P18)
+rig.py:366	int(lag * 1000) if lag is not None else None	yes	*int64	yes	NULL only when history was empty (P6); a real lag of 0 is 0, not NULL
+rig.py:355	source	no	string	no	SQL literal 'observed'; not a bound parameter
+rig.py:400	mid_1m / mid_5m / mid_30m	yes	*float64	yes	set only by the wall-clock resolver; never written by replay, excluded from the gate
+rig.py:310	ry, _ = book.best_yes()	yes	*int	yes	reference.ref_yes NULL on an empty yes side
+rig.py:311	rn, _ = book.best_no()	yes	*int	yes	reference.ref_no NULL on an empty no side
+rig.py:312	gate = book.qualifies()	no	int	no	always 0 or 1; NEVER None -- see the Book.gate row below
+rig.py:319	sum(book.yes.values())	no	float64	no	0.0 on an empty side; insertion-ordered (P2)
+rig.py:319	sum(book.no.values())	no	float64	no	0.0 on an empty side; insertion-ordered (P2)
+rig.py:319	book.target	no	float64	no	0.0 when the tape header is absent, which forces gate=0
+rig.py:308	ts_ms	no	int64	no	reference PK component with ticker
+rig.py:158	Book.ref_yes	yes	*int	n/a	nil-INITIALISED, so the first comparison at 313 always differs and always writes
+rig.py:159	Book.ref_no	yes	*int	n/a	nil-initialised, same
+rig.py:160	Book.gate	yes	*int	n/a	nil-initialised. CRITICAL: nil is NOT 0. A book whose first qualifies() is 0 must still write its first reference row, because (nil,nil,nil) != (ry,rn,0). A Go int zero value here suppresses that row.
+rig.py:203	state_before -> lag	yes	*float64	n/a	nil ONLY when history was empty; the oldest-fallback path returns a real NEGATIVE float, not nil (P5, P6)
+rig.py:292	Rig.ex_ts	no	int64	no	starts at 0 and only ever increases
+rig.py:301	msg.get("ts_ms") in _watermark	yes	int64 + ok	n/a	FALSY guard: 0 and None BOTH skip the update, so a nil check alone is wrong (P8)
+rig.py:444	msg.get("market_ticker")	yes	string	n/a	absent -> the books lookup misses -> early return; no separate nil branch needed
+rig.py:431	data.get("sid") / data.get("seq")	yes	int64 + ok	n/a	BOTH must be present for the gap check to run at all; either absent skips it entirely
+rig.py:423	data.get("type")	yes	string	n/a	absent falls through every branch and is silently ignored
+rig.py:424	data.get("msg") or {}	yes	map	n/a	absent/None becomes an EMPTY MAP, so downstream .get() calls miss rather than panic
