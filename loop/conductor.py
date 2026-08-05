@@ -1,30 +1,37 @@
 #!/usr/bin/env python3
 """The unattended two-agent implementation loop.
 
-Control flow is owned by THIS SCRIPT, not by either model. That is the whole
-design decision. An LLM driving an eight-hour loop accumulates context, drifts
-from its protocol, and cannot be bounded, resumed, or audited; a script does not
-drift. Codex keeps the intellectual lead -- it authors every substantive
-decision -- and this file owns only sequencing, budget, retries and termination.
+Control flow is owned by THIS SCRIPT, not by either model. An LLM driving an
+eight-hour loop accumulates context, drifts from its protocol, and cannot be
+bounded, resumed or audited; a script does not drift. Codex keeps the
+intellectual lead -- it authors every substantive decision -- and this file owns
+only sequencing, budgets, retries, scope enforcement and termination.
 
-It is the same argument harness-spec.md §2 makes for I2: the monitor works
-because it is STRUCTURALLY unable to be stopped by the thing it watches.
+It is the argument harness-spec.md §2 makes for I2: the monitor works because it
+is STRUCTURALLY unable to be stopped by the thing it watches.
 
 Per unit:
 
-    gates(quick)
-      -> codex DRIVER   (resumed thread)   directive
-      -> claude IMPLEMENT                  code + tests
-      -> gates(full)
-      -> codex AUDIT  ||  codex ATTACK     (fresh threads, in parallel)
-      -> mutation-survival test            findings settled by evidence
-      -> codex ADJUDICATE (resumed)        advance | revise | park
-      -> commit, bd update, ledger, rotate
+    gates -> DRIVER (codex, resumed)     directive + falsification TARGET
+          -> IMPLEMENT (claude)          code + tests
+          -> gates + scope check         conductor-produced evidence
+          -> AUDIT || CHALLENGE          fresh codex threads, in parallel
+          -> mutation execution          findings settled by running them
+          -> ADJUDICATE (codex)          ADVANCE | REVISE | PARK
+          -> commit / park / retry
+
+CONVERGENCE. Every unit has finite quotas: at most MAX_ROUNDS implementation
+attempts, and **exactly one non-renewable challenge**. A repair of a surviving
+mutant earns no new challenge. Without that non-renewal the loop provably does
+not terminate -- every fix invites a fresh hostile read, which finds something,
+which invites another fix. The bounded challenge budget is the convergence
+guarantee; the mutation execution is what makes each finding decidable.
 
 Stop with:  touch loop/state/STOP
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -42,29 +49,51 @@ STATE_DIR = LOOP / "state"
 RUN_DIR = LOOP / "run"
 PROTO = LOOP / "protocol"
 STOP_FILE = STATE_DIR / "STOP"
+LOCK_FILE = STATE_DIR / "LOCK"
 STATE_FILE = STATE_DIR / "STATE.json"
 LEDGER = STATE_DIR / "LEDGER.md"
+HEARTBEAT = STATE_DIR / "HEARTBEAT"
 
 CODEX = "/Applications/ChatGPT.app/Contents/Resources/codex"
 CLAUDE = shutil.which("claude") or "claude"
 PY = "/Users/hugh/kek/.venv/bin/python"
-SPEC = LIP / "notes" / "harness-spec.md"
-
-# Reasoning effort per turn. `max` is ~10 minutes of wall clock with no output,
-# so it is spent only where an independent hostile read is the actual product.
-EFFORT = {"driver": "xhigh", "audit": "xhigh", "attack": "max", "adjudicate": "max"}
 MODEL = "gpt-5.6-sol"
 
-MAX_ROUNDS_PER_UNIT = 3          # then park; parking never blocks the queue
-MAX_ITERATIONS = 200             # backstop, not a plan
-TURN_TIMEOUT = 45 * 60           # a max-effort turn can legitimately take ~10min
+# The control plane. If any of these changes, an agent has modified the thing
+# that judges it, and every judgement after that point is worthless. Checked
+# every iteration. `check.py` already pins the frozen Python and the read-only
+# Go trees; this pins the judges themselves, which it cannot.
+CONTROL_FILES = [
+    "notes/harness-spec.md",
+    "scripts/check.py",
+    "scripts/harness_negative_control.py",
+    "testdata/FROZEN.sha256",
+    "testdata/READONLY.sha256",
+    "loop/conductor.py",
+    "loop/gates.sh",
+    "loop/protocol/RULES.md",
+    "loop/protocol/driver.md",
+    "loop/protocol/implement.md",
+    "loop/protocol/audit.md",
+    "loop/protocol/challenge.md",
+    "loop/protocol/adjudicate.md",
+]
+
+MAX_ROUNDS = 3               # implementation attempts per unit, then park
+MAX_ITERATIONS = 200         # backstop, not a plan
+DEADLINE_HOURS = 7.5         # absolute; the operator expects to wake to a stop
+TURN_TIMEOUT = 45 * 60
 CLAUDE_TIMEOUT = 30 * 60
-ROTATE_AT_FRACTION = 0.15        # of the reported context window (measured: the
-                                 # cost/quota per turn is linear in context
-                                 # carried, ~$3.09 per Mtok, so rotating early
-                                 # is strictly cheaper than rotating late)
-ROTATE_CODEX_EVERY = 6           # units; staggered against Claude's rotation so
-                                 # the two never reboot in the same iteration
+MIN_FREE_GB = 5
+
+# Session policy. Fresh-per-unit is the limiting case of rotation and needs no
+# untested machinery, so it is the default for an unattended first run. Set
+# ROTATE=True to use long-lived sessions with the measured context threshold
+# below -- but not on a night when the rotation path has never executed.
+ROTATE = False
+ROTATE_AT_FRACTION = 0.15    # measured: cost/quota per turn is linear in context
+                             # carried (~$3.09/Mtok), so rotating early is
+                             # strictly cheaper than rotating late.
 
 RATE_LIMIT_PAT = re.compile(
     r"rate.?limit|429|quota|usage limit|overloaded|too many requests|"
@@ -81,39 +110,34 @@ def now() -> str:
 def log(msg: str) -> None:
     line = f"[{now()}] {msg}"
     print(line, flush=True)
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
     with (STATE_DIR / "conductor.log").open("a") as fh:
         fh.write(line + "\n")
+    HEARTBEAT.write_text(now() + "\n")
+
+
+def sha(p: Path) -> str:
+    return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
+def control_hashes() -> dict:
+    return {f: sha(LIP / f) for f in CONTROL_FILES if (LIP / f).exists()}
 
 
 def load_state() -> dict:
     if STATE_FILE.exists():
         return json.loads(STATE_FILE.read_text())
-    return {
-        "iteration": 0,
-        "units_advanced": 0,
-        "units_parked": 0,
-        "claude_session": None,
-        "claude_ctx_tokens": 0,
-        "claude_ctx_window": 1_000_000,
-        "codex_driver_thread": None,
-        "codex_units_since_rotate": 0,
-        "claude_rotations": 0,
-        "codex_rotations": 0,
-        "spec_sha": None,
-        "findings_raised": 0,
-        "findings_refuted": 0,
-        "findings_admitted": 0,
-        "started": now(),
-    }
+    return {"iteration": 0, "advanced": 0, "parked": 0, "revised": 0,
+            "claude_session": None, "claude_ctx": 0, "claude_window": 1_000_000,
+            "codex_thread": None, "unit_rounds": {}, "unit_challenged": [],
+            "raised": 0, "refuted": 0, "admitted": 0, "inadmissible": 0,
+            "control": None, "started": now(), "terminal": None}
 
 
 def save_state(st: dict) -> None:
-    STATE_FILE.write_text(json.dumps(st, indent=2) + "\n")
-
-
-def sha(path: Path) -> str:
-    import hashlib
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    tmp = STATE_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(st, indent=2) + "\n")
+    tmp.replace(STATE_FILE)          # atomic: a crash mid-write must not tear it
 
 
 def ledger(entry: str) -> None:
@@ -121,127 +145,105 @@ def ledger(entry: str) -> None:
         fh.write(entry.rstrip() + "\n\n")
 
 
-# --------------------------------------------------------------------------
-# gates -- the oracle
-# --------------------------------------------------------------------------
-
 def gates(quick: bool = False) -> tuple[bool, str]:
     cmd = [str(LOOP / "gates.sh")] + (["--quick"] if quick else [])
     p = subprocess.run(cmd, capture_output=True, text=True, cwd=LIP)
-    out = (p.stdout or "") + ("\n--- stderr ---\n" + p.stderr if p.stderr else "")
-    return p.returncode == 0, out
+    return p.returncode == 0, (p.stdout or "") + (
+        "\n--- stderr ---\n" + p.stderr if p.stderr else "")
 
 
-# --------------------------------------------------------------------------
-# model invocation, with the failures that actually happen on this machine
-# --------------------------------------------------------------------------
-
-def _retry_sleep(attempt: int, kind: str) -> int:
-    # macOS on this host wedges DNS system-wide roughly every 2.5 hours and
-    # nslookup keeps working throughout, so a network failure here is expected
-    # and survivable rather than exceptional. Rate limits on a subscription plan
-    # want a much longer wait than a transient socket error.
-    base = 900 if kind == "rate" else 60
-    return min(base * (2 ** attempt), 3600)
+def _sleep_for(attempt: int, kind: str) -> int:
+    # This host's DNS wedges system-wide roughly every 2.5 hours while nslookup
+    # keeps working, so a network failure is expected and survivable. A
+    # subscription rate limit wants a far longer wait than a socket error.
+    return min((900 if kind == "rate" else 60) * (2 ** attempt), 3600)
 
 
-def run_codex(prompt: str, artefact: Path, effort: str,
+def _classify(blob: str) -> str:
+    if RATE_LIMIT_PAT.search(blob):
+        return "rate"
+    return "net" if NET_FAIL_PAT.search(blob) else "other"
+
+
+def run_codex(prompt: str, art: Path, effort: str,
               resume: str | None = None, attempts: int = 4) -> str | None:
-    """One codex turn. Returns the last message, or None if it never landed."""
-    out_file = artefact.with_suffix(".out.md")
-    log_file = artefact.with_suffix(".raw.log")
+    out_file, log_file = art.with_suffix(".out.md"), art.with_suffix(".raw.log")
     argv = [CODEX, "exec"]
     if resume:
         argv += ["resume", resume]
     argv += ["-m", MODEL, "-c", f"model_reasoning_effort={effort}",
              "--skip-git-repo-check", "--sandbox", "read-only",
              "-o", str(out_file), "-"]
-
     for attempt in range(attempts):
         if STOP_FILE.exists():
             return None
         try:
             with log_file.open("w") as lf:
-                p = subprocess.run(argv, input=prompt, text=True, cwd=LIP,
-                                   stdout=lf, stderr=subprocess.STDOUT,
-                                   timeout=TURN_TIMEOUT)
+                subprocess.run(argv, input=prompt, text=True, cwd=LIP,
+                               stdout=lf, stderr=subprocess.STDOUT,
+                               timeout=TURN_TIMEOUT)
         except subprocess.TimeoutExpired:
-            log(f"  codex TIMEOUT after {TURN_TIMEOUT}s (attempt {attempt+1})")
+            log(f"    codex TIMEOUT (attempt {attempt+1})")
             continue
         if out_file.exists() and out_file.stat().st_size > 0:
             return out_file.read_text()
-        tail = log_file.read_text()[-4000:] if log_file.exists() else ""
-        kind = "rate" if RATE_LIMIT_PAT.search(tail) else (
-            "net" if NET_FAIL_PAT.search(tail) else "other")
-        wait = _retry_sleep(attempt, kind)
-        log(f"  codex produced nothing (rc={p.returncode}, kind={kind}); "
-            f"sleeping {wait}s")
-        time.sleep(wait)
+        kind = _classify(log_file.read_text()[-4000:] if log_file.exists() else "")
+        w = _sleep_for(attempt, kind)
+        log(f"    codex empty (kind={kind}); sleeping {w}s")
+        time.sleep(w)
     return None
 
 
-def run_claude(prompt: str, artefact: Path, st: dict,
-               attempts: int = 4) -> tuple[str | None, dict]:
-    """One Claude Code implementer turn. Returns (result_text, envelope)."""
+def run_claude(prompt: str, art: Path, st: dict,
+               attempts: int = 4) -> str | None:
     for attempt in range(attempts):
         if STOP_FILE.exists():
-            return None, {}
+            return None
         argv = [CLAUDE, "-p", prompt, "--output-format", "json",
-                "--permission-mode", "acceptEdits",
-                "--max-turns", "120"]
-        if st.get("claude_session"):
+                "--permission-mode", "acceptEdits", "--max-turns", "120"]
+        if ROTATE and st.get("claude_session"):
             argv += ["--resume", st["claude_session"]]
         try:
             p = subprocess.run(argv, capture_output=True, text=True, cwd=LIP,
                                timeout=CLAUDE_TIMEOUT)
         except subprocess.TimeoutExpired:
-            log(f"  claude TIMEOUT (attempt {attempt+1})")
+            log(f"    claude TIMEOUT (attempt {attempt+1})")
             continue
-        artefact.with_suffix(".raw.json").write_text(p.stdout or "")
+        art.with_suffix(".raw.json").write_text(p.stdout or "")
         try:
             env = json.loads(p.stdout)
         except Exception:
-            blob = (p.stdout or "") + (p.stderr or "")
-            kind = "rate" if RATE_LIMIT_PAT.search(blob) else "other"
-            wait = _retry_sleep(attempt, kind)
-            log(f"  claude unparseable output (kind={kind}); sleeping {wait}s")
-            time.sleep(wait)
+            k = _classify((p.stdout or "") + (p.stderr or ""))
+            w = _sleep_for(attempt, k)
+            log(f"    claude unparseable (kind={k}); sleeping {w}s")
+            time.sleep(w)
             continue
-
         if env.get("is_error"):
-            blob = json.dumps(env)[:4000]
-            kind = "rate" if RATE_LIMIT_PAT.search(blob) else "other"
-            wait = _retry_sleep(attempt, kind)
-            log(f"  claude is_error (kind={kind}); sleeping {wait}s")
-            time.sleep(wait)
+            k = _classify(json.dumps(env)[:4000])
+            w = _sleep_for(attempt, k)
+            log(f"    claude is_error (kind={k}); sleeping {w}s")
+            time.sleep(w)
             continue
-
-        # Context accounting for rotation. contextWindow is reported per model
-        # in the envelope, so fullness is measurable from outside the session
-        # and needs no transcript parsing.
-        st["claude_session"] = env.get("session_id") or st.get("claude_session")
+        st["claude_session"] = env.get("session_id")
         u = env.get("usage") or {}
-        carried = (u.get("input_tokens", 0) + u.get("cache_read_input_tokens", 0)
-                   + u.get("cache_creation_input_tokens", 0))
-        st["claude_ctx_tokens"] = carried
+        st["claude_ctx"] = (u.get("input_tokens", 0)
+                            + u.get("cache_read_input_tokens", 0)
+                            + u.get("cache_creation_input_tokens", 0))
         for m in (env.get("modelUsage") or {}).values():
             if m.get("contextWindow"):
-                st["claude_ctx_window"] = m["contextWindow"]
-        return env.get("result"), env
-    return None, {}
+                st["claude_window"] = m["contextWindow"]
+        return env.get("result")
+    return None
 
 
-def json_block(text: str) -> dict | None:
-    """Pull the last fenced json block out of a model reply."""
+def json_block(text: str | None) -> dict | None:
     if not text:
         return None
-    blocks = re.findall(r"```json\s*(.+?)```", text, re.S)
-    for b in reversed(blocks):
+    for b in reversed(re.findall(r"```json\s*(.+?)```", text, re.S)):
         try:
             return json.loads(b)
         except Exception:
             continue
-    # tolerate a bare object
     m = re.search(r"\{.*\}", text, re.S)
     if m:
         try:
@@ -251,78 +253,61 @@ def json_block(text: str) -> dict | None:
     return None
 
 
-# --------------------------------------------------------------------------
-# bd -- the durable work queue
-# --------------------------------------------------------------------------
-
 def bd(*args: str) -> str:
     p = subprocess.run(["bd", *args], capture_output=True, text=True, cwd=LIP)
     return (p.stdout or "") + (p.stderr or "")
 
 
-def next_unit() -> str | None:
-    out = bd("ready")
-    ids = re.findall(r"\b(lip-[0-9a-z]+)\b", out)
-    # Skip the epics themselves; they are containers, not work.
-    for i in ids:
-        if "EPIC" not in bd("show", i).split("\n")[0]:
-            return i
-    return ids[0] if ids else None
+def next_unit(skip: set[str]) -> str | None:
+    for i in re.findall(r"\b(lip-[0-9a-z]+)\b", bd("ready")):
+        if i in skip:
+            continue
+        # Match on the TITLE LINE only. `bd show` also prints a PARENT line,
+        # which for every child of an epic contains the word "EPIC" -- so
+        # scanning the whole record rejects exactly the work we want.
+        title = bd("show", i).splitlines()[0] if bd("show", i) else ""
+        if "EPIC" in title:
+            continue
+        return i
+    return None
 
 
-# --------------------------------------------------------------------------
-# the mutation-survival test -- how a finding is settled
-# --------------------------------------------------------------------------
+def run_mutation(f: dict, wd: Path) -> tuple[str, str]:
+    """Execute a proposed mutation against the EXISTING gates.
 
-def mutation_survives(finding: dict, workdir: Path) -> tuple[bool, str]:
-    """Apply a proposed mutation to a pristine copy and see if a gate catches it.
-
-    Caught  -> the finding is refuted BY EVIDENCE and closed forever.
-    Survives-> the finding is real and becomes work.
-
-    This is the rule that makes the loop converge: a disagreement between two
-    models is settled by a test rather than by another round of argument.
+    This is what settles a finding. Caught -> refuted by evidence, closed for
+    good. Survived -> a real oracle gap, filed as its own bounded unit. It
+    converts a disagreement between two models into a decidable test, which is
+    the only reason the finding stream terminates.
     """
-    path = finding.get("file")
-    old = finding.get("old")
-    new = finding.get("new")
+    path, old, new = f.get("file"), f.get("old"), f.get("new")
     if not (path and old and new):
-        return False, "inadmissible: no concrete mutation supplied"
-
-    tree = workdir / "mut"
+        return "inadmissible", "no concrete mutation supplied"
+    tree = wd / "mut"
     if tree.exists():
         shutil.rmtree(tree)
-    shutil.copytree(LIP / "go", tree / "go", symlinks=True)
-    target = tree / path if (tree / path).exists() else tree / "go" / path
-    if not target.exists():
-        return False, f"inadmissible: {path} does not exist"
-    src = target.read_text()
+    shutil.copytree(LIP / "go", tree, symlinks=True)
+    tgt = tree / path
+    if not tgt.exists():
+        tgt = tree / path.replace("go/", "", 1)
+    if not tgt.exists():
+        return "inadmissible", f"{path} not found"
+    src = tgt.read_text()
     if src.count(old) != 1:
-        return False, (f"inadmissible: anchor appears {src.count(old)} times in "
-                       f"{path}, must appear exactly once")
-    target.write_text(src.replace(old, new))
+        return "inadmissible", f"anchor appears {src.count(old)}x, need exactly 1"
+    tgt.write_text(src.replace(old, new))
+    env = {**os.environ, "CGO_ENABLED": "0"}
+    if subprocess.run(["go", "build", "./..."], cwd=tree, capture_output=True,
+                      env=env).returncode != 0:
+        # Caught only by the compiler tests the Go compiler, not the gate.
+        return "inadmissible", "does not compile"
+    t = subprocess.run(["go", "test", "-count=1", "./harness/...",
+                        "./cmd/harness/..."], cwd=tree, capture_output=True,
+                       text=True, env=env)
+    if t.returncode != 0:
+        return "refuted", f"CAUGHT by {re.findall(r'--- FAIL: (\\w+)', t.stdout) or ['(unnamed)']}"
+    return "admitted", "SURVIVED every existing gate"
 
-    build = subprocess.run(["go", "build", "./..."], cwd=tree / "go",
-                           capture_output=True, text=True,
-                           env={**os.environ, "CGO_ENABLED": "0"})
-    if build.returncode != 0:
-        # A mutation caught only by the compiler tests the Go compiler, not the
-        # gate. It is not evidence either way.
-        return False, "inadmissible: mutation does not compile"
-
-    test = subprocess.run(
-        ["go", "test", "-count=1", "./harness/...", "./cmd/harness/..."],
-        cwd=tree / "go", capture_output=True, text=True,
-        env={**os.environ, "CGO_ENABLED": "0"})
-    if test.returncode != 0:
-        failing = re.findall(r"--- FAIL: (\w+)", test.stdout)
-        return False, f"CAUGHT by {failing or ['(unnamed)']}"
-    return True, "SURVIVED every existing gate"
-
-
-# --------------------------------------------------------------------------
-# prompt assembly
-# --------------------------------------------------------------------------
 
 def tmpl(name: str, **kw) -> str:
     t = (PROTO / name).read_text()
@@ -331,186 +316,213 @@ def tmpl(name: str, **kw) -> str:
     return t
 
 
-# --------------------------------------------------------------------------
-# main loop
-# --------------------------------------------------------------------------
+def changed_paths() -> list[str]:
+    out = subprocess.run(["git", "status", "--porcelain"], cwd=LIP,
+                         capture_output=True, text=True).stdout
+    return [ln[3:].strip() for ln in out.splitlines() if ln.strip()]
+
 
 def main() -> int:
-    for d in (STATE_DIR, RUN_DIR, PROTO):
+    for d in (STATE_DIR, RUN_DIR):
         d.mkdir(parents=True, exist_ok=True)
+    if LOCK_FILE.exists():
+        print(f"LOCK present ({LOCK_FILE}); another conductor may be running. "
+              f"Remove it if not.", file=sys.stderr)
+        return 3
+    LOCK_FILE.write_text(f"{os.getpid()} {now()}\n")
+    STOP_FILE.unlink(missing_ok=True)
+
     st = load_state()
-    if st.get("spec_sha") is None:
-        st["spec_sha"] = sha(SPEC)
-        save_state(st)
+    if st.get("control") is None:
+        st["control"] = control_hashes()
     if not LEDGER.exists():
-        LEDGER.write_text("# Finding ledger\n\nAppend-only. A finding already "
-                          "here is closed on sight without re-argument.\n\n")
-
-    log(f"conductor start; spec pinned at {st['spec_sha'][:16]}")
-
-    while st["iteration"] < MAX_ITERATIONS:
-        if STOP_FILE.exists():
-            log("STOP file present -- exiting cleanly")
-            break
-
-        # The spec is the contract. If it moved, something violated the
-        # quarantine and every downstream judgement is suspect.
-        if sha(SPEC) != st["spec_sha"]:
-            log("FATAL: harness-spec.md CHANGED outside a spec-patch unit. "
-                "Stopping. This is the failure mode the quarantine exists for.")
-            ledger(f"## {now()} — SPEC MUTATED OUTSIDE QUARANTINE — loop halted")
-            break
-
-        st["iteration"] += 1
-        it = st["iteration"]
-        wd = RUN_DIR / f"{it:04d}"
-        wd.mkdir(parents=True, exist_ok=True)
-        log(f"=== iteration {it} ===")
-
-        ok, gout = gates(quick=True)
-        (wd / "gates-pre.txt").write_text(gout)
-        if not ok:
-            log("  tree is RED before any work; the only admissible unit is "
-                "making it green")
-
-        unit = next_unit()
-        if not unit:
-            log("  no ready work in bd -- queue exhausted")
-            ledger(f"## {now()} — queue exhausted at iteration {it}")
-            break
-        detail = bd("show", unit)
-        (wd / "unit.txt").write_text(detail)
-        log(f"  unit {unit}")
-
-        # ---- 1. driver -------------------------------------------------
-        d_prompt = tmpl("driver.md", UNIT=unit, DETAIL=detail, GATES=gout)
-        (wd / "01-driver.prompt.md").write_text(d_prompt)
-        reply = run_codex(d_prompt, wd / "01-driver", EFFORT["driver"],
-                          resume=st.get("codex_driver_thread"))
-        if reply is None:
-            log("  driver turn failed after retries; skipping iteration")
-            save_state(st); continue
-        directive = json_block(reply) or {"directive": reply, "unit": unit}
-        (wd / "01-directive.json").write_text(json.dumps(directive, indent=2))
-
-        # ---- 2. implement ----------------------------------------------
-        i_prompt = tmpl("implement.md", UNIT=unit,
-                        DIRECTIVE=json.dumps(directive, indent=2))
-        (wd / "02-implement.prompt.md").write_text(i_prompt)
-        result, env = run_claude(i_prompt, wd / "02-implement", st)
-        save_state(st)
-        if result is None:
-            log("  implement turn failed after retries; skipping iteration")
-            continue
-        (wd / "02-implement.result.md").write_text(result)
-
-        ok, gout = gates(quick=False)
-        (wd / "gates-post.txt").write_text(gout)
-        diff = subprocess.run(["git", "diff", "HEAD"], cwd=LIP,
-                              capture_output=True, text=True).stdout
-        (wd / "02-diff.patch").write_text(diff)
-        log(f"  gates after implement: {'GREEN' if ok else 'RED'}; "
-            f"diff {len(diff.splitlines())} lines")
-
-        # ---- 3. audit || attack (fresh threads, parallel) --------------
-        a_prompt = tmpl("audit.md", DIRECTIVE=json.dumps(directive, indent=2),
-                        DIFF=diff[:120000], GATES=gout)
-        x_prompt = tmpl("attack.md", DIFF=diff[:120000],
-                        LEDGER=LEDGER.read_text()[-20000:])
-        (wd / "03-audit.prompt.md").write_text(a_prompt)
-        (wd / "04-attack.prompt.md").write_text(x_prompt)
-        with ThreadPoolExecutor(max_workers=2) as ex:
-            fa = ex.submit(run_codex, a_prompt, wd / "03-audit", EFFORT["audit"])
-            fx = ex.submit(run_codex, x_prompt, wd / "04-attack", EFFORT["attack"])
-            audit_txt, attack_txt = fa.result(), fx.result()
-        audit = json_block(audit_txt or "") or {}
-        attack = json_block(attack_txt or "") or {}
-        (wd / "03-audit.json").write_text(json.dumps(audit, indent=2))
-        (wd / "04-attack.json").write_text(json.dumps(attack, indent=2))
-
-        # ---- 4. settle each finding by mutation, not by argument -------
-        verdicts = []
-        for f in (attack.get("findings") or [])[:8]:
-            survived, why = mutation_survives(f, wd)
-            st["findings_raised"] += 1
-            if survived:
-                st["findings_admitted"] += 1
-                nid = bd("q", f"[from attack] {f.get('title','untitled')[:90]}"
-                         ).strip()
-                verdicts.append({"title": f.get("title"), "verdict": why,
-                                 "filed": nid})
-            else:
-                st["findings_refuted"] += 1
-                verdicts.append({"title": f.get("title"), "verdict": why})
-            ledger(f"## {now()} — iteration {it} — {f.get('title','untitled')}\n"
-                   f"- verdict: **{why}**\n"
-                   f"- reachability: {f.get('reachability','(none given)')}\n"
-                   f"- mutation: `{f.get('file')}`")
-        (wd / "05-verdicts.json").write_text(json.dumps(verdicts, indent=2))
-        log(f"  findings: {len(verdicts)} "
-            f"({sum(1 for v in verdicts if 'SURVIVED' in v['verdict'])} survived)")
-
-        # ---- 5. adjudicate ---------------------------------------------
-        j_prompt = tmpl("adjudicate.md", UNIT=unit, GATES=gout,
-                        AUDIT=json.dumps(audit, indent=2),
-                        VERDICTS=json.dumps(verdicts, indent=2))
-        (wd / "06-adjudicate.prompt.md").write_text(j_prompt)
-        adj_txt = run_codex(j_prompt, wd / "06-adjudicate",
-                            EFFORT["adjudicate"],
-                            resume=st.get("codex_driver_thread"))
-        adj = json_block(adj_txt or "") or {"decision": "PARK",
-                                            "reason": "adjudication unavailable"}
-        (wd / "06-adjudicate.json").write_text(json.dumps(adj, indent=2))
-        decision = str(adj.get("decision", "PARK")).upper()
-        log(f"  decision: {decision} -- {str(adj.get('reason',''))[:160]}")
-
-        if decision == "ADVANCE" and ok:
-            subprocess.run(["git", "add", "-A"], cwd=LIP)
-            subprocess.run(
-                ["git", "-c", "user.name=loop", "-c", "user.email=noreply@localhost",
-                 "commit", "-q", "-m",
-                 f"{unit}: {str(adj.get('summary', 'advance'))[:70]}\n\n"
-                 f"Loop iteration {it}. Audit: {audit.get('fidelity','?')}/"
-                 f"{audit.get('change_safety','?')}. "
-                 f"Findings raised {len(verdicts)}, admitted "
-                 f"{sum(1 for v in verdicts if 'SURVIVED' in v['verdict'])}."],
-                cwd=LIP)
-            bd("close", unit)
-            st["units_advanced"] += 1
-        elif decision == "PARK":
-            bd("update", unit, "--append-notes",
-               f"PARKED at loop iteration {it}: {adj.get('reason','')}")
-            st["units_parked"] += 1
-        # REVISE falls through: the same unit is picked up next iteration.
-
-        # ---- 6. staggered rotation -------------------------------------
-        st["codex_units_since_rotate"] += 1
-        frac = st["claude_ctx_tokens"] / max(st["claude_ctx_window"], 1)
-        rotate_claude = frac >= ROTATE_AT_FRACTION
-        rotate_codex = st["codex_units_since_rotate"] >= ROTATE_CODEX_EVERY
-        if rotate_claude and rotate_codex:
-            # Never reboot both in one iteration: one agent must always hold
-            # warm context so the other's handoff is checked by a peer that
-            # remembers what it was for.
-            rotate_codex = False
-        if rotate_claude:
-            log(f"  rotating Claude session (ctx {frac:.1%} of window)")
-            st["claude_session"] = None
-            st["claude_ctx_tokens"] = 0
-            st["claude_rotations"] += 1
-        if rotate_codex:
-            log("  rotating codex driver thread")
-            st["codex_driver_thread"] = None
-            st["codex_units_since_rotate"] = 0
-            st["codex_rotations"] += 1
-
-        save_state(st)
-
-    log(f"conductor stop. iterations={st['iteration']} "
-        f"advanced={st['units_advanced']} parked={st['units_parked']} "
-        f"findings raised/refuted/admitted="
-        f"{st['findings_raised']}/{st['findings_refuted']}/{st['findings_admitted']}")
+        LEDGER.write_text("# Finding ledger\n\nAppend-only. Conductor-owned. A "
+                          "finding already disposed of here is closed on sight.\n\n")
     save_state(st)
+
+    deadline = time.time() + DEADLINE_HOURS * 3600
+    skip: set[str] = set()
+    terminal = "ALLOWED_QUEUE_EXHAUSTED"
+    log(f"conductor start; deadline {DEADLINE_HOURS}h; rotate={ROTATE}; "
+        f"{len(st['control'])} control files pinned")
+
+    try:
+        while st["iteration"] < MAX_ITERATIONS:
+            if STOP_FILE.exists():
+                terminal = "STOPPED_BY_OPERATOR"; break
+            if time.time() > deadline:
+                terminal = "DEADLINE_REACHED"; break
+            free = shutil.disk_usage(LIP).free / 2**30
+            if free < MIN_FREE_GB:
+                terminal = f"INFRASTRUCTURE_STOP (disk {free:.1f}GB)"; break
+
+            cur = control_hashes()
+            drift = [f for f, h in st["control"].items() if cur.get(f) != h]
+            if drift:
+                log(f"FATAL: control plane modified: {drift}")
+                ledger(f"## {now()} — CONTROL PLANE MUTATED: {drift} — halted")
+                terminal = "BLOCKED (control plane mutated)"; break
+
+            st["iteration"] += 1
+            it = st["iteration"]
+            wd = RUN_DIR / f"{it:04d}"
+            wd.mkdir(parents=True, exist_ok=True)
+            log(f"=== iteration {it} ===")
+
+            unit = next_unit(skip)
+            if not unit:
+                log("  no ready work"); terminal = "ALLOWED_QUEUE_EXHAUSTED"; break
+            rounds = st["unit_rounds"].get(unit, 0) + 1
+            st["unit_rounds"][unit] = rounds
+            save_state(st)                      # debit BEFORE launching a child,
+                                                # so a crash cannot refund a round
+            detail = bd("show", unit)
+            ok, gout = gates(quick=True)
+            log(f"  unit {unit} round {rounds}/{MAX_ROUNDS}; "
+                f"gates {'GREEN' if ok else 'RED'}")
+
+            # ---- driver -------------------------------------------------
+            reply = run_codex(tmpl("driver.md", UNIT=unit, DETAIL=detail,
+                                   GATES=gout),
+                              wd / "01-driver", "xhigh",
+                              resume=st.get("codex_thread") if ROTATE else None)
+            directive = json_block(reply)
+            if not directive:
+                log("  driver produced no directive; skipping"); save_state(st); continue
+            (wd / "01-directive.json").write_text(json.dumps(directive, indent=2))
+            if directive.get("decision") == "SPEC_CONFLICT":
+                log("  SPEC_CONFLICT -> parking for supervision")
+                bd("update", unit, "--append-notes",
+                   f"SPEC_CONFLICT at iteration {it}: {directive.get('scope','')}")
+                bd("tag", unit, "spec-patch")
+                ledger(f"## {now()} — {unit} SPEC_CONFLICT — needs a human")
+                skip.add(unit); st["parked"] += 1; save_state(st); continue
+
+            allowed = set(directive.get("allowed_paths") or [])
+
+            # ---- implement ----------------------------------------------
+            result = run_claude(tmpl("implement.md", UNIT=unit,
+                                     DIRECTIVE=json.dumps(directive, indent=2)),
+                                wd / "02-implement", st)
+            save_state(st)
+            if result is None:
+                log("  implement failed after retries"); continue
+            (wd / "02-implement.md").write_text(result)
+
+            ok, gout = gates(quick=False)
+            (wd / "gates.txt").write_text(gout)
+            diff = subprocess.run(["git", "diff", "HEAD"], cwd=LIP,
+                                  capture_output=True, text=True).stdout
+            (wd / "02.patch").write_text(diff)
+
+            touched = changed_paths()
+            outside = [p for p in touched
+                       if allowed and p not in allowed
+                       and not p.startswith("loop/run/")
+                       and not p.startswith(".beads/")]
+            if outside:
+                log(f"  SCOPE VIOLATION: {outside} -- discarding attempt")
+                subprocess.run(["git", "checkout", "--", *outside], cwd=LIP)
+                ledger(f"## {now()} — {unit} scope violation {outside} — discarded")
+                save_state(st); continue
+            log(f"  gates {'GREEN' if ok else 'RED'}; {len(diff.splitlines())} diff lines")
+
+            # ---- audit || challenge (fresh threads) ----------------------
+            # The challenge is spent ONCE per unit and is never renewed for a
+            # repair. That non-renewal is the convergence guarantee.
+            do_challenge = unit not in st["unit_challenged"]
+            a_p = tmpl("audit.md", DIRECTIVE=json.dumps(directive, indent=2),
+                       DIFF=diff[:120000], GATES=gout)
+            with ThreadPoolExecutor(max_workers=2) as ex:
+                fa = ex.submit(run_codex, a_p, wd / "03-audit", "xhigh")
+                fx = (ex.submit(run_codex,
+                                tmpl("challenge.md", DIFF=diff[:120000],
+                                     LEDGER=LEDGER.read_text()[-20000:]),
+                                wd / "04-challenge", "max")
+                      if do_challenge else None)
+                audit = json_block(fa.result()) or {}
+                attack = json_block(fx.result()) if fx else {}
+            if do_challenge:
+                st["unit_challenged"].append(unit)
+            (wd / "03-audit.json").write_text(json.dumps(audit, indent=2))
+
+            verdicts = []
+            for f in (attack or {}).get("findings", [])[:2]:
+                cls, why = run_mutation(f, wd)
+                st["raised"] += 1
+                st[{"refuted": "refuted", "admitted": "admitted",
+                    "inadmissible": "inadmissible"}[cls]] += 1
+                rec = {"title": f.get("title"), "class": cls, "verdict": why}
+                if cls == "admitted":
+                    rec["filed"] = bd("q", f"[oracle gap] {str(f.get('title'))[:80]}").strip()
+                verdicts.append(rec)
+                ledger(f"## {now()} — it{it} {unit} — {f.get('title','untitled')}\n"
+                       f"- **{cls}**: {why}\n"
+                       f"- reachability: {f.get('reachability','(none)')}\n"
+                       f"- mutation: `{f.get('file')}`")
+            (wd / "05-verdicts.json").write_text(json.dumps(verdicts, indent=2))
+
+            # ---- adjudicate ---------------------------------------------
+            # `max` effort is reserved for genuine divergence: a failing gate, a
+            # DRIFT/NEW-BREAK audit, a surviving mutant, or a repeat round.
+            diverged = (not ok
+                        or audit.get("fidelity") == "DRIFT"
+                        or audit.get("change_safety") == "NEW-BREAK"
+                        or any(v["class"] == "admitted" for v in verdicts)
+                        or rounds > 1)
+            adj = json_block(run_codex(
+                tmpl("adjudicate.md", UNIT=unit, GATES=gout,
+                     AUDIT=json.dumps(audit, indent=2),
+                     VERDICTS=json.dumps(verdicts, indent=2)),
+                wd / "06-adjudicate", "max" if diverged else "xhigh",
+                resume=st.get("codex_thread") if ROTATE else None)) or {}
+            decision = str(adj.get("decision", "PARK")).upper()
+            (wd / "06-adjudicate.json").write_text(json.dumps(adj, indent=2))
+            log(f"  {decision}: {str(adj.get('reason',''))[:150]}")
+
+            if decision == "ADVANCE" and ok:
+                subprocess.run(["git", "add", "-A"], cwd=LIP)
+                subprocess.run(
+                    ["git", "-c", "user.name=loop", "-c",
+                     "user.email=noreply@localhost", "commit", "-q", "-m",
+                     f"{unit}: {str(adj.get('summary','advance'))[:70]}\n\n"
+                     f"Loop iteration {it}, round {rounds}. Audit "
+                     f"{audit.get('fidelity','?')}/{audit.get('change_safety','?')}. "
+                     f"Challenge: {len(verdicts)} mutation(s), "
+                     f"{sum(1 for v in verdicts if v['class']=='admitted')} survived."],
+                    cwd=LIP)
+                bd("close", unit)
+                st["advanced"] += 1
+                st["control"] = control_hashes()   # conductor's own commit is legitimate
+            elif decision in ("PARK", "SPEC_CONFLICT") or rounds >= MAX_ROUNDS:
+                bd("update", unit, "--append-notes",
+                   f"PARKED at iteration {it} after {rounds} round(s): "
+                   f"{adj.get('blocker') or adj.get('reason','')}")
+                # Discard the abandoned attempt. Leaving it in the working tree
+                # would fold it into the NEXT unit's diff, so the audit would
+                # judge one unit's change against another unit's directive and
+                # the parked work would be committed by accident.
+                subprocess.run(["git", "checkout", "--", "."], cwd=LIP)
+                subprocess.run(["git", "clean", "-fd", "go/harness",
+                                "go/cmd/harness"], cwd=LIP)
+                skip.add(unit)
+                st["parked"] += 1
+            else:
+                st["revised"] += 1
+
+            if ROTATE and st["claude_ctx"] / max(st["claude_window"], 1) >= ROTATE_AT_FRACTION:
+                log(f"  rotating claude ({st['claude_ctx']/st['claude_window']:.1%})")
+                st["claude_session"] = None
+            save_state(st)
+    finally:
+        st["terminal"] = terminal
+        save_state(st)
+        LOCK_FILE.unlink(missing_ok=True)
+        log(f"TERMINAL={terminal} iterations={st['iteration']} "
+            f"advanced={st['advanced']} parked={st['parked']} "
+            f"revised={st['revised']} | findings raised={st['raised']} "
+            f"refuted={st['refuted']} admitted={st['admitted']} "
+            f"inadmissible={st['inadmissible']}")
     return 0
 
 
