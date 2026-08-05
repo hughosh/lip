@@ -66,6 +66,9 @@ MODEL = "gpt-5.6-sol"
 CONTROL_FILES = [
     "notes/harness-spec.md",
     "scripts/check.py",
+    # The implementer runs under bypassPermissions; if it could also edit the
+    # permission rules it runs under, the sandbox would be self-modifying.
+    ".claude/settings.json",
     "testdata/FROZEN.sha256",
     "testdata/READONLY.sha256",
     "loop/conductor.py",
@@ -439,6 +442,11 @@ def main() -> int:
     deadline = time.time() + DEADLINE_HOURS * 3600
     skip: set[str] = set()
     terminal = "ALLOWED_QUEUE_EXHAUSTED"
+    # Namespace run artifacts per START, not per iteration number. Deleting
+    # STATE.json restarts the counter at 1, which silently OVERWROTE the
+    # previous run's 0001/ -- so one directory held a mix of two runs' driver,
+    # audit and adjudication records and could not be read as either.
+    run_tag = datetime.now(timezone.utc).strftime("%m%dT%H%M")
     log(f"conductor start; max_iterations={MAX_ITERATIONS}; "
         f"deadline {DEADLINE_HOURS}h; rotate={ROTATE}; "
         f"{len(st['control'])} control files pinned")
@@ -471,7 +479,7 @@ def main() -> int:
 
             st["iteration"] += 1
             it = st["iteration"]
-            wd = RUN_DIR / f"{it:04d}"
+            wd = RUN_DIR / f"{run_tag}-{it:04d}"
             wd.mkdir(parents=True, exist_ok=True)
             log(f"=== iteration {it} ===")
 

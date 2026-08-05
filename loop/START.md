@@ -111,3 +111,13 @@ make — that is the same failure as re-freezing a manifest to pass a gate.
 python loop/conductor.py --dry-run                 # startup, gates, unit pick
 python loop/conductor.py --max-iterations 1        # one supervised unit
 ```
+
+## Do not edit the repo while the loop is running
+
+The conductor cannot tell your writes from the implementer's. It sees any
+unexpected modification as a scope violation and runs `git checkout --` on it.
+An uncommitted edit of yours WILL be reverted mid-run.
+
+If you must change something while it runs: `touch loop/state/STOP`, wait for
+the exit, edit, **commit**, then restart. A committed change is safe — the
+revert restores files to HEAD, so your change survives it.

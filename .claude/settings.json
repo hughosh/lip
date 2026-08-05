@@ -1,4 +1,13 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(caffeinate -is /Users/hugh/kek/.venv/bin/python loop/conductor.py*)",
+      "Bash(nohup caffeinate -is /Users/hugh/kek/.venv/bin/python loop/conductor.py*)",
+      "Bash(/Users/hugh/kek/.venv/bin/python loop/conductor.py*)",
+      "Bash(loop/gates.sh*)",
+      "ScheduleWakeup"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {

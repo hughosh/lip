@@ -53,19 +53,41 @@ func newDriver(t *testing.T) *driver {
 	return d
 }
 
-// publish writes a new snapshot with an ADVANCING seq, as the owner would.
-func (d *driver) publish(g quote.GlobalState, tickers ...string) {
+// marketState is one selected market's published identity for a driven tick.
+// The owner's markets do not share a state -- H-CLOSE-2 sends one market to
+// SETTLING at its own close_time while its peers keep quoting -- so the driver
+// has to be able to say so.
+type marketState struct {
+	ticker string
+	state  quote.MarketState
+}
+
+// publishStates writes a new snapshot with an ADVANCING seq and caller-chosen
+// per-market states, as the owner would. Every market carries q = 61: the
+// contracts the probe left naked, and the reason H-CLOSE-2a and V7.10 care
+// about the close window at all.
+func (d *driver) publishStates(g quote.GlobalState, markets ...marketState) {
 	d.mu.Lock()
 	d.seq++
 	seq := d.seq
 	now := d.now
 	d.mu.Unlock()
-	ms := make([]risk.MarketSnap, 0, len(tickers))
-	for _, tk := range tickers {
-		ms = append(ms, risk.MarketSnap{Ticker: tk, Selected: true,
-			State: quote.Reducing, Q: num.QtyFromFloat(61)})
+	ms := make([]risk.MarketSnap, 0, len(markets))
+	for _, m := range markets {
+		ms = append(ms, risk.MarketSnap{Ticker: m.ticker, Selected: true,
+			State: m.state, Q: num.QtyFromFloat(61)})
 	}
 	d.src.Store(&risk.Snapshot{Seq: seq, PubMono: now, Global: g, Markets: ms})
+}
+
+// publish writes a new snapshot with an ADVANCING seq, as the owner would, with
+// every market REDUCING.
+func (d *driver) publish(g quote.GlobalState, tickers ...string) {
+	ms := make([]marketState, 0, len(tickers))
+	for _, tk := range tickers {
+		ms = append(ms, marketState{ticker: tk, state: quote.Reducing})
+	}
+	d.publishStates(g, ms...)
 }
 
 // step advances the injected clock and delivers exactly one tick, waiting for
@@ -94,6 +116,16 @@ func (d *driver) step(by time.Duration) {
 }
 
 func (d *driver) snapshot() *risk.Snapshot { return d.src.Load() }
+
+// results copies every StepResult the monitor has emitted so far, so a test can
+// assert on what each individual tick produced rather than only on totals.
+func (d *driver) results() []risk.StepResult {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	out := make([]risk.StepResult, len(d.res))
+	copy(out, d.res)
+	return out
+}
 
 func (d *driver) curNow() time.Duration {
 	d.mu.Lock()
@@ -252,6 +284,157 @@ func TestMonitorSamplesInEveryGlobalState(t *testing.T) {
 				t.Fatalf("state %s: %d samples, want 4", g, total)
 			}
 		})
+	}
+}
+
+// TestMonitorSamplesInEveryMarketState pins §8.3's "write one snap row per
+// market" across the whole per-market state set, SETTLING included.
+//
+// TestMonitorSamplesInEveryGlobalState varies the GLOBAL state and hardcodes
+// every market as REDUCING, so nothing above it says anything about the other
+// five market states. SETTLING is the one that matters: H-CLOSE-2 makes it an
+// ordinary reachable close-window state entered at close_time - close_lead, and
+// H-CLOSE-2a plus V7.10 require the whole window to be spent there with q != 0
+// and the capped reducer alive. M13 -- the probe's defect confined to the close
+// window -- lives in exactly that window, and a monitor that stopped watching a
+// SETTLING market would be the same defect one layer down: I1 says no stop path
+// stops watching, and I2 says nothing in the quoting path can reach this loop.
+//
+// The assertions are on the emitted samples and on goroutine liveness, not on
+// A5 alone. A5's Check is vacuous until owner_stall_s has elapsed since
+// tracking began, so a monitor that produced nothing at all would satisfy it
+// over a short run -- driveMarketStates refuses to pass unless at least one A5
+// check landed outside that grace period.
+func TestMonitorSamplesInEveryMarketState(t *testing.T) {
+	// 6s of 1 Hz ticks: twice owner_stall_s, so the run outlasts both the A5
+	// grace period and the stall window.
+	const ticks = 6
+
+	for _, st := range []quote.MarketState{
+		quote.Idle, quote.Quoting, quote.Skewed,
+		quote.Reducing, quote.Settling, quote.Closed,
+	} {
+		t.Run(st.String(), func(t *testing.T) {
+			driveMarketStates(t, newDriver(t), []marketState{
+				{ticker: "KXTEST-A", state: st},
+				{ticker: "KXTEST-B", state: st},
+			}, ticks)
+		})
+	}
+
+	// Market state is per market. A monitor that gave up on the one SETTLING
+	// market in a snapshot would take that market's peers -- still quoting,
+	// still reducing, still holding inventory -- down with it.
+	t.Run("SETTLING_alongside_peers", func(t *testing.T) {
+		driveMarketStates(t, newDriver(t), []marketState{
+			{ticker: "KXTEST-A", state: quote.Quoting},
+			{ticker: "KXTEST-B", state: quote.Settling},
+			{ticker: "KXTEST-C", state: quote.Reducing},
+		}, ticks)
+	})
+
+	// H-CLOSE-2 is a TRANSITION, not a starting condition: a market that was
+	// quoting goes to SETTLING while the owner keeps publishing. A monitor that
+	// gave up on the edge rather than on the state would survive every subtest
+	// above, so the edge is driven too.
+	t.Run("entry_to_SETTLING", func(t *testing.T) {
+		d := newDriver(t)
+		driveMarketStates(t, d, []marketState{
+			{ticker: "KXTEST-A", state: quote.Quoting},
+			{ticker: "KXTEST-B", state: quote.Reducing},
+		}, 4)
+		driveMarketStates(t, d, []marketState{
+			{ticker: "KXTEST-A", state: quote.Settling},
+			{ticker: "KXTEST-B", state: quote.Reducing},
+		}, ticks)
+	})
+}
+
+// driveMarketStates publishes `markets` with an advancing seq and steps the
+// monitor one second at a time, asserting after EVERY tick that the loop is
+// still alive and that the tick produced exactly one fresh sample per selected
+// market. It may be called more than once against the same driver, to drive a
+// state transition.
+func driveMarketStates(t *testing.T, d *driver, markets []marketState, ticks int) {
+	t.Helper()
+
+	base := len(d.results())
+	baseTotal, baseStale := d.mon.state.Counts()
+	// The driver's clock starts at 0 and the first tick lands at 1s, which is
+	// when A5 starts tracking; its grace period runs owner_stall_s from there.
+	const firstTick = time.Second
+	postGrace := 0
+
+	for i := 0; i < ticks; i++ {
+		d.publishStates(quote.Running, markets...)
+		d.step(time.Second)
+
+		select {
+		case <-d.done:
+			t.Fatalf("the monitor loop exited at tick %d with markets %v -- "+
+				"I1: no stop path stops watching", base+i, markets)
+		default:
+		}
+
+		got := d.results()
+		if len(got) != base+i+1 {
+			t.Fatalf("tick %d produced %d results in total, want %d -- the "+
+				"monitor skipped a tick with markets %v",
+				base+i, len(got), base+i+1, markets)
+		}
+		res := got[base+i]
+		if res.Stale || !res.IntegrateUptime {
+			t.Fatalf("tick %d: an advancing source was reported stale=%v "+
+				"integrate=%v with markets %v",
+				base+i, res.Stale, res.IntegrateUptime, markets)
+		}
+		if len(res.Samples) != len(markets) {
+			t.Fatalf("tick %d: %d samples, want exactly one per selected "+
+				"market (%d): %+v", base+i, len(res.Samples), len(markets),
+				res.Samples)
+		}
+		for j, m := range markets {
+			s := res.Samples[j]
+			if s.Ticker != m.ticker || s.Snap.State != m.state {
+				t.Fatalf("tick %d sample %d: %s in %s, want %s in %s",
+					base+i, j, s.Ticker, s.Snap.State, m.ticker, m.state)
+			}
+			if s.Stale {
+				t.Fatalf("tick %d: the sample for %s in %s was marked stale "+
+					"while the owner was publishing normally",
+					base+i, m.ticker, m.state)
+			}
+			if s.Snap.Q.IsFlat() {
+				t.Fatalf("tick %d: the sample for %s in %s carries q = 0 -- "+
+					"H-CLOSE-2a and V7.10 are about the window with q != 0",
+					base+i, m.ticker, m.state)
+			}
+		}
+
+		now := d.curNow()
+		if v := d.mon.checkA5(now, d.snapshot()); len(v) != 0 {
+			t.Fatalf("tick %d (%v): A5 violated with markets %v: %v",
+				base+i, now, markets, v)
+		}
+		if now-firstTick >= stallAfter {
+			postGrace++
+		}
+	}
+
+	if postGrace == 0 {
+		t.Fatalf("every A5 check fell inside its initial grace period (%v "+
+			"elapsed, grace %v) -- the A5 assertion was vacuous",
+			d.curNow(), stallAfter)
+	}
+	total, stale := d.mon.state.Counts()
+	if want := baseTotal + uint64(ticks*len(markets)); total != want {
+		t.Fatalf("%d samples after %d ticks of %d markets %v, want %d -- "+
+			"sampling stopped or thinned out",
+			total, ticks, len(markets), markets, want)
+	}
+	if stale != baseStale {
+		t.Fatalf("%d samples became stale while the owner was publishing "+
+			"normally with markets %v", stale-baseStale, markets)
 	}
 }
 
