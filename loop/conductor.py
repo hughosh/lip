@@ -550,7 +550,49 @@ def main() -> int:
             if not directive:
                 log("  driver produced no directive; skipping"); save_state(st); continue
             (wd / "01-directive.json").write_text(json.dumps(directive, indent=2))
-            if directive.get("decision") == "SPEC_CONFLICT":
+            dec0 = str(directive.get("decision", "")).upper()
+
+            # ALREADY_SATISFIED closes an obligation without doing work, so the
+            # claim is VERIFIED, never trusted. The driver must name a Go test
+            # symbol; if it is not actually in the tree the unit stays open.
+            # Without this a unit can be closed by assertion, which is codex's
+            # ranked failure #3 -- a requirement silently vanishing.
+            if dec0 == "ALREADY_SATISFIED":
+                sym = str(directive.get("evidence_symbol", "")).strip()
+                found = bool(sym) and subprocess.run(
+                    ["grep", "-rqn", f"func {sym}", "go"], cwd=LIP).returncode == 0
+                if found:
+                    log(f"  ALREADY_SATISFIED, verified by {sym} -- closing")
+                    bd("update", unit, "--append-notes",
+                       f"Closed at iteration {it}: already satisfied by {sym}, "
+                       f"verified present in the tree by the conductor.")
+                    bd("close", unit)
+                    st["advanced"] += 1
+                    st["pending"] = {}
+                    ledger(f"## {now()} — {unit} ALREADY_SATISFIED, verified "
+                           f"by `{sym}`")
+                else:
+                    log(f"  ALREADY_SATISFIED claimed {sym!r} but it is NOT in "
+                        f"the tree -- refusing to close")
+                    bd("update", unit, "--append-notes",
+                       f"Iteration {it}: driver claimed already-satisfied by "
+                       f"{sym!r}, which does not exist. Not closed.")
+                    ledger(f"## {now()} — {unit} unverifiable "
+                           f"ALREADY_SATISFIED claim (`{sym}`) — left open")
+                    skip.add(unit)
+                save_state(st); continue
+
+            # OPERATOR_ONLY must PARK, never close. It means the obligation is
+            # real and still owed -- just not doable by an agent.
+            if dec0 == "OPERATOR_ONLY":
+                log("  OPERATOR_ONLY -> parking (obligation remains open)")
+                bd("update", unit, "--append-notes",
+                   f"OPERATOR_ONLY at iteration {it}: {directive.get('scope','')}")
+                bd("tag", unit, "operator-only")
+                ledger(f"## {now()} — {unit} OPERATOR_ONLY — parked, still owed")
+                skip.add(unit); st["parked"] += 1; save_state(st); continue
+
+            if dec0 == "SPEC_CONFLICT":
                 log("  SPEC_CONFLICT -> parking for supervision")
                 bd("update", unit, "--append-notes",
                    f"SPEC_CONFLICT at iteration {it}: {directive.get('scope','')}")

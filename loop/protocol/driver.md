@@ -50,9 +50,21 @@ Also unavailable: `go/core`, `go/feed`, `go/store`, `go/cmd/rig`, any frozen
 Python, and any `*.db`.
 
 If the obligation genuinely requires changing one of these, return
-`decision: "SKIP"` with a reason naming the file. It is operator work, not
-agent work. `scripts/harness_negative_control.py` is the exception — it is a
-ratchet, so mutations may be ADDED to it, never removed or renamed.
+`decision: "OPERATOR_ONLY"` naming the file. It is operator work, not agent
+work, and the unit is parked rather than closed.
+`scripts/harness_negative_control.py` is the exception — it is a ratchet, so
+mutations may be ADDED to it, never removed or renamed.
+
+## If the obligation is already satisfied
+
+Return `decision: "ALREADY_SATISFIED"` and put the **name of the Go test
+function that satisfies it** in `evidence_symbol`. The conductor greps the tree
+for that symbol and refuses to close the unit if it is not there — so an
+obligation cannot be closed by asserting it is done. Name a real symbol or do
+not use this decision.
+
+Do **not** use it for "mostly covered" or "close enough". If any part of the
+obligation is unmet, return `IMPLEMENT` for the remainder.
 
 ## Return
 
@@ -60,8 +72,9 @@ A single fenced ```json block, and nothing that matters outside it:
 
 ```json
 {
-  "decision": "IMPLEMENT | SPEC_CONFLICT | SKIP",
+  "decision": "IMPLEMENT | ALREADY_SATISFIED | OPERATOR_ONLY | SPEC_CONFLICT",
   "unit": "{{UNIT}}",
+  "evidence_symbol": "TestNameThatSatisfiesIt (ALREADY_SATISFIED only)",
   "spec_ids": ["H-Q-5a", "V1.3"],
   "scope": "one paragraph: exactly what to build, in what file(s)",
   "allowed_paths": ["go/harness/quote/skew.go", "go/harness/quote/skew_test.go"],
