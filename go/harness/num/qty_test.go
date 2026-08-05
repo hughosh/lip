@@ -214,6 +214,144 @@ func TestQtySignPreservesOneQuantumPositions(t *testing.T) {
 	}
 }
 
+// TestQtySignPreservesDeployedFullFillPositions carries the H-CO-4a sign
+// boundary off the quantum and onto the position §10.3 actually deploys.
+//
+// TestQtySignPreservesOneQuantumPositions pins the lower edge of V1.3's `q`
+// domain, where |q| is a single quantum and the sign is all that is left. That
+// edge is where a widened zero test bites, but it is not where the harness
+// spends its time. §10.3 posts S = 12 contracts a side in each of six markets,
+// and V2-FILL enumerates a full fill as one of the legal outcomes of a print
+// against a resting order of ours -- it is not the assumed outcome, but it is an
+// admissible one, so it cannot be dismissed as unreachable. A base quote taken
+// from flat therefore lands on exactly ±12.00 contracts, which under H-CO-4a's
+// contracts × 100 is Qty(±1200). That, not one hundredth, is the ordinary
+// position the reducer is sized against: size_R = min(|q|, S_max, funded) with
+// S_max = 4·S = 48 contracts leaves |q| the binding term all the way up the
+// deployed ladder.
+//
+// The failure excluded here is a Sign that is right at the quantum and wrong at
+// the working point -- signless, or reversed. §8.1 makes `q` YES-positive, so
+// §6.2 must answer "no" for +1200 and "yes" for -1200:
+//
+//   - Signless is A4's failure. No branch of §6.2 selects a side, so no reducer
+//     is sized and none is placed against a position IsFlat still reports open.
+//   - Reversed is worse, because it is silent. It selects the ADDING side as the
+//     reducer, and every downstream rule then reads as satisfied while the
+//     position runs the wrong way: A8 forbids an adding-side order in REDUCING
+//     and this is one by construction; H-Q-5a's cap is on |q|, which a mis-signed
+//     reducer of exactly |q| respects; and A12's "no fill sequence can change the
+//     sign of q" is broken by the first full fill, which takes +12.00 to +24.00
+//     rather than to flat -- past inv_hard = 7 and clear through inv_kill = 18.
+//
+// The expected sign, the expected side and the reducer's magnitude are all table
+// literals, so this test's oracle shares no quantizer, parser or sign rule with
+// production. Only the DIRECTION of the fill is taken from Sign, routed through
+// the same reducingSide helper §6.2's rule is written out in, because that is
+// the thing under test: the side selection consumes nothing else.
+func TestQtySignPreservesDeployedFullFillPositions(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		q        Qty
+		want     int
+		wantSide string
+		// fill is |q| written out independently: §10.3's S = 12 contracts in
+		// H-CO-4a's quantum. It is never taken from q.Abs().
+		fill Qty
+		why  string
+	}{
+		{
+			name:     "long twelve contracts",
+			q:        Qty(1200),
+			want:     1,
+			wantSide: "no",
+			fill:     Qty(1200),
+			why: "a full fill of one of §10.3's 12-contract base quotes from " +
+				"flat is long YES (§8.1), so §6.2 must select \"no\" as the " +
+				"reducer; selecting \"yes\" doubles the position instead of " +
+				"clearing it",
+		},
+		{
+			name:     "short twelve contracts",
+			q:        Qty(-1200),
+			want:     -1,
+			wantSide: "yes",
+			fill:     Qty(1200),
+			why: "the symmetric deployed case: a fully filled 12-contract NO " +
+				"quote is long NO, and §6.2 must select \"yes\". The failure " +
+				"is symmetric about zero (H-CO-4a), so both signs are kept",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.q.Sign(); got != tc.want {
+				t.Fatalf("Qty(%d).Sign() = %d, want %d (%s = %q contracts) -- %s",
+					int64(tc.q), got, tc.want, tc.name, tc.q.Wire(), tc.why)
+			}
+
+			side := reducingSide(tc.q)
+			if side != tc.wantSide {
+				t.Fatalf("reducing side for q = %s is %q, want %q -- §6.2 "+
+					"selects \"no\" when q > 0, \"yes\" when q < 0, and none "+
+					"only when q == 0: %s", tc.q.Wire(), side, tc.wantSide, tc.why)
+			}
+
+			// A complete fill of a |q|-sized reducer moves the position by
+			// exactly that count against the side the reducer quotes: a "no"
+			// reducer takes on NO exposure and drives a YES-positive q down, a
+			// "yes" reducer drives it up. The direction is the one selected
+			// above -- production's Sign, via §6.2's rule. The magnitude is the
+			// table's own literal.
+			var rem Qty
+			switch side {
+			case "no":
+				rem = tc.q - tc.fill
+			case "yes":
+				rem = tc.q + tc.fill
+			default:
+				t.Fatalf("§6.2 selected no reducing side for q = %s: a market "+
+					"holding %s contracts has no reducer to size, so A4 has "+
+					"nothing resting and nothing in flight while q != 0, and "+
+					"H-HALT-3's drain can never complete", tc.q.Wire(), tc.q.Wire())
+			}
+
+			// H-Q-5a: a full fill of the reducer must produce EXACTLY zero.
+			// Compared as a raw int64 so the verdict does not route back
+			// through IsFlat or Sign, and diagnosed by which of the three
+			// wrong outcomes it is.
+			if int64(rem) != 0 {
+				switch {
+				case int64(rem)*int64(tc.want) < 0:
+					t.Fatalf("a full fill of a %s reducer on side %q moved q "+
+						"from %s to %s: the reducer changed the sign of the "+
+						"position. H-Q-5a admits no q and no fill sequence for "+
+						"which that is possible, and A12 states it as a running "+
+						"invariant", tc.fill.Wire(), side, tc.q.Wire(), rem.Wire())
+				case int64(rem)*int64(tc.want) > int64(tc.q)*int64(tc.want):
+					// Multiplying by the starting sign reads off the magnitude,
+					// without asking Abs or Sign about the result.
+					t.Fatalf("a full fill of a %s reducer on side %q moved q "+
+						"from %s to %s: |q| grew. The reducer quoted the "+
+						"ADDING side (A8) and drove the position toward "+
+						"inv_kill instead of toward flat (§6.2, H-Q-5a)",
+						tc.fill.Wire(), side, tc.q.Wire(), rem.Wire())
+				case rem == tc.q:
+					t.Fatalf("a full fill of a %s reducer on side %q left q at "+
+						"%s: the position was preserved rather than reduced, so "+
+						"REDUCING never reaches IDLE (§5.2) and WINDING_DOWN "+
+						"never drains (H-HALT-3)",
+						tc.fill.Wire(), side, rem.Wire())
+				default:
+					t.Fatalf("a full fill of a %s reducer on side %q left q at "+
+						"%s against a starting position of %s, want exactly "+
+						"0.00 -- H-Q-5a requires a full fill to produce exactly "+
+						"zero, and |q| to strictly decrease on every positive "+
+						"partial", tc.fill.Wire(), side, rem.Wire(), tc.q.Wire())
+				}
+			}
+		})
+	}
+}
+
 // wireQuanta renders an exact quantum count as the exchange's canonical
 // two-decimal wire string (H-CO-2), using integer arithmetic only.
 //
