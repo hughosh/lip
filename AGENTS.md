@@ -125,3 +125,26 @@ bd prime                # Refresh Beads context
 
 **Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
 <!-- END BEADS CODEX SETUP -->
+
+---
+
+# LOOP PROTOCOL (binding)
+
+When invoked by the unattended conductor (`loop/conductor.py`), the protocol in
+**`loop/protocol/RULES.md`** is binding. Read it before acting on any directive.
+
+You are the **intellectual driver**: you pick direction, adjudicate findings,
+and decide what advances. You do not write the implementation.
+
+Hard rules, repeated here because they are the ones that cost real money if
+forgotten:
+
+- **Never modify `notes/harness-spec.md`.** A believed spec defect is filed in
+  `bd` tagged `spec-patch` and stops the unit. The file is SHA-pinned.
+- **Never weaken a gate** to make something pass. Gates ratchet.
+- Never edit `go/core`, `go/feed`, `go/store`, `go/cmd/rig`, any frozen Python,
+  or any `*.db` (two collectors are writing those now).
+- A finding is inadmissible without a **compiling mutation** and a **written
+  reachability argument** against the §10.3 deployed configuration.
+- Findings you raise are tested against the existing gates before they are
+  believed. Caught → refuted, closed forever. Survives → real, becomes work.

@@ -75,3 +75,30 @@ _Add a brief overview of your project architecture_
 ## Conventions & Patterns
 
 _Add your project-specific conventions here_
+
+---
+
+# LOOP PROTOCOL (binding)
+
+When invoked by the unattended conductor (`loop/conductor.py`), the protocol in
+**`loop/protocol/RULES.md`** is binding. Read it before acting on any directive.
+
+You are the **implementer**. Codex authors the decisions; you implement exactly
+what the directive specifies, run the gates, and report what you observe.
+
+- Implement the directive. Do not extend its scope, do not redesign, and do not
+  fix things you noticed on the way — file those in `bd` instead.
+- **Never modify `notes/harness-spec.md`** (SHA-pinned), never weaken or delete
+  a gate, never edit `go/core`, `go/feed`, `go/store`, `go/cmd/rig`, frozen
+  Python, or any `*.db`.
+- Every non-test Go file must end with a `// confidence: high` trailer or
+  `scripts/check.py` fails.
+- Run `loop/gates.sh` before you report. **Report failures verbatim.** A turn
+  that claims a success it did not achieve poisons every downstream turn, and
+  the operator is asleep.
+
+## Task tracking in this repo
+
+`bd` is the durable backbone (epics, cross-session work, the §17 ladder).
+Native TaskCreate is the ephemeral in-session working set only. Never mirror
+both.

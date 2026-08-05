@@ -138,7 +138,20 @@ def main() -> int:
                                          "harness-negative-control.md"))
     ap.add_argument("--only", default="")
     a = ap.parse_args()
-    only = {x.strip() for x in a.only.split(",") if x.strip()}
+    only = {x.strip().upper() for x in a.only.split(",") if x.strip()}
+
+    # An --only value that matches nothing selects ZERO mutations, and a run of
+    # zero mutations trivially "passes". That is the same false-green this
+    # script exists to detect, reachable by a typo. Reject it rather than
+    # reporting success for having checked nothing (H-PAGE-1a's lesson:
+    # "absence is not evidence" reappearing as a spelling mistake).
+    known = {m[0].upper() for m in MUTATIONS}
+    if only:
+        unknown = only - known
+        if unknown:
+            print(f"unknown mutation id(s): {sorted(unknown)}\n"
+                  f"known: {sorted(known)}", file=sys.stderr)
+            return 2
 
     # Baseline: the pristine tree must be green, or nothing below means
     # anything. A mutation "caught" by an already-red suite is not evidence.
@@ -151,7 +164,7 @@ def main() -> int:
 
     rows = []
     for mid, name, patches, expected in MUTATIONS:
-        if only and mid not in only:
+        if only and mid.upper() not in only:
             continue
         with tempfile.TemporaryDirectory() as td:
             dst = Path(td) / "go"
@@ -223,8 +236,47 @@ def main() -> int:
               "because an inert declaration is exactly how a real gate hole",
               "would hide.",
               ""]
-    Path(a.out).write_text("\n".join(lines) + "\n")
-    print(f"\nwrote {a.out}")
+    # A partial run must not overwrite the canonical report. Otherwise a
+    # `--only m01` run silently replaces the record of all 23 mutations with a
+    # record of one, and the file that documents the verification becomes the
+    # place the verification disappears.
+    if only:
+        out_path = Path(a.out).with_suffix(".partial.md")
+        print(f"\npartial run ({sorted(only)}) -- writing {out_path.name}, "
+              f"not the canonical report")
+    else:
+        out_path = Path(a.out)
+    out_path.write_text("\n".join(lines) + "\n")
+    print(f"\nwrote {out_path}")
+
+    # THE EXIT CODE. This function previously returned 0 unconditionally: it
+    # counted `good`, printed "!! SURVIVED", wrote the report -- and exited
+    # success. Every automated caller therefore read a surviving mutation, which
+    # is by definition a hole in the verification, as a passing gate.
+    #
+    # That is this repository's own thesis turned on itself. §17 V5 exists
+    # because "a gate that has never been shown to fail is not evidence", and
+    # the gate on the gate could not fail. Found by an independent model reading
+    # the source, not by any test here.
+    bad = [r for r in rows if not r[5]]
+    if bad:
+        print(f"\n{len(bad)} of {len(rows)} mutations did NOT produce their "
+              f"expected outcome:", file=sys.stderr)
+        for mid, name, expected, status, fails, _ in bad:
+            print(f"  {mid}: {status} (expected to be caught by {expected})",
+                  file=sys.stderr)
+        print("\nA mutation that SURVIVES is a defect in the VERIFICATION. The "
+              "harness does not ship until the gate is strengthened.",
+              file=sys.stderr)
+        return 1
+
+    # A full run must have exercised every mutation in the catalogue. A
+    # mutation that quietly vanishes from MUTATIONS takes its coverage with it
+    # and leaves the count looking healthy.
+    if not only and len(rows) != len(MUTATIONS):
+        print(f"\nexpected {len(MUTATIONS)} mutations, ran {len(rows)}",
+              file=sys.stderr)
+        return 1
     return 0
 
 
