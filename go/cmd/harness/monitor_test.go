@@ -21,6 +21,27 @@ import (
 
 const stallAfter = 3 * time.Second
 
+// nakedQty is the anchor position for a driven market. 61 contracts: the size
+// probebot.py left naked and directional for 6.14 hours, one contract above
+// §10.3's inv_hard of 60, and the reason H-CLOSE-2a refuses to let SETTLING be
+// an exemption from having an exit.
+var nakedQty = num.QtyFromFloat(61)
+
+// peerQty and thirdQty are the positions a driven market's PEERS carry. Every
+// driven market holds a distinct nonzero position, because the contract is
+// per market: §8.3 step 3 writes one snap row per market and A5 wants a sample
+// per selected market, so each sample is held to its own market's q. peerQty is
+// negative -- long NO, §8.1 -- and both are fractional, which H-CO-4a records at
+// a measured 20.5% of sizes rather than as a theoretical case.
+var (
+	peerQty  = num.QtyFromFloat(-17.5)
+	thirdQty = num.QtyFromFloat(3.25)
+)
+
+// drivenQty is the position market i carries when the caller does not name one
+// per market. Distinct per index and never flat, for the reason above.
+func drivenQty(i int) num.Qty { return nakedQty - num.Qty(i)*num.QtyScale }
+
 // driver runs a monitor against a hand-stepped clock and a hand-driven tick
 // channel, so nothing here depends on wall time.
 type driver struct {
@@ -56,17 +77,27 @@ func newDriver(t *testing.T) *driver {
 // marketState is one selected market's published identity for a driven tick.
 // The owner's markets do not share a state -- H-CLOSE-2 sends one market to
 // SETTLING at its own close_time while its peers keep quoting -- so the driver
-// has to be able to say so.
+// has to be able to say so. They do not share a position either: q is per
+// market, and so it is the caller's to name too.
 type marketState struct {
 	ticker string
 	state  quote.MarketState
+	q      num.Qty
 }
 
 // publishStates writes a new snapshot with an ADVANCING seq and caller-chosen
-// per-market states, as the owner would. Every market carries q = 61: the
-// contracts the probe left naked, and the reason H-CLOSE-2a and V7.10 care
-// about the close window at all.
-func (d *driver) publishStates(g quote.GlobalState, markets ...marketState) {
+// per-market states, as the owner would, and returns the seq it published.
+//
+// The returned seq is what the sampling assertions are held to. A sample
+// carries the SourceSeq it was derived from (H-TOP-5), and §8.3 step 0 makes
+// source ADVANCEMENT rather than row freshness the property that counts, so a
+// caller that knows which publication it just made can require the sample to
+// have come from that one.
+//
+// Every market carries the q its caller named, so a sample can be held to the
+// position published for THAT market. H-CLOSE-2a and V7.10 are about the close
+// window precisely because q != 0 there.
+func (d *driver) publishStates(g quote.GlobalState, markets ...marketState) uint64 {
 	d.mu.Lock()
 	d.seq++
 	seq := d.seq
@@ -75,17 +106,19 @@ func (d *driver) publishStates(g quote.GlobalState, markets ...marketState) {
 	ms := make([]risk.MarketSnap, 0, len(markets))
 	for _, m := range markets {
 		ms = append(ms, risk.MarketSnap{Ticker: m.ticker, Selected: true,
-			State: m.state, Q: num.QtyFromFloat(61)})
+			State: m.state, Q: m.q})
 	}
 	d.src.Store(&risk.Snapshot{Seq: seq, PubMono: now, Global: g, Markets: ms})
+	return seq
 }
 
 // publish writes a new snapshot with an ADVANCING seq, as the owner would, with
-// every market REDUCING.
+// every market REDUCING and carrying its own nonzero position.
 func (d *driver) publish(g quote.GlobalState, tickers ...string) {
 	ms := make([]marketState, 0, len(tickers))
-	for _, tk := range tickers {
-		ms = append(ms, marketState{ticker: tk, state: quote.Reducing})
+	for i, tk := range tickers {
+		ms = append(ms, marketState{ticker: tk, state: quote.Reducing,
+			q: drivenQty(i)})
 	}
 	d.publishStates(g, ms...)
 }
@@ -315,48 +348,192 @@ func TestMonitorSamplesInEveryMarketState(t *testing.T) {
 		quote.Reducing, quote.Settling, quote.Closed,
 	} {
 		t.Run(st.String(), func(t *testing.T) {
-			driveMarketStates(t, newDriver(t), []marketState{
-				{ticker: "KXTEST-A", state: st},
-				{ticker: "KXTEST-B", state: st},
+			driveMarketStates(t, newDriver(t), quote.Running, []marketState{
+				{ticker: "KXTEST-A", state: st, q: nakedQty},
+				{ticker: "KXTEST-B", state: st, q: peerQty},
 			}, ticks)
 		})
 	}
 
-	// Market state is per market. A monitor that gave up on the one SETTLING
-	// market in a snapshot would take that market's peers -- still quoting,
-	// still reducing, still holding inventory -- down with it.
+	// Market state is per market, and so is inventory: one snapshot, three
+	// markets, three states, three positions. §8.3 step 3 writes a row per
+	// market and A5 wants a sample per selected market, so the SETTLING market
+	// and its still-quoting, still-reducing peers each owe a sample of their
+	// own, carrying their own state and their own q.
 	t.Run("SETTLING_alongside_peers", func(t *testing.T) {
-		driveMarketStates(t, newDriver(t), []marketState{
-			{ticker: "KXTEST-A", state: quote.Quoting},
-			{ticker: "KXTEST-B", state: quote.Settling},
-			{ticker: "KXTEST-C", state: quote.Reducing},
+		driveMarketStates(t, newDriver(t), quote.Running, []marketState{
+			{ticker: "KXTEST-A", state: quote.Quoting, q: peerQty},
+			{ticker: "KXTEST-B", state: quote.Settling, q: nakedQty},
+			{ticker: "KXTEST-C", state: quote.Reducing, q: thirdQty},
 		}, ticks)
 	})
 
-	// H-CLOSE-2 is a TRANSITION, not a starting condition: a market that was
-	// quoting goes to SETTLING while the owner keeps publishing. A monitor that
-	// gave up on the edge rather than on the state would survive every subtest
-	// above, so the edge is driven too.
+	// H-CLOSE-2 is a TRANSITION, not a starting condition: at close_time -
+	// close_lead a market that was quoting goes to SETTLING while the owner
+	// keeps publishing. The subtests above start markets in a state; this one
+	// drives the edge into it. The market keeps its own q across the edge, so
+	// the transition is held to carrying that inventory over.
 	t.Run("entry_to_SETTLING", func(t *testing.T) {
 		d := newDriver(t)
-		driveMarketStates(t, d, []marketState{
-			{ticker: "KXTEST-A", state: quote.Quoting},
-			{ticker: "KXTEST-B", state: quote.Reducing},
+		driveMarketStates(t, d, quote.Running, []marketState{
+			{ticker: "KXTEST-A", state: quote.Quoting, q: nakedQty},
+			{ticker: "KXTEST-B", state: quote.Reducing, q: peerQty},
 		}, 4)
-		driveMarketStates(t, d, []marketState{
-			{ticker: "KXTEST-A", state: quote.Settling},
-			{ticker: "KXTEST-B", state: quote.Reducing},
+		driveMarketStates(t, d, quote.Running, []marketState{
+			{ticker: "KXTEST-A", state: quote.Settling, q: nakedQty},
+			{ticker: "KXTEST-B", state: quote.Reducing, q: peerQty},
+		}, ticks)
+	})
+
+	// SETTLING has two inbound edges and the subtest above drives only one.
+	// QUOTING -> SETTLING is the plain close_lead crossing; REDUCING ->
+	// SETTLING is the same crossing for a market that already passed end_date
+	// (H-CLOSE-1). Under §10.3 -- close_lead 1h, final_lead 60s,
+	// close_lead_keep_reducing true -- that second edge is the ordinary
+	// deployed order of events for any market closing after the program ends,
+	// and it is the edge H-CLOSE-2a's q != 0 window opens on.
+	t.Run("entry_to_SETTLING_from_REDUCING", func(t *testing.T) {
+		d := newDriver(t)
+		driveMarketStates(t, d, quote.Running, []marketState{
+			{ticker: "KXTEST-A", state: quote.Reducing, q: nakedQty},
+			{ticker: "KXTEST-B", state: quote.Quoting, q: peerQty},
+		}, 4)
+		driveMarketStates(t, d, quote.Running, []marketState{
+			{ticker: "KXTEST-A", state: quote.Settling, q: nakedQty},
+			{ticker: "KXTEST-B", state: quote.Quoting, q: peerQty},
 		}, ticks)
 	})
 }
 
-// driveMarketStates publishes `markets` with an advancing seq and steps the
-// monitor one second at a time, asserting after EVERY tick that the loop is
-// still alive and that the tick produced exactly one fresh sample per selected
-// market. It may be called more than once against the same driver, to drive a
-// state transition.
-func driveMarketStates(t *testing.T, d *driver, markets []marketState, ticks int) {
+// TestMonitorSamplesWhileWindingDownAndSettling drives the one conjunction the
+// tests above never reach together: the GLOBAL state in WINDING_DOWN while a
+// selected market sits in SETTLING with inventory still open.
+//
+// M1 covers WINDING_DOWN with every market REDUCING.
+// TestMonitorSamplesInEveryMarketState covers SETTLING while the global state
+// is RUNNING. Neither says anything about the state the harness is actually in
+// during the close window of a wind-down, and that is the ordinary deployed
+// order of events, not a contrived one:
+//
+//   - §10.3 runs with inv_hard = 60, so q = 61 is a position the harness holds
+//     rather than one invented for a test;
+//   - H-HALT-3 says SIGTERM does not exit -- it sets WINDING_DOWN and keeps the
+//     process alive with that inventory still open, for as long as it takes;
+//   - H-CLOSE-2 then sends the market to SETTLING at close_time - close_lead,
+//     which arrives on the exchange's clock whatever the global state is;
+//   - H-CLOSE-2a keeps that window substantive until final_lead: SETTLING with
+//     q != 0 still owes a capped reducing quote, so it is precisely the window
+//     in which observation must not lapse (V7.10).
+//
+// §5.1 gives WINDING_DOWN full monitoring and a live process. I1 says no stop
+// path stops watching. I2 and §8.3 put the sampler at 1 Hz on a path nothing in
+// the quoting side can reach, ending only with the process. A5 then requires a
+// source-advanced sample for every selected market in every global state. The
+// requirement is therefore exact, and asserted as such below: every tick, every
+// market, fresh, from this publication, with that market's own inventory.
+func TestMonitorSamplesWhileWindingDownAndSettling(t *testing.T) {
+	// Every phase runs longer than owner_stall_s (3s) at 1 Hz, and the phase
+	// under test runs twice as long, so nothing here can pass on the strength
+	// of A5's startup grace.
+	const (
+		runTicks     = 4
+		windTicks    = 4
+		settlingTick = 6
+	)
+
+	d := newDriver(t)
+
+	// The same three markets throughout, each holding its own position, so a
+	// market's inventory can be followed ACROSS the transitions and not merely
+	// within one phase.
+	reducing := []marketState{
+		{ticker: "KXTEST-A", state: quote.Reducing, q: nakedQty},
+		{ticker: "KXTEST-B", state: quote.Reducing, q: peerQty},
+		{ticker: "KXTEST-C", state: quote.Reducing, q: thirdQty},
+	}
+
+	// 1. RUNNING, already reducing -- the healthy baseline the probe had.
+	driveMarketStates(t, d, quote.Running, reducing, runTicks)
+
+	// 2. SIGTERM (H-HALT-3). The process stays alive, adding is off
+	//    permanently, the reducers stay live, monitoring stays full.
+	driveMarketStates(t, d, quote.WindingDown, reducing, windTicks)
+
+	// 3. The close lead arrives DURING the wind-down (H-CLOSE-2). KXTEST-A
+	//    enters SETTLING holding its 61 contracts and stays there, its peers
+	//    still reducing their own distinct positions. The conjunction is held
+	//    for twice owner_stall_s, so every one of its six ticks is checked --
+	//    including the ones past the point where A5's startup grace and the
+	//    stall window could have excused silence.
+	settling := []marketState{
+		{ticker: "KXTEST-A", state: quote.Settling, q: nakedQty},
+		{ticker: "KXTEST-B", state: quote.Reducing, q: peerQty},
+		{ticker: "KXTEST-C", state: quote.Reducing, q: thirdQty},
+	}
+	driveMarketStates(t, d, quote.WindingDown, settling, settlingTick)
+
+	// The loop is still the thing that ends only when the process does.
+	select {
+	case <-d.done:
+		t.Fatal("the monitor loop exited during a WINDING_DOWN close window " +
+			"-- §5.1 gives WINDING_DOWN full monitoring and a live process, " +
+			"and I1 says no stop path stops watching")
+	default:
+	}
+	if err := d.ctx.Err(); err != nil {
+		t.Fatalf("the monitor context was cancelled by the test itself (%v) "+
+			"-- the liveness assertion proves nothing", err)
+	}
+
+	// Exact cumulative arithmetic over the whole lifecycle: three markets,
+	// every tick of every phase. A dropped tick or a dropped peer anywhere
+	// between RUNNING and the close window changes this number.
+	total, stale := d.mon.state.Counts()
+	if want := uint64(len(reducing) * (runTicks + windTicks + settlingTick)); total != want {
+		t.Fatalf("%d samples across RUNNING -> WINDING_DOWN -> the SETTLING "+
+			"close window, want %d -- sampling stopped or thinned out",
+			total, want)
+	}
+	if stale != 0 {
+		t.Fatalf("%d samples were stale while the owner published on every "+
+			"tick of the wind-down", stale)
+	}
+	if v := d.mon.checkA5(d.curNow(), d.snapshot()); len(v) != 0 {
+		t.Fatalf("A5 violated at the end of the WINDING_DOWN close window "+
+			"(%v elapsed): %v", d.curNow(), v)
+	}
+}
+
+// driveMarketStates publishes `markets` in global state `g` with an advancing
+// seq and steps the monitor one second at a time, asserting after EVERY tick
+// that the monitor context is still live, that the loop is still alive, and
+// that the tick produced exactly one fresh sample per selected market --
+// carrying that market's published ticker, state and exact q, derived from the
+// seq just published. It may be called more than once against the same driver,
+// to drive a transition of the global state, the market states, or both.
+func driveMarketStates(t *testing.T, d *driver, g quote.GlobalState,
+	markets []marketState, ticks int) {
 	t.Helper()
+
+	// The scenario has to be capable of showing what it claims to show. The
+	// per-market q assertion below distinguishes one market from another only
+	// if their positions differ, and it says something about the window
+	// H-CLOSE-2a and V7.10 are written for only if those positions are nonzero.
+	// Both are preconditions on the caller, so both are checked here.
+	byQty := make(map[num.Qty]string, len(markets))
+	for _, m := range markets {
+		if m.q.IsFlat() {
+			t.Fatalf("market %s in %s was driven flat -- the property under "+
+				"test is about a market carrying q != 0", m.ticker, m.state)
+		}
+		if other, dup := byQty[m.q]; dup {
+			t.Fatalf("markets %s and %s were both driven with q = %s -- the "+
+				"per-market q assertion needs distinct positions to tell one "+
+				"market's inventory from another's", other, m.ticker,
+				m.q.Wire())
+		}
+		byQty[m.q] = m.ticker
+	}
 
 	base := len(d.results())
 	baseTotal, baseStale := d.mon.state.Counts()
@@ -366,55 +543,85 @@ func driveMarketStates(t *testing.T, d *driver, markets []marketState, ticks int
 	postGrace := 0
 
 	for i := 0; i < ticks; i++ {
-		d.publishStates(quote.Running, markets...)
+		seq := d.publishStates(g, markets...)
 		d.step(time.Second)
 
 		select {
 		case <-d.done:
-			t.Fatalf("the monitor loop exited at tick %d with markets %v -- "+
-				"I1: no stop path stops watching", base+i, markets)
+			t.Fatalf("the monitor loop exited at tick %d in %s with markets "+
+				"%v -- I1: no stop path stops watching (ctx err %v: the "+
+				"context was never cancelled, so nothing was entitled to stop "+
+				"it)", base+i, g, markets, d.ctx.Err())
 		default:
+		}
+		// I2 is structural: the ONLY thing permitted to end this loop is its
+		// context, and this test never cancels it before Cleanup. Assert that
+		// directly -- the liveness check above says something about the
+		// monitor only while the context it was given is uncancelled.
+		if err := d.ctx.Err(); err != nil {
+			t.Fatalf("tick %d: the monitor context was cancelled by the test "+
+				"itself (%v) -- the liveness assertion proves nothing",
+				base+i, err)
 		}
 
 		got := d.results()
 		if len(got) != base+i+1 {
 			t.Fatalf("tick %d produced %d results in total, want %d -- the "+
-				"monitor skipped a tick with markets %v",
-				base+i, len(got), base+i+1, markets)
+				"monitor skipped a tick in %s with markets %v",
+				base+i, len(got), base+i+1, g, markets)
 		}
 		res := got[base+i]
 		if res.Stale || !res.IntegrateUptime {
 			t.Fatalf("tick %d: an advancing source was reported stale=%v "+
-				"integrate=%v with markets %v",
-				base+i, res.Stale, res.IntegrateUptime, markets)
+				"integrate=%v in %s with markets %v",
+				base+i, res.Stale, res.IntegrateUptime, g, markets)
 		}
 		if len(res.Samples) != len(markets) {
-			t.Fatalf("tick %d: %d samples, want exactly one per selected "+
-				"market (%d): %+v", base+i, len(res.Samples), len(markets),
-				res.Samples)
+			t.Fatalf("tick %d in %s: %d samples, want exactly one per "+
+				"selected market (%d): %+v", base+i, g, len(res.Samples),
+				len(markets), res.Samples)
 		}
 		for j, m := range markets {
 			s := res.Samples[j]
 			if s.Ticker != m.ticker || s.Snap.State != m.state {
-				t.Fatalf("tick %d sample %d: %s in %s, want %s in %s",
-					base+i, j, s.Ticker, s.Snap.State, m.ticker, m.state)
+				t.Fatalf("tick %d sample %d in %s: %s in %s, want %s in %s",
+					base+i, j, g, s.Ticker, s.Snap.State, m.ticker, m.state)
 			}
 			if s.Stale {
-				t.Fatalf("tick %d: the sample for %s in %s was marked stale "+
-					"while the owner was publishing normally",
-					base+i, m.ticker, m.state)
+				t.Fatalf("tick %d: the sample for %s in %s under %s was "+
+					"marked stale while the owner was publishing normally",
+					base+i, m.ticker, m.state, g)
 			}
-			if s.Snap.Q.IsFlat() {
-				t.Fatalf("tick %d: the sample for %s in %s carries q = 0 -- "+
-					"H-CLOSE-2a and V7.10 are about the window with q != 0",
-					base+i, m.ticker, m.state)
+			// The q asserted is THIS market's, and the precondition above
+			// guarantees it is nonzero and shared with no peer, so the sample
+			// must carry the position published under its own ticker.
+			if s.Snap.Q != m.q {
+				t.Fatalf("tick %d: the sample for %s in %s under %s carries "+
+					"q = %s, want the %s published for that market -- "+
+					"H-CLOSE-2a and V7.10 are about the window with q != 0, "+
+					"and every sample owes its own market's position",
+					base+i, m.ticker, m.state, g, s.Snap.Q.Wire(), m.q.Wire())
 			}
+			// H-TOP-5 and §8.3 step 0: the sample must come from THIS
+			// publication. Source advancement, not row freshness, is what A5
+			// is written against, and the seq is what carries it.
+			if s.SourceSeq != seq {
+				t.Fatalf("tick %d: the sample for %s in %s under %s was "+
+					"derived from source seq %d, want the seq just published "+
+					"(%d) -- the monitor is describing an older publication",
+					base+i, m.ticker, m.state, g, s.SourceSeq, seq)
+			}
+		}
+		if got := d.mon.state.LastSeq(); got != seq {
+			t.Fatalf("tick %d: the monitor last observed source seq %d, want "+
+				"%d -- it stopped following the owner's advancing sequence "+
+				"in %s with markets %v", base+i, got, seq, g, markets)
 		}
 
 		now := d.curNow()
 		if v := d.mon.checkA5(now, d.snapshot()); len(v) != 0 {
-			t.Fatalf("tick %d (%v): A5 violated with markets %v: %v",
-				base+i, now, markets, v)
+			t.Fatalf("tick %d (%v): A5 violated in %s with markets %v: %v",
+				base+i, now, g, markets, v)
 		}
 		if now-firstTick >= stallAfter {
 			postGrace++
@@ -428,13 +635,13 @@ func driveMarketStates(t *testing.T, d *driver, markets []marketState, ticks int
 	}
 	total, stale := d.mon.state.Counts()
 	if want := baseTotal + uint64(ticks*len(markets)); total != want {
-		t.Fatalf("%d samples after %d ticks of %d markets %v, want %d -- "+
-			"sampling stopped or thinned out",
-			total, ticks, len(markets), markets, want)
+		t.Fatalf("%d samples after %d ticks of %d markets %v in %s, want %d "+
+			"-- sampling stopped or thinned out",
+			total, ticks, len(markets), markets, g, want)
 	}
 	if stale != baseStale {
 		t.Fatalf("%d samples became stale while the owner was publishing "+
-			"normally with markets %v", stale-baseStale, markets)
+			"normally in %s with markets %v", stale-baseStale, g, markets)
 	}
 }
 

@@ -11,7 +11,7 @@ the Go compiler is not a gate.
 
 | id | mutation | expected catching test | result | tests that failed |
 |---|---|---|---|---|
-| M1 | break the monitor loop when global state leaves RUNNING -- probebot.py's exact defect | `TestM1_MonitorKeepsSamplingAfterGlobalStateLeavesRunning` | **caught** | TestM1_MonitorKeepsSamplingAfterGlobalStateLeavesRunning, TestMonitorSamplesInEveryGlobalState |
+| M1 | break the monitor loop when global state leaves RUNNING -- probebot.py's exact defect | `TestM1_MonitorKeepsSamplingAfterGlobalStateLeavesRunning` | **caught** | TestM1_MonitorKeepsSamplingAfterGlobalStateLeavesRunning, TestMonitorSamplesInEveryGlobalState, TestMonitorSamplesWhileWindingDownAndSettling |
 | M14 | revert A5 to row freshness instead of source advancement -- fresh rows about a frozen world | `TestM14_FrozenOwnerPublicationIsReportedStale` | **caught** | TestM14_FrozenOwnerPublicationIsReportedStale |
 | M14b | monitor never marks a frozen source stalled -- the SEV1 OWNER_STALLED path is removed | `TestM14_FrozenOwnerPublicationIsReportedStale` | **caught** | TestM14_FrozenOwnerPublicationIsReportedStale |
 | M7 | drop the size_R cap so a reducing fill can overshoot past flat | `TestValidateCountRejectsOvershoot` | **caught** | TestValidateCountRejectsOvershoot |
