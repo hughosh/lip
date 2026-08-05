@@ -37,3 +37,8 @@ Append-only. Conductor-owned. A finding already disposed of here is closed on si
 
 ## 2026-08-05T18:41:53Z — lip-ogc ALREADY_SATISFIED, verified by `TestEligibleAddingCancelPrecedesFreshRequote`
 
+## 2026-08-05T19:13:02Z — it17 lip-d50 — One-quantum positions become signless
+- **admitted**: SURVIVED every existing gate
+- reachability: Under §10.3, six markets each rest 12.00-contract orders. The captured exchange data in rig.db contains 1,473 fills of exactly 0.01 contracts, so a one-quantum partial fill is observed rather than hypothetical. From flat, a +0.01 YES fill produces Qty(1), but this mutation makes Sign return 0 while IsFlat correctly remains false. A subsequent ordinary SIGTERM enters WINDING_DOWN; §6.2 can no longer select NO as the reducing side, so no 0.01 reducer is emitted. The process remains alive but cannot drain, violating H-HALT-3 and A4 while leaving inventory unmanaged. The -0.01 path is symmetric.
+- mutation: `harness/num/qty.go`
+

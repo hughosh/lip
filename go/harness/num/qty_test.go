@@ -1,6 +1,7 @@
 package num
 
 import (
+	"fmt"
 	"math"
 	"testing"
 )
@@ -98,6 +99,42 @@ func TestQtyIsFlatRejectsNonzero(t *testing.T) {
 	}
 }
 
+// wireQuanta renders an exact quantum count as the exchange's canonical
+// two-decimal wire string (H-CO-2), using integer arithmetic only.
+//
+// This is the independent oracle the parser and the formatter are measured
+// against below. It never touches float64, QtyFromFloat or Qty.Wire, so a
+// rounding defect shared by the production quantizer and the production
+// formatter cannot hide behind the two of them agreeing with each other.
+func wireQuanta(n int64) string {
+	sign := ""
+	if n < 0 {
+		sign, n = "-", -n
+	}
+	return fmt.Sprintf("%s%d.%02d", sign, n/QtyScale, n%QtyScale)
+}
+
+// TestQtyRoundTripAndFormat pins the H-CO-2 wire encoding and the H-CO-4a
+// quantum in every direction the harness uses: float -> Qty, string -> Qty, and
+// Qty -> string.
+//
+// The parser half is the lip-d50 oracle gap. ParseQty is the only path from an
+// exchange-supplied count to a local `q`, and every number it reads is already
+// exact: H-CO-2 puts `count`, `fill_count` and `remaining_count` on the wire as
+// two-decimal fixed-point STRINGS, and H-CO-4a defines `q` as exactly that
+// value in contracts x 100. A parse is therefore a transcription with no
+// rounding decision left to make -- but ParseQty makes one anyway, by way of
+// float64 and QtyFromFloat, and nothing here proved it always transcribes.
+//
+// A parser that rounds up by one quantum is not a display defect. Sizes are
+// fractional in ~20.5% of resting levels (H-CO-4) and §10.3 posts 12 contracts
+// in each of six markets, so a 0.07 partial fill is ordinary rather than
+// exotic. Size a reducer from an inflated |q| and it still passes ValidateCount
+// -- H-CO-4b's bound is that same inflated number -- so the count is "valid"
+// against a position that does not exist. A full fill then takes the real
+// exchange position from +0.07 to -0.01: the reducer changed the sign of q,
+// which H-Q-5a says no q and no fill sequence may do and A12 states as a
+// running invariant. V1.3 asks for exactly this, fractional `q` included.
 func TestQtyRoundTripAndFormat(t *testing.T) {
 	for _, tc := range []struct {
 		in   float64
@@ -117,6 +154,139 @@ func TestQtyRoundTripAndFormat(t *testing.T) {
 	if got := QtyFromFloat(-0.005); got != -1 {
 		t.Errorf("QtyFromFloat(-0.005) = %d, want -1", int64(got))
 	}
+
+	// The falsification target, named. H-CO-4a binds q to the exchange's own
+	// contracts x 100 integer, so "0.07" is seven quanta and nothing else.
+	t.Run("parse canonical", func(t *testing.T) {
+		for _, tc := range []struct {
+			wire string
+			want Qty
+			why  string
+		}{
+			{
+				wire: "0.00",
+				want: Qty(0),
+				why: "a flat count on the wire must parse flat; §5.2 lets " +
+					"REDUCING leave for IDLE only at q == 0",
+			},
+			{
+				wire: "0.07",
+				want: Qty(7),
+				why: "a 0.07 partial fill of one of §10.3's 12-contract " +
+					"orders is ordinary (H-CO-4); parsing it as Qty(8) " +
+					"credits us a quantum the exchange never gave us",
+			},
+			{
+				wire: "-0.07",
+				want: Qty(-7),
+				why: "the quantum is symmetric about zero (H-CO-4a): a short " +
+					"of seven hundredths is Qty(-7), not Qty(-8)",
+			},
+		} {
+			got, err := ParseQty(tc.wire)
+			if err != nil {
+				t.Fatalf("ParseQty(%q) returned an error: %v", tc.wire, err)
+			}
+			if got != tc.want {
+				t.Fatalf("ParseQty(%q) = Qty(%d), want Qty(%d) -- %s",
+					tc.wire, int64(got), int64(tc.want), tc.why)
+			}
+		}
+	})
+
+	// Every count the exchange can express inside §10.3's deployed
+	// S_max = 48 contracts/side, both signs, one quantum at a time. The wire
+	// string and the expected Qty are both built from the integer quantum, so
+	// nothing in this loop shares a rounding rule with the code under test.
+	t.Run("parse sweep to S_max", func(t *testing.T) {
+		const sMaxQuanta = 48 * QtyScale // §6.2 / §10.3: S_max = 48 contracts
+		for n := int64(-sMaxQuanta); n <= sMaxQuanta; n++ {
+			wire := wireQuanta(n)
+			got, err := ParseQty(wire)
+			if err != nil {
+				t.Fatalf("ParseQty(%q) returned an error: %v", wire, err)
+			}
+			if int64(got) != n {
+				t.Fatalf("ParseQty(%q) = Qty(%d), want Qty(%d): the parser is "+
+					"not transcribing an exact two-decimal count (H-CO-4a). "+
+					"An inflated |q| sizes a reducer the position cannot "+
+					"absorb, which is the H-Q-5a / A12 sign flip",
+					wire, int64(got), n)
+			}
+			if back := got.Wire(); back != wire {
+				t.Fatalf("Qty(%d).Wire() = %q, want %q -- H-CO-2 requires a "+
+					"count to go back out as the same fixed-point string it "+
+					"came in as", n, back, wire)
+			}
+		}
+	})
+
+	// H-Q-5a / A12, driven end to end from the wire: parse a position, size a
+	// reducer from it, fill the reducer completely, and land exactly flat.
+	//
+	// `quanta` is the exchange's real position, known independently of the
+	// parser as a literal. The remainder is computed against THAT, not against
+	// the parsed value, because that is where the defect shows: a parse that
+	// inflates |q| by one quantum produces a count ValidateCount happily
+	// accepts (its bound is the same inflated number) and a fill that moves the
+	// real position past zero.
+	t.Run("reducer from parsed position", func(t *testing.T) {
+		for _, tc := range []struct {
+			name   string
+			wire   string
+			quanta int64
+		}{
+			{name: "long seven hundredths", wire: "0.07", quanta: 7},
+			{name: "short seven hundredths", wire: "-0.07", quanta: -7},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				q, err := ParseQty(tc.wire)
+				if err != nil {
+					t.Fatalf("ParseQty(%q) returned an error: %v", tc.wire, err)
+				}
+
+				// size_R = min(|q|, S_max, funded); at 0.07 contracts |q| is
+				// the binding term and the other two are irrelevant.
+				count := q.Abs()
+				if err := ValidateCount(count, q); err != nil {
+					t.Fatalf("a reducer of %s against q = %s was rejected: %v "+
+						"-- H-CO-4b permits a count up to the quantized "+
+						"position it derives from", count.Wire(), q.Wire(), err)
+				}
+				// A reducer trades the side opposite the position, so a full
+				// fill moves the real position toward zero by exactly `count`.
+				actual := Qty(tc.quanta)
+				rem := actual - Qty(actual.Sign())*count
+
+				if rem.Sign() == -actual.Sign() {
+					t.Fatalf("a full fill of a %s reducer moved the position "+
+						"from %s to %s: the reducer changed the sign of q. "+
+						"H-Q-5a admits no q and no fill sequence for which "+
+						"that is possible, and A12 states it as an invariant",
+						count.Wire(), actual.Wire(), rem.Wire())
+				}
+				if !rem.IsFlat() {
+					t.Fatalf("a full fill of a %s reducer left %s against a "+
+						"wire position of %s, want exactly flat -- H-Q-5a "+
+						"requires a full fill to produce exactly zero",
+						count.Wire(), rem.Wire(), tc.wire)
+				}
+
+				// And the count that went out on the wire was the position's
+				// own magnitude, formatted per H-CO-2.
+				absQuanta := tc.quanta
+				if absQuanta < 0 {
+					absQuanta = -absQuanta
+				}
+				if got, want := count.Wire(), wireQuanta(absQuanta); got != want {
+					t.Fatalf("reducer count formats as %q against a wire "+
+						"position of %q, want %q -- the dispatched count must "+
+						"be the position's own magnitude (H-CO-4b)",
+						got, tc.wire, want)
+				}
+			})
+		}
+	})
 }
 
 // TestValidateCountRejectsOvershoot is the H-Q-5a / H-CO-4b gate.
