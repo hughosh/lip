@@ -42,3 +42,8 @@ Append-only. Conductor-owned. A finding already disposed of here is closed on si
 - reachability: Under §10.3, six markets each rest 12.00-contract orders. The captured exchange data in rig.db contains 1,473 fills of exactly 0.01 contracts, so a one-quantum partial fill is observed rather than hypothetical. From flat, a +0.01 YES fill produces Qty(1), but this mutation makes Sign return 0 while IsFlat correctly remains false. A subsequent ordinary SIGTERM enters WINDING_DOWN; §6.2 can no longer select NO as the reducing side, so no 0.01 reducer is emitted. The process remains alive but cannot drain, violating H-HALT-3 and A4 while leaving inventory unmanaged. The -0.01 path is symmetric.
 - mutation: `harness/num/qty.go`
 
+## 2026-08-05T19:26:41Z — it18 lip-xyg — Narrowed sign reverses a deployed full-fill position
+- **admitted**: SURVIVED every existing gate
+- reachability: Section 10.3 deploys six markets posting S=12.00 contracts per side, and V2-FILL explicitly includes a legal full fill. From flat, one full YES fill therefore produces q=Qty(1200). The mutation narrows the fixed-point quantum count before comparing it; int8(1200) is -80, so Sign reports -1 and section 6.2 selects YES instead of the required NO reducer. The market is already beyond inv_hard=7 and enters REDUCING, yet its supposed reducer is an adding-side order: A4 has no true reducer, A8 is violated, and a fill grows q from +12 to +24 instead of strictly decreasing |q| as H-Q-5a requires. The symmetric -12.00 fill is reversed likewise. The new test's 0 and plus-or-minus-one-quanta inputs, and the older incidental plus-or-minus-seven-quanta inputs, all survive int8 conversion, so they do not expose this reachable fixed-point-width defect.
+- mutation: `harness/num/qty.go`
+

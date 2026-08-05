@@ -99,6 +99,121 @@ func TestQtyIsFlatRejectsNonzero(t *testing.T) {
 	}
 }
 
+// reducingSide is §6.2's reducing-side rule written out in full: `R` is "no" if
+// q > 0, "yes" if q < 0, and none if q == 0.
+//
+// It lives here rather than being imported because harness/num is a leaf and
+// the quoting layer sits above it. What it pins is the shape of the dependency:
+// the selection consumes nothing but Qty.Sign(). Every fact §6.2 needs to
+// choose a side has already been reduced to that one integer by the time the
+// rule runs, so a Sign that reports a live position as signless does not
+// mis-select a side -- it leaves the harness with no side to quote at all.
+func reducingSide(q Qty) string {
+	switch q.Sign() {
+	case 1:
+		return "no"
+	case -1:
+		return "yes"
+	}
+	return ""
+}
+
+// TestQtySignPreservesOneQuantumPositions pins the exact zero boundary of
+// Qty.Sign, the other half of the H-CO-4a quantum from
+// TestQtyIsFlatRejectsNonzero.
+//
+// That test proves IsFlat is exactly zero in both directions. Sign is a
+// separate function with a separate boundary, and it is the one §6.2 reads:
+// the reducing side is "no" when q > 0, "yes" when q < 0, and none only when
+// q == 0. Nothing above currently constrains it, so a Sign widened to answer 0
+// for a small nonzero position passes the whole existing suite.
+//
+// That defect is worse than a mis-signed reducer, because it does not produce a
+// wrong side -- it produces no side. A4 requires that while q != 0 in any
+// market, that market has a reducing quote resting or an in-flight intent to
+// place one. A signless +0.01 satisfies no branch of §6.2, so no reducer is
+// sized and none is placed, while IsFlat -- still exact -- keeps reporting the
+// market as holding inventory. The two functions disagree about the same
+// position, and the disagreement is load-bearing: H-HALT-3 says SIGTERM does
+// not exit but sets WINDING_DOWN and stays alive until every market is flat or
+// closed. A market that is not flat and has no reducing side cannot drain, so
+// WINDING_DOWN never ends and drain_timeout_h escalates SEV1 forever against a
+// position of one hundredth of a contract.
+//
+// The table is raw Qty literals, not QtyFromFloat, ParseQty, Wire or an
+// epsilon, so the boundary is asserted against the quantum itself and the test
+// shares no conversion rule with production: Qty(1) is exactly one quantum,
+// +0.01 contracts, the smallest long the exchange can express, and Qty(-1) is
+// its symmetric short. V1.3 asks for size_R across the whole q domain; this is
+// its lower edge, where |q| is one quantum and the sign is all that is left.
+func TestQtySignPreservesOneQuantumPositions(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		q        Qty
+		want     int
+		wantSide string
+		why      string
+	}{
+		{
+			name:     "exact zero",
+			q:        Qty(0),
+			want:     0,
+			wantSide: "",
+			why: "§6.2 selects no reducing side only at q == 0, and zero is " +
+				"the sole value for which that is correct",
+		},
+		{
+			name:     "smallest long",
+			q:        Qty(1),
+			want:     1,
+			wantSide: "no",
+			why: "a long of one quantum (+0.01) is actionable inventory: " +
+				"§6.2 must select \"no\" as the reducer. Reporting it " +
+				"signless places no reducer at all (A4) against a position " +
+				"IsFlat still calls open, so WINDING_DOWN cannot drain " +
+				"(H-HALT-3)",
+		},
+		{
+			name:     "smallest short",
+			q:        Qty(-1),
+			want:     -1,
+			wantSide: "yes",
+			why: "a short of one quantum (-0.01) is the symmetric case: " +
+				"§6.2 must select \"yes\". The quantum is symmetric about " +
+				"zero (H-CO-4a) and a widened boundary strands either sign",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.q.Sign(); got != tc.want {
+				t.Fatalf("Qty(%d).Sign() = %d, want %d (%s = %q) -- %s",
+					int64(tc.q), got, tc.want, tc.name, tc.q.Wire(), tc.why)
+			}
+
+			// Sign and IsFlat must agree about the same position. Exactly one
+			// value is both flat and signless; every other q is both non-flat
+			// and signed, and a q that is one but not the other is the state
+			// no part of §5.2, §6.2 or H-HALT-3 has a transition out of.
+			wantFlat := tc.want == 0
+			if got := tc.q.IsFlat(); got != wantFlat {
+				t.Fatalf("Qty(%d).IsFlat() = %v but Sign() = %d: the two zero "+
+					"tests disagree about the same position. A market that is "+
+					"not flat and has no sign holds inventory no reducing "+
+					"side can be selected for (§6.2), so A4 places nothing "+
+					"and H-HALT-3's drain never completes",
+					int64(tc.q), got, tc.want)
+			}
+
+			// And the sign is consumed the way §6.2 consumes it.
+			if got := reducingSide(tc.q); got != tc.wantSide {
+				t.Fatalf("reducing side for q = %s is %q, want %q -- §6.2 "+
+					"selects \"no\" when q > 0, \"yes\" when q < 0, and none "+
+					"only when q == 0: %s",
+					tc.q.Wire(), got, tc.wantSide, tc.why)
+			}
+		})
+	}
+}
+
 // wireQuanta renders an exact quantum count as the exchange's canonical
 // two-decimal wire string (H-CO-2), using integer arithmetic only.
 //
