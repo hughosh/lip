@@ -574,6 +574,27 @@ def main() -> int:
             # Without this a unit can be closed by assertion, which is codex's
             # ranked failure #3 -- a requirement silently vanishing.
             if dec0 == "ALREADY_SATISFIED":
+                # NOT AVAILABLE once an implementation attempt has been made.
+                # An audit that named a defect makes "already satisfied"
+                # incoherent, and it is the cheapest exit on the board, so it
+                # attracts exactly the traffic it should not.
+                #
+                # Observed on lip-ogc round 3/3: the audit had just found that
+                # promotion converts a base-P1 reducer to effective P0 and so
+                # starves the one class H-QUE-3 forbids starving. The driver
+                # answered ALREADY_SATISFIED citing
+                # TestEligibleAddingCancelPrecedesFreshRequote -- a real test,
+                # for a different obligation (H-Q-9a cancel ordering, not
+                # H-QUE-3 reserved capacity). The grep guard passed, the unit
+                # closed, and the starvation bug survived at queue.go:937.
+                if rounds > 1 or repair:
+                    log("  ALREADY_SATISFIED refused: this is round "
+                        f"{rounds} and a defect was already named. Treating as "
+                        f"REVISE.")
+                    ledger(f"## {now()} — {unit} ALREADY_SATISFIED refused on "
+                           f"round {rounds} (a defect was already named)")
+                    st["pending"] = {"unit": unit, "repair": repair}
+                    save_state(st); continue
                 sym = str(directive.get("evidence_symbol", "")).strip()
                 found = bool(sym) and subprocess.run(
                     ["grep", "-rqn", f"func {sym}", "go"], cwd=LIP).returncode == 0

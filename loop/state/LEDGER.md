@@ -28,3 +28,12 @@ Append-only. Conductor-owned. A finding already disposed of here is closed on si
 
 ## 2026-08-05T17:57:31Z — lip-8a8 SPEC_CONFLICT — needs a human
 
+## 2026-08-05T18:04:33Z — lip-428 OPERATOR_ONLY — parked, still owed
+
+## 2026-08-05T18:36:17Z — it13 lip-ogc — Ceiling parsed quantities causes reducer sign flips
+- **admitted**: SURVIVED every existing gate
+- reachability: Under §10.3, each of six markets posts 12-contract orders, and H-CO-4 explicitly permits fractional partial fills. The measured size corpus includes the exchange-representable value 0.07. IEEE-754 parsing gives 0.07*100 as 7.000000000000001, so this mutation records a +0.07 YES fill as q=+0.08. The resulting 0.08 NO reducer passes validation against that incorrect local q; if fully filled, the exchange position moves from +0.07 to -0.01. A reducing order has therefore changed q's sign, exactly the H-Q-5a failure mode.
+- mutation: `harness/num/qty.go`
+
+## 2026-08-05T18:41:53Z — lip-ogc ALREADY_SATISFIED, verified by `TestEligibleAddingCancelPrecedesFreshRequote`
+

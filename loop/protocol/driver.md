@@ -66,6 +66,16 @@ not use this decision.
 Do **not** use it for "mostly covered" or "close enough". If any part of the
 obligation is unmet, return `IMPLEMENT` for the remainder.
 
+**The symbol must test THIS obligation.** A real test for a neighbouring rule is
+not evidence. The conductor greps for the symbol, which proves it exists — it
+cannot tell whether it covers the right thing, so that part is on you, and
+getting it wrong closes a real obligation with the defect still in the code.
+
+**It is refused outright on any round after the first**, and the conductor will
+convert it to a repair round. Once an audit has named a defect, "already
+satisfied" cannot be true — and this is the cheapest decision available, so it
+attracts traffic that belongs in `IMPLEMENT`.
+
 ## Return
 
 A single fenced ```json block, and nothing that matters outside it:
