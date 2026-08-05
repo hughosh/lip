@@ -121,3 +121,10 @@ An uncommitted edit of yours WILL be reverted mid-run.
 If you must change something while it runs: `touch loop/state/STOP`, wait for
 the exit, edit, **commit**, then restart. A committed change is safe — the
 revert restores files to HEAD, so your change survives it.
+
+## Do not delete STATE.json while a unit is mid-flight
+
+STATE.json carries `pending` — the unit a REVISE is returning to and the repair
+it must apply. Deleting it while an implementation is in the working tree
+abandons that unit with its work still uncommitted, and the next unit's audit
+diff then contains both. Stop, let the unit finish or park, then reset.
