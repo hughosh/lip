@@ -28,3 +28,8 @@ __pycache__/
 # adjudications) IS tracked, because the audit trail is the point.
 loop/raw-*.log
 loop/run/*/raw-*.log
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+.beads-credential-key
+.beads/proxieddb/
