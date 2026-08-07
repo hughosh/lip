@@ -302,10 +302,23 @@ func makerFill(trade, order, ticker string) rest.Fill {
 	}
 }
 
-// newStartup builds a Startup over a real bootstrapped controller.
+// newStartup builds a Startup over a real bootstrapped controller and a ledger
+// with no outstanding reservations, which is the ordinary case: with nothing
+// unresolved the resolving walk does not run at all.
 func newStartup(t *testing.T, store LatchStore, src PortfolioSource,
 	own ledger, policy AdoptionPolicy, sweep CancelSweeper,
 	selected ...string) *Startup {
+
+	t.Helper()
+	return newStartupResolving(t, store, src, own, policy, sweep,
+		&stubResolver{}, selected...)
+}
+
+// newStartupResolving is newStartup with an explicit resolver, for the tests
+// that exercise the drain on the unresolved set.
+func newStartupResolving(t *testing.T, store LatchStore, src PortfolioSource,
+	own ledger, policy AdoptionPolicy, sweep CancelSweeper,
+	resolver ReservationResolver, selected ...string) *Startup {
 
 	t.Helper()
 	ctrl, _, err := NewGlobalController(store)
@@ -316,7 +329,8 @@ func newStartup(t *testing.T, store LatchStore, src PortfolioSource,
 	if err != nil {
 		t.Fatalf("NewForeignGuard: %v", err)
 	}
-	s, err := NewStartup(ctrl, src, guard, policy, sweep, testParams(), selected)
+	s, err := NewStartup(ctrl, src, guard, policy, sweep, resolver,
+		testParams(), selected)
 	if err != nil {
 		t.Fatalf("NewStartup: %v", err)
 	}
@@ -355,9 +369,57 @@ func sevOf(anoms []risk.Anomaly, class string) (risk.Severity, bool) {
 
 func describe(seq []string) string { return fmt.Sprint(seq) }
 
-// startingInput is the global input a STARTING process presents to Startup.Run.
-func startingInput() quote.GlobalInput {
-	return quote.GlobalInput{State: quote.Starting}
+// stubResolver is a ReservationResolver over an in-memory set.
+//
+// It replaces `startingInput()`, which is DELETED. That helper existed because
+// every startup test had to manufacture the `GlobalInput` connecting Startup to
+// the state machine, and all 25 of them reset the same zero value -- so no test
+// ever exercised a populated risk flag and no production code ever assigned one.
+// `Startup.Step` takes no input at all now, so there is nothing for a helper
+// like it to return, and `TestStartupPublicSurfaceCannotAcceptOrResetGlobalInput`
+// is what keeps it deleted.
+type stubResolver struct {
+	// outstanding is what UnresolvedReservations reports. A nil map means the
+	// ledger has no outstanding work, which is the ordinary case and the one
+	// where no resolving walk happens at all.
+	outstanding map[string]struct{}
+	// bound and abandoned record what was SUBMITTED, in order, so a test can
+	// assert the walk resolved a reservation the right way round rather than
+	// merely that it did something.
+	bound      []string
+	abandoned  []string
+	bindErr    error
+	abandonErr error
+}
+
+func (r *stubResolver) UnresolvedReservations() map[string]struct{} {
+	out := make(map[string]struct{}, len(r.outstanding))
+	for c := range r.outstanding {
+		out[c] = struct{}{}
+	}
+	return out
+}
+
+func (r *stubResolver) BindListedOrder(coid, orderID string, _ int64) error {
+	if r.bindErr != nil {
+		return r.bindErr
+	}
+	r.bound = append(r.bound, coid+"|"+orderID)
+	// The real store's index changes only after the commit, but the unresolved
+	// SET is what this stub models, and a submitted binding is what removes a
+	// coid from it once durable. Removing it here keeps a multi-Step test from
+	// re-binding the same coid forever.
+	delete(r.outstanding, coid)
+	return nil
+}
+
+func (r *stubResolver) AbandonListedReservation(coid string, _ int64) error {
+	if r.abandonErr != nil {
+		return r.abandonErr
+	}
+	r.abandoned = append(r.abandoned, coid)
+	delete(r.outstanding, coid)
+	return nil
 }
 
 // grantedPermit issues a real DrainPermit the way production does: through a

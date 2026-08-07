@@ -32,7 +32,7 @@ func TestStartupForeignOrderIsExcludedAndNeverCancelled(t *testing.T) {
 	sweeper := newSweeperOn(src, true)
 
 	s := newStartup(t, &recordingLatch{}, src, ownsAll(), policy, sweeper, "A", "B")
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 	if at.Err != nil {
 		t.Fatalf("Run: %v", at.Err)
 	}
@@ -95,7 +95,7 @@ func TestForeignOnlyTickerWithInventoryStaysManagedAndReducing(t *testing.T) {
 
 	s := newStartup(t, &recordingLatch{}, src, ownsAll(), keepAll(),
 		newSweeper(true))
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 	if at.Err != nil {
 		t.Fatalf("Run: %v", at.Err)
 	}
@@ -220,12 +220,12 @@ func TestForeignFillAtStartupLatchesBeforeReconciliationCanExposeRunning(t *test
 		t.Fatalf("NewForeignGuard: %v", err)
 	}
 	s, err := NewStartup(ctrl, src, guard, keepAll(), newSweeper(true),
-		testParams(), nil)
+		&stubResolver{}, testParams(), nil)
 	if err != nil {
 		t.Fatalf("NewStartup: %v", err)
 	}
 
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 	if at.Err != nil {
 		t.Fatalf("Run: %v", at.Err)
 	}

@@ -48,16 +48,16 @@ func TestLatchReadPrecedesEveryPortfolioRequest(t *testing.T) {
 		t.Fatalf("NewForeignGuard: %v", err)
 	}
 	if _, err := NewStartup(&GlobalController{}, src, guard, keepAll(),
-		newSweeper(true), testParams(), nil); err == nil {
+		newSweeper(true), &stubResolver{}, testParams(), nil); err == nil {
 		t.Fatal("NewStartup accepted a controller that had not read the latch")
 	}
 	if _, err := NewStartup(nil, src, guard, keepAll(), newSweeper(true),
-		testParams(), nil); err == nil {
+		&stubResolver{}, testParams(), nil); err == nil {
 		t.Fatal("NewStartup accepted a nil controller")
 	}
 
 	// Now run, and confirm the first thing that touches the network is step 1.
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 	if at.Err != nil {
 		t.Fatalf("Run: %v", at.Err)
 	}
@@ -85,7 +85,7 @@ func TestStartupReadsPositionsOrdersFillsBalanceInOrder(t *testing.T) {
 	s := newStartup(t, &recordingLatch{}, src, ownsAll(), keepAll(),
 		newSweeper(true), "SELECTED-A")
 
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 	if at.Err != nil {
 		t.Fatalf("Run: %v", at.Err)
 	}
@@ -209,7 +209,7 @@ func TestStartupNeverLicensesBeforeFourReadsPolicyAndCleanSweeps(t *testing.T) {
 			s := newStartup(t, &recordingLatch{}, src, ownsAll("o1"), policy,
 				sweeper)
 
-			at := s.Run(context.Background(), startingInput(), startupNow)
+			at := s.Step(context.Background(), startupNow)
 			if at.Err == nil {
 				t.Fatal("the attempt reported success")
 			}
@@ -260,7 +260,7 @@ func TestUnknownRiskBeginsOnThirdFailureAndRetriesForever(t *testing.T) {
 	}
 
 	for i, wantAfter := range wantBackoff {
-		at := s.Run(context.Background(), startingInput(), startupNow)
+		at := s.Step(context.Background(), startupNow)
 		attempt := i + 1
 
 		if at.Err == nil || at.Adoption != nil {
@@ -307,7 +307,7 @@ func TestUnknownRiskBeginsOnThirdFailureAndRetriesForever(t *testing.T) {
 	src.positions = rest.PositionsResult{
 		Walk: completeWalk(), ByTicker: map[string]num.Qty{},
 	}
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 	if at.Err != nil || at.Adoption == nil {
 		t.Fatalf("the recovering attempt failed: %v", at.Err)
 	}
@@ -325,11 +325,23 @@ func TestUnknownRiskBeginsOnThirdFailureAndRetriesForever(t *testing.T) {
 	}
 
 	// And the counter reset, so the next failure starts the ladder over.
+	//
+	// The STATE does not go back to STARTING, and that is the coordinator owning
+	// it rather than a regression. This assertion used to read `!= quote.Starting`,
+	// which was only ever satisfied because `startingInput()` re-asserted
+	// STARTING on every call: the caller manufactured the state and the machine
+	// dutifully agreed. A process that has completed a reconciliation is RUNNING,
+	// and one later failed read does not un-reconcile it -- §5.1 gives RUNNING no
+	// edge out but a stop. Regressing to STARTING would re-run adoption against
+	// an account we have already adopted.
+	//
+	// The reset actually under test is the FAILURE COUNTER's, and the backoff
+	// ladder below is what witnesses it.
 	src.positions = rest.PositionsResult{Walk: failedWalk("503")}
-	next := s.Run(context.Background(), startingInput(), startupNow)
-	if next.Decision.State != quote.Starting {
-		t.Fatalf("after a success the failure counter did not reset: state %v",
-			next.Decision.State)
+	next := s.Step(context.Background(), startupNow)
+	if next.Decision.State != quote.Running {
+		t.Fatalf("a failed read after a complete reconciliation produced %v, "+
+			"want RUNNING", next.Decision.State)
 	}
 	if next.After != 1*time.Second {
 		t.Fatalf("after a success the backoff ladder did not reset: %v", next.After)
@@ -362,7 +374,7 @@ func TestStartupSeedsExchangePositionWithoutReplayingHistoricalFills(t *testing.
 
 	s := newStartup(t, &recordingLatch{}, src, ownsAll("o1"), keepAll(),
 		newSweeper(true))
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 	if at.Err != nil {
 		t.Fatalf("Run: %v", at.Err)
 	}
@@ -423,7 +435,7 @@ func TestStartupManagedSetIncludesSelectionPositionsAndOwnedOrders(t *testing.T)
 
 	s := newStartup(t, &recordingLatch{}, src, ownsAll("o1"), keepAll(),
 		newSweeper(true), "SELECTED")
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 	if at.Err != nil {
 		t.Fatalf("Run: %v", at.Err)
 	}
@@ -476,7 +488,7 @@ func TestInvalidAdoptedOrdersRequireVerifiedCleanSweep(t *testing.T) {
 	sweeper := newSweeperOn(src, true)
 
 	s := newStartup(t, &recordingLatch{}, src, ownsAll(), policy, sweeper, "A", "B")
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 	if at.Err != nil {
 		t.Fatalf("Run: %v", at.Err)
 	}
@@ -512,7 +524,7 @@ func TestInvalidAdoptedOrdersRequireVerifiedCleanSweep(t *testing.T) {
 	}}
 	s2 := newStartup(t, &recordingLatch{}, okSourceWith(freshOrders), ownsAll(),
 		policy, unclean, "A", "B")
-	at2 := s2.Run(context.Background(), startingInput(), startupNow)
+	at2 := s2.Step(context.Background(), startupNow)
 	if at2.Err == nil || at2.Adoption != nil {
 		t.Fatal("an unclean sweep still licensed the exit from STARTING: " +
 			"H-FAIL-3 makes those orders live and fillable")
@@ -572,7 +584,7 @@ func TestAdoptionFactsAreDefensiveCopies(t *testing.T) {
 	vandal := &perOrderPolicyMutating{}
 	s := newStartup(t, &recordingLatch{}, src, ownsAll(), vandal,
 		newSweeper(true), "M")
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 	if at.Err != nil {
 		t.Fatalf("Run: %v", at.Err)
 	}

@@ -588,12 +588,16 @@ MUTATIONS = [
      "startup is marked complete after the positions walk, before orders, "
      "fills, balance, the adoption policy and the verified sweep",
      [
-         ("harness/lifecycle/adopt.go",
+         ("harness/lifecycle/startup.go",
           "\t// --- Step 2: resting orders, UNFILTERED --------------------------------\n",
-          "\treturn &adoption{\n"
+          # The REPLACEMENT was re-authored by lip-eyq §3 along with the anchor:
+          # `attempt` returns a single `passResult` now, not the four-value
+          # tuple this used to build. The anchor audit could not catch that --
+          # it validates that `old` still matches, and this `old` did.
+          "\treturn passResult{ad: &adoption{\n"
           "\t\tportfolio: risk.NewSeededPortfolio(pos.ByTicker),\n"
           "\t\tstates:    map[string]quote.MarketState{},\n"
-          "\t}, anoms, 0, nil\n\n"
+          "\t}, anoms: anoms}\n\n"
           "\t// --- Step 2: resting orders, UNFILTERED --------------------------------\n"),
      ],
      "TestStartupNeverLicensesBeforeFourReadsPolicyAndCleanSweeps"),
@@ -633,24 +637,27 @@ MUTATIONS = [
      "the startup walk reads resting orders before positions "
      "-- §7.5's fixed acquisition sequence is violated",
      [
-         ("harness/lifecycle/adopt.go",
+         ("harness/lifecycle/startup.go",
           "\tpos := s.src.Positions(ctx)\n",
           "\torders = s.src.Orders(ctx, \"\", rest.StatusResting)\n"
           "\tpos := s.src.Positions(ctx)\n"),
-         ("harness/lifecycle/adopt.go",
+         ("harness/lifecycle/startup.go",
           "\torders := s.src.Orders(ctx, \"\", rest.StatusResting)\n",
           ""),
-         ("harness/lifecycle/adopt.go",
-          "\t[]risk.Anomaly, int, error) {\n\n\tvar anoms []risk.Anomaly\n",
-          "\t[]risk.Anomaly, int, error) {\n\n\tvar anoms []risk.Anomaly\n"
-          "\tvar orders rest.OrdersResult\n"),
+         # The declaration `orders` needs, now that patch 1 removed its `:=`.
+         # Re-anchored by lip-eyq §3: `attempt` returns a `passResult` instead
+         # of a four-value tuple, so the old signature anchor is gone.
+         ("harness/lifecycle/startup.go",
+          "\tvar anoms []risk.Anomaly\n\tfail := func(err error) passResult {\n",
+          "\tvar anoms []risk.Anomaly\n\tvar orders rest.OrdersResult\n"
+          "\tfail := func(err error) passResult {\n"),
      ],
      "TestStartupReadsPositionsOrdersFillsBalanceInOrder"),
 
     ("M-L-RETRYTHRESH",
      "startup gives up after ONE failed reconciliation instead of three",
      [
-         ("harness/lifecycle/adopt.go",
+         ("harness/lifecycle/startup.go",
           "const startupFailureThreshold = 3\n",
           "const startupFailureThreshold = 1\n"),
      ],
@@ -660,7 +667,7 @@ MUTATIONS = [
      "startup stops retrying once it reaches UNKNOWN_RISK "
      "-- a process sitting next to inventory it decided not to look at again",
      [
-         ("harness/lifecycle/adopt.go",
+         ("harness/lifecycle/startup.go",
           "\tif s.consecutiveFailures >= startupFailureThreshold {\n"
           "\t\tat.Anomalies = append(at.Anomalies, risk.Anomaly{\n",
           "\tif s.consecutiveFailures >= startupFailureThreshold {\n"
@@ -673,7 +680,7 @@ MUTATIONS = [
      "historical startup fills are applied with risk.Live "
      "-- every fill that produced the seeded position is counted twice",
      [
-         ("harness/lifecycle/adopt.go",
+         ("harness/lifecycle/startup.go",
           "\tfx := portfolio.ApplyFills(ownedConverted, s.guard.own, risk.Seed,\n"
           "\t\tnow.UnixMilli())\n",
           "\tfx := portfolio.ApplyFills(ownedConverted, s.guard.own, risk.Live,\n"
@@ -685,7 +692,7 @@ MUTATIONS = [
      "the adoption policy is run over EVERY resting order, so a foreign "
      "order can be swept -- an action on somebody else's risk",
      [
-         ("harness/lifecycle/adopt.go",
+         ("harness/lifecycle/startup.go",
           "\tfor _, o := range ownedResting {\n\t\td, err := s.policy.DecideAdopted(ctx, o, facts.clone())\n",
           "\tfor _, o := range orders.Orders {\n\t\td, err := s.policy.DecideAdopted(ctx, o, facts.clone())\n"),
      ],
@@ -705,7 +712,7 @@ MUTATIONS = [
      "the startup cancel sweep's Clean verdict is ignored "
      "-- H-FAIL-3's cancel-requested orders are treated as off",
      [
-         ("harness/lifecycle/adopt.go",
+         ("harness/lifecycle/startup.go",
           "\t\tif !res.Clean {\n",
           "\t\tif false {\n"),
      ],
@@ -767,23 +774,33 @@ MUTATIONS = [
     # -----------------------------------------------------------------------
     # lip-bw0 v2 — the audit's ten material breaks, ratcheted
     # -----------------------------------------------------------------------
+    # RETARGETED by lip-eyq §2. The old anchor was the fused Decide's inline
+    # test; the boundary is now split, so this breaks Advance's FIRST refusal --
+    # a Stop request with nothing committed to the latch. NextGlobal's RUNNING
+    # rule is `if in.Stop { WindingDown }`, so removing the guard publishes a
+    # halt with nothing on disk, which a panic and launchd KeepAlive erase.
     ("M-L-CAUSELESS",
-     "GlobalInput.Stop with a zero StopCause reaches WINDING_DOWN "
-     "-- a halt that a panic and a launchd restart erase completely",
+     "Advance honours GlobalInput.Stop with nothing committed to the durable "
+     "latch -- a halt that a panic and a launchd restart erase completely",
      [
          ("harness/lifecycle/global.go",
-          "\t\tif in.Stop && !c.latched {\n",
+          "\t\tif in.Stop {\n",
           "\t\tif false {\n"),
      ],
      "TestCauselessStopCannotEnterWindingDown"),
 
+    # RETARGETED by lip-eyq §3.3. `commit(in, causes)` no longer exists: causes
+    # are made durable the MOMENT classification finds them, before the balance
+    # error is consulted and before any conversion that can fail. This drops
+    # that immediate commitment, so a foreign fill discovered during
+    # reconciliation becomes a to-do item the caller is trusted to remember.
     ("M-L-STARTUPCAUSE",
-     "startup returns a completed adoption without committing the causes it "
-     "found -- a foreign fill becomes a to-do item for the caller",
+     "startup returns a completed adoption without committing the causes "
+     "classification found -- a foreign fill becomes a to-do item",
      [
-         ("harness/lifecycle/adopt.go",
-          "\tdec := s.commit(in, ad.causes)\n",
-          "\tdec := s.commit(in, nil)\n"),
+         ("harness/lifecycle/startup.go",
+          "\tfor _, c := range fe.Causes {\n",
+          "\tfor _, c := range []StopCause(nil) {\n"),
      ],
      "TestStartupCommitsEveryCauseBeforeReturningDecision"),
 
@@ -812,7 +829,7 @@ MUTATIONS = [
      "startup converts every fill before classifying ownership, so a FOREIGN "
      "fill with an unreadable fee becomes a generic retry and never latches",
      [
-         ("harness/lifecycle/adopt.go",
+         ("harness/lifecycle/startup.go",
           "\townedConverted, err := convertStartupFills(fe.OwnedFills)\n",
           "\townedConverted, err := convertStartupFills(fills.Fills)\n"),
      ],
@@ -822,10 +839,14 @@ MUTATIONS = [
      "the adoption is built from the position read that PRECEDED the cancel "
      "sweep -- an order that filled while being cancelled leaves q stale",
      [
-         ("harness/lifecycle/adopt.go",
+         # Re-anchored by lip-eyq §3: the pass returns a `passResult` now, so
+         # the old four-value return is gone. The property is unchanged --
+         # deleting this is what lets a cancelling pass fall through and build
+         # an adoption from the position read that preceded its own sweep.
+         ("harness/lifecycle/startup.go",
           "\tif cancelled > 0 {\n"
           "\t\t// The caller rewalks. Nothing below would be built from a current read.\n"
-          "\t\treturn nil, anoms, cancelled, nil\n\t}\n",
+          "\t\treturn passResult{anoms: anoms, cancelled: cancelled}\n\t}\n",
           ""),
      ],
      "TestStartupRewalksAfterEveryCancelSweep"),
@@ -834,7 +855,7 @@ MUTATIONS = [
      "adopted orders are never installed into the portfolio, so AnyLiveOrder "
      "reads false while an exchange-fillable order of ours rests",
      [
-         ("harness/lifecycle/adopt.go",
+         ("harness/lifecycle/startup.go",
           "\toe := portfolio.ReplaceOrders(keptAsLive(kept), nil, true)\n",
           "\toe := portfolio.ReplaceOrders(nil, nil, true)\n"),
      ],
@@ -1525,6 +1546,103 @@ MUTATIONS = [
           '\tif false && st.ticker != ticker {\n'),
      ],
      'TestOrderTickerConflictIsRefusedRatherThanGuessed'),
+
+    # -----------------------------------------------------------------------
+    # lip-eyq — transactional startup authority
+    #
+    # `M-L-CAUSELESS` and `M-L-STARTUPCAUSE` are RETARGETED above rather than
+    # added here: the boundary they tested was split into CommitStop/Advance,
+    # so their old anchors describe code that no longer exists.
+    # -----------------------------------------------------------------------
+
+    # §3.4. The taker flag needs no arithmetic; the fee corroborator does. A
+    # commitment that waits for the conversion is a commitment a malformed
+    # fee_cost deletes -- on a fill the exchange EXPLICITLY flagged.
+    ('M-L-CAUSEFAIL',
+     'postpone the known owned-taker commitment until after the fee '
+     'conversion, so a taker fill whose fee_cost will not parse latches '
+     'nothing at all and stops being reported once backfill_h rolls past it',
+     [
+         ('harness/lifecycle/startup.go',
+          '\t\tif !f.IsTaker {\n',
+          '\t\tif true {\n'),
+     ],
+     'TestStartupCommitsKnownTakerEvidenceBeforeFeeConversion'),
+
+    # §2. DRAINED is the one state reached by two FALSES, so it is the one edge
+    # an unpopulated input takes by accident. Dropping RiskKnown makes a
+    # GlobalInput nobody filled in read exactly like a flat, quiet account --
+    # and DRAINED rests no reducer, so the position it never looked at is now
+    # unmanaged.
+    ('M-L-FALSEFLAT',
+     'ignore RiskKnown when draining, so absence of evidence drains: a '
+     'WINDING_DOWN whose risk flags were never established reports the '
+     'inventory gone on the strength of a read that did not happen',
+     [
+         ('harness/quote/machine.go',
+          '\t\tif in.RiskKnown && !in.AnyInventory && !in.AnyLiveOrder {\n',
+          '\t\tif !in.AnyInventory && !in.AnyLiveOrder {\n'),
+     ],
+     'TestWindingDownRequiresKnownFlatTruthBeforeDrained'),
+
+    # §3.8 / §2. The coordinator's state is the whole point of the rewrite: a
+    # Step that resets to STARTING has no memory, so a process that reconciled
+    # and reached RUNNING re-enters adoption on the next pass, and a latched one
+    # is handed STARTING by the very procedure H-HALT-4 exists to gate.
+    ('M-L-STATERESET',
+     'reset the coordinator state to STARTING at the top of every Step, so '
+     'the startup transaction has no memory across attempts',
+     [
+         ('harness/lifecycle/startup.go',
+          '\tres := s.walk(ctx, now)\n',
+          '\ts.state = quote.Starting\n\tres := s.walk(ctx, now)\n'),
+     ],
+     'TestStartupOwnsStateAcrossRetrySequence'),
+
+    # §2. The forge. An exported setter puts the global state back under caller
+    # control, which is exactly the boundary lip-eyq removed -- and the state a
+    # caller is most likely to set is the zero value.
+    ('M-L-STATEFORGE',
+     'add an exported setter for the coordinator global state, restoring the '
+     'caller-injected state the split boundary exists to prevent',
+     [
+         ('harness/lifecycle/startup.go',
+          'func (s *Startup) State() quote.GlobalState { return s.state }\n',
+          'func (s *Startup) State() quote.GlobalState { return s.state }\n'
+          '\n// SetState re-opens the injected-state hole.\n'
+          'func (s *Startup) SetState(st quote.GlobalState) { s.state = st }\n'),
+     ],
+     'TestStartupPublicSurfaceCannotAcceptOrResetGlobalInput'),
+
+    # §4. Whether we may ADD at all is not a question about the order, so it is
+    # not the injected policy's to answer. The policy is lip-3af's and cannot be
+    # assumed to know the latch is set or the ticker is excluded; if its `keep`
+    # is final, a halted process adopts its own adding orders and resumes
+    # quoting under a durable stop. `false &&` keeps both operands used so the
+    # mutated tree still compiles.
+    ('M-L-STOPKEEP',
+     'preserve an adopted ADDING order the lifecycle revoked, so a globally '
+     'halted or foreign-excluded market keeps resting our adding quote',
+     [
+         ('harness/lifecycle/startup.go',
+          '\t\t\tif (!addingPermitted || tickerExcluded) &&\n',
+          '\t\t\tif false && (!addingPermitted || tickerExcluded) &&\n'),
+     ],
+     'TestRevokedAddingOrderIsCancelledWhileTheReducerInTheSameExcludedMarketSurvives'),
+
+    # §4. `Selected` handed to the policy must be the EFFECTIVE set. Passing the
+    # raw one asks the policy to validate orders against markets startup has
+    # already decided are not ours to newly quote -- and F15's exclusion then
+    # has no consequence at the only layer that enforces it.
+    ('M-L-EXCLUDESELECT',
+     'hand the adoption policy the RAW operator selection instead of the '
+     'effective set, so a foreign-excluded ticker is still quotable',
+     [
+         ('harness/lifecycle/startup.go',
+          '\t\tSelected:        effective,\n',
+          '\t\tSelected:        s.selected,\n'),
+     ],
+     'TestAdoptionPolicyReceivesEffectiveSelectionAndExclusionsAsDefensiveCopies'),
 
 ]
 

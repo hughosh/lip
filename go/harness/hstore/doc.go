@@ -40,6 +40,29 @@
 // ordering exists because a row that is visible to delivery before the text is
 // durable can be delivered once and then lost.
 //
+// # Stopping: drain, then cancel, then close
+//
+// `Shutdown` exists because the three steps are safe in exactly one order and
+// two of them destroy or refuse evidence when taken early. `Close` refuses over
+// a non-empty FIFO, and a writer whose context is cancelled terminally fails
+// every record it was still holding. That failure is the CRASH path's
+// damage-limitation -- records nothing will ever write are better reported than
+// left in limbo -- and reaching it from an orderly stop means the shutdown
+// itself lost rows that were still perfectly writable. The ordering lives in
+// this package so that the process wiring cannot re-derive it slightly
+// differently.
+//
+// # A terminal Result is the alert, and health is not
+//
+// Every `Result` with a non-nil `Err` is one record that is GONE, and it is the
+// only signal that says so per record: `Rejections` turns a `TakeResults` batch
+// into the `STORE_RECORD_REJECTED` SEV1s it raises. `Health().LastError()` is
+// operator text for the heartbeat and cannot carry the same claim -- it is one
+// latched string for the whole store, so two lost records read as one condition
+// naming whichever failed last, it is sticky rather than edge-triggered, and it
+// is empty on the writer-exit path where records are lost with no fault latched
+// at all.
+//
 // Storage paths are explicit constructor arguments and NOT `cfg.Params` fields:
 // §16 is the parameter table a run row records verbatim, and where the database
 // lives is deployment, not policy.

@@ -97,7 +97,7 @@ func TestStartupDoesNotLatchForeignFillWhileReservationsUnresolved(t *testing.T)
 
 	s := newStartup(t, store, src, unresolvedFor(orderID), keepAll(),
 		newSweeper(true))
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 
 	if at.Adoption != nil {
 		t.Fatal("startup concluded while the ownership ledger held " +

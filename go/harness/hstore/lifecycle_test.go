@@ -16,11 +16,30 @@ import (
 	"lip/harness/risk"
 )
 
-// drained spins until the writer's FIFO is empty. It yields rather than sleeps;
-// the bound exists so a mutation that wedges the writer fails fast.
+// drained spins until the writer's FIFO is empty. It yields rather than sleeps,
+// so a mutation that wedges the writer still fails promptly.
+//
+// The bound is WALL CLOCK, and it used to be a count of 500,000
+// `runtime.Gosched()` calls. That is not a bound on waiting at all. Yielding
+// 500,000 times takes as long as the scheduler says it does, and under the
+// PARALLEL all-package run that the negative control uses for its baseline, the
+// yields burn down while this test's writer goroutine is starved of a core. The
+// helper then reports "the queue never drained" about a queue that simply had
+// not drained YET.
+//
+// That is a false RED, and an expensive one: the negative control refuses to
+// run any mutation against a red baseline, so an intermittent flake here costs
+// a ~50-minute catalogue round trip rather than one test. It reproduced under
+// `go test ./harness/... ./cmd/harness/...` while passing 6/6 for the package
+// alone, which is the signature of contention rather than a defect.
+//
+// A deadline is strictly MORE patient under load and identical in outcome when
+// the writer is genuinely wedged -- the assertion is unchanged, it just fires
+// after the deadline instead of after the yields.
 func drained(t *testing.T, s *Store) {
 	t.Helper()
-	for i := 0; i < 500_000; i++ {
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
 		if s.Health().Pending() == 0 {
 			return
 		}

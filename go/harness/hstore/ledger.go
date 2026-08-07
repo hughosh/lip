@@ -286,6 +286,25 @@ func (s *Store) BindListedOrder(coid, orderID string, boundMs int64) error {
 	return err
 }
 
+// AbandonListedReservation is `ResolveReservationAbandoned` without the receipt,
+// and it is the other terminal of the same walk `BindListedOrder` serves.
+//
+// The receipt is dropped for the reason given above it: the walk re-runs, the
+// record is idempotent, and there is no completion the walk is entitled to wait
+// for. Startup is the caller, and a startup that blocked on the disk before it
+// could conclude a fill was foreign would stall the exit from STARTING behind a
+// write whose only purpose is to stop deferring.
+//
+// The two are deliberately symmetrical. `lip-eyq`'s resolve walk drains the
+// unresolved set from both ends -- bind what the exchange lists, abandon what it
+// never took -- and an asymmetry in how the two are submitted would make one of
+// them look like the exceptional case. Neither is: a reservation resolves one
+// way or the other, and until it resolves it defers every unrecognised fill.
+func (s *Store) AbandonListedReservation(coid string, abandonedMs int64) error {
+	_, err := s.ResolveReservationAbandoned(coid, abandonedMs)
+	return err
+}
+
 // ReserveOrder is stage one of H-ORD-6: the coid becomes durable BEFORE the
 // order is dispatched.
 //

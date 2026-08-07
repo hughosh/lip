@@ -101,7 +101,7 @@ func TestStartupCommitsEveryCauseBeforeReturningDecision(t *testing.T) {
 		Fills: []rest.Fill{makerFill("t1", "not-ours", "M")}}
 
 	s := newStartup(t, store, src, ownsAll(), keepAll(), newSweeper(true))
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 	if at.Err != nil {
 		t.Fatalf("Run: %v", at.Err)
 	}
@@ -132,7 +132,7 @@ func TestStartupWithNoCauseReachesRunningThroughTheStateMachine(t *testing.T) {
 	store := &recordingLatch{}
 	s := newStartup(t, store, okSource(), ownsAll(), keepAll(), newSweeper(true))
 
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 	if at.Err != nil {
 		t.Fatalf("Run: %v", at.Err)
 	}
@@ -162,7 +162,7 @@ func TestLatchedStartupFailureCannotRegressToStartingOrUnknownRisk(t *testing.T)
 	s := newStartup(t, store, src, ownsAll(), keepAll(), newSweeper(true))
 
 	for i := 1; i <= 5; i++ {
-		at := s.Run(context.Background(), startingInput(), startupNow)
+		at := s.Step(context.Background(), startupNow)
 		if at.Err == nil {
 			t.Fatalf("attempt %d succeeded", i)
 		}
@@ -179,13 +179,34 @@ func TestLatchedStartupFailureCannotRegressToStartingOrUnknownRisk(t *testing.T)
 	src.positions = rest.PositionsResult{
 		Walk: completeWalk(), ByTicker: map[string]num.Qty{},
 	}
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 	if at.Err != nil {
 		t.Fatalf("Run: %v", at.Err)
 	}
-	if at.Decision.State != quote.WindingDown ||
-		at.Decision.Trigger != quote.GTLatch {
-		t.Fatalf("a latched process reconciled into %v/%v",
+	// A latched process that completes a full reconciliation and finds the
+	// account genuinely empty DRAINS, and that is the `RiskKnown` gate working
+	// rather than the failure it was built to prevent.
+	//
+	// The earlier attempts already took STARTING to WINDING_DOWN through A14, so
+	// that edge is asserted above. This pass is complete, FINAL and cancelled
+	// nothing, which is the only shape of pass that sets `RiskKnown` -- so both
+	// risk flags are ANSWERS here rather than unpopulated zeroes, and §5.1's
+	// drain edge is legitimately open. DRAINED does not exit: it idles, keeps
+	// monitoring, and re-enters WINDING_DOWN the moment inventory or a live
+	// order reappears, so nothing is abandoned by reaching it.
+	//
+	// The property this test is NAMED for is asserted directly rather than
+	// inferred from a single expected state, which is the stronger form: it is
+	// STARTING and UNKNOWN_RISK that a latched process may never reach.
+	if at.Decision.State == quote.Starting ||
+		at.Decision.State == quote.UnknownRisk {
+		t.Fatalf("a latched process reconciled into %v; A14 makes the durable "+
+			"halt outrank every startup outcome", at.Decision.State)
+	}
+	if at.Decision.State != quote.Drained ||
+		at.Decision.Trigger != quote.GTDrained {
+		t.Fatalf("a latched process that completely reconciled a flat, "+
+			"order-free account produced %v/%v, want DRAINED/GTDrained",
 			at.Decision.State, at.Decision.Trigger)
 	}
 }
@@ -226,7 +247,7 @@ func TestExternalCodeCannotForgeCompleteAdoption(t *testing.T) {
 	src.positions = rest.PositionsResult{Walk: failedWalk("503")}
 	s := newStartup(t, &recordingLatch{}, src, ownsAll(), keepAll(),
 		newSweeper(true))
-	if at := s.Run(context.Background(), startingInput(), startupNow); at.Adoption != nil {
+	if at := s.Step(context.Background(), startupNow); at.Adoption != nil {
 		t.Fatal("a failed attempt returned a non-nil Adoption")
 	}
 }
@@ -255,7 +276,7 @@ func TestForeignFillWithUnusableFeeStillLatches(t *testing.T) {
 	src.fills = rest.FillsResult{Walk: completeWalk(), Fills: []rest.Fill{bad}}
 
 	s := newStartup(t, store, src, ownsAll(), keepAll(), newSweeper(true))
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 
 	if at.Err != nil {
 		t.Fatalf("a foreign fill with an unusable fee failed the whole startup "+
@@ -285,7 +306,7 @@ func TestForeignFillWithUnusableFeeStillLatches(t *testing.T) {
 	mine.FeeCost = ""
 	src2.fills = rest.FillsResult{Walk: completeWalk(), Fills: []rest.Fill{mine}}
 	s2 := newStartup(t, store2, src2, ownsAll("mine"), keepAll(), newSweeper(true))
-	if at2 := s2.Run(context.Background(), startingInput(), startupNow); at2.Err == nil {
+	if at2 := s2.Step(context.Background(), startupNow); at2.Err == nil {
 		t.Fatal("an unreadable fee on one of OUR fills did not fail startup; " +
 			"maker fees are $0.00 (S2), so the fee is one of the two witnesses " +
 			"to a taker fill and it cannot be missing")
@@ -310,7 +331,7 @@ func TestStartupRewalksAfterEveryCancelSweep(t *testing.T) {
 	s := newStartup(t, &recordingLatch{}, src,
 		ownsAll(), &fixedPolicy{decision: AdoptionCancel}, sweeper, "M")
 
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 	if at.Err != nil {
 		t.Fatalf("Run: %v", at.Err)
 	}
@@ -355,12 +376,24 @@ func TestStartupPortfolioContainsEveryKeptOrder(t *testing.T) {
 	src.orders = rest.OrdersResult{Walk: completeWalk(), Orders: []rest.Order{
 		ourOrder("keep-1", "M"),
 		ourOrder("keep-2", "M"),
-		foreignOrder("theirs", "M"),
+		// The foreign order sits on a DIFFERENT ticker, and it has to.
+		//
+		// A foreign resting order excludes its market from new selection (F15),
+		// and lip-eyq §4 makes the LIFECYCLE -- not the policy -- revoke an
+		// adding order in an excluded market. `okSource` holds no position, so
+		// q == 0 on M, so BOTH sides are adding there and both kept orders would
+		// be revoked into a cancellation. Keeping "theirs" on M would therefore
+		// assert that an excluded market's adding orders survive, which is the
+		// opposite of the rule.
+		//
+		// It still proves what this test needs it to prove: a foreign order does
+		// not enter OUR resting-order model, asserted on `ids["theirs"]` below.
+		foreignOrder("theirs", "N"),
 	}}
 	s := newStartup(t, &recordingLatch{}, src, ownsAll(), keepAll(),
 		newSweeper(true), "M")
 
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 	if at.Err != nil {
 		t.Fatalf("Run: %v", at.Err)
 	}
@@ -392,7 +425,7 @@ func TestStartupPortfolioContainsEveryKeptOrder(t *testing.T) {
 	sweeper := newSweeperOn(src2, true)
 	s2 := newStartup(t, &recordingLatch{}, src2, ownsAll(),
 		&fixedPolicy{decision: AdoptionCancel}, sweeper, "M")
-	at2 := s2.Run(context.Background(), startingInput(), startupNow)
+	at2 := s2.Step(context.Background(), startupNow)
 	if at2.Err != nil {
 		t.Fatalf("Run: %v", at2.Err)
 	}
@@ -542,7 +575,7 @@ func TestStartupSummaryIsADeepCopy(t *testing.T) {
 	s := newStartup(t, &recordingLatch{}, src, ownsAll(), keepAll(),
 		newSweeper(true), "SELECTED")
 
-	at := s.Run(context.Background(), startingInput(), startupNow)
+	at := s.Step(context.Background(), startupNow)
 	if at.Err != nil {
 		t.Fatalf("Run: %v", at.Err)
 	}

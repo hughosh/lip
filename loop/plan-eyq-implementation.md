@@ -32,14 +32,79 @@ failing-first before the repair, per `loop/protocol/RULES.md`.
 
 ### STATUS 2026-08-07
 
-- **A — DONE except the `Startup` coordinator** (`Step`/`State`, which is carried
-  into B because it is the same rewrite). `RiskKnown` gate, `StopCommit`,
-  `CommitStop`, `Advance` + its forge guard, `SignalController` commit-then-
-  advance, and all 9 test call sites migrated. build / vet / gofmt / check.py
-  green; `go test ./harness/...` green across all 9 packages.
-  - Failing-first evidence recorded below.
-  - Three existing tests AMENDED (recorded, with reasons).
-- **B–G — NOT STARTED.**
+- **A — DONE** (see below).
+- **B, C, D — DONE in production code.** `Startup` is now a stateful coordinator
+  in a new `go/harness/lifecycle/startup.go`; `adopt.go` retains only the
+  policy/adoption types. `Run` is deleted; `Step(ctx, now)`/`State()` replace it.
+  Balance error retained across classification; causes committed immediately
+  (classification, raw `is_taker` pre-conversion, and `fx.Stop`); causes carried
+  across rewalks deduped by `(Trigger, Market)`; ONE `Advance` per Step from
+  internally derived facts; `RiskKnown` only on a complete final no-cancel pass;
+  latch failure continues cancellation but never returns an Adoption.
+  `AdoptionFacts` gains `Excluded`/`AddingPermitted` and an effective `Selected`;
+  the lifecycle revokes a kept ADDING order when adding authority is revoked
+  (`ADOPTION_KEEP_REVOKED`) while leaving reducers alone. New
+  `ReservationResolver` (required, not nil-tolerant) drains the unresolved set
+  via an UNFILTERED orders walk, binding what is listed and abandoning only
+  after `resolveConfirmAttempts` (3) CONSECUTIVE COMPLETE misses.
+  - `hstore` gains `AbandonListedReservation` mirroring `BindListedOrder`, so
+    `lifecycle` needs no `hstore` import.
+- **F1 — DONE.** `startingInput()` DELETED. **26** call sites migrated, not the
+  25 the design counted: `unresolved_test.go` gained one in `lip-6w5` v3.
+- **E, F2, G — IN PROGRESS.**
+
+#### Catalogue anchor rot found and fixed (2026-08-07)
+
+An `ast.parse` audit of all 124 entries found **14 rotted anchors**, none of
+which the negative control would have reported as anything but "survived":
+
+- **10 were pure PATH rot** — the code moved verbatim from `adopt.go` into the
+  new `startup.go` (`M11`, `M-L-ADOPTORDER` ×2, `M-L-RETRYTHRESH`,
+  `M-L-RETRYEXIT`, `M-L-SEEDLIVE`, `M-L-FOREIGNCANCEL`, `M-L-SWEEP`,
+  `M-L-FOREIGNFEE`, `M-L-ADOPTRESTING`). Repointed mechanically, by AST node
+  position, only where the anchor text was byte-identical and unique.
+- **4 needed RE-AUTHORING** because the code itself changed:
+  `M-L-ADOPTORDER` patch 2 (`attempt` returns `passResult`, not a 4-tuple),
+  `M-L-SWEEPREPLAY` (same), and the two the design already assigned,
+  `M-L-CAUSELESS` (now `Advance`'s unlatched-`Stop` refusal) and
+  `M-L-STARTUPCAUSE` (now the immediate classification-cause commit loop).
+
+**Two of these — `M-L-CAUSELESS` and `M-L-STARTUPCAUSE` — were rotted by
+SECTION A, which did not re-run the catalogue.** Anything relying on the 124/124
+result as evidence about those two invariants was relying on a no-op.
+
+The audit script is worth keeping: `str.replace` no-ops silently, so a rotted
+anchor tests nothing while reporting "survived". Re-run it after ANY signature
+change, before trusting a catalogue result.
+
+**But the audit is NOT sufficient, and the first full run proved it.** It
+validates that every `old` still matches exactly once. It says nothing about the
+`new`. `M11`'s anchor was healthy after being repointed to `startup.go`, while
+its REPLACEMENT still built the four-value tuple `attempt` used to return:
+
+    | M11 | ... | **DID NOT BUILD** | harness/lifecycle/startup.go:571:5:
+      too many return values |
+
+A mutation that does not build is not caught and does not count -- so the anchor
+audit turns a silent false-"survived" into a loud DID-NOT-BUILD, which is the
+right direction but is not the same as verification. The only thing that checks
+a replacement is running the mutation. After a signature change, run the
+affected ids with `--only` BEFORE committing to a full ~50-minute pass.
+
+#### A false-RED flake in the baseline (fixed)
+
+`hstore`'s `drained()` test helper bounded its wait by 500,000
+`runtime.Gosched()` calls -- a yield COUNT, not a time bound. Under the parallel
+all-package run the negative control uses for its baseline, the yields burn down
+while the writer goroutine is starved of a core, and it reports "the queue never
+drained" about a queue that had not drained YET. It passed 6/6 for the package
+alone and failed under `go test ./harness/... ./cmd/harness/...`, which is the
+signature of contention rather than a defect.
+
+This is expensive rather than merely annoying: the negative control REFUSES to
+run any mutation against a red baseline, so the flake costs a full catalogue
+round trip. Now a 5s wall-clock deadline -- strictly more patient under load,
+identical in outcome when the writer is genuinely wedged.
 
 #### Failing-first evidence (section A)
 
