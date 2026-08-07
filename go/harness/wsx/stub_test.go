@@ -422,19 +422,61 @@ func completeFills(fills []rest.Fill) rest.FillsResult {
 
 // ledger is a fake risk.OwnershipLookup.
 type ledger struct {
-	ours map[string]bool
-	err  error
+	ours       map[string]bool
+	unresolved map[string]bool
+	err        error
 }
 
-func (l ledger) OwnsOrders(ids []string) ([]bool, error) {
+func (l ledger) OwnsOrders(ids []string) ([]risk.Ownership, error) {
 	if l.err != nil {
 		return nil, l.err
 	}
-	out := make([]bool, len(ids))
+	out := make([]risk.Ownership, len(ids))
 	for i, id := range ids {
-		out[i] = l.ours[id]
+		switch {
+		case l.ours[id]:
+			out[i] = risk.OwnershipOurs
+		case l.unresolved[id]:
+			out[i] = risk.OwnershipUnresolved
+		default:
+			out[i] = risk.OwnershipForeign
+		}
 	}
 	return out, nil
+}
+
+// binder is a fake OrderBinder. It records what the orders walk submitted and,
+// like the real one, does NOT make the binding visible to the lookup: the
+// durable commit is what does that, and a fake that bound synchronously would
+// hide the one-cycle deferral the real store produces.
+type binder struct {
+	unresolved map[string]struct{}
+	submitted  []Binding
+	err        error
+}
+
+func newBinder(coids ...string) *binder {
+	m := make(map[string]struct{}, len(coids))
+	for _, c := range coids {
+		m[c] = struct{}{}
+	}
+	return &binder{unresolved: m}
+}
+
+func (b *binder) UnresolvedReservations() map[string]struct{} {
+	out := make(map[string]struct{}, len(b.unresolved))
+	for c := range b.unresolved {
+		out[c] = struct{}{}
+	}
+	return out
+}
+
+func (b *binder) BindListedOrder(coid, orderID string, boundMs int64) error {
+	if b.err != nil {
+		return b.err
+	}
+	b.submitted = append(b.submitted, Binding{Coid: coid, OrderID: orderID})
+	return nil
 }
 
 func owns(ids ...string) ledger {

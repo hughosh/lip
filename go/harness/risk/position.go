@@ -35,14 +35,59 @@ import (
 // claims all of it, and no later poll repairs that. A per-fill lookup that could
 // fail in the middle makes that atomicity impossible to state.
 //
-// And it returns an ERROR because the durable ledger has a third answer.
+// And it returns an ERROR because the durable ledger can be UNAVAILABLE.
 // "Unavailable" is not "not ours". A boolean seam has nowhere to put the
 // difference, so the unavailable case silently becomes the foreign case -- which
 // is SEV1, a global stop, and a claim that a third party is trading the account,
 // produced by a database that would not open. The returned slice must match the
 // input length; on error nothing may be inferred about any id in the batch.
+//
+// # Why the per-id answer is three-valued and not two
+//
+// H-ORD-6 reserves the coid durably BEFORE the order is dispatched, and the
+// exchange order id is learned afterwards. Between those two commits the ledger
+// holds a reservation with no order id: the order may exist, and a fill on it
+// carries an id the ledger has never seen. A two-valued answer has to call that
+// FOREIGN, which is H-ORD-9's forbidden catastrophe -- SEV1, global stop and a
+// durable, operator-only WINDING_DOWN latch -- produced by our own order.
+//
+// So "unknown to the ledger" and "known not to be ours" are different answers,
+// and only the second one is FOREIGN.
 type OwnershipLookup interface {
-	OwnsOrders(orderIDs []string) ([]bool, error)
+	OwnsOrders(orderIDs []string) ([]Ownership, error)
+}
+
+// Ownership is the ledger's answer about one order id.
+//
+// The ZERO VALUE is `OwnershipUnresolved`, and that is the whole reason the type
+// exists rather than a pair of bools. Every un-set element of a slice, every
+// fake in a test that forgot a case, and every future third state defaults to
+// the answer that DEFERS. `OwnershipForeign` is the one that latches a global
+// stop, so it is the one nobody gets by accident.
+type Ownership uint8
+
+const (
+	// OwnershipUnresolved is "the ledger cannot conclude yet". The order id is
+	// not bound, and there is at least one reservation outstanding that could
+	// still turn out to be it. Callers must neither apply nor disown the fill:
+	// it is offered again on the next walk, and `lip-eyq`'s startup walk is what
+	// eventually resolves every reservation.
+	OwnershipUnresolved Ownership = iota
+	// OwnershipOurs is a COMMITTED binding in the durable ledger.
+	OwnershipOurs
+	// OwnershipForeign is conclusive: the id is not bound and no outstanding
+	// reservation could become it. Someone else is trading the account.
+	OwnershipForeign
+)
+
+func (o Ownership) String() string {
+	switch o {
+	case OwnershipOurs:
+		return "ours"
+	case OwnershipForeign:
+		return "foreign"
+	}
+	return "unresolved"
 }
 
 // FillEvent is one fill from the authoritative record, `GET /portfolio/fills`,
@@ -145,6 +190,15 @@ type Portfolio struct {
 	// poll forever; without this the position would grow without bound while
 	// every individual read was correct.
 	seenTrade map[string]struct{}
+	// deferredAt is the poll-clock reading at which each unresolved trade_id
+	// was FIRST deferred. It is not durable and does not need to be: a restart
+	// re-offers the fill, re-defers it, and restarts the 120s clock, which is
+	// the right behaviour -- the operator is being told "this has been stuck for
+	// two minutes", and after a restart it has not.
+	deferredAt map[string]int64
+	// deferralEscalated is the trade_ids the SEV2 has already been raised for,
+	// so a fill stuck for an hour produces one anomaly and not one per poll.
+	deferralEscalated map[string]struct{}
 	// resting is the last complete order walk, by order id.
 	resting map[string]LiveOrder
 	// driftStreak counts consecutive polls whose disagreement exceeded
@@ -155,11 +209,13 @@ type Portfolio struct {
 
 func NewPortfolio() *Portfolio {
 	return &Portfolio{
-		q:           make(map[string]num.Qty),
-		orders:      make(map[string]*orderState),
-		seenTrade:   make(map[string]struct{}),
-		resting:     make(map[string]LiveOrder),
-		driftStreak: make(map[string]int),
+		q:                 make(map[string]num.Qty),
+		orders:            make(map[string]*orderState),
+		seenTrade:         make(map[string]struct{}),
+		deferredAt:        make(map[string]int64),
+		deferralEscalated: make(map[string]struct{}),
+		resting:           make(map[string]LiveOrder),
+		driftStreak:       make(map[string]int),
 	}
 }
 
@@ -234,8 +290,22 @@ type FillEffects struct {
 	// cash flows. A taker fill of ours appears here as well: it happened, and
 	// the record of it is the evidence.
 	Owned []FillEvent
-	// Foreign is the subset the ledger disclaims.
+	// Foreign is the subset the ledger CONCLUSIVELY disclaims: not bound, and
+	// no reservation outstanding that could still become it.
 	Foreign []FillEvent
+	// Deferred is the subset the ledger could not conclude about. They were not
+	// applied, not marked seen and not disclaimed, and the next walk offers them
+	// again. It is reported so the caller can see that a poll which changed
+	// nothing was still doing something -- an empty `Owned` with an empty
+	// `Deferred` and an empty `Foreign` is a quiet account, and an empty `Owned`
+	// with a full `Deferred` is a ledger with work outstanding.
+	//
+	// Note what carrying deferrals does NOT do: it does not set `Incomplete`.
+	// The exchange read succeeded and the fills endpoint IS current; the fills
+	// in it simply have not been attributed yet. Withholding the freshness
+	// stamp would age truth out and stop dispatch over a condition that is
+	// normal for a second or two after every reservation.
+	Deferred []FillEvent
 	// Incomplete says the batch was NOT classified and nothing was applied:
 	// not q, not the order counters, not the dedup set. The caller must not
 	// refresh fills truth from a result carrying it -- an endpoint reported as
@@ -272,6 +342,22 @@ func (p *Portfolio) ApplyAck(a AckFill) FillEffects {
 	return eff
 }
 
+// unclassifiedFillEscalateMs is how long a fill may stay unresolved before the
+// operator is told about it.
+//
+// Deferral is the correct answer to "the ledger has not concluded yet", and it
+// is also a perfectly quiet way to never apply a fill again. §7.2's
+// `unknown_ping_s` is the same shape and the same 120 seconds: an UNKNOWN state
+// is legitimate briefly and is a fault if it persists, so the protocol is to
+// keep the honest answer and raise the volume rather than to invent a decision.
+//
+// The escalation is SEV2 and not SEV1, and it never converts to a
+// classification. A fill this process cannot attribute is not evidence that a
+// third party is trading the account -- that is precisely what it fails to
+// establish -- and firing F14's global stop on an unresolved question is the
+// original defect wearing a timer.
+const unclassifiedFillEscalateMs = 120_000
+
 // ApplyFills applies one complete authoritative fills walk.
 //
 // Every fill is CONVERTED and CLASSIFIED before any of them is applied, which
@@ -279,8 +365,14 @@ func (p *Portfolio) ApplyAck(a AckFill) FillEffects {
 // leaves `q_local` describing a prefix of the account's history while the
 // dedup set claims the whole of it, and no later poll can repair that: the
 // skipped fills are already marked seen.
+//
+// `nowMs` is the CALLER's poll clock in Unix milliseconds -- the wall stamp of
+// the walk being applied, not `time.Now()`. It is used for one thing: deciding
+// when a fill has been unresolved for too long. Reading the clock here would put
+// a real timer inside the position model, and the deferral deadline would then
+// be the one deadline in this package a test cannot drive.
 func (p *Portfolio) ApplyFills(fills []FillEvent, own OwnershipLookup,
-	mode ReconcileMode) FillEffects {
+	mode ReconcileMode, nowMs int64) FillEffects {
 
 	var eff FillEffects
 	if own == nil {
@@ -355,9 +447,50 @@ func (p *Portfolio) ApplyFills(fills []FillEvent, own OwnershipLookup,
 
 	// --- Pass 3: apply, now that every fill has an answer -------------------
 	for i, f := range unseen {
-		p.seenTrade[f.TradeID] = struct{}{}
+		if owned[i] == OwnershipUnresolved {
+			// DEFER. Not applied, not marked seen, not foreign.
+			//
+			// The ledger holds a reservation that could still turn out to be
+			// this order (H-ORD-6's window, which spans a crash), so there is no
+			// answer yet -- and the two available guesses are both damaging in
+			// ways no later poll repairs. Guessing OURS books a stranger's
+			// contracts into q. Guessing FOREIGN latches a durable, operator-only
+			// WINDING_DOWN on our own order, which is the F2 catastrophe.
+			//
+			// Leaving it OUT of `seenTrade` is the load-bearing half:
+			// `GET /portfolio/fills` re-offers the whole walk every poll, so a
+			// fill that is not marked seen comes back and is reclassified once
+			// the binding commits. `M-R-INDETSEEN` marks it seen anyway, which
+			// turns "wait for the answer" into "silently drop the fill" -- the
+			// contracts are held, q never learns, and nothing is ever logged.
+			eff.Deferred = append(eff.Deferred, f)
+			if first, dup := p.deferredAt[f.TradeID]; !dup {
+				p.deferredAt[f.TradeID] = nowMs
+			} else if nowMs-first >= unclassifiedFillEscalateMs {
+				if _, told := p.deferralEscalated[f.TradeID]; !told {
+					p.deferralEscalated[f.TradeID] = struct{}{}
+					eff.Anomalies = append(eff.Anomalies, Anomaly{
+						Class: "FILL_UNCLASSIFIABLE", Sev: SEV2, Ticker: f.Ticker,
+						Text: fmt.Sprintf("fill %s on order %s has been "+
+							"unresolved for %dms: the ownership ledger holds a "+
+							"reservation that has never been bound or "+
+							"abandoned, so the fill can be neither applied nor "+
+							"declared foreign. It is still being deferred -- "+
+							"this is a report, not a decision -- and it stays "+
+							"deferred until the startup rebind walk resolves "+
+							"the reservation", f.TradeID, f.OrderID,
+							nowMs-first),
+					})
+				}
+			}
+			continue
+		}
 
-		if !owned[i] {
+		p.seenTrade[f.TradeID] = struct{}{}
+		delete(p.deferredAt, f.TradeID)
+		delete(p.deferralEscalated, f.TradeID)
+
+		if owned[i] == OwnershipForeign {
 			// H-ORD-9. A foreign fill does not enter our_fill, does not trigger
 			// F14, and does trigger SEV1 plus global WINDING_DOWN -- someone
 			// else is trading the account our position model describes, so that
@@ -366,7 +499,8 @@ func (p *Portfolio) ApplyFills(fills []FillEvent, own OwnershipLookup,
 			eff.Anomalies = append(eff.Anomalies, Anomaly{
 				Class: "FOREIGN_FILL", Sev: SEV1, Ticker: f.Ticker,
 				Text: fmt.Sprintf("fill %s on order %s is not in the ownership "+
-					"ledger; the account is being traded by something other "+
+					"ledger and no reservation is outstanding that could "+
+					"become it; the account is being traded by something other "+
 					"than this harness and every position it models is now "+
 					"suspect", f.TradeID, f.OrderID),
 			})
@@ -428,13 +562,22 @@ func lookupErr(err error, got, want int) error {
 		"one fill's ownership to another", got, want)
 }
 
-// order fetches or creates the per-order record, refusing a side contradiction.
+// order fetches or creates the per-order record, refusing a contradiction about
+// either the market or the direction.
 //
 // An order that acknowledges as a YES bid and then fills as a NO bid is not a
 // bookkeeping wrinkle: it is the exchange and this process disagreeing about
 // which direction our own risk points, and applying either reading would move
 // `q` the wrong way by twice the fill. The event is dropped and the caller is
 // told to stop adding.
+//
+// The ticker is the same failure on the other axis, and it is refused the same
+// way rather than resolved. `settle` moves the order's REMEMBERED ticker, so a
+// contradicting event books contracts against the market this process first
+// saw while the exchange holds them on the one it just named: two tickers'
+// `q` are wrong at once, and H-POS-1's poll then reports drift on both with
+// nothing to say which reading was the mistake. Storing the ticker and never
+// comparing it is what made that silent.
 func (p *Portfolio) order(orderID, ticker string, side quote.Side,
 	eff *FillEffects) (*orderState, bool) {
 
@@ -443,6 +586,17 @@ func (p *Portfolio) order(orderID, ticker string, side quote.Side,
 		st = &orderState{ticker: ticker, side: side}
 		p.orders[orderID] = st
 		return st, true
+	}
+	if st.ticker != ticker {
+		eff.Anomalies = append(eff.Anomalies, Anomaly{
+			Class: "ORDER_TICKER_CONFLICT", Sev: SEV1, Ticker: ticker,
+			Text: fmt.Sprintf("order %s was first seen on market %s and has "+
+				"now been reported on market %s; the market our own risk sits "+
+				"in is in dispute and applying either reading moves q on a "+
+				"market the exchange does not agree we traded",
+				orderID, st.ticker, ticker),
+		})
+		return nil, false
 	}
 	if st.side != side {
 		eff.Anomalies = append(eff.Anomalies, Anomaly{

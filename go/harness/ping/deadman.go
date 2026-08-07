@@ -39,8 +39,13 @@ func NewHTTPSDeadman(endpoint string) (*HTTPSDeadman, error) {
 	}
 	u, err := url.Parse(endpoint)
 	if err != nil {
-		return nil, fmt.Errorf("the dead-man endpoint does not parse as a "+
-			"URL: %w", err)
+		// NEVER `%w`. `url.Parse` fails by returning a `*url.Error` whose
+		// `URL` field is the WHOLE raw endpoint, so wrapping it prints the
+		// bearer credential -- `parse "<the URL>": <cause>` -- into the first
+		// log line a misconfigured deployment produces. The check-in URL is a
+		// credential before it is a URL, and it is one whether or not it
+		// parsed.
+		return nil, parseFailure(err)
 	}
 	if u.Scheme != "https" {
 		return nil, fmt.Errorf("the dead-man endpoint uses scheme %q; it must "+
@@ -54,6 +59,22 @@ func NewHTTPSDeadman(endpoint string) (*HTTPSDeadman, error) {
 		reveal: func() string { return endpoint },
 		http:   newBearerClient(),
 	}, nil
+}
+
+// parseFailure says the endpoint did not parse, WITHOUT repeating it.
+//
+// `*url.Error` keeps the raw URL in a field of its own and the reason in
+// `.Err`, so the reason can be carried on its own: "invalid port after host" is
+// what an operator needs and it names nothing. When the error is not a
+// `*url.Error` the fixed sentence is all that is returned -- an unrecognised
+// error shape is not evidence that it is free of the URL.
+func parseFailure(err error) error {
+	const fixed = "the dead-man endpoint does not parse as a URL"
+	var ue *url.Error
+	if errors.As(err, &ue) && ue.Err != nil {
+		return fmt.Errorf("%s: %w", fixed, ue.Err)
+	}
+	return errors.New(fixed)
 }
 
 // valid reports whether this dead man was built by a constructor. The zero

@@ -9,27 +9,41 @@ import (
 	"lip/harness/quote"
 )
 
+// pollMs is the caller's poll clock for tests that do not care about it. Only
+// the deferral-deadline tests advance it, and they pass their own values.
+const pollMs int64 = 1_700_000_000_000
+
 // ledger is a fake OwnershipLookup. The real one is durable and lives in
 // `lip-6w5`; this package only ever sees the question, never the storage.
 type ledger struct {
 	ours map[string]bool
-	// err makes the durable ledger unavailable, which is H-ORD-9's third
-	// answer and the one a boolean seam could not express.
+	// unresolved is the ids the ledger cannot conclude about: a reservation is
+	// outstanding that could still turn out to be them.
+	unresolved map[string]bool
+	// err makes the durable ledger unavailable, which is a store fault and not
+	// a classification.
 	err error
 	// short returns a malformed answer: the right kind, the wrong length.
 	short bool
 }
 
-func (l ledger) OwnsOrders(ids []string) ([]bool, error) {
+func (l ledger) OwnsOrders(ids []string) ([]Ownership, error) {
 	if l.err != nil {
 		return nil, l.err
 	}
 	if l.short {
 		return nil, nil
 	}
-	out := make([]bool, len(ids))
+	out := make([]Ownership, len(ids))
 	for i, id := range ids {
-		out[i] = l.ours[id]
+		switch {
+		case l.ours[id]:
+			out[i] = OwnershipOurs
+		case l.unresolved[id]:
+			out[i] = OwnershipUnresolved
+		default:
+			out[i] = OwnershipForeign
+		}
 	}
 	return out, nil
 }
@@ -40,6 +54,16 @@ func owns(ids ...string) ledger {
 		m[id] = true
 	}
 	return ledger{ours: m}
+}
+
+// unresolves is a ledger that cannot conclude about these ids and calls
+// everything else conclusively foreign.
+func unresolves(ids ...string) ledger {
+	m := map[string]bool{}
+	for _, id := range ids {
+		m[id] = true
+	}
+	return ledger{unresolved: m}
 }
 
 func anomalyClasses(as []Anomaly) []string {
@@ -99,7 +123,7 @@ func TestAckAndFillAreOrderIndependentAndNeverDoubleCount(t *testing.T) {
 			Count: contracts(2)},
 		{TradeID: "t2", OrderID: "ord-1", Ticker: tk, Side: quote.SideYes,
 			Count: contracts(1)},
-	}, own, Live)
+	}, own, Live, pollMs)
 
 	fillFirst := NewPortfolio()
 	fillFirst.ApplyFills([]FillEvent{
@@ -107,7 +131,7 @@ func TestAckAndFillAreOrderIndependentAndNeverDoubleCount(t *testing.T) {
 			Count: contracts(2)},
 		{TradeID: "t2", OrderID: "ord-1", Ticker: tk, Side: quote.SideYes,
 			Count: contracts(1)},
-	}, own, Live)
+	}, own, Live, pollMs)
 	fillFirst.ApplyAck(AckFill{OrderID: "ord-1", Ticker: tk,
 		Side: quote.SideYes, Filled: contracts(3)})
 
@@ -130,7 +154,7 @@ func TestAckAndFillAreOrderIndependentAndNeverDoubleCount(t *testing.T) {
 				Count: contracts(2)},
 			{TradeID: "t2", OrderID: "ord-1", Ticker: tk, Side: quote.SideYes,
 				Count: contracts(1)},
-		}, own, Live)
+		}, own, Live, pollMs)
 	}
 	if got := ackFirst.Q(tk); got != contracts(3) {
 		t.Fatalf("q = %s after re-walking the same fills three times, want "+
@@ -149,7 +173,7 @@ func TestAckAndFillAreOrderIndependentAndNeverDoubleCount(t *testing.T) {
 	// A NO fill is the same number with the other sign (§8.1).
 	no := NewPortfolio()
 	no.ApplyFills([]FillEvent{{TradeID: "t9", OrderID: "ord-9", Ticker: tk,
-		Side: quote.SideNo, Count: contracts(4)}}, owns("ord-9"), Live)
+		Side: quote.SideNo, Count: contracts(4)}}, owns("ord-9"), Live, pollMs)
 	if got := no.Q(tk); got != contracts(-4) {
 		t.Fatalf("a 4-contract NO fill gave q = %s, want -4.00", got.Wire())
 	}
@@ -169,7 +193,7 @@ func TestSeedModeRecordsIdentityWithoutReapplyingHistory(t *testing.T) {
 	eff := p.ApplyFills([]FillEvent{
 		{TradeID: "h1", OrderID: "ord-1", Ticker: tk, Side: quote.SideYes,
 			Count: contracts(7)},
-	}, owns("ord-1"), Seed)
+	}, owns("ord-1"), Seed, pollMs)
 	if got := p.Q(tk); got != contracts(7) {
 		t.Fatalf("seeding replayed history onto the exchange's own figure: "+
 			"q = %s, want 7.00", got.Wire())
@@ -184,7 +208,7 @@ func TestSeedModeRecordsIdentityWithoutReapplyingHistory(t *testing.T) {
 	p.ApplyFills([]FillEvent{
 		{TradeID: "h1", OrderID: "ord-1", Ticker: tk, Side: quote.SideYes,
 			Count: contracts(7)},
-	}, owns("ord-1"), Live)
+	}, owns("ord-1"), Live, pollMs)
 	if got := p.Q(tk); got != contracts(7) {
 		t.Fatalf("q = %s after re-delivering a seeded fill live, want 7.00",
 			got.Wire())
@@ -195,7 +219,7 @@ func TestSeedModeRecordsIdentityWithoutReapplyingHistory(t *testing.T) {
 	p.ApplyFills([]FillEvent{
 		{TradeID: "h2", OrderID: "ord-1", Ticker: tk, Side: quote.SideYes,
 			Count: contracts(2)},
-	}, owns("ord-1"), Live)
+	}, owns("ord-1"), Live, pollMs)
 	if got := p.Q(tk); got != contracts(9) {
 		t.Fatalf("q = %s after a new 2-contract fill on a seeded order, "+
 			"want 9.00", got.Wire())
@@ -206,7 +230,7 @@ func TestSeedModeRecordsIdentityWithoutReapplyingHistory(t *testing.T) {
 	e2 := seedTaker.ApplyFills([]FillEvent{
 		{TradeID: "h3", OrderID: "ord-2", Ticker: tk, Side: quote.SideYes,
 			Count: contracts(1), IsTaker: true},
-	}, owns("ord-2"), Seed)
+	}, owns("ord-2"), Seed, pollMs)
 	if !e2.Stop || !hasClass(e2.Anomalies, "TAKER_FILL") {
 		t.Fatalf("a historical taker fill was not classified in seed mode: "+
 			"stop=%v classes=%v", e2.Stop, anomalyClasses(e2.Anomalies))
@@ -232,7 +256,7 @@ func TestFillOwnershipUsesOrderIDLedgerAndForeignStopsGlobally(t *testing.T) {
 			Count: contracts(2)},
 		{TradeID: "t2", OrderID: "theirs", Ticker: tk, Side: quote.SideYes,
 			Count: contracts(5)},
-	}, owns("ours"), Live)
+	}, owns("ours"), Live, pollMs)
 
 	if got := p.Q(tk); got != contracts(2) {
 		t.Fatalf("q = %s; the foreign fill must not enter q_local at all, so "+
@@ -264,7 +288,7 @@ func TestFillOwnershipUsesOrderIDLedgerAndForeignStopsGlobally(t *testing.T) {
 	p2 := NewPortfolio()
 	e2 := p2.ApplyFills([]FillEvent{{TradeID: "t3", OrderID: "long-gone",
 		Ticker: tk, Side: quote.SideYes, Count: contracts(1)}},
-		owns("long-gone"), Live)
+		owns("long-gone"), Live, pollMs)
 	if e2.Stop || len(e2.Owned) != 1 {
 		t.Fatalf("a fill on a terminal order of ours was not claimed: "+
 			"stop=%v owned=%v", e2.Stop, e2.Owned)
@@ -274,7 +298,7 @@ func TestFillOwnershipUsesOrderIDLedgerAndForeignStopsGlobally(t *testing.T) {
 	// ours" are opposite classifications of the same fill.
 	p3 := NewPortfolio()
 	e3 := p3.ApplyFills([]FillEvent{{TradeID: "t4", OrderID: "x", Ticker: tk,
-		Side: quote.SideYes, Count: contracts(1)}}, nil, Live)
+		Side: quote.SideYes, Count: contracts(1)}}, nil, Live, pollMs)
 	if !e3.Stop || p3.Q(tk) != 0 {
 		t.Fatalf("a nil ownership ledger did not fail closed: stop=%v q=%s",
 			e3.Stop, p3.Q(tk).Wire())
@@ -307,7 +331,7 @@ func TestOwnedTakerOrPositiveFeeStopsGlobally(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := NewPortfolio()
-			eff := p.ApplyFills([]FillEvent{tc.fill}, owns("o"), Live)
+			eff := p.ApplyFills([]FillEvent{tc.fill}, owns("o"), Live, pollMs)
 			if !eff.Stop {
 				t.Fatal("no global stop was requested")
 			}
@@ -329,7 +353,7 @@ func TestOwnedTakerOrPositiveFeeStopsGlobally(t *testing.T) {
 	// or the detector is a permanent alarm and stops being read.
 	p := NewPortfolio()
 	eff := p.ApplyFills([]FillEvent{{TradeID: "t2", OrderID: "o", Ticker: tk,
-		Side: quote.SideYes, Count: contracts(3)}}, owns("o"), Live)
+		Side: quote.SideYes, Count: contracts(3)}}, owns("o"), Live, pollMs)
 	if eff.Stop || hasClass(eff.Anomalies, "TAKER_FILL") {
 		t.Fatalf("a maker fill tripped the taker detector: stop=%v classes=%v",
 			eff.Stop, anomalyClasses(eff.Anomalies))
@@ -357,7 +381,7 @@ func TestCompletePositionPollOverwritesLocalAndRecordsAgreements(t *testing.T) {
 			Count: contracts(4)},
 		{TradeID: "t2", OrderID: "o2", Ticker: "B", Side: quote.SideYes,
 			Count: contracts(9)},
-	}, own, Live)
+	}, own, Live, pollMs)
 
 	eff := p.ReplacePositions(map[string]num.Qty{
 		"A": contracts(4), // agrees
@@ -578,7 +602,7 @@ func TestOrderSideConflictIsRefusedRatherThanGuessed(t *testing.T) {
 	p.ApplyAck(AckFill{OrderID: "o", Ticker: "A", Side: quote.SideYes,
 		Filled: contracts(2)})
 	eff := p.ApplyFills([]FillEvent{{TradeID: "t1", OrderID: "o", Ticker: "A",
-		Side: quote.SideNo, Count: contracts(2)}}, owns("o"), Live)
+		Side: quote.SideNo, Count: contracts(2)}}, owns("o"), Live, pollMs)
 
 	if !eff.Stop {
 		t.Fatal("a side contradiction did not request a global stop")
@@ -592,12 +616,49 @@ func TestOrderSideConflictIsRefusedRatherThanGuessed(t *testing.T) {
 	}
 }
 
+// TestOrderTickerConflictIsRefusedRatherThanGuessed is the side check's
+// contradiction on the other axis.
+//
+// An order acknowledged on market A and then reported filling on market B is
+// the exchange and this process disagreeing about WHICH market our risk is in.
+// The order's remembered ticker is the one `settle` moves, so accepting the
+// event books the contracts against A while the exchange holds them on B: both
+// markets' `q` are then wrong, and H-POS-1's positions poll reports drift on
+// two tickers with no way to say which reading was the mistake. The event is
+// dropped and the caller is told to stop adding, exactly as for a side
+// contradiction.
+func TestOrderTickerConflictIsRefusedRatherThanGuessed(t *testing.T) {
+	p := NewPortfolio()
+	p.ApplyAck(AckFill{OrderID: "o", Ticker: "A", Side: quote.SideYes,
+		Filled: contracts(2)})
+	// Three contracts and not two: a fill that only corroborates the ack moves
+	// nothing whatever the ticker says, and a test whose assertion holds
+	// because the branch was never reached is not a test.
+	eff := p.ApplyFills([]FillEvent{{TradeID: "t1", OrderID: "o", Ticker: "B",
+		Side: quote.SideYes, Count: contracts(3)}}, owns("o"), Live, pollMs)
+
+	if !eff.Stop {
+		t.Fatal("a ticker contradiction did not request a global stop")
+	}
+	if sevOf(t, eff.Anomalies, "ORDER_TICKER_CONFLICT") != SEV1 {
+		t.Fatalf("ORDER_TICKER_CONFLICT is not SEV1: %v", eff.Anomalies)
+	}
+	if got := p.Q("A"); got != contracts(2) {
+		t.Fatalf("q(A) = %s, want the acknowledged 2; the contradicting event "+
+			"was applied to the order's REMEMBERED market", got.Wire())
+	}
+	if got := p.Q("B"); got != 0 {
+		t.Fatalf("q(B) = %s, want 0; no reading of the contradiction is safe "+
+			"to apply", got.Wire())
+	}
+}
+
 // TestAnomalyTextNamesTheRuleItEnforces keeps the alarms legible. An operator
 // woken by a SEV1 gets the class and this text and nothing else.
 func TestAnomalyTextNamesTheRuleItEnforces(t *testing.T) {
 	p := NewPortfolio()
 	eff := p.ApplyFills([]FillEvent{{TradeID: "t", OrderID: "x", Ticker: "A",
-		Side: quote.SideYes, Count: contracts(1)}}, owns(), Live)
+		Side: quote.SideYes, Count: contracts(1)}}, owns(), Live, pollMs)
 	for _, a := range eff.Anomalies {
 		if strings.TrimSpace(a.Text) == "" {
 			t.Fatalf("%s carries no text", a.Class)
@@ -684,7 +745,7 @@ func TestSeededPortfolioLeavesHistoricalFillsToSeedMode(t *testing.T) {
 		{TradeID: "t2", OrderID: "o1", Ticker: "M", Side: quote.SideYes,
 			Price4: 5000, Count: num.QtyFromFloat(1)},
 	}
-	eff := seeded.ApplyFills(fills, owns("o1"), Seed)
+	eff := seeded.ApplyFills(fills, owns("o1"), Seed, pollMs)
 	if eff.Stop {
 		t.Fatalf("seeding history stopped the harness: %v",
 			anomalyClasses(eff.Anomalies))
@@ -699,7 +760,7 @@ func TestSeededPortfolioLeavesHistoricalFillsToSeedMode(t *testing.T) {
 
 	// The next live poll redelivers the same fills -- the endpoint is walked in
 	// full every time -- and they must be deduplicated, not counted.
-	again := seeded.ApplyFills(fills, owns("o1"), Live)
+	again := seeded.ApplyFills(fills, owns("o1"), Live, pollMs)
 	if got := seeded.Q("M"); got != num.QtyFromFloat(2) {
 		t.Fatalf("q = %s after the same fills were redelivered live, want 2.00",
 			got.Wire())

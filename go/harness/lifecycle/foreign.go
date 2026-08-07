@@ -47,7 +47,19 @@ type ForeignEffects struct {
 	// what may enter `our_fill`; a foreign fill never does (H-ORD-9).
 	OwnedFills []rest.Fill
 	// ForeignFills is reported so the operator can see what the third party did.
+	// A fill reaches it only on the ledger's CONCLUSIVE disclaimer.
 	ForeignFills []rest.Fill
+	// Unresolved is the fills the ledger could not conclude about: not bound,
+	// and at least one reservation outstanding that could still turn out to be
+	// them. It carries no cause, no anomaly and no exclusion -- it is not an
+	// event, it is the absence of one.
+	//
+	// It is a separate field rather than an error because the two are different
+	// facts. An error means the store is broken; a non-empty Unresolved means
+	// the store is fine and has work outstanding, which after a SIGKILL between
+	// H-ORD-6's two commits is the NORMAL state of a correct ledger. What they
+	// share is the caller's response: startup does not conclude on either.
+	Unresolved []rest.Fill
 	// ForeignOrders is reported and, at startup, excluded. It is NEVER cancelled
 	// -- see the doc on Classify.
 	ForeignOrders []rest.Order
@@ -134,6 +146,18 @@ func NewForeignGuard(own risk.OwnershipLookup) (*ForeignGuard, error) {
 // a stranger's position. So it is neither: this returns an error, the pass
 // produces NO effects, and §7.5 treats it as an unclassifiable walk that has not
 // reconciled. `M-HS-LOOKUPFAIL` takes the other road.
+//
+// # An UNRESOLVED fill is neither, and is the most dangerous case to get wrong
+//
+// A working ledger has a fourth thing to say: "this id is not bound, and I hold
+// a reservation that could still turn out to be it". H-ORD-6 commits the
+// reservation before the order is dispatched and learns the exchange id
+// afterwards, so a crash between the two -- which is the crash the two-stage
+// commit exists for -- leaves precisely that state, and startup is exactly when
+// it is read. Calling it foreign latches a durable global stop about our own
+// order, at the one moment the ledger is least able to contradict it. So those
+// fills go to `Unresolved`: no cause, no anomaly, no exclusion. The caller does
+// not conclude startup until the set is empty.
 func (g *ForeignGuard) Classify(phase Phase, orders []rest.Order,
 	fills []rest.Fill, tsMillis int64) (ForeignEffects, error) {
 
@@ -204,15 +228,31 @@ func (g *ForeignGuard) Classify(phase Phase, orders []rest.Order,
 	}
 
 	for i, f := range fills {
-		if owned[i] {
+		switch owned[i] {
+		case risk.OwnershipOurs:
 			eff.OwnedFills = append(eff.OwnedFills, f)
+			continue
+		case risk.OwnershipUnresolved:
+			// No cause, no anomaly, no exclusion, and above all no LATCH. The
+			// ledger holds a reservation this fill could belong to, so the one
+			// thing we know is that we do not know -- and the response to not
+			// knowing is to keep trying (H-ORD-5a), not to record a durable,
+			// operator-only global stop about our own order.
+			//
+			// `M-L-INDETLATCH` folds this case into the one below. That is
+			// FINDING 2's exact catastrophe: a SIGKILL between H-ORD-6's two
+			// commits, followed by a fill on the order we had already
+			// dispatched, produces a WINDING_DOWN that survives every restart
+			// and that only a human can clear.
+			eff.Unresolved = append(eff.Unresolved, f)
 			continue
 		}
 		eff.ForeignFills = append(eff.ForeignFills, f)
 		eff.Anomalies = append(eff.Anomalies, risk.Anomaly{
 			Class: "FOREIGN_FILL", Sev: risk.SEV1, Ticker: f.Ticker,
 			Text: fmt.Sprintf("fill %s on order %s is not in the ownership "+
-				"ledger, so it does not enter our_fill and does not trigger "+
+				"ledger and no reservation is outstanding that could become "+
+				"it, so it does not enter our_fill and does not trigger "+
 				"F14; someone else is trading the account our position model "+
 				"describes, and that model is now unreliable everywhere rather "+
 				"than in one market", f.TradeID, f.OrderID),

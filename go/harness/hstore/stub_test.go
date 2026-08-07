@@ -165,10 +165,11 @@ func fill(tradeID, orderID string) risk.FillEvent {
 // handshake and never a sleep: the writer signals `entered` from inside the
 // blocked call, so the assertions run at a known point.
 type control struct {
-	mu      sync.Mutex
-	backErr error
-	jrnlErr error
-	blockOn bool
+	mu             sync.Mutex
+	backErr        error
+	jrnlErr        error
+	jrnlAfterWrite bool
+	blockOn        bool
 
 	release chan struct{}
 	entered chan struct{}
@@ -191,6 +192,21 @@ func (c *control) setJrnlErr(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.jrnlErr = err
+	c.jrnlAfterWrite = false
+}
+
+// setJrnlErrAfterWrite injects a failure that arrives AFTER the line has been
+// written and synced -- a sync-time EIO reported once the bytes were already
+// on the platter.
+//
+// This is the shape the plain gate cannot make. Failing before delegating is
+// atomic-nothing, which no real file does, and every journal failure this suite
+// injected before this existed was that fiction.
+func (c *control) setJrnlErrAfterWrite(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.jrnlErr = err
+	c.jrnlAfterWrite = true
 }
 
 func (c *control) block() {
@@ -220,10 +236,10 @@ func (c *control) backGate() error {
 	return err
 }
 
-func (c *control) jrnlGate() error {
+func (c *control) jrnlGate() (error, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.jrnlErr
+	return c.jrnlErr, c.jrnlAfterWrite
 }
 
 // gatedBackend delegates to a real SQLite backend behind the control.
@@ -295,10 +311,17 @@ type gatedJournal struct {
 }
 
 func (g *gatedJournal) appendLine(l journalLine) error {
-	if err := g.c.jrnlGate(); err != nil {
-		return err
+	err, afterWrite := g.c.jrnlGate()
+	if err == nil {
+		return g.journal.appendLine(l)
 	}
-	return g.journal.appendLine(l)
+	if afterWrite {
+		// The bytes land and are synced; the failure is reported anyway.
+		if werr := g.journal.appendLine(l); werr != nil {
+			return werr
+		}
+	}
+	return err
 }
 
 // testClock is an injected clock with BOTH sources: wall milliseconds for
@@ -349,7 +372,14 @@ func (c *testClock) advanceWallOnly(d time.Duration) {
 func gatedStore(t *testing.T) (*Store, *control, *testClock) {
 	t.Helper()
 	dbPath, logPath := paths(t)
+	return gatedStoreAt(t, dbPath, logPath)
+}
 
+// gatedStoreAt is gatedStore over caller-chosen artifacts, so a test can close
+// the store and reopen the SAME two files through the real Open -- which is
+// where reconcile runs and where a contradictory journal fails closed.
+func gatedStoreAt(t *testing.T, dbPath, logPath string) (*Store, *control, *testClock) {
+	t.Helper()
 	back, err := openSQLite(dbPath)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)

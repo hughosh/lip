@@ -75,17 +75,27 @@ func tempLatch(t *testing.T) *FileLatch {
 // type: `risk.OwnershipLookup`'s implementation is `lip-6w5`'s, against storage.
 type ledger struct {
 	owns map[string]bool
+	// unresolved is the ids a reservation is still outstanding for: neither
+	// ours nor foreign, and the case that must not latch.
+	unresolved map[string]bool
 	// err is the ledger being unavailable: not "nothing is ours".
 	err error
 }
 
-func (l ledger) OwnsOrders(orderIDs []string) ([]bool, error) {
+func (l ledger) OwnsOrders(orderIDs []string) ([]risk.Ownership, error) {
 	if l.err != nil {
 		return nil, l.err
 	}
-	out := make([]bool, len(orderIDs))
+	out := make([]risk.Ownership, len(orderIDs))
 	for i, id := range orderIDs {
-		out[i] = l.owns[id]
+		switch {
+		case l.owns[id]:
+			out[i] = risk.OwnershipOurs
+		case l.unresolved[id]:
+			out[i] = risk.OwnershipUnresolved
+		default:
+			out[i] = risk.OwnershipForeign
+		}
 	}
 	return out, nil
 }
@@ -96,6 +106,16 @@ func ownsAll(ids ...string) ledger {
 		m[id] = true
 	}
 	return ledger{owns: m}
+}
+
+// unresolvedFor is a ledger holding an outstanding reservation that could still
+// turn out to be any of these order ids.
+func unresolvedFor(ids ...string) ledger {
+	m := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		m[id] = true
+	}
+	return ledger{unresolved: m}
 }
 
 // ---------------------------------------------------------------------------

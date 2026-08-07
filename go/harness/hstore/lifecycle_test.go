@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -139,6 +140,84 @@ func TestStoppedWriterRevokesOutstandingAddingPermits(t *testing.T) {
 		t.Fatal("the store accepted an audit record after its writer exited; " +
 			"a record that is accepted and never written is worse than one " +
 			"that is refused")
+	}
+}
+
+// TestCancelledWriterFailsQueuedRecordsRatherThanLimbo closes the third state a
+// queued record could be in.
+//
+// A record is durable, or it is terminally failed and its submitter is told so
+// through `TakeResults`. There was a third: still queued when the writer
+// returned. Nothing will ever write it, nothing will ever publish a result for
+// it, and every caller waiting on that receipt waits forever -- while `Close`
+// refuses on its account, so the shutdown that stopped the writer cannot
+// finish either. `M-HS-GONELIMBO` restores it.
+//
+// The exit is a normal one: `Run` returns when its context is cancelled, which
+// is exactly what an orderly shutdown does. So the drain is not an error path.
+// It is what "the writer has gone" has to mean for the records it was holding.
+func TestCancelledWriterFailsQueuedRecordsRatherThanLimbo(t *testing.T) {
+	s, c, _ := gatedStore(t)
+	h := begin(t, s, "runa", 1_700_000_000_000)
+	o := order(t, "runa", 1, quote.SideYes)
+	reserve(t, s, h, o, quote.RoleAdding, 1_700_000_001_000)
+
+	// Nothing commits from here on, so what is submitted stays queued.
+	c.setBackErr(errors.New("input/output error"))
+
+	bindRcpt, err := s.BindOrder(o.ClientOrderID(), "ord-a", 1_700_000_002_000)
+	if err != nil {
+		t.Fatalf("BindOrder: %v", err)
+	}
+	anomRcpt, err := s.RecordAnomaly(h, "limbo-1",
+		anomaly("FOREIGN_FILL", risk.SEV1, "KXTEST-A"), 1_700_000_003_000)
+	if err != nil {
+		t.Fatalf("RecordAnomaly: %v", err)
+	}
+	if s.Health().Pending() != 2 {
+		t.Fatalf("the two records did not queue: %+v", s.Health())
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { s.Run(ctx); close(done) }()
+	cancel()
+	<-done
+
+	outcomes := make(map[uint64]Result)
+	for _, r := range s.TakeResults() {
+		outcomes[r.Receipt.Seq()] = r
+	}
+	for name, rcpt := range map[string]Receipt{
+		"the binding": bindRcpt, "the anomaly": anomRcpt,
+	} {
+		got, ok := outcomes[rcpt.Seq()]
+		if !ok {
+			t.Fatalf("%s was accepted, never written, and never reported: its "+
+				"submitter is waiting on a receipt that will never resolve",
+				name)
+		}
+		if got.Err == nil {
+			t.Fatalf("%s was reported as durable by a writer that never wrote "+
+				"it: %+v", name, got)
+		}
+	}
+
+	if p := s.Health().Pending(); p != 0 {
+		t.Fatalf("%d record(s) are still queued for a writer that has "+
+			"returned", p)
+	}
+	// The binding failed the same way a permanent rejection fails it, so a
+	// fill on that order is neither owned nor foreign rather than silently
+	// foreign.
+	if _, err := s.Ownership().OwnsOrders([]string{"ord-a"}); err == nil {
+		t.Fatal("the ownership index still reports on an order whose binding " +
+			"died in the queue; an unclassifiable fill must not classify")
+	}
+	// And the shutdown can now finish: Close's refusal protects records that
+	// still have a writer, not records that provably never will.
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close refused a store whose queue was already failed: %v", err)
 	}
 }
 
@@ -366,6 +445,53 @@ func TestOpenRefusesForeignVersionZeroDatabaseWithoutWritingIt(t *testing.T) {
 	}
 }
 
+// TestOpenRefusesZeroByteDatabaseFile refuses the file that is not a database
+// and is not absent either.
+//
+// A zero-length file where `harness.db` belongs is a valid empty SQLite
+// database only in the sense that SQLite will happily start writing into it.
+// It is not one this process created: a `>` in the wrong shell, a copy that
+// ran out of disk, a restore that produced nothing, or this process's own
+// failure between creating the file and its first write all leave exactly this
+// artifact. Treating it as fresh creates an empty ownership ledger over the
+// top of it -- and an empty ledger recognises no order id, so every fill the
+// account has ever produced classifies as somebody else's (H-ORD-9). The
+// operator is told, and told what to do about it, rather than handed a blank
+// ledger that reads as a clean start.
+//
+// `M-HS-EMPTYFRESH` treats it as fresh.
+func TestOpenRefusesZeroByteDatabaseFile(t *testing.T) {
+	dir := t.TempDir()
+	zero := filepath.Join(dir, "harness.db")
+	if err := os.WriteFile(zero, nil, 0o600); err != nil {
+		t.Fatalf("seed the zero-byte file: %v", err)
+	}
+
+	st, err := Open(StoreConfig{DBPath: zero,
+		AnomalyLogPath: filepath.Join(dir, "a.jsonl")})
+	if err == nil {
+		st.Close()
+		t.Fatal("Open accepted a zero-byte database file and created a fresh " +
+			"schema in it; an empty ownership ledger recognises no order id, " +
+			"so every fill on the account would classify as foreign")
+	}
+	if !strings.Contains(err.Error(), zero) {
+		t.Fatalf("the refusal does not name the file the operator has to deal "+
+			"with: %v", err)
+	}
+
+	// And nothing was written to it on the way to that rejection: the file the
+	// operator is being told to look at is still the file they had.
+	info, statErr := os.Stat(zero)
+	if statErr != nil {
+		t.Fatalf("stat the refused file: %v", statErr)
+	}
+	if info.Size() != 0 {
+		t.Fatalf("the refused file is now %d bytes; a rejection that wrote to "+
+			"it first has destroyed the evidence of what it was", info.Size())
+	}
+}
+
 // TestOpenRejectsAnySixthOrMissingPilotTable enforces §15's cut on a database
 // this process did not necessarily create.
 //
@@ -464,6 +590,46 @@ func TestWritePragmasSurviveConnectionReplacement(t *testing.T) {
 			"(present=%v err=%v); our_fill's reference to owned_order is "+
 			"H-ORD-9 expressed as a foreign key, and an unenforced key makes "+
 			"it decoration", ok, err)
+	}
+}
+
+// TestReaderDSNCarriesQueryOnlyPragma is the same pool problem on the read side.
+//
+// `query_only` is per-CONNECTION, and the read side is the half of this package
+// whose entire safety argument is that it cannot write. A `PRAGMA` executed
+// once after `sql.Open` configures whichever connection served that statement;
+// `database/sql` closes idle connections and opens replacements whenever it
+// likes, and the replacement arrives with `query_only=OFF`. The read view then
+// becomes a second writer against a database whose whole design is that there
+// is exactly one -- silently, and only under pool churn, which is to say only
+// in the long-running process and never in a short test.
+//
+// `M-HS-READERPRAGMA` sets it once instead of through the DSN.
+func TestReaderDSNCarriesQueryOnlyPragma(t *testing.T) {
+	s := tempStore(t)
+	begin(t, s, "runa", 1_700_000_000_000)
+
+	r := s.Reader()
+	// Force a brand-new connection for every statement from here on.
+	r.db.SetMaxIdleConns(0)
+
+	var queryOnly int64
+	if err := r.db.QueryRow("PRAGMA query_only").Scan(&queryOnly); err != nil {
+		t.Fatalf("read query_only on a replacement connection: %v", err)
+	}
+	if queryOnly != 1 {
+		t.Fatalf("query_only is %d on a replacement connection, want 1; the "+
+			"pragma was applied to whichever connection happened to serve the "+
+			"statement after sql.Open and did not survive it", queryOnly)
+	}
+
+	// And it is ENFORCED there, not merely reported.
+	if _, err := r.db.Exec(
+		`INSERT INTO run (run_id, started_ms, config_json)
+		 VALUES ('forged-through-the-reader', 1, x'7b7d')`); err == nil {
+		t.Fatal("the read connection accepted a write; §15's tables are " +
+			"licences and not a log, and a second writer makes ownership racy " +
+			"in the direction that reads \"not ours\"")
 	}
 }
 

@@ -25,6 +25,10 @@ const (
 	KindBeginRun
 	KindReserveOrder
 	KindBindOrder
+	// KindAbandonReservation is stage two's other terminal: the exchange never
+	// took the coid. It writes `owned_order.abandoned_ms` and is what drains
+	// the unresolved set.
+	KindAbandonReservation
 	KindFill
 	KindStateEvent
 	KindAnomaly
@@ -39,6 +43,8 @@ func (k RecordKind) String() string {
 		return "reserve_order"
 	case KindBindOrder:
 		return "bind_order"
+	case KindAbandonReservation:
+		return "abandon_reservation"
 	case KindFill:
 		return "our_fill"
 	case KindStateEvent:
@@ -282,6 +288,14 @@ type orderBinding struct {
 	BoundMs int64
 }
 
+// reservationAbandonment is stage two's other terminal: the conclusion, recorded
+// durably, that the exchange never took this coid and no order id will bind to
+// it. It is what allows `Ownership` to stop deferring on that reservation.
+type reservationAbandonment struct {
+	Coid        string
+	AbandonedMs int64
+}
+
 // fillRecord is one `our_fill` row.
 type fillRecord struct {
 	TradeID      string
@@ -509,6 +523,12 @@ type OwnedOrderRow struct {
 	OrderID string
 	BoundMs int64
 	Bound   bool
+	// AbandonedMs and Abandoned are the other terminal: the exchange never took
+	// this coid. A row that is neither Bound nor Abandoned is a reservation
+	// still outstanding, and it is why an order id absent from the ledger is
+	// not yet evidence of a third party.
+	AbandonedMs int64
+	Abandoned   bool
 }
 
 // FillRow is an `our_fill` row as read back.

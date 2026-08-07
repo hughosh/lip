@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"lip/harness/hstore"
 	"lip/harness/quote"
 	"lip/harness/risk"
 )
@@ -120,6 +121,42 @@ func assertNoSecret(t *testing.T, what string, err error, secrets ...string) {
 			"http://"); host != "" && strings.Contains(msg, host) {
 			t.Fatalf("the %s contains %q:\n%s", what, host, msg)
 		}
+	}
+}
+
+// TestDeadmanConstructorErrorNeverContainsEndpoint closes the disclosure path
+// that opens before the client is ever built.
+//
+// `url.Parse` fails by returning a `*url.Error` whose `URL` field is the WHOLE
+// raw endpoint, so `Error()` reads `parse "<the bearer credential>": <cause>`.
+// Wrapping it in the constructor publishes the credential into the first log
+// line a misconfigured deployment produces -- and a startup that failed is
+// exactly the moment an operator pastes its output somewhere.
+//
+// `M-P-CTORURLLEAK` wraps the parse error.
+func TestDeadmanConstructorErrorNeverContainsEndpoint(t *testing.T) {
+	const secret = "checkin-ctor-secret-9f3a.example.com"
+
+	// Every one of these is refused, and each takes a different branch: three
+	// parse failures and one that parses into a scheme this constructor will
+	// not accept.
+	for _, endpoint := range []string{
+		"https://" + secret + "/%zz",            // invalid escape
+		"https://" + secret + "/ping\x7f",       // control character
+		"https://" + secret + ":ninety/checkin", // invalid port
+		"http://" + secret + "/checkin",         // parses, wrong scheme
+		"https://" + secret + "/\x00checkin",    // NUL in the path
+	} {
+		d, err := NewHTTPSDeadman(endpoint)
+		if err == nil {
+			t.Fatalf("NewHTTPSDeadman(%q) was accepted", endpoint)
+		}
+		if d != nil {
+			t.Fatalf("NewHTTPSDeadman(%q) returned a dead man alongside its "+
+				"error", endpoint)
+		}
+		assertNoSecret(t, "dead-man constructor error", err, endpoint,
+			"https://"+secret, secret)
 	}
 }
 
@@ -256,6 +293,76 @@ func TestNextStepSchedulesFailedAndSuppressedAlertRetries(t *testing.T) {
 	}
 }
 
+// TestNextStepHonoursHealthPollAfterMidStepSubmission covers the deadline that
+// a Step computes about a store it has since changed.
+//
+// The health poll is the ONLY way a wedged writer is ever observed: a write
+// that never returns cannot be reported by the goroutine blocked inside it, so
+// somebody has to ask, and nobody asks unless `NextStepMs` says to. A Step that
+// takes its health snapshot on the way in and then submits a delivery record on
+// the way out evaluates `Pending() > 0` against a store that had nothing queued
+// -- and publishes the hourly heartbeat as the next deadline for a record it
+// has just made the store responsible for. The observation is then an hour
+// late, which for a wedged writer is an hour of alerts nobody is sending.
+//
+// The store here has NO writer at all, so what the Step queues stays queued and
+// the assertion cannot pass by accident of the drain losing a race.
+//
+// `M-P-STALEPOLL` evaluates the deadline against the entry snapshot.
+func TestNextStepHonoursHealthPollAfterMidStepSubmission(t *testing.T) {
+	ctx := context.Background()
+	t0 := int64(1_700_000_000_000)
+
+	// One store with a writer records the anomaly and hands the FILES on.
+	f := newFixture(t)
+	f.anomaly("m-1", "FOREIGN_FILL", risk.SEV1, "KXTEST-A", t0)
+	f.close()
+
+	quiet, err := hstore.Open(hstore.StoreConfig{
+		DBPath: f.dbPath, AnomalyLogPath: f.logPath})
+	if err != nil {
+		t.Fatalf("reopen without a writer: %v", err)
+	}
+	// Close REFUSES with records queued, which is the state this test ends in.
+	t.Cleanup(func() { _ = quiet.Close() })
+
+	rec := newRecorder()
+	srv := httptest.NewServer(rec)
+	defer srv.Close()
+	dsrv := httptest.NewTLSServer(newRecorder())
+	defer dsrv.Close()
+	svc, err := NewService(quiet.Reader(), quiet,
+		senderTo(t, srv, "topic-poll"), deadmanTo(t, dsrv), time.Hour)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	// The PRECONDITION, asserted rather than assumed: on the way in this store
+	// has nothing queued and reports healthy, so the entry snapshot alone
+	// schedules no poll and the branch under test is genuinely reached.
+	if h := quiet.Health(); !h.Healthy() || h.Pending() != 0 {
+		t.Fatalf("the store was not idle and healthy before the Step: %+v", h)
+	}
+
+	eff := svc.Step(ctx, t0, heartbeatFor(quote.Running))
+
+	if got := len(pushesOf(eff, PushAnomaly)); got != 1 {
+		t.Fatalf("the pending SEV1 produced %d pushes, want one; without a "+
+			"delivery to record there is nothing for this Step to submit", got)
+	}
+	if h := quiet.Health(); h.Pending() == 0 {
+		t.Fatalf("the Step submitted nothing, so the property under test was "+
+			"never exercised: %+v", h)
+	}
+	if eff.NextStepMs > t0+hstore.HealthPollInterval.Milliseconds() {
+		t.Fatalf("the Step queued a delivery record and then published %d ms "+
+			"as the next deadline; the health poll is the only way a writer "+
+			"that never returns is observed, and it was scheduled against a "+
+			"snapshot taken before this Step's own writes",
+			eff.NextStepMs-t0)
+	}
+}
+
 // TestInitiallyUnhealthyStoreAlertsUrgently covers the harness that was broken
 // before it started.
 //
@@ -303,6 +410,161 @@ func TestInitiallyUnhealthyStoreAlertsUrgently(t *testing.T) {
 		t.Fatal("the health notice delivered anomaly rows; it is status " +
 			"telemetry, and the record whose journalling failed is precisely " +
 			"the one not yet safe to send")
+	}
+}
+
+// TestStoreRefusedDeliveryRecordStillRedeliversAtBucketWindow pins what happens
+// when the escalation path is the thing that broke.
+//
+// `record` writes the delivery outcome through the store's single writer, and
+// the store can refuse it -- but only from a TERMINAL condition, because a
+// transient one queues. There is nothing to escalate to from here: this IS the
+// escalation path. So nothing is scheduled and nothing is remembered. The rows
+// simply stay pending, exactly as they were before the push, and the next open
+// bucket re-offers them at the ordinary §13.2 cadence. A double delivery is the
+// accepted direction; a silently dropped alert is not. The refusal itself
+// reaches the operator by the other route -- a store that refuses records is a
+// store reporting unhealthy, and the urgent health notice says so.
+//
+// `M-P-REFUSESILENT` remembers a retry an hour out instead, which `dueAt`
+// prefers over everything the table says and which therefore SUPPRESSES the
+// redelivery this test is about.
+func TestStoreRefusedDeliveryRecordStillRedeliversAtBucketWindow(t *testing.T) {
+	ctx := context.Background()
+	t0 := int64(1_700_000_000_000)
+
+	f := newFixture(t)
+	rec := newRecorder()
+	srv := httptest.NewServer(rec)
+	defer srv.Close()
+	dsrv := httptest.NewTLSServer(newRecorder())
+	defer dsrv.Close()
+	svc := f.service(senderTo(t, srv, "topic-refused"), deadmanTo(t, dsrv),
+		time.Hour)
+
+	f.anomaly("r-1", "FOREIGN_FILL", risk.SEV1, "KXTEST-A", t0)
+
+	// The writer exits. That is TERMINAL -- nothing submitted afterwards can
+	// become durable -- so the delivery record is refused at submission rather
+	// than queued.
+	f.cancel()
+	f.awaitUnhealthy()
+
+	eff := svc.Step(ctx, t0, heartbeatFor(quote.Running))
+	alerts := pushesOf(eff, PushAnomaly)
+	if len(alerts) != 1 || alerts[0].Err != nil {
+		t.Fatalf("expected one delivered SEV1 push, got %+v", alerts)
+	}
+	// The refusal's own escalation, which is the only one available.
+	if got := len(pushesOf(eff, PushHealth)); got != 1 {
+		t.Fatalf("a store that refuses delivery records produced %d urgent "+
+			"health notices, want one; the refusal has no other route to the "+
+			"operator", got)
+	}
+
+	// The row was never marked delivered, so it is still pending -- and the
+	// bucket, not a remembered retry, is what decides when it goes again.
+	rec.reset()
+	eff = svc.Step(ctx, t0+int64(sev1DedupMs), heartbeatFor(quote.Running))
+	alerts = pushesOf(eff, PushAnomaly)
+	if len(alerts) != 1 {
+		t.Fatalf("the SEV1 whose delivery record was refused produced %d "+
+			"pushes when its bucket reopened, want one; the row stayed "+
+			"pending and a store that cannot record deliveries must not be "+
+			"able to silence the alerts it failed to record", len(alerts))
+	}
+	if alerts[0].AnomalyIDs[0] != "r-1" {
+		t.Fatalf("the redelivered push carries %v, want r-1",
+			alerts[0].AnomalyIDs)
+	}
+}
+
+// TestFlappingStoreHealthIsRateLimited applies §13.3's five-minute grant to the
+// one urgent push that was exempt from it.
+//
+// A disk that fails, is retried, succeeds, and fails again produces a
+// healthy->unhealthy transition per repetition, and the notice is URGENT --
+// which on a phone is the priority that overrides silent mode. One story about
+// one disk must not arrive as twenty of them, because an operator who silences
+// the channel to sleep has silenced the SEV1 alerts as well.
+//
+// It DEFERS rather than drops: the second transition stays owed and is
+// delivered when the window ends, so the last thing the operator was told is
+// never staler than the current state.
+//
+// `M-P-HEALTHFLAP` sends every transition.
+func TestFlappingStoreHealthIsRateLimited(t *testing.T) {
+	ctx := context.Background()
+	t0 := int64(1_700_000_000_000)
+
+	f := newFixture(t)
+	rec := newRecorder()
+	srv := httptest.NewServer(rec)
+	defer srv.Close()
+	dsrv := httptest.NewTLSServer(newRecorder())
+	defer dsrv.Close()
+	svc := f.service(senderTo(t, srv, "topic-flap"), deadmanTo(t, dsrv),
+		time.Hour)
+
+	// --- the first failure, which is told immediately ------------------------
+	release := f.lockDatabase()
+	f.anomalyAsync("f-1", "OWNER_STALLED", risk.SEV1, "", t0)
+	f.awaitUnhealthy()
+
+	eff := svc.Step(ctx, t0, heartbeatFor(quote.Running))
+	if got := len(pushesOf(eff, PushHealth)); got != 1 {
+		t.Fatalf("the first health transition produced %d notices, want one; "+
+			"a window that starts closed never tells the operator anything",
+			got)
+	}
+
+	// --- it recovers, which clears what is owed ------------------------------
+	release()
+	f.awaitHealthy()
+	eff = svc.Step(ctx, t0+1_000, heartbeatFor(quote.Running))
+	if got := len(pushesOf(eff, PushHealth)); got != 0 {
+		t.Fatalf("a HEALTHY store produced %d health notices", got)
+	}
+
+	// --- and fails again, inside the window ----------------------------------
+	release2 := f.lockDatabase()
+	defer release2()
+	f.anomalyAsync("f-2", "OWNER_STALLED", risk.SEV1, "", t0+2_000)
+	f.awaitUnhealthy()
+
+	at := t0 + 2_000
+	eff = svc.Step(ctx, at, heartbeatFor(quote.Running))
+	if got := len(pushesOf(eff, PushHealth)); got != 0 {
+		t.Fatalf("a second transition %d ms after the last notice sent %d "+
+			"further urgent pushes; §13.3's five-minute grant is what stops "+
+			"one flapping disk emptying the operator's battery", at-t0, got)
+	}
+	if eff.NextStepMs > t0+int64(healthPushDedupMs) {
+		t.Fatalf("the deferred health notice is owed until %d and the next "+
+			"step is %d; a notice nothing is scheduled to send is a notice "+
+			"that waits for an unrelated event",
+			int64(healthPushDedupMs), eff.NextStepMs-t0)
+	}
+
+	// Still owed a millisecond before the window closes, and still silent.
+	eff = svc.Step(ctx, t0+int64(healthPushDedupMs)-1, heartbeatFor(quote.Running))
+	if got := len(pushesOf(eff, PushHealth)); got != 0 {
+		t.Fatalf("the deferred notice was sent %d ms early (%d pushes)",
+			1, got)
+	}
+
+	// --- the window closes and the owed notice is delivered ------------------
+	eff = svc.Step(ctx, t0+int64(healthPushDedupMs), heartbeatFor(quote.Running))
+	health := pushesOf(eff, PushHealth)
+	if len(health) != 1 {
+		t.Fatalf("the deferred health notice produced %d pushes at the end of "+
+			"the window, want one; deferred must not mean dropped -- the "+
+			"store is still broken and the operator was last told it was "+
+			"fine", len(health))
+	}
+	if health[0].Priority != PriorityUrgent {
+		t.Fatalf("the deferred notice priority is %q, want %q",
+			health[0].Priority, PriorityUrgent)
 	}
 }
 

@@ -25,6 +25,23 @@ const (
 
 	// sev2BucketMs is §13.2's one push per (class,ticker) per fifteen minutes.
 	sev2BucketMs = 15 * 60 * 1000
+
+	// healthPushDedupMs is §13.3's five-minute grant applied to the storage
+	// health notice, which is the one urgent push that was outside §13.2's
+	// buckets entirely.
+	//
+	// A disk that fails, is retried, succeeds and fails again produces a
+	// healthy->unhealthy transition per repetition, and this notice is URGENT
+	// -- the priority that overrides a silenced phone. One story about one disk
+	// arriving twenty times is how an operator comes to mute the channel, and
+	// muting it mutes the SEV1 alerts with it.
+	//
+	// It DEFERS and never drops. A transition inside the window stays owed and
+	// is delivered when the window ends, so the operator's last word on
+	// persistence is never staler than five minutes behind the truth. Recovery
+	// clears what is owed, because a store that is healthy again has nothing
+	// outstanding to say.
+	healthPushDedupMs = 5 * 60 * 1000
 )
 
 // deliveryBackoff is the PRIVATE 1-60 second retry ladder for a failed push.
@@ -158,10 +175,14 @@ type Service struct {
 	healthOwed     bool
 	healthAttempts int
 	healthRetryAt  int64
-	beatAttempts   int
-	beatRetryAt    int64
-	deadAttempts   int
-	deadRetryAt    int64
+	// lastHealthPushMs is when a health notice was last SENT, and it is the
+	// left edge of `healthPushDedupMs`. Zero means never, so the first notice
+	// of a run is never delayed by a window that has not started.
+	lastHealthPushMs int64
+	beatAttempts     int
+	beatRetryAt      int64
+	deadAttempts     int
+	deadRetryAt      int64
 }
 
 // NewService requires every collaborator, including the dead man.
@@ -248,13 +269,14 @@ func (s *Service) Step(ctx context.Context, nowMs int64, hb Heartbeat) Effects {
 	s.healthSeen = true
 	s.lastHealthy = health.Healthy()
 
-	if s.healthOwed && nowMs >= s.healthRetryAt {
+	if s.healthOwed && nowMs >= s.healthPushDueMs() {
 		p := s.pushHealth(ctx, hb)
 		eff.Pushes = append(eff.Pushes, p)
 		if p.Err == nil {
 			s.healthOwed = false
 			s.healthAttempts = 0
 			s.healthRetryAt = 0
+			s.lastHealthPushMs = nowMs
 		} else {
 			s.healthAttempts++
 			s.healthRetryAt = nowMs + deliveryBackoffMs(s.healthAttempts)
@@ -324,7 +346,7 @@ func (s *Service) Step(ctx context.Context, nowMs int64, hb Heartbeat) Effects {
 	next := earliest(0, eff.NextHeartbeatMs, nowMs)
 	next = earliest(next, nextAlert, nowMs)
 	if s.healthOwed {
-		next = earliest(next, s.healthRetryAt, nowMs)
+		next = earliest(next, s.healthPushDueMs(), nowMs)
 	}
 	if s.beatAttempts > 0 {
 		next = earliest(next, s.beatRetryAt, nowMs)
@@ -337,12 +359,40 @@ func (s *Service) Step(ctx context.Context, nowMs int64, hb Heartbeat) Effects {
 	// and nobody asks unless a deadline says to. While the store has work in
 	// flight, or is already unhealthy and may recover, that deadline is one
 	// second away.
+	//
+	// Re-snapshotted, and that is the whole point of the line. This Step has
+	// been SUBMITTING since the entry snapshot was taken -- every delivery
+	// attempt `drain` and `pushHeartbeat` recorded went through the store's
+	// writer -- so the entry reading answers "was anything in flight before I
+	// started", which is not the question. A Step that pushed an alert and
+	// queued its delivery record against a wedged writer would publish the
+	// hourly heartbeat as the next deadline and leave the wedge unobserved for
+	// an hour.
+	health = s.store.Health()
 	if health.Pending() > 0 || !health.Healthy() {
 		next = earliest(next, nowMs+hstore.HealthPollInterval.Milliseconds(),
 			nowMs)
 	}
 	eff.NextStepMs = next
 	return eff
+}
+
+// healthPushDueMs is the earliest this Step may send the owed health notice.
+//
+// The LATER of two independent bounds: the 1-60 second ladder's next rung after
+// a FAILED notice, and the end of `healthPushDedupMs` measured from the last
+// one that was SENT. They answer different questions -- "when may this delivery
+// be retried" and "when may the operator be told again" -- and taking the
+// maximum is what stops a flapping store re-sending on the back of a retry that
+// the ladder happened to make due first.
+func (s *Service) healthPushDueMs() int64 {
+	due := s.healthRetryAt
+	if s.lastHealthPushMs > 0 {
+		if window := s.lastHealthPushMs + healthPushDedupMs; window > due {
+			due = window
+		}
+	}
+	return due
 }
 
 // group is one (severity, class, ticker) bucket's due rows, oldest first.
@@ -565,6 +615,22 @@ func (s *Service) pushHealth(ctx context.Context, hb Heartbeat) Push {
 // Never direct SQL. There is one writer and one connection, and a delivery
 // update issued around them is the second writer `hstore` exists to prevent --
 // with the added property that it would race the very rows it is marking.
+//
+// A REFUSAL is deliberately unhandled, and the contract is worth stating
+// because the obvious handling is worse than none. Submission is refused only
+// from a terminal store -- closed, or a writer that has exited -- since a
+// transient fault queues and retries. So the rows were never marked delivered,
+// they remain durably pending in the anomaly table, and the next open §13.2
+// bucket re-offers them at the ordinary cadence with no help from this
+// function. A double delivery is the accepted direction; a silently dropped
+// alert is not.
+//
+// Scheduling a retry HERE would be strictly harmful: `dueAt` prefers this
+// process's own memory over the table, so a remembered deadline can only
+// postpone the redelivery the pending row already guarantees. There is also
+// nothing to escalate to -- this IS the escalation path -- and the refusal
+// reaches the operator by the one route that still works: a store that refuses
+// records reports unhealthy, and the urgent health notice says so.
 func (s *Service) record(ids []string, nowMs int64, delivered bool) {
 	att := hstore.DeliveryAttempt{
 		AnomalyIDs: ids,
@@ -574,15 +640,9 @@ func (s *Service) record(ids []string, nowMs int64, delivered bool) {
 	if delivered {
 		att.DeliveredMs = nowMs
 	}
-	if _, err := s.store.RecordDeliveryAttempt(att); err != nil {
-		// The store refused the record. There is nothing to escalate to from
-		// here -- this IS the escalation path -- so the rows stay pending and
-		// the next Step re-offers them. A double delivery is the acceptable
-		// direction; a silently dropped alert is not.
-		for _, id := range ids {
-			s.retryAt[id] = nowMs + deliveryBackoffMs(1)
-		}
-	}
+	// Both returns are discarded on purpose: there is no receipt to await and
+	// no refusal to act on. The paragraph above is the handling.
+	s.store.RecordDeliveryAttempt(att)
 }
 
 // stamp renders an original timestamp in UTC. Recovery pushes carry the time the

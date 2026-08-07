@@ -1,0 +1,131 @@
+STRATEGIC ASSESSMENT — is this build loop worth finishing?
+
+You are the primary driver. This is NOT a code review and NOT an adjudication.
+The operator has asked one question and wants a decision-grade answer:
+
+    "can you assess the loop that is going to take 2 more weeks to complete —
+     is it worthwhile"
+
+Read-only. Read whatever you need under `/Users/hugh/kek/lip`. Do not edit.
+
+Answer the question actually asked, including the possibility that the answer is
+"no" or "not in this form". The operator has sunk substantial effort here and is
+explicitly inviting the negative answer — do not soften it, and do not pad a
+recommendation to be agreeable. If the case for continuing is strong, say that
+plainly too.
+
+## WHAT IS BEING BUILT
+
+`/Users/hugh/kek/lip` is a market-making harness for Kalshi's Liquidity Incentive
+Programme (LIP). It rests two-sided quotes on a real account, unattended, and
+earns a share of a per-period reward pool for having qualifying size near the
+touch. An earlier Python version lost money; its failures are now numbered rules
+in `notes/harness-spec.md`. `notes/pilot-plan.md` is the go-live plan.
+
+## OBSERVED FACTS — BUILD STATE
+
+- 17 driver rounds between 2026-08-05 00:20 and 2026-08-06 20:30 (~44h wall).
+- ~16.4k lines source + ~18.5k lines test across 9 packages under `go/harness`.
+- `./loop/gates.sh` GREEN; negative-control catalogue 106 mutations, 106/106.
+- `cmd/harness/main.go` exits 2 deliberately. THERE IS NO RUNNABLE BINARY.
+- Tracker: 19 open beads, 0 closed, 0 in progress.
+- Everything was uncommitted until minutes ago; now checkpointed on branch
+  `harness/lip-6w5-v2-checkpoint`, no remote configured.
+- The current bead `lip-6w5` just failed its adversarial gate: 2 material breaks
+  confirmed, v3 repair directed but NOT yet implemented
+  (`loop/fable-17-adjudicate.log`).
+
+## OBSERVED FACTS — YOUR OWN ESTIMATE FROM THE PREVIOUS ROUND
+
+Quoted verbatim from `loop/fable-17-adjudicate.log`:
+
+    "To `lip-3af` (a binary that starts): 2-4 calendar days."
+    "To `lip-dwf` (first live order, S=1): 8-14 calendar days."
+    "Dominates: the adjudication ladder (3-5 rounds/bead) until 3af; the fixed
+     72h after. Implementer throughput is not the constraint - driver session
+     availability is."
+    "The restart count is the honestly unestimable term."
+
+## OBSERVED FACTS — THE GO-LIVE LADDER (`notes/pilot-plan.md:37-39,138-142`)
+
+    | canary        | 1 market, S=1,  ~$1  | does the order path work?          |
+    | pilot         | 1 market, S=12, $100 | do we get paid; does scoring model
+    |               |                      | predict the payout?                |
+    | second market | 2 markets, S=12      | does anything break with concurrency? |
+
+The canary's FIRST directional fill latches WINDING_DOWN by design. Before any
+of it: `lip-q01` is a 72h dry run against the live feed with ZERO writes, and a
+mid-dry-run code change restarts that 72h clock.
+
+## OBSERVED FACTS — THE ECONOMICS ALREADY MEASURED
+
+From the operator's own measurement, 2026-07-25, 40,392 fills / 6.5h of
+`lip/rig.db`; working in `notes/economics.md`, method in `scripts/timeweight.py`:
+
+- `rig.py --report` OVERSTATES the edge and must not be trusted: it prices
+  trade-through markout at the PRINT, but the evidence is about the TOUCH, and
+  they are 4.70 ticks apart. Corrected, markout FLIPS NEGATIVE: -1.77c at 1m,
+  -0.73c at 5m, -0.32c at 30m. That is adverse selection on fills.
+- Rewards more than cover that at scale: $14,775 pool, median 23.8% share and
+  12.9% return per period AT 100 CONTRACTS PER SIDE.
+- Requote latency is nearly free: time-weighted score multiplier 0.9962 at 1s,
+  0.9471 at 60s, 0.8865 at 5m. The harness's speed is NOT the edge.
+- What actually binds: competition for share (23.8% assumes today's book; no
+  public data reveals other participants' scores); adverse selection plus
+  leftover inventory breaking the two-sided quote; and the $1.00 minimum payout,
+  so share must clear 1% of a $100 pool.
+- Scoring: DiscountFactor 0.5, so score halves per tick from the reference —
+  only the top ~3 levels matter, and being AT the touch is nearly everything.
+
+## THE FACT THAT MAY DOMINATE EVERYTHING — VERIFY IT
+
+The operator's 2026-07-25 note, read from the CFTC filing
+(rules02112639183.pdf, Appendix A, effective 2026-02-28), records:
+
+    "Program runs until 2026-09-01."
+
+TODAY IS 2026-08-06. If that end date holds, the programme ends in 26 days, and
+your own estimate puts the FIRST LIVE S=1 ORDER at 8-14 days from now — i.e.
+around 2026-08-14 to 2026-08-20, leaving roughly 11 to 17 days of programme, of
+which the ladder above spends the early part at $1 and $100 of size.
+
+This is a 12-day-old note and may be stale or misread. Treat it as
+DECISION-RELEVANT AND UNVERIFIED. Say explicitly what you could and could not
+confirm from the repo, and if it cannot be confirmed offline, say that the
+operator must check `GET /trade-api/v2/incentive_programs` before acting on any
+recommendation of yours that depends on it. Do not quietly assume it either way.
+
+Note also `notes/harness-spec.md:1207` "Close and program-end handling" and
+:1213 `program.end_date` -> "reward accrual stops": the design already
+contemplates programmes ending under it. Whether the PROGRAMME ends or a
+SPECIFIC MARKET's programme ends is a distinction worth getting right.
+
+## WHAT TO ASSESS
+
+1. Given the end date (as you find it), does finishing this loop produce a live
+   earning system while there is still a programme to earn from? If not, what
+   exactly is the residual value of finishing — reusable harness for the next
+   programme, verified measurement rig, learning, something else, or nothing?
+2. Is the CURRENT PROCESS proportionate to the stake? 3-5 adjudication rounds
+   per bead, a 106-mutation catalogue, a 35-minute gate, adversarial gates on
+   every advancement — against a canary of $1 and a pilot of $100. Say whether
+   the rigour is buying safety worth its calendar cost, or whether it has become
+   the project. Be specific about which parts you would keep and which you would
+   drop; "it depends" is not an answer.
+3. Is there a materially cheaper path to the same knowledge? Consider at least:
+   shipping a read-only scoring/measurement rig with no order path; a manual or
+   semi-automated quoting run; cutting the spec surface to one market and no
+   restart-adoption; abandoning the harness and keeping the analysis.
+4. What would you need to be true to recommend continuing? State it as a test
+   the operator can run in under an hour.
+
+## WHAT TO RETURN
+
+    VERDICT          continue as-is | continue with named cuts | pause | stop
+    THE CASE AGAINST YOUR OWN VERDICT   the strongest argument you rejected, and
+                                        why you rejected it
+    WHAT I VERIFIED  and what I could not verify offline
+    IF CONTINUING    the smallest scope that still reaches a live, earning quote
+    IF STOPPING      what to preserve, and what the sunk work is still good for
+    MOBILE RELAY     <=180 words, verdict first, <=5 bullets, at most one
+                     question. Read on a phone, relayed verbatim.

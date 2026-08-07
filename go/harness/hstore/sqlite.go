@@ -42,7 +42,9 @@ type backend interface {
 	insertAnomaly(anomalyRecord) error
 	markJournaled(anomalyID string, journaledMs int64) error
 	recordDelivery(DeliveryAttempt) error
-	loadBindings() (map[string]string, error)
+	abandonReservation(coid string, abandonedMs int64) error
+	loadLedger() (bindings map[string]string, unresolved map[string]struct{},
+		err error)
 	anomalyJournalStates() ([]anomalyJournalState, error)
 	anomalyByID(anomalyID string) (anomalyRecord, bool, error)
 	pragmas() (Pragmas, error)
@@ -85,13 +87,10 @@ func openSQLite(path string) (*sqliteBackend, error) {
 			"of whatever started the process, and a harness that opened the "+
 			"wrong file would classify every fill as foreign", path)
 	}
-	// INSPECT FIRST, through a read-only connection, before a single writable
-	// statement. Setting `journal_mode=WAL` is itself a write, and running it
-	// on a mistyped path is how this process would put its own schema and its
-	// own journal mode into `lip/rig.db` -- a file two evidence collectors are
-	// writing, that H-ORD-7 makes read-only to the harness, and that no
-	// subsequent rejection can un-modify.
-	fresh, err := inspectDatabase(path)
+	// STAT FIRST, and before any connection exists. Opening writable CREATES a
+	// zero-length file, after which "was this file already here" is a question
+	// nothing can answer -- so the one check that needs the answer runs first.
+	fresh, err := statFresh(path)
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +105,26 @@ func openSQLite(path string) (*sqliteBackend, error) {
 	db.SetMaxIdleConns(1)
 
 	b := &sqliteBackend{db: db}
+	// INSPECT ON THIS CONNECTION, before a single writable statement.
+	//
+	// Setting `journal_mode=WAL` is itself a write, and running it on a
+	// mistyped path is how this process would put its own schema and its own
+	// journal mode into `lip/rig.db` -- a file two evidence collectors are
+	// writing, that H-ORD-7 makes read-only to the harness, and that no
+	// subsequent rejection can un-modify.
+	//
+	// On THIS connection and not a separate read-only one, which is the whole
+	// of the change: a verdict reached over one handle and acted on through
+	// another is a verdict about a file that may no longer be the file being
+	// written. Opening the connection is not a write, so verify-then-write on
+	// a single handle costs nothing and leaves no window.
+	if !fresh {
+		fresh, err = inspectDatabase(db, path)
+		if err != nil {
+			db.Close()
+			return nil, err
+		}
+	}
 	if err := b.applyJournalMode(); err != nil {
 		db.Close()
 		return nil, err
@@ -140,8 +159,46 @@ func writerDSN(path string) string {
 		"&_pragma=busy_timeout(0)"
 }
 
+// statFresh reports whether this path names a file that does not exist yet.
+//
+// FRESH IS NOT-EXIST, and nothing else. A zero-length file is refused rather
+// than adopted: SQLite will happily start writing into one, but it is not a
+// file this process created. A `>` in the wrong shell, a copy that ran out of
+// disk, a restore that produced nothing, or this process's own failure between
+// creating the file and its first write all leave exactly this artifact --
+// and creating a fresh schema over the top of it produces an EMPTY ownership
+// ledger, under which no order id is recognised and every fill the account has
+// ever produced classifies as somebody else's (H-ORD-9). A blank ledger reads
+// exactly like a clean start, which is why the operator has to be told instead.
+func statFresh(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if info.Size() == 0 {
+		return false, fmt.Errorf("%s exists and is zero bytes long: this "+
+			"process did not leave it that way after a successful open, so "+
+			"something else made it -- a truncating redirect, a copy that ran "+
+			"out of disk, or a restore that produced nothing. Creating a "+
+			"schema in it would hand this run an EMPTY ownership ledger, "+
+			"which recognises no order id and makes every fill on the account "+
+			"foreign (H-ORD-9). Move %s aside and let a fresh one be created, "+
+			"or restore the real one", path, path)
+	}
+	return false, nil
+}
+
 // inspectDatabase reads an existing file WITHOUT writing to it, and reports
 // whether a fresh schema must be created.
+//
+// It runs on the WRITABLE connection, before any write statement. A verdict
+// reached over a separate read-only handle and then acted on through this one
+// is a verdict about a file that may have been replaced in between; opening a
+// connection is not a write, so there is nothing to be gained by inspecting
+// anywhere else.
 //
 // The two rejections are different failures:
 //
@@ -153,25 +210,7 @@ func writerDSN(path string) string {
 //     database this schema does not describe. §15's cut is five, and a sixth
 //     table -- or a missing one -- means either an implementation we do not
 //     have or a corruption we cannot interpret.
-func inspectDatabase(path string) (fresh bool, err error) {
-	info, statErr := os.Stat(path)
-	if os.IsNotExist(statErr) {
-		return true, nil
-	}
-	if statErr != nil {
-		return false, statErr
-	}
-	if info.Size() == 0 {
-		// An empty file is a valid empty SQLite database and carries nothing.
-		return true, nil
-	}
-
-	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro&_pragma=query_only(1)")
-	if err != nil {
-		return false, err
-	}
-	defer db.Close()
-
+func inspectDatabase(db *sql.DB, path string) (fresh bool, err error) {
 	var version int64
 	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return false, fmt.Errorf("%s could not be read as a database: %w",
@@ -201,6 +240,16 @@ func inspectDatabase(path string) (fresh bool, err error) {
 				"classifies a fill", path, version, tables, userTables)
 		}
 		return false, nil
+	case legacySchemaVersion:
+		return false, fmt.Errorf("%s is a version-%d harness database and this "+
+			"process writes version %d; there is no migration. Version %d's "+
+			"owned_order has no abandoned_ms, so every reservation in it that "+
+			"was never bound is indistinguishable from one the exchange "+
+			"refused -- reading the file would make the ownership answer for "+
+			"an unrecognised order id depend on which of those it was. Nothing "+
+			"is deployed on version %d: move %s aside and let a fresh one be "+
+			"created", path, version, schemaVersion, legacySchemaVersion,
+			legacySchemaVersion, path)
 	default:
 		return false, fmt.Errorf("database schema version %d is not %d: this "+
 			"process does not know what its owned_order rows mean",
@@ -443,9 +492,13 @@ func (b *sqliteBackend) reserveOrder(r orderReservation) error {
 //     or `our_fill`'s foreign key points at whichever row won the race.
 func (b *sqliteBackend) bindOrder(bind orderBinding) error {
 	return b.tx(func(tx *sql.Tx) error {
-		var existingID sql.NullString
-		err := tx.QueryRow(`SELECT order_id FROM owned_order WHERE coid = ?`,
-			bind.Coid).Scan(&existingID)
+		var (
+			existingID  sql.NullString
+			abandonedMs sql.NullInt64
+		)
+		err := tx.QueryRow(
+			`SELECT order_id, abandoned_ms FROM owned_order WHERE coid = ?`,
+			bind.Coid).Scan(&existingID, &abandonedMs)
 		if errors.Is(err, sql.ErrNoRows) {
 			return permanent("coid %s has no reservation, so there is nothing "+
 				"to bind order %s to; H-ORD-6 reserves before dispatch and a "+
@@ -454,6 +507,18 @@ func (b *sqliteBackend) bindOrder(bind orderBinding) error {
 		}
 		if err != nil {
 			return err
+		}
+		if abandonedMs.Valid {
+			// The mirror of `abandonReservation`'s bound-coid refusal. This
+			// ledger has already recorded, terminally, that the exchange never
+			// took this coid; a binding arriving afterwards says it did. One of
+			// the two is wrong, and a store that resolved the disagreement by
+			// preferring the later writer would be deciding which of its own
+			// durable records to believe.
+			return permanent("coid %s was recorded as abandoned at %d and "+
+				"cannot now be bound to order %s; the ledger already concluded "+
+				"the exchange never took this reservation", bind.Coid,
+				abandonedMs.Int64, bind.OrderID)
 		}
 		if existingID.Valid {
 			if existingID.String == bind.OrderID {
@@ -482,23 +547,142 @@ func (b *sqliteBackend) bindOrder(bind orderBinding) error {
 	})
 }
 
-// recordFill writes `our_fill` with a LITERAL `INSERT OR IGNORE`.
+// abandonReservation is the OTHER terminal answer for a reservation: the
+// exchange never took it, so no order id will ever exist to bind.
 //
-// H-ORD-6: the first observer and its `backfilled` value win. A fill seen live
+// It is a durable record and not a deletion. A reservation that committed is
+// evidence that this process was about to dispatch, and `lip-eyq`'s startup walk
+// concludes only when every outstanding reservation has been resolved one way or
+// the other -- so the resolution has to survive the restart that the walk runs
+// after. Deleting the row would make an abandoned reservation and one that was
+// never made look identical, which is the same erasure `Open` refuses elsewhere.
+//
+// The four rules mirror `bindOrder`'s:
+//
+//   - unknown coid: abandoning a reservation that never committed records a
+//     conclusion about a dispatch we have no evidence of.
+//   - already bound: the exchange demonstrably DID take it. Permanent.
+//   - already abandoned: idempotent, because `lip-eyq`'s walk re-runs on every
+//     startup and must not fail for re-reaching the same conclusion. The FIRST
+//     timestamp stands -- when we concluded it is a fact about the run that
+//     concluded it.
+//   - otherwise: stamp it.
+func (b *sqliteBackend) abandonReservation(coid string, abandonedMs int64) error {
+	return b.tx(func(tx *sql.Tx) error {
+		var (
+			existingID   sql.NullString
+			existingAbnd sql.NullInt64
+		)
+		err := tx.QueryRow(
+			`SELECT order_id, abandoned_ms FROM owned_order WHERE coid = ?`,
+			coid).Scan(&existingID, &existingAbnd)
+		if errors.Is(err, sql.ErrNoRows) {
+			return permanent("coid %s has no reservation, so there is nothing "+
+				"to abandon; a conclusion recorded about a dispatch this store "+
+				"has no record of is a row nobody can interpret", coid)
+		}
+		if err != nil {
+			return err
+		}
+		if existingID.Valid {
+			return permanent("coid %s is bound to order %s and cannot be "+
+				"abandoned; the exchange took this order, and a ledger that "+
+				"said otherwise would make its own fills foreign", coid,
+				existingID.String)
+		}
+		if existingAbnd.Valid {
+			return nil
+		}
+		_, err = tx.Exec(
+			`UPDATE owned_order SET abandoned_ms = ? WHERE coid = ?`,
+			abandonedMs, coid)
+		return err
+	})
+}
+
+// fillFacts is the EXCHANGE's account of one trade: everything about it that
+// two observers of the same trade id must agree on.
+//
+// The observation columns -- `first_run_id`, `first_seen_ms`, `backfilled` --
+// are deliberately absent. They record who saw it and when, which is a
+// different thing per observer by construction, and comparing them would make
+// every backfill walk a contradiction.
+type fillFacts struct {
+	OrderID      string
+	Ticker       string
+	Side         string
+	Price4       int64
+	CountQ       int64
+	FeeMicros    int64
+	IsTaker      bool
+	ExchangeTsMs int64
+}
+
+func factsOf(f fillRecord) fillFacts {
+	return fillFacts{
+		OrderID: f.OrderID, Ticker: f.Ticker, Side: f.Side, Price4: f.Price4,
+		CountQ: f.CountQ, FeeMicros: f.FeeMicros, IsTaker: f.IsTaker,
+		ExchangeTsMs: f.ExchangeTsMs,
+	}
+}
+
+// recordFill writes `our_fill` READ-COMPARE-INSERT, in one transaction.
+//
+// H-ORD-6 is two rules and a bare `INSERT OR IGNORE` expressed only one of
+// them. The first observer and its `backfilled` value win -- a fill seen live
 // and then re-read by a later run's backfill walk is the same fill, and letting
-// the backfill overwrite it would relabel a live observation as history --
-// which is the field `lip-gp8` uses to decide whether a cash flow was ours to
-// have seen. `M-HS-FILLREPLACE` makes it `INSERT OR REPLACE`.
+// the backfill overwrite it would relabel a live observation as history, which
+// is the field `lip-gp8` uses to decide whether a cash flow was ours to have
+// seen. But `OR IGNORE` cannot tell that case from a trade id coming back with
+// a DIFFERENT price, count or fee, and it discards the second silently in both.
+// A contradiction about money is not a duplicate: the row would go on asserting
+// one figure while the account held another, with nothing anywhere recording
+// that two were seen.
+//
+// So the comparison is over the exchange facts only. Identical is idempotent;
+// divergent is PERMANENT, because no amount of retrying makes two accounts of
+// one trade agree, and a store that has rejected a record never reports healthy
+// again -- which is exactly the surfacing this needs.
+//
+// `M-HS-FILLREPLACE` lets the later observer overwrite the observation columns;
+// `M-HS-FILLBLINDDUP` restores the blind duplicate.
 func (b *sqliteBackend) recordFill(f fillRecord) error {
-	_, err := b.db.Exec(
-		`INSERT OR IGNORE INTO our_fill
-		   (trade_id, first_run_id, first_seen_ms, backfilled, order_id,
-		    ticker, side, price4, count_q, fee_micros, is_taker, exchange_ts_ms)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		f.TradeID, f.FirstRunID, f.FirstSeenMs, boolInt(f.Backfilled), f.OrderID,
-		f.Ticker, f.Side, f.Price4, f.CountQ, f.FeeMicros, boolInt(f.IsTaker),
-		f.ExchangeTsMs)
-	return classify(err)
+	return b.tx(func(tx *sql.Tx) error {
+		var got fillFacts
+		var isTaker int64
+		err := tx.QueryRow(
+			`SELECT order_id, ticker, side, price4, count_q, fee_micros,
+			        is_taker, exchange_ts_ms
+			   FROM our_fill WHERE trade_id = ?`, f.TradeID).Scan(
+			&got.OrderID, &got.Ticker, &got.Side, &got.Price4, &got.CountQ,
+			&got.FeeMicros, &isTaker, &got.ExchangeTsMs)
+		switch {
+		case err == nil:
+			got.IsTaker = isTaker != 0
+			if want := factsOf(f); got != want {
+				return permanent("trade %s is already recorded as %+v and has "+
+					"now been reported as %+v; two accounts of one trade "+
+					"cannot both be true, and accepting this one silently "+
+					"would leave the ledger asserting a figure the account "+
+					"does not hold", f.TradeID, got, want)
+			}
+			// H-ORD-6: the first observer and its `backfilled` value win, so an
+			// identical re-observation writes nothing at all.
+			return nil
+		case errors.Is(err, sql.ErrNoRows):
+		default:
+			return err
+		}
+		_, err = tx.Exec(
+			`INSERT INTO our_fill
+			   (trade_id, first_run_id, first_seen_ms, backfilled, order_id,
+			    ticker, side, price4, count_q, fee_micros, is_taker, exchange_ts_ms)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			f.TradeID, f.FirstRunID, f.FirstSeenMs, boolInt(f.Backfilled), f.OrderID,
+			f.Ticker, f.Side, f.Price4, f.CountQ, f.FeeMicros, boolInt(f.IsTaker),
+			f.ExchangeTsMs)
+		return classify(err)
+	})
 }
 
 // recordState writes one A9 `state_event` row.
@@ -634,7 +818,9 @@ func (b *sqliteBackend) recordDelivery(d DeliveryAttempt) error {
 	})
 }
 
-// loadBindings reads every committed coid->order-id binding, from EVERY run.
+// loadLedger reads the whole of `owned_order` that bears on classification: the
+// committed coid->order-id bindings AND the reservations still outstanding, from
+// EVERY run.
 //
 // H-ORD-9: fills are classified against the ledger "never by heuristic, never
 // by `run_id`". An order placed by a previous incarnation is still ours, and one
@@ -642,22 +828,48 @@ func (b *sqliteBackend) recordDelivery(d DeliveryAttempt) error {
 // deleted and never filtered by the current run. `M-HS-OWNRUN` adds that filter
 // to show what it costs: every fill from before the last restart becomes
 // foreign, which is a SEV1 and a global stop fired by starting up correctly.
-func (b *sqliteBackend) loadBindings() (map[string]string, error) {
+//
+// The second half is the F2 repair. A row with no `order_id` and no
+// `abandoned_ms` is a reservation that committed before dispatch and whose
+// exchange order id this process never learned -- the H-ORD-6 crash window. The
+// old reader selected `order_id IS NOT NULL` and nothing else, so those rows
+// were invisible at Open and a fill on the order they produced was classified
+// FOREIGN: a SEV1, a global stop and a durable WINDING_DOWN latch, fired by our
+// own order. `M-HS-OWNNULLSKIP` restores that filter.
+func (b *sqliteBackend) loadLedger() (map[string]string, map[string]struct{},
+	error) {
+
 	rows, err := b.db.Query(
-		`SELECT order_id, coid FROM owned_order WHERE order_id IS NOT NULL`)
+		`SELECT coid, order_id, abandoned_ms FROM owned_order`)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
-	out := make(map[string]string)
+	bindings := make(map[string]string)
+	unresolved := make(map[string]struct{})
 	for rows.Next() {
-		var orderID, coid string
-		if err := rows.Scan(&orderID, &coid); err != nil {
-			return nil, err
+		var (
+			coid        string
+			orderID     sql.NullString
+			abandonedMs sql.NullInt64
+		)
+		if err := rows.Scan(&coid, &orderID, &abandonedMs); err != nil {
+			return nil, nil, err
 		}
-		out[orderID] = coid
+		switch {
+		case orderID.Valid:
+			bindings[orderID.String] = coid
+		case abandonedMs.Valid:
+			// Terminal the other way: the exchange never took this order, so
+			// there is no order id it could ever produce a fill under.
+		default:
+			unresolved[coid] = struct{}{}
+		}
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	return bindings, unresolved, nil
 }
 
 // anomalyJournalStates returns EVERY anomaly with whether the database believes
@@ -735,10 +947,37 @@ type journal interface {
 }
 
 // fileJournal is the append-only, mode-0600 JSONL of §13.1.
+//
+// goodOff is the file's length in its last known-good state: every byte below
+// it belongs to a line that was written AND synced. A failed append truncates
+// back to it, and that is what makes the retry idempotent -- the file is
+// byte-identical to before the attempt, so the retry IS the first attempt
+// again. Without it, a write that lands and then reports failure leaves bytes
+// the next attempt appends after, and §13.1's two journals disagree forever.
 type fileJournal struct {
-	path string
-	f    *os.File
+	path    string
+	f       *os.File
+	goodOff int64
+	// dirty means a truncate could not be completed, so the bytes above
+	// goodOff are unknown. No append may proceed until it succeeds -- it is
+	// re-attempted on every later call, so a disk that comes back heals the
+	// journal with no operator action.
+	dirty bool
 }
+
+// journalWriteFn and journalSyncFn are the journal's two failure points, as
+// seams, for the same reason `backend` and `journal` are injectable: a full
+// disk is not producible on demand.
+//
+// They are here rather than on a wrapper because a wrapper cannot produce the
+// shapes that matter. Failing BEFORE delegating is atomic-nothing, which is a
+// failure mode no real file has; the two that brick this store are a short
+// write that leaves a partial line, and a sync that fails after the bytes
+// landed.
+var (
+	journalWriteFn = func(f *os.File, b []byte) (int, error) { return f.Write(b) }
+	journalSyncFn  = func(f *os.File) error { return f.Sync() }
+)
 
 // syncDirFn is the parent-directory sync, as a seam.
 //
@@ -798,7 +1037,12 @@ func openJournal(path string) (*fileJournal, error) {
 				"copy may not survive a power cut: %w", path, err))
 		}
 	}
-	return &fileJournal{path: path, f: f}, nil
+	j := &fileJournal{path: path, f: f}
+	if err := j.repairTail(); err != nil {
+		f.Close()
+		return nil, err
+	}
+	return j, nil
 }
 
 // appendLine writes and SYNCS. Without the sync the "durable" step of §13.1 is
@@ -810,10 +1054,89 @@ func (j *fileJournal) appendLine(l journalLine) error {
 		return err
 	}
 	b = append(b, '\n')
-	if _, err := j.f.Write(b); err != nil {
+	if err := j.settle(); err != nil {
 		return err
 	}
-	return j.f.Sync()
+	if _, err := journalWriteFn(j.f, b); err != nil {
+		return j.rollback(err)
+	}
+	if err := journalSyncFn(j.f); err != nil {
+		return j.rollback(err)
+	}
+	j.goodOff += int64(len(b))
+	return nil
+}
+
+// rollback returns the file to its last known-good length and reports the
+// ORIGINAL error, because that is the one describing what the disk did. The
+// caller retries; the file is byte-identical to before the attempt, so the
+// retry can neither duplicate a record nor merge two into one.
+//
+// A truncate that itself fails is NOT permanent. The record stays queued and
+// the store stays unhealthy, which revokes adding and nothing else (H-STORE-3);
+// popping it here would discard the evidence the failure is about.
+func (j *fileJournal) rollback(cause error) error {
+	if err := j.truncateToGood(); err != nil {
+		j.dirty = true
+		return errors.Join(cause, err)
+	}
+	j.dirty = false
+	return cause
+}
+
+// settle re-attempts a truncate left incomplete by an earlier failure.
+func (j *fileJournal) settle() error {
+	if !j.dirty {
+		return nil
+	}
+	if err := j.truncateToGood(); err != nil {
+		return fmt.Errorf("the anomaly journal could not be returned to its "+
+			"last known-good length %d, so a partial record may still be in it "+
+			"and appending now would merge two records into one: %w",
+			j.goodOff, err)
+	}
+	j.dirty = false
+	return nil
+}
+
+func (j *fileJournal) truncateToGood() error {
+	if err := j.f.Truncate(j.goodOff); err != nil {
+		return err
+	}
+	return journalSyncFn(j.f)
+}
+
+// repairTail removes an incomplete trailing line and records what survives.
+//
+// A partial trailing line is this store's OWN crash artifact: §13.1 appends and
+// syncs, and a power cut during that append leaves exactly this. Refusing to
+// start because of it refuses to start over a record that by construction never
+// became visible to delivery -- its row still carries `journaled_ms` NULL, and
+// reconcile re-journals it from the database. Only the TAIL is repaired: a
+// malformed line with complete lines AFTER it is not a crash artifact, and it
+// still fails closed.
+func (j *fileJournal) repairTail() error {
+	raw, err := os.ReadFile(j.path)
+	if err != nil {
+		return err
+	}
+	good := int64(bytes.LastIndexByte(raw, '\n') + 1)
+	if good == int64(len(raw)) {
+		j.goodOff = good
+		return nil
+	}
+	if err := j.f.Truncate(good); err != nil {
+		return fmt.Errorf("the anomaly journal %s ends in a partial record "+
+			"and it could not be truncated to the last complete one: %w",
+			j.path, err)
+	}
+	if err := journalSyncFn(j.f); err != nil {
+		return fmt.Errorf("the anomaly journal %s was truncated to its last "+
+			"complete record and the truncation could not be synced: %w",
+			j.path, err)
+	}
+	j.goodOff = good
+	return nil
 }
 
 func (j *fileJournal) readAll() ([]journalLine, error) {
@@ -879,8 +1202,21 @@ type Reader struct {
 	db *sql.DB
 }
 
+// openReader opens the read view with `query_only` in the DSN.
+//
+// In the DSN and not once after `sql.Open`, for the reason `writerDSN`
+// documents: the pragma is per-CONNECTION and `database/sql` is a pool that
+// closes idle connections and opens replacements whenever it likes. A
+// one-time `Exec` configures whichever connection happened to serve it, and the
+// replacement arrives with `query_only=OFF` -- at which point the read view is
+// a second writer against a database whose entire design is that there is
+// exactly one. modernc's `_pragma` parameter runs it on every connection.
+//
+// The one-time Exec stays as belt: it costs one statement at startup and it
+// fails loudly if the DSN parameter were ever silently dropped by a driver
+// change.
 func openReader(path string) (*Reader, error) {
-	db, err := sql.Open("sqlite", path)
+	db, err := sql.Open("sqlite", readerDSN(path))
 	if err != nil {
 		return nil, err
 	}
@@ -891,6 +1227,11 @@ func openReader(path string) (*Reader, error) {
 		return nil, fmt.Errorf("set query_only: %w", err)
 	}
 	return &Reader{db: db}, nil
+}
+
+// readerDSN carries the read view's connection-local pragma.
+func readerDSN(path string) string {
+	return "file:" + path + "?_pragma=query_only(1)"
 }
 
 // Close releases the read connection. The Store closes it; a caller holding a
@@ -942,15 +1283,16 @@ func (r *Reader) Run(runID string) (RunRow, bool, error) {
 }
 
 const ownedOrderCols = `coid, run_id, reserved_ms, ticker, side, role,
-	price_cents, count_q, order_id, bound_ms`
+	price_cents, count_q, order_id, bound_ms, abandoned_ms`
 
 func scanOwnedOrder(sc interface{ Scan(...any) error }) (OwnedOrderRow, error) {
 	var row OwnedOrderRow
 	var countQ int64
 	var orderID sql.NullString
-	var boundMs sql.NullInt64
+	var boundMs, abandonedMs sql.NullInt64
 	err := sc.Scan(&row.Coid, &row.RunID, &row.ReservedMs, &row.Ticker,
-		&row.Side, &row.Role, &row.PriceCents, &countQ, &orderID, &boundMs)
+		&row.Side, &row.Role, &row.PriceCents, &countQ, &orderID, &boundMs,
+		&abandonedMs)
 	if err != nil {
 		return OwnedOrderRow{}, err
 	}
@@ -958,6 +1300,8 @@ func scanOwnedOrder(sc interface{ Scan(...any) error }) (OwnedOrderRow, error) {
 	row.OrderID = orderID.String
 	row.BoundMs = boundMs.Int64
 	row.Bound = orderID.Valid
+	row.AbandonedMs = abandonedMs.Int64
+	row.Abandoned = abandonedMs.Valid
 	return row, nil
 }
 

@@ -203,6 +203,27 @@ func (f *fixture) awaitUnhealthy() {
 		"locked against writing")
 }
 
+// awaitHealthy is the other half: the store's own report that the write it was
+// retrying has landed and the backlog behind it is durable.
+//
+// It waits out the writer's REAL retry ladder, because that is what recovery
+// is. Bounded by the wall clock rather than by iterations: the writer sleeps
+// between attempts, so an iteration bound would be a bound on how fast this
+// machine spins rather than on how long recovery took.
+func (f *fixture) awaitHealthy() {
+	f.t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		f.drain()
+		if f.store.Health().Healthy() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	f.t.Fatalf("the store never recovered after its database was unlocked: "+
+		"%+v", f.store.Health())
+}
+
 // ---------------------------------------------------------------------------
 // Recording transports
 // ---------------------------------------------------------------------------

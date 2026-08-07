@@ -15,7 +15,18 @@ package hstore
 // rejected rather than migrated: a database written by a schema we do not know
 // is one whose `owned_order` rows we cannot safely read, and reading them wrong
 // classifies a fill.
-const schemaVersion = 1
+//
+// Version 2 added `owned_order.abandoned_ms`. There is no migration and version
+// 1 is refused by name, because nothing is deployed: the only version-1 files in
+// existence are test fixtures and a developer's scratch database, and a
+// migration path written for no user is a code path that is exercised for the
+// first time on the day it runs against real evidence.
+const schemaVersion = 2
+
+// legacySchemaVersion is the pre-`abandoned_ms` schema. Named so the refusal can
+// say WHICH old version it found and why the difference matters, rather than
+// falling through to the generic unknown-version message.
+const legacySchemaVersion = 1
 
 // The three pinned pragmas. They are constants and not literals inside the DSN
 // so that `M-HS-PRAGMA` has exactly one place to corrupt and the test has
@@ -53,6 +64,14 @@ var deferredTables = []string{
 //     binding timestamp is a binding whose provenance cannot be reconstructed,
 //     and a row with a timestamp and no order id is a binding that classifies
 //     nothing. The UNIQUE is also what lets `our_fill.order_id` reference it.
+//   - `owned_order.abandoned_ms` is the THIRD state of a reservation, and it is
+//     what makes "reserved, dispatched, not yet bound" representable. A row with
+//     neither `order_id` nor `abandoned_ms` is a reservation still outstanding:
+//     an order may exist on the exchange under that coid whose id we do not know
+//     yet, so a fill on an unrecognised order id is not evidence of a third
+//     party. The second CHECK forbids a row that is both bound and abandoned --
+//     that pair is the ledger asserting the exchange both did and did not take
+//     the order, and no reading of it is safe.
 //   - `our_fill.order_id` REFERENCES `owned_order(order_id)`. A fill can only be
 //     recorded against an order we have durably bound, which is exactly H-ORD-9:
 //     ownership is a fact in the ledger, never an inference at the fill.
@@ -81,7 +100,9 @@ CREATE TABLE IF NOT EXISTS owned_order (
     count_q     INTEGER NOT NULL,
     order_id    TEXT    UNIQUE,
     bound_ms    INTEGER,
-    CHECK ((order_id IS NULL) = (bound_ms IS NULL))
+    abandoned_ms INTEGER,
+    CHECK ((order_id IS NULL) = (bound_ms IS NULL)),
+    CHECK (NOT (order_id IS NOT NULL AND abandoned_ms IS NOT NULL))
 );
 
 CREATE TABLE IF NOT EXISTS our_fill (

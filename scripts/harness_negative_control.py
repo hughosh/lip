@@ -427,8 +427,8 @@ MUTATIONS = [
      "(H-ORD-9)",
      [
          ("harness/risk/position.go",
-          "\t\tif !owned[i] {\n",
-          "\t\tif false && owned[i] {\n"),
+          "\t\tif owned[i] == OwnershipForeign {\n",
+          "\t\tif false && owned[i] == OwnershipForeign {\n"),
      ],
      "TestFillOwnershipUsesOrderIDLedgerAndForeignStopsGlobally"),
 
@@ -522,11 +522,11 @@ MUTATIONS = [
      "q_exch is counted twice and the reducer can flip the sign of q",
      [
          ("harness/wsx/portfolio.go",
+          "\tapplyOrders(g, pf, bind, read, &eff)\n"
           "\tapplyFills(g, pf, own, read, mode, &eff)\n"
-          "\tapplyOrders(g, pf, read, &eff)\n"
           "\tapplyPositions(g, pf, read, p, &eff)\n",
           "\tapplyPositions(g, pf, read, p, &eff)\n"
-          "\tapplyOrders(g, pf, read, &eff)\n"
+          "\tapplyOrders(g, pf, bind, read, &eff)\n"
           "\tapplyFills(g, pf, own, read, mode, &eff)\n"),
      ],
      "TestAuthoritativePositionIsFinalAfterSameCycleFill"),
@@ -674,8 +674,10 @@ MUTATIONS = [
      "-- every fill that produced the seeded position is counted twice",
      [
          ("harness/lifecycle/adopt.go",
-          "\tfx := portfolio.ApplyFills(ownedConverted, s.guard.own, risk.Seed)\n",
-          "\tfx := portfolio.ApplyFills(ownedConverted, s.guard.own, risk.Live)\n"),
+          "\tfx := portfolio.ApplyFills(ownedConverted, s.guard.own, risk.Seed,\n"
+          "\t\tnow.UnixMilli())\n",
+          "\tfx := portfolio.ApplyFills(ownedConverted, s.guard.own, risk.Live,\n"
+          "\t\tnow.UnixMilli())\n"),
      ],
      "TestStartupSeedsExchangePositionWithoutReplayingHistoricalFills"),
 
@@ -894,8 +896,8 @@ MUTATIONS = [
      'recognise only order ids from the current run -- every fill from before the last restart becomes a SEV1 foreign fill (H-ORD-9)',
      [
          ('harness/hstore/sqlite.go',
-          '\t\t`SELECT order_id, coid FROM owned_order WHERE order_id IS NOT NULL`)\n',
-          '\t\t`SELECT order_id, coid FROM owned_order\n\t\t  WHERE order_id IS NOT NULL\n\t\t    AND run_id = (SELECT run_id FROM run\n\t\t                   ORDER BY started_ms DESC LIMIT 1)`)\n'),
+          '\t\t`SELECT coid, order_id, abandoned_ms FROM owned_order`)\n',
+          '\t\t`SELECT coid, order_id, abandoned_ms FROM owned_order\n\t\t  WHERE run_id = (SELECT run_id FROM run\n\t\t                   ORDER BY started_ms DESC LIMIT 1)`)\n'),
      ],
      'TestOwnershipSurvivesRunsAndTerminalOrders'),
 
@@ -904,16 +906,23 @@ MUTATIONS = [
      [
          ('harness/risk/position.go',
           '\towned, err := own.OwnsOrders(orderIDs)\n\tif err != nil || len(owned) != len(unseen) {\n',
-          '\towned, err := own.OwnsOrders(orderIDs)\n\tif err != nil || len(owned) != len(unseen) {\n\t\towned = make([]bool, len(unseen))\n\t}\n\tif false {\n'),
+          '\towned, err := own.OwnsOrders(orderIDs)\n\tif err != nil || len(owned) != len(unseen) {\n\t\towned = make([]Ownership, len(unseen))\n\t\tfor i := range owned {\n\t\t\towned[i] = OwnershipForeign\n\t\t}\n\t}\n\tif false {\n'),
      ],
      'TestOwnershipLookupFailureAppliesNothingAndRefreshesNoTruth'),
 
     ('M-HS-FILLREPLACE',
-     'change our_fill to INSERT OR REPLACE, so a later backfill walk relabels a live observation as history (H-ORD-6)',
+     'let the later observer overwrite our_fill observation columns, so a '
+     'backfill walk relabels a live observation as history (H-ORD-6)',
      [
          ('harness/hstore/sqlite.go',
-          'INSERT OR IGNORE INTO our_fill',
-          'INSERT OR REPLACE INTO our_fill'),
+          '\t\t\t// H-ORD-6: the first observer and its `backfilled` value win, so an\n'
+          '\t\t\t// identical re-observation writes nothing at all.\n'
+          '\t\t\treturn nil\n',
+          '\t\t\t_, err = tx.Exec(\n'
+          '\t\t\t\t`UPDATE our_fill SET first_run_id = ?, first_seen_ms = ?,\n'
+          '\t\t\t\t        backfilled = ? WHERE trade_id = ?`,\n'
+          '\t\t\t\tf.FirstRunID, f.FirstSeenMs, boolInt(f.Backfilled), f.TradeID)\n'
+          '\t\t\treturn err\n'),
      ],
      'TestOurFillFirstObserverWinsAcrossRuns'),
 
@@ -1051,8 +1060,8 @@ MUTATIONS = [
      'a writer that has exited leaves adding enabled, so an outstanding permit dispatches an order nothing can record',
      [
          ('harness/hstore/writer.go',
-          '\ts.running = false\n\ts.writerGone = true\n\ts.healthy = false\n\ts.adding = false\n\ts.inflight = false\n\ts.wakeLocked()\n',
-          '\ts.running = false\n\ts.wakeLocked()\n'),
+          '\ts.running = false\n\ts.writerGone = true\n\ts.healthy = false\n\ts.adding = false\n\ts.inflight = false\n',
+          '\ts.running = false\n'),
      ],
      'TestStoppedWriterRevokesOutstandingAddingPermits'),
 
@@ -1090,8 +1099,8 @@ MUTATIONS = [
           '\t\t"&_pragma=foreign_keys(" + pragmaForeignKeys + ")" +\n',
           ''),
          ('harness/hstore/sqlite.go',
-          '\tb := &sqliteBackend{db: db}\n\tif err := b.applyJournalMode(); err != nil {\n',
-          '\tb := &sqliteBackend{db: db}\n\tif _, ferr := db.Exec("PRAGMA foreign_keys=" + pragmaForeignKeys); ferr != nil {\n\t\tdb.Close()\n\t\treturn nil, ferr\n\t}\n\tif err := b.applyJournalMode(); err != nil {\n'),
+          '\tif err := b.applyJournalMode(); err != nil {\n',
+          '\tif _, ferr := db.Exec("PRAGMA foreign_keys=" + pragmaForeignKeys); ferr != nil {\n\t\tdb.Close()\n\t\treturn nil, ferr\n\t}\n\tif err := b.applyJournalMode(); err != nil {\n'),
      ],
      'TestWritePragmasSurviveConnectionReplacement'),
 
@@ -1171,7 +1180,7 @@ MUTATIONS = [
      'publish only the next heartbeat deadline, so the private 1-60 second alert ladder and every rate-limit bucket resolve to an hour',
      [
          ('harness/ping/service.go',
-          '\tnext := earliest(0, eff.NextHeartbeatMs, nowMs)\n\tnext = earliest(next, nextAlert, nowMs)\n\tif s.healthOwed {\n\t\tnext = earliest(next, s.healthRetryAt, nowMs)\n\t}\n\tif s.beatAttempts > 0 {\n\t\tnext = earliest(next, s.beatRetryAt, nowMs)\n\t}\n\tif s.deadAttempts > 0 {\n\t\tnext = earliest(next, s.deadRetryAt, nowMs)\n\t}\n',
+          '\tnext := earliest(0, eff.NextHeartbeatMs, nowMs)\n\tnext = earliest(next, nextAlert, nowMs)\n\tif s.healthOwed {\n\t\tnext = earliest(next, s.healthPushDueMs(), nowMs)\n\t}\n\tif s.beatAttempts > 0 {\n\t\tnext = earliest(next, s.beatRetryAt, nowMs)\n\t}\n\tif s.deadAttempts > 0 {\n\t\tnext = earliest(next, s.deadRetryAt, nowMs)\n\t}\n',
           '\tnext := earliest(0, eff.NextHeartbeatMs, nowMs)\n\tif nextAlert < 0 {\n\t\tnext = earliest(next, nextAlert, nowMs)\n\t}\n'),
      ],
      'TestNextStepSchedulesFailedAndSuppressedAlertRetries'),
@@ -1189,8 +1198,8 @@ MUTATIONS = [
      'discard a failed health, heartbeat or dead-man push instead of retrying it on the 1-60 second ladder, so the watchdog alarms on a live harness',
      [
          ('harness/ping/service.go',
-          '\tif s.healthOwed && nowMs >= s.healthRetryAt {\n',
-          '\tif s.healthOwed && s.healthAttempts == 0 {\n'),
+          '\tdue := s.healthRetryAt\n',
+          '\tdue := int64(0)\n'),
          ('harness/ping/service.go',
           '\tretryBeat := s.beatAttempts > 0 && nowMs >= s.beatRetryAt\n',
           '\tretryBeat := false\n'),
@@ -1199,6 +1208,323 @@ MUTATIONS = [
           '\tif eff.Heartbeat {\n'),
      ],
      'TestFailedStatusPushesRetryBeforeTheHour'),
+
+    # ---- F2: the unresolved reservation, and the four places it is read ----
+    #
+    # H-ORD-6 commits the reservation BEFORE the order is dispatched and learns
+    # the exchange order id afterwards. Everything below restores some part of
+    # the pre-repair behaviour, in which the state between those two commits was
+    # unrepresentable and a fill arriving in it was classified FOREIGN -- a
+    # SEV1, a global stop and a durable operator-only WINDING_DOWN latch,
+    # produced by our own order.
+
+    ('M-HS-OWNNULLSKIP',
+     'load only BOUND owned_order rows at Open, so a reservation that was '
+     'dispatched and never bound is invisible to the rebuilt index and the '
+     'fill it produces reads as foreign -- the crash H-ORD-6 exists to survive '
+     'becomes a permanent global stop on the next boot',
+     [
+         ('harness/hstore/sqlite.go',
+          '\t\t`SELECT coid, order_id, abandoned_ms FROM owned_order`)\n',
+          '\t\t`SELECT coid, order_id, abandoned_ms FROM owned_order\n'
+          '\t\t   WHERE order_id IS NOT NULL`)\n'),
+     ],
+     'TestReservedUnboundCoidSurvivesReopenAsUnresolved'),
+
+    ('M-HS-OWNCONCLUSIVE',
+     'answer FOREIGN for an unrecognised order id even while reservations are '
+     'outstanding, which is FINDING 2 in one line: the ledger declares a third '
+     'party is trading the account on the strength of an order it authorised '
+     'itself and has not finished recording',
+     [
+         ('harness/hstore/ledger.go',
+          '\t\tcase len(o.unresolved) > 0:\n',
+          '\t\tcase false && len(o.unresolved) > 0:\n'),
+     ],
+     'TestOwnsOrdersConclusiveForeignRequiresNoUnresolvedReservations'),
+
+    ('M-R-INDETSEEN',
+     'mark an unresolved fill as seen while deferring it, so the dedup set '
+     'swallows it: the fills walk never offers it again, q never learns about '
+     'contracts we hold, and no anomaly is ever raised',
+     [
+         ('harness/risk/position.go',
+          '\t\t\teff.Deferred = append(eff.Deferred, f)\n',
+          '\t\t\teff.Deferred = append(eff.Deferred, f)\n'
+          '\t\t\tp.seenTrade[f.TradeID] = struct{}{}\n'),
+     ],
+     'TestUnresolvedFillIsDeferredNotSeenNotForeign'),
+
+    ('M-W-NOBIND',
+     'stop binding listed orders in the portfolio walk, so the one endpoint '
+     'that reports both halves of a lost binding is read and discarded and the '
+     'reservation stays outstanding for the life of the process -- after which '
+     'every unrecognised fill on the account defers forever',
+     [
+         ('harness/wsx/portfolio.go',
+          '\tbindListedOrders(bind, read, eff)\n',
+          ''),
+     ],
+     'TestPortfolioPollBindsListedOrdersBeforeClassifyingFills'),
+
+    ('M-L-INDETLATCH',
+     'let an unresolved fill fall through to the foreign arm at startup, which '
+     'commits a durable foreign_fill stop cause; only an operator can clear it, '
+     'so a correct process that crashed between H-ORD-6 two commits takes '
+     'itself off the market permanently',
+     [
+         ('harness/lifecycle/foreign.go',
+          '\t\t\teff.Unresolved = append(eff.Unresolved, f)\n\t\t\tcontinue\n',
+          ''),
+     ],
+     'TestStartupDoesNotLatchForeignFillWhileReservationsUnresolved'),
+
+    # --- v3 item 1: the crash-tolerant journal --------------------------------
+
+    ('M-HS-JRNLRESTAMP',
+     'stamp the journal line on every attempt instead of once, so a retry after '
+     'a post-write sync failure writes a line that DISAGREES with the one '
+     'already on the platter -- reconcile tolerates an identical duplicate and '
+     'refuses a disagreeing one forever, so a single transient EIO permanently '
+     'stops the harness from starting',
+     [
+         ('harness/hstore/writer.go',
+          '\t\tif sub.journalMs == 0 {\n\t\t\tsub.journalMs = s.nowMs()\n\t\t}\n',
+          '\t\tsub.journalMs = s.nowMs()\n'),
+     ],
+     'TestJournalRetryAfterPostWriteSyncFailureDoesNotDuplicate'),
+
+    ('M-HS-JRNLNOTRUNC',
+     'report a failed append without returning the file to its last known-good '
+     'length, so a short write leaves a partial line and the retry appends '
+     'after it -- merging two records into one that parses as neither, which '
+     'destroys the operator fallback copy §13.1 exists to be',
+     [
+         ('harness/hstore/sqlite.go',
+          '\tif _, err := journalWriteFn(j.f, b); err != nil {\n\t\treturn j.rollback(err)\n\t}\n',
+          '\tif _, err := journalWriteFn(j.f, b); err != nil {\n\t\treturn err\n\t}\n'),
+     ],
+     'TestJournalRetryAfterPartialWriteDoesNotCorrupt'),
+
+    ('M-HS-JRNLTAILREFUSE',
+     'refuse to open over a torn trailing line instead of repairing it, so the '
+     'harness declines to start because of its own crash artifact -- a record '
+     'that by construction never became delivery-visible and that reconcile '
+     're-journals from the database',
+     [
+         ('harness/hstore/sqlite.go',
+          '\tif err := j.f.Truncate(good); err != nil {\n'
+          '\t\treturn fmt.Errorf("the anomaly journal %s ends in a partial record "+\n'
+          '\t\t\t"and it could not be truncated to the last complete one: %w",\n'
+          '\t\t\tj.path, err)\n'
+          '\t}\n'
+          '\tif err := journalSyncFn(j.f); err != nil {\n'
+          '\t\treturn fmt.Errorf("the anomaly journal %s was truncated to its last "+\n'
+          '\t\t\t"complete record and the truncation could not be synced: %w",\n'
+          '\t\t\tj.path, err)\n'
+          '\t}\n'
+          '\tj.goodOff = good\n'
+          '\treturn nil\n',
+          '\treturn fmt.Errorf("the anomaly journal %s ends in a partial record "+\n'
+          '\t\t"and this process will not start over it", j.path)\n'),
+     ],
+     'TestOpenRepairsTornTailFromCrashDuringAppend'),
+
+    # --- v3 item 6: inspect on the writable connection; refuse zero-byte ------
+
+    ('M-HS-EMPTYFRESH',
+     'treat an existing zero-byte database file as fresh, so a truncating '
+     'redirect or a restore that produced nothing is silently given a new '
+     'schema -- an EMPTY ownership ledger, under which no order id is '
+     'recognised and every fill on the account classifies as foreign (H-ORD-9)',
+     [
+         ('harness/hstore/sqlite.go',
+          '\tif info.Size() == 0 {\n',
+          '\tif info.Size() == 0 {\n\t\treturn true, nil\n\t}\n\tif info.Size() < 0 {\n'),
+     ],
+     'TestOpenRefusesZeroByteDatabaseFile'),
+
+    ('M-HS-WALBEFOREINSPECT',
+     'set journal_mode=WAL before inspecting, so a mistyped absolute path '
+     'switches the evidence collectors journal mode underneath two running '
+     'writers before the rejection that cannot un-modify it (H-ORD-7)',
+     [
+         ('harness/hstore/sqlite.go',
+          '\tif !fresh {\n'
+          '\t\tfresh, err = inspectDatabase(db, path)\n'
+          '\t\tif err != nil {\n'
+          '\t\t\tdb.Close()\n'
+          '\t\t\treturn nil, err\n'
+          '\t\t}\n'
+          '\t}\n'
+          '\tif err := b.applyJournalMode(); err != nil {\n'
+          '\t\tdb.Close()\n'
+          '\t\treturn nil, err\n'
+          '\t}\n',
+          '\tif err := b.applyJournalMode(); err != nil {\n'
+          '\t\tdb.Close()\n'
+          '\t\treturn nil, err\n'
+          '\t}\n'
+          '\tif !fresh {\n'
+          '\t\tfresh, err = inspectDatabase(db, path)\n'
+          '\t\tif err != nil {\n'
+          '\t\t\tdb.Close()\n'
+          '\t\t\treturn nil, err\n'
+          '\t\t}\n'
+          '\t}\n'),
+     ],
+     'TestOpenRefusesForeignVersionZeroDatabaseWithoutWritingIt'),
+
+    # --- v3 item 7: a gone writer fails its queue loudly ----------------------
+
+    ('M-HS-GONELIMBO',
+     'leave accepted records queued when the writer returns, so each sits in a '
+     'third state that is neither durable nor terminally failed: its submitter '
+     'waits on a receipt that never resolves, and Close refuses on its account '
+     'so the shutdown that stopped the writer cannot finish either',
+     [
+         ('harness/hstore/writer.go',
+          '\tfor _, sub := range s.queue {\n'
+          '\t\tif sub.kind == KindBindOrder {\n'
+          '\t\t\ts.own.failBinding(sub.bind.OrderID, gone)\n'
+          '\t\t}\n'
+          '\t\ts.publishLocked(Result{Receipt: sub.receipt, Kind: sub.kind, Err: gone})\n'
+          '\t}\n'
+          '\ts.queue = nil\n',
+          '\tfor _, sub := range s.queue {\n'
+          '\t\tif false && sub.kind == KindBindOrder {\n'
+          '\t\t\ts.own.failBinding(sub.bind.OrderID, gone)\n'
+          '\t\t}\n'
+          '\t}\n'),
+     ],
+     'TestCancelledWriterFailsQueuedRecordsRatherThanLimbo'),
+
+    # --- v3 item 8: fills read-compare ---------------------------------------
+
+    ('M-HS-FILLBLINDDUP',
+     'accept a trade id that comes back with different exchange facts as an '
+     'already-recorded duplicate, so the ledger goes on asserting one price '
+     'while the account holds another and nothing anywhere records that both '
+     'were seen',
+     [
+         ('harness/hstore/sqlite.go',
+          '\t\t\tif want := factsOf(f); got != want {\n'
+          '\t\t\t\treturn permanent("trade %s is already recorded as %+v and has "+\n'
+          '\t\t\t\t\t"now been reported as %+v; two accounts of one trade "+\n'
+          '\t\t\t\t\t"cannot both be true, and accepting this one silently "+\n'
+          '\t\t\t\t\t"would leave the ledger asserting a figure the account "+\n'
+          '\t\t\t\t\t"does not hold", f.TradeID, got, want)\n'
+          '\t\t\t}\n',
+          ''),
+     ],
+     'TestDivergentDuplicateTradeIsRefusedNotSwallowed'),
+
+    # --- v3 item 9: the reader pragma in the DSN ------------------------------
+
+    ('M-HS-READERPRAGMA',
+     'set query_only once after sql.Open instead of through the DSN, so a '
+     'replacement connection from the pool arrives with it OFF and the '
+     'read-only view becomes a second writer against a database whose whole '
+     'design is that there is exactly one',
+     [
+         ('harness/hstore/sqlite.go',
+          '\tdb, err := sql.Open("sqlite", readerDSN(path))\n',
+          '\tdb, err := sql.Open("sqlite", path)\n'),
+     ],
+     'TestReaderDSNCarriesQueryOnlyPragma'),
+
+    # --- v3 item 10: the dead-man constructor --------------------------------
+
+    ('M-P-CTORURLLEAK',
+     "wrap url.Parse's *url.Error, whose URL field is the whole check-in "
+     'endpoint, so a misconfigured deployment prints its bearer credential in '
+     'the first log line it produces',
+     [
+         ('harness/ping/deadman.go',
+          '\t\treturn nil, parseFailure(err)\n',
+          '\t\treturn nil, fmt.Errorf("the dead-man endpoint does not parse as a "+\n'
+          '\t\t\t"URL: %w", err)\n'),
+     ],
+     'TestDeadmanConstructorErrorNeverContainsEndpoint'),
+
+    # --- v3 items 11-13: the ping scheduling repairs --------------------------
+
+    ('M-P-STALEPOLL',
+     "evaluate the one-second health poll against the snapshot taken on the way "
+     'INTO the Step, so a Step that queued a delivery record against a wedged '
+     'writer publishes the hourly heartbeat as the next deadline and the wedge '
+     'goes unobserved for an hour',
+     [
+         ('harness/ping/service.go',
+          '\thealth = s.store.Health()\n\tif health.Pending() > 0 || !health.Healthy() {\n',
+          '\tif health.Pending() > 0 || !health.Healthy() {\n'),
+     ],
+     'TestNextStepHonoursHealthPollAfterMidStepSubmission'),
+
+    ('M-P-HEALTHFLAP',
+     'send an urgent health notice on every healthy->unhealthy transition, so '
+     'one disk that fails and recovers on the retry ladder empties the '
+     "operator's battery at the priority that overrides a silenced phone",
+     [
+         ('harness/ping/service.go',
+          '\tif s.healthOwed && nowMs >= s.healthPushDueMs() {\n',
+          '\tif s.healthOwed && nowMs >= s.healthRetryAt {\n'),
+     ],
+     'TestFlappingStoreHealthIsRateLimited'),
+
+    ('M-P-REFUSESILENT',
+     'honour a refused delivery record by remembering an hour-long retry, which '
+     'dueAt prefers over everything the table says -- so a store that cannot '
+     'record deliveries silences for an hour the very alerts it failed to '
+     'record',
+     # Three edits, because expressing the defect faithfully requires putting it
+     # where `dueAt` can see it. `record` writing `s.retryAt` directly is INERT:
+     # `pushGroup` deletes those entries on the next line after a delivered push
+     # and overwrites them on a failed one. That the obvious mutation is inert is
+     # the same observation F5 made about the arm that used to live there.
+     [
+         ('harness/ping/service.go',
+          'func (s *Service) record(ids []string, nowMs int64, delivered bool) {\n',
+          'func (s *Service) record(ids []string, nowMs int64, delivered bool) bool {\n'),
+         ('harness/ping/service.go',
+          '\ts.store.RecordDeliveryAttempt(att)\n}\n',
+          '\t_, rerr := s.store.RecordDeliveryAttempt(att)\n\treturn rerr == nil\n}\n'),
+         ('harness/ping/service.go',
+          '\ts.record(ids, nowMs, err == nil)\n'
+          '\n'
+          '\tif err == nil {\n'
+          '\t\ts.markBucket(g, nowMs)\n'
+          '\t\tfor _, id := range ids {\n'
+          '\t\t\tdelete(s.retryAt, id)\n'
+          '\t\t}\n'
+          '\t} else {\n',
+          '\tif !s.record(ids, nowMs, err == nil) {\n'
+          '\t\tfor _, id := range ids {\n'
+          '\t\t\ts.retryAt[id] = nowMs + 3_600_000\n'
+          '\t\t}\n'
+          '\t} else if err == nil {\n'
+          '\t\ts.markBucket(g, nowMs)\n'
+          '\t\tfor _, id := range ids {\n'
+          '\t\t\tdelete(s.retryAt, id)\n'
+          '\t\t}\n'
+          '\t} else {\n'),
+     ],
+     'TestStoreRefusedDeliveryRecordStillRedeliversAtBucketWindow'),
+
+    # --- v3 item 14: the ticker contradiction --------------------------------
+
+    ('M-R-TICKERBLIND',
+     'store an order ticker and never compare it, so an order first seen on '
+     'market A and then reported filling on market B books the contracts '
+     'against A while the exchange holds them on B -- two tickers q wrong at '
+     'once, and H-POS-1 reports drift on both with nothing to say which '
+     'reading was the mistake',
+     [
+         ('harness/risk/position.go',
+          '\tif st.ticker != ticker {\n',
+          '\tif false && st.ticker != ticker {\n'),
+     ],
+     'TestOrderTickerConflictIsRefusedRatherThanGuessed'),
 
 ]
 

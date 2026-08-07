@@ -604,6 +604,28 @@ func (s *Startup) attempt(ctx context.Context, now time.Time) (*adoption,
 		return nil, anoms, 0, fmt.Errorf("startup could not classify the "+
 			"account's fills against the ownership ledger: %w", err)
 	}
+	if len(fe.Unresolved) > 0 {
+		// The ledger holds reservations it has neither bound nor abandoned, and
+		// fills on the account that could belong to any of them. This is the
+		// SAME posture as an unavailable ledger above -- no adoption, no latch,
+		// retry with backoff -- for a different reason: not that the store is
+		// broken, but that it has outstanding work, which after a SIGKILL
+		// between H-ORD-6's two commits is what a CORRECT ledger looks like.
+		//
+		// §7.5's licence to leave STARTING rests on having attributed every fill
+		// on the account, and these are not attributed. Concluding anyway would
+		// mean either adopting fills that might be a stranger's or declaring our
+		// own dispatched order foreign, and the second one latches a durable
+		// global stop that only an operator can clear. `lip-eyq` owns the walk
+		// that drains this set -- rebind by coid over the unfiltered orders
+		// listing, abandon what the exchange never saw -- and until it runs this
+		// retries, which is H-ORD-5a's "keep trying".
+		return nil, anoms, 0, fmt.Errorf("startup found %d fill(s) the "+
+			"ownership ledger cannot yet attribute: it holds reservations that "+
+			"have been neither bound nor abandoned, so those fills are neither "+
+			"ours nor foreign and this walk has not reconciled",
+			len(fe.Unresolved))
+	}
 	anoms = append(anoms, fe.Anomalies...)
 	causes := append([]StopCause(nil), fe.Causes...)
 	ownedResting := orders.Ours()
@@ -619,7 +641,8 @@ func (s *Startup) attempt(ctx context.Context, now time.Time) (*adoption,
 	}
 
 	portfolio := risk.NewSeededPortfolio(pos.ByTicker)
-	fx := portfolio.ApplyFills(ownedConverted, s.guard.own, risk.Seed)
+	fx := portfolio.ApplyFills(ownedConverted, s.guard.own, risk.Seed,
+		now.UnixMilli())
 	anoms = append(anoms, fx.Anomalies...)
 	if fx.Stop {
 		// A taker fill in our own history, or a side contradiction. H-ORD-8: it

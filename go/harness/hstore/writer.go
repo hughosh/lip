@@ -66,6 +66,7 @@ type submission struct {
 	order    rest.CreateOrder
 	role     quote.Role
 	bind     orderBinding
+	abandon  reservationAbandonment
 	fill     fillRecord
 	runID    string
 	state    StateEvent
@@ -251,11 +252,11 @@ func openWith(back backend, jrnl journal, rd *Reader) (*Store, error) {
 	if err := s.reconcile(); err != nil {
 		return nil, err
 	}
-	bindings, err := back.loadBindings()
+	bindings, unresolved, err := back.loadLedger()
 	if err != nil {
 		return nil, err
 	}
-	s.own.load(bindings)
+	s.own.load(bindings, unresolved)
 	return s, nil
 }
 
@@ -590,13 +591,26 @@ func (s *Store) claimWriter() bool {
 	return true
 }
 
-// releaseWriter latches the loss of writer ownership.
+// releaseWriter latches the loss of writer ownership and FAILS what it was
+// holding.
 //
 // Terminal, and not merely "not running": a store whose writer has returned has
 // a gap in it, and a later `Run` that restored health would assert durability
 // for whatever was submitted during the gap. Adding is revoked and observers are
 // woken so a blocked reader re-asks rather than waiting on a result that will
 // never arrive.
+//
+// The queue is then drained LOUDLY, one terminal `Result` per record. Every one
+// of them was accepted, and the latch above guarantees nothing will ever write
+// them -- so leaving them queued invents a third state alongside "durable" and
+// "terminally failed": still waiting, on a writer that has gone. A caller
+// holding that receipt waits forever, and `Close` refuses on its account, so
+// the very shutdown that stopped the writer cannot complete either. A binding
+// is additionally failed in the ownership index, symmetric with `finish`'s
+// permanent path, because an order whose binding died in the queue must read as
+// unclassifiable rather than as somebody else's.
+//
+// `M-HS-GONELIMBO` leaves them queued.
 func (s *Store) releaseWriter() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -605,6 +619,19 @@ func (s *Store) releaseWriter() {
 	s.healthy = false
 	s.adding = false
 	s.inflight = false
+
+	gone := errors.New("the store's writer returned before this record was " +
+		"written: it was accepted as durable-in-progress, nothing will ever " +
+		"write it, and an audit record that is accepted and silently never " +
+		"written is worse than one that was refused")
+	for _, sub := range s.queue {
+		if sub.kind == KindBindOrder {
+			s.own.failBinding(sub.bind.OrderID, gone)
+		}
+		s.publishLocked(Result{Receipt: sub.receipt, Kind: sub.kind, Err: gone})
+	}
+	s.queue = nil
+
 	s.wakeLocked()
 }
 
@@ -712,6 +739,13 @@ func (s *Store) finish(sub *submission, err error) bool {
 	case KindBeginRun:
 		res.run = RunHandle{runID: sub.run.RunID, seq: sub.seq}
 	case KindReserveOrder:
+		// The permit and the unresolved entry are created in the SAME instant,
+		// and that is the point: the moment dispatch becomes legal is the moment
+		// an order id we do not recognise might be ours. `M-HS-RESERVENOTRACK`
+		// hands out the permit without opening the window, which restores the
+		// F2 defect in its narrowest form -- a fill on the order this permit
+		// authorises, arriving before the binding commits, reads as FOREIGN.
+		s.own.reserveCommitted(sub.reserve.Coid)
 		res.permit = DispatchPermit{
 			coid:  sub.reserve.Coid,
 			order: sub.order,
@@ -720,6 +754,8 @@ func (s *Store) finish(sub *submission, err error) bool {
 		}
 	case KindBindOrder:
 		s.own.commitBinding(sub.bind.OrderID, sub.bind.Coid)
+	case KindAbandonReservation:
+		s.own.resolveCommitted(sub.abandon.Coid)
 	}
 	s.publishLocked(res)
 	return false
@@ -746,6 +782,9 @@ func (s *Store) apply(sub *submission) error {
 		return s.back.reserveOrder(sub.reserve)
 	case KindBindOrder:
 		return s.back.bindOrder(sub.bind)
+	case KindAbandonReservation:
+		return s.back.abandonReservation(sub.abandon.Coid,
+			sub.abandon.AbandonedMs)
 	case KindFill:
 		return s.back.recordFill(sub.fill)
 	case KindStateEvent:
@@ -773,7 +812,14 @@ func (s *Store) applyAnomaly(sub *submission) error {
 		sub.rowDone = true
 	}
 	if !sub.journalDone {
-		sub.journalMs = s.nowMs()
+		// Stamped ONCE, on the first attempt only. A retry must produce a
+		// byte-identical line: if the previous attempt's bytes landed and the
+		// failure was reported after they did, the journal now holds a line
+		// this one duplicates, and reconcile tolerates an identical duplicate
+		// while a re-stamped one is a self-contradiction it refuses forever.
+		if sub.journalMs == 0 {
+			sub.journalMs = s.nowMs()
+		}
 		err := s.jrnl.appendLine(journalLine{
 			AnomalyID: sub.anom.AnomalyID,
 			RunID:     sub.anom.RunID,

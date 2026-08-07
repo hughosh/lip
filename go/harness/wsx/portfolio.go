@@ -207,14 +207,57 @@ type PortfolioEffects struct {
 
 	Records   []risk.PollRecord
 	OwnedFill []risk.FillEvent
-	Foreign   []risk.LiveOrder
+	// DeferredFill is the fills the ownership ledger could not conclude about.
+	// They were not applied and not marked seen, and the next poll offers them
+	// again. Reported and not swallowed: a cycle whose fills all deferred looks
+	// identical to a quiet account from the outside, and the difference is a
+	// ledger with unresolved reservations in it.
+	DeferredFill []risk.FillEvent
+	Foreign      []risk.LiveOrder
+	// Bound is the coid -> order-id bindings this cycle SUBMITTED from the
+	// orders walk, in walk order. Submitted, not committed.
+	Bound     []Binding
 	Reduce    []string
 	Stop      bool
 	Anomalies []risk.Anomaly
 }
 
+// Binding is one coid the orders walk recognised as an unresolved reservation of
+// ours, and the exchange order id it was bound to.
+type Binding struct {
+	Coid    string
+	OrderID string
+}
+
 func (e *PortfolioEffects) merge(anoms []risk.Anomaly) {
 	e.Anomalies = append(e.Anomalies, anoms...)
+}
+
+// OrderBinder is the ownership ledger's WRITE half, as narrowly as this package
+// can state it: the reservations still outstanding, and a way to bind one.
+//
+// It exists because a resting order the exchange lists carries the coid that
+// reserved it, and the ledger may be missing exactly that binding -- H-ORD-6
+// commits the reservation before dispatch, so a crash between the two leaves a
+// live order whose id this process does not recognise. The orders walk is
+// already reading the one fact that closes the gap; not writing it back means
+// waiting for `lip-eyq`'s startup walk to run, which on a process that never
+// restarts is never.
+//
+// It is deliberately not `risk.OwnershipLookup`. Reading ownership is something
+// every fill path does; writing a binding is something exactly one walk does,
+// and a single interface carrying both would hand the write to every caller that
+// only needed the read. It is also allowed to be nil, unlike the lookup: a
+// deployment with no binder classifies fills exactly as before and merely
+// resolves reservations more slowly, whereas a deployment with no lookup cannot
+// classify at all.
+type OrderBinder interface {
+	// UnresolvedReservations is the coids with a committed reservation and no
+	// committed resolution, as a copy.
+	UnresolvedReservations() map[string]struct{}
+	// BindListedOrder submits the coid -> order-id binding. It returns when the
+	// record is QUEUED, not when it is durable.
+	BindListedOrder(coid, orderID string, boundMs int64) error
 }
 
 // ApplyPortfolio folds one poll cycle into the gate and the position model.
@@ -223,14 +266,28 @@ func (e *PortfolioEffects) merge(anoms []risk.Anomaly) {
 // asking whether truth is stale RIGHT NOW, after the cycle may have sat in a
 // channel. Freshness itself is stamped from each endpoint's own start stamp.
 //
-// # Order: fills, then orders, then positions
+// # Order: orders, then fills, then positions
 //
-// The same order the poller reads them in, and for the same reason. Positions
-// is authoritative and overwrites (H-POS-1); applying it before the fills means
-// applying the fills on top of a figure that already contains them, which
-// double-counts every fill that landed inside the cycle. Positions last means
-// the last word belongs to the exchange, which is what "authoritative" was
-// supposed to mean.
+// Positions stays LAST for the reason it always did. It is authoritative and it
+// overwrites (H-POS-1); applying it before the fills means applying the fills on
+// top of a figure that already contains them, which double-counts every fill
+// that landed inside the cycle.
+//
+// Orders now goes FIRST, ahead of fills, and that swap is the second half of the
+// F2 repair. The orders walk is where an unresolved reservation gets bound, and
+// the fills walk is where an unrecognised order id gets classified: running them
+// the other way round classifies against a ledger this same cycle was about to
+// complete. It buys a bounded latency rather than a guarantee -- the binding is
+// durable-asynchronous, so a fill in the same cycle still reads as unresolved
+// and defers one poll -- and one deferred poll is the whole cost of never
+// declaring our own order foreign.
+//
+// The swap is safe because the two do not interact through position state.
+// `ReplaceOrders` replaces the resting-order map and touches neither `q` nor any
+// order's cumulative counters; and even if it did, `settle` moves `q` by the
+// MAXIMUM of the cumulative ack and the cumulative fills, so whichever of the
+// two arrives second finds `applied` already at or above its own figure and
+// moves nothing.
 //
 // # The three endpoints are applied INDEPENDENTLY
 //
@@ -239,8 +296,8 @@ func (e *PortfolioEffects) merge(anoms []risk.Anomaly) {
 // one flaky endpoint takes down the freshness of the other two and stops all
 // placement.
 func ApplyPortfolio(g *Gate, pf *risk.Portfolio, own risk.OwnershipLookup,
-	read PortfolioRead, mode risk.ReconcileMode, now time.Duration,
-	p cfg.Params) PortfolioEffects {
+	bind OrderBinder, read PortfolioRead, mode risk.ReconcileMode,
+	now time.Duration, p cfg.Params) PortfolioEffects {
 
 	var eff PortfolioEffects
 
@@ -266,8 +323,8 @@ func ApplyPortfolio(g *Gate, pf *risk.Portfolio, own risk.OwnershipLookup,
 		return eff
 	}
 
+	applyOrders(g, pf, bind, read, &eff)
 	applyFills(g, pf, own, read, mode, &eff)
-	applyOrders(g, pf, read, &eff)
 	applyPositions(g, pf, read, p, &eff)
 
 	// The caller's staleness question is asked from `now`, not from when the
@@ -290,7 +347,7 @@ func ApplyPortfolio(g *Gate, pf *risk.Portfolio, own risk.OwnershipLookup,
 	return eff
 }
 
-// applyFills is step 1. EVERY fill is converted before ANY is applied.
+// applyFills is step 2. EVERY fill is converted before ANY is applied.
 //
 // A conversion failure half-way through would leave q describing a prefix of
 // the walk while the dedup set claims the whole of it, and no later poll can
@@ -331,8 +388,9 @@ func applyFills(g *Gate, pf *risk.Portfolio, own risk.OwnershipLookup,
 			eff.Stop = true
 			return
 		}
-		fe := pf.ApplyFills(events, own, mode)
+		fe := pf.ApplyFills(events, own, mode, read.fillsAt.WallMs)
 		eff.OwnedFill = append(eff.OwnedFill, fe.Owned...)
+		eff.DeferredFill = append(eff.DeferredFill, fe.Deferred...)
 		eff.merge(fe.Anomalies)
 		eff.Stop = eff.Stop || fe.Stop
 		if fe.Incomplete {
@@ -350,14 +408,29 @@ func applyFills(g *Gate, pf *risk.Portfolio, own risk.OwnershipLookup,
 	}
 }
 
-// applyOrders is step 2. H-POS-4: wholesale, and only on a complete walk.
-func applyOrders(g *Gate, pf *risk.Portfolio, read PortfolioRead,
-	eff *PortfolioEffects) {
+// applyOrders is step 1. H-POS-4: wholesale, and only on a complete walk.
+//
+// It also BINDS. Every listed order is checked against the ledger's unresolved
+// reservations, and a match is submitted as a coid -> order-id binding before
+// this cycle's fills are classified.
+//
+// # The ledger decides, not ParseCoid
+//
+// The binding is offered only for coids the LEDGER says are outstanding, and
+// never for a coid that merely looks like ours. H-ORD-9's whole content is that
+// ownership is a durable fact and not a string match: a coid parses the same
+// whether we reserved it or a stranger copied the format, and `bindOrder` would
+// then be told to attach an exchange order id to a reservation this store has no
+// row for. `o.Ours` is not consulted here for the same reason -- it is the
+// parse, and the parse is what H-ORD-9 refuses to classify from.
+func applyOrders(g *Gate, pf *risk.Portfolio, bind OrderBinder,
+	read PortfolioRead, eff *PortfolioEffects) {
 
 	if !read.orders.Replaces() {
 		eff.merge(walkAnomaly("orders", read.orders.Walk))
 		return
 	}
+	bindListedOrders(bind, read, eff)
 	ours := make([]risk.LiveOrder, 0, len(read.orders.Orders))
 	foreign := make([]risk.LiveOrder, 0)
 	for _, o := range read.orders.Orders {
@@ -377,6 +450,56 @@ func applyOrders(g *Gate, pf *risk.Portfolio, read PortfolioRead,
 	eff.merge(read.orders.Anomalies)
 	eff.Applied[TruthOrders] = true
 	g.noteTruth(TruthOrders, read.token, read.ordersAt)
+}
+
+// bindListedOrders closes the H-ORD-6 window for every order the exchange is
+// still listing.
+//
+// A submission failure is SEV2 and does not stop anything. Nothing is lost by
+// it: the reservation stays unresolved, fills on that order keep deferring
+// rather than reading as foreign, the next poll re-offers the same order, and
+// `lip-eyq`'s startup walk covers the orders that have since gone terminal.
+// Failing louder would mean a store that is refusing writes -- already a SEV1
+// through store health -- also halting the position model, which is the coupling
+// this package avoids everywhere else.
+//
+// `M-W-NOBIND` deletes the submission. The ledger then never learns the order
+// id from the one endpoint that reports it, so the reservation stays outstanding
+// for the life of the process and every fill on the account defers forever.
+func bindListedOrders(bind OrderBinder, read PortfolioRead,
+	eff *PortfolioEffects) {
+
+	if bind == nil {
+		return
+	}
+	unresolved := bind.UnresolvedReservations()
+	if len(unresolved) == 0 {
+		return
+	}
+	for _, o := range read.orders.Orders {
+		if o.ClientOrderID == "" || o.OrderID == "" {
+			continue
+		}
+		if _, outstanding := unresolved[o.ClientOrderID]; !outstanding {
+			continue
+		}
+		if err := bind.BindListedOrder(o.ClientOrderID, o.OrderID,
+			read.ordersAt.WallMs); err != nil {
+
+			eff.merge([]risk.Anomaly{{
+				Class: "ORDER_BINDING_NOT_SUBMITTED", Sev: risk.SEV2,
+				Ticker: o.Ticker,
+				Text: fmt.Sprintf("the resting-order walk recognised order %s "+
+					"as our unresolved reservation %s but the binding could "+
+					"not be submitted (%v); the reservation stays outstanding, "+
+					"so fills on this order keep deferring rather than reading "+
+					"as foreign", o.OrderID, o.ClientOrderID, err),
+			}})
+			continue
+		}
+		eff.Bound = append(eff.Bound,
+			Binding{Coid: o.ClientOrderID, OrderID: o.OrderID})
+	}
 }
 
 // applyPositions is step 3, and it is LAST because it overwrites.

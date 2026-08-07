@@ -6,6 +6,7 @@ import (
 
 	"lip/harness/quote"
 	"lip/harness/rest"
+	"lip/harness/risk"
 )
 
 // TestDispatchPermitExistsOnlyAfterCommittedOwnership is H-ORD-6's barrier.
@@ -94,6 +95,13 @@ func TestDispatchPermitExistsOnlyAfterCommittedOwnership(t *testing.T) {
 // either: "foreign" declares a third party is trading the account, latches a
 // global stop, and would here be produced by a write that failed.
 //
+// The two cases now answer differently, and the difference is deliberate. A
+// binding IN FLIGHT is `OwnershipUnresolved`: the store is fine, it has not
+// concluded, and the caller defers. A binding the writer has GIVEN UP on is a
+// whole-batch error: the store is faulty, and nothing it says about any id in
+// the batch can be relied on. Both are "unclassifiable"; only one of them is a
+// reason to distrust the other answers in the same walk.
+//
 // `M-HS-BINDCACHE` updates the in-memory index at submission, which turns an
 // intention into a fact and survives the intention failing.
 func TestFailedBindingNeverEntersCommittedOwnership(t *testing.T) {
@@ -109,12 +117,18 @@ func TestFailedBindingNeverEntersCommittedOwnership(t *testing.T) {
 		t.Fatalf("BindOrder: %v", err)
 	}
 
-	// In flight: unclassifiable, not owned.
+	// In flight: unresolved. Not owned, and not foreign either.
 	owned, err := s.Ownership().OwnsOrders([]string{"ord-never"})
-	if err == nil {
-		t.Fatalf("an uncommitted binding classified order ord-never as %v; "+
-			"H-ORD-9 answers from the DURABLE ledger, and an in-flight "+
-			"intention is exactly the in-memory fallback it forbids", owned)
+	if err != nil {
+		t.Fatalf("an in-flight binding poisoned the whole batch (%v); a "+
+			"submitted binding is a store working normally, and the walk it "+
+			"arrived in is still classifiable", err)
+	}
+	if len(owned) != 1 || owned[0] != risk.OwnershipUnresolved {
+		t.Fatalf("an uncommitted binding classified order ord-never as %v, "+
+			"want [unresolved]; H-ORD-9 answers from the DURABLE ledger, so an "+
+			"in-flight intention is not ownership -- and it is not evidence of "+
+			"a third party either", owned)
 	}
 
 	results := pump(t, s)
@@ -183,11 +197,23 @@ func TestOwnershipSurvivesRunsAndTerminalOrders(t *testing.T) {
 	s3 := openAt(t, dbPath, logPath)
 	t.Cleanup(func() { s3.Close() })
 
+	// Both reservations were bound before their runs closed, so the ledger has
+	// accounted for every order it could have created and `ord-x` is
+	// CONCLUSIVELY foreign. That precondition is asserted rather than assumed:
+	// with a reservation still outstanding the third answer would legitimately
+	// be `unresolved`, and this test would then be pinning the run-scoping
+	// property through a code path that never reaches the foreign arm.
+	if n := s3.Ownership().UnresolvedCount(); n != 0 {
+		t.Fatalf("%d reservation(s) outstanding after two runs that bound "+
+			"every order they reserved; the foreign answer below would be "+
+			"deferred rather than conclusive", n)
+	}
 	got, err := s3.Ownership().OwnsOrders([]string{"ord-a", "ord-b", "ord-x"})
 	if err != nil {
 		t.Fatalf("OwnsOrders: %v", err)
 	}
-	want := []bool{true, true, false}
+	want := []risk.Ownership{risk.OwnershipOurs, risk.OwnershipOurs,
+		risk.OwnershipForeign}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("OwnsOrders = %v, want %v. An order from a previous "+
 			"incarnation is still ours: H-ORD-9 classifies against the durable "+
@@ -220,13 +246,115 @@ func TestOwnershipSurvivesRunsAndTerminalOrders(t *testing.T) {
 	}
 }
 
-// TestOurFillFirstObserverWinsAcrossRuns is H-ORD-6's literal `INSERT OR
-// IGNORE`.
+// TestDivergentDuplicateTradeIsRefusedNotSwallowed is the other half of
+// H-ORD-6, and the half a bare `INSERT OR IGNORE` cannot express.
+//
+// "First observer wins" is a rule about the OBSERVATION columns -- which run
+// saw it, when, and whether it was live or backfilled. It is not a rule about
+// the exchange facts, and it must not be used as one: `INSERT OR IGNORE`
+// cannot tell "the same fill again" from "a different account of the same
+// trade id", and it discards the second silently in both cases. A trade that
+// comes back with another price or another count is the exchange contradicting
+// itself, or this process reading the wrong field, and either way it is the
+// evidence trail disagreeing with itself about money. Swallowed, it leaves the
+// database asserting one price and the account holding another, with nothing
+// anywhere recording that both were seen.
+//
+// So: identical on the exchange facts is idempotent, divergent is PERMANENT,
+// and the observation columns are excluded from the comparison entirely.
+//
+// `M-HS-FILLBLINDDUP` restores the blind duplicate.
+func TestDivergentDuplicateTradeIsRefusedNotSwallowed(t *testing.T) {
+	s := tempStore(t)
+	h := begin(t, s, "runa", 1_700_000_000_000)
+	o := order(t, "runa", 1, quote.SideYes)
+	reserve(t, s, h, o, quote.RoleAdding, 1_700_000_001_000)
+	bind(t, s, o.ClientOrderID(), "ord-a", 1_700_000_002_000)
+
+	live := fill("trade-1", "ord-a")
+	if _, err := s.RecordFill(h, live, 1_700_000_003_000, false); err != nil {
+		t.Fatalf("RecordFill: %v", err)
+	}
+	for _, r := range pump(t, s) {
+		if !r.OK() {
+			t.Fatalf("the first sighting failed: %v", r.Err)
+		}
+	}
+
+	// The SAME facts again, from a backfill walk: idempotent, and the store is
+	// still healthy afterwards. Asserted, not assumed -- a rule that refused
+	// this too would make every restart's backfill a permanent fault.
+	same := fill("trade-1", "ord-a")
+	if _, err := s.RecordFill(h, same, 1_700_000_004_000, true); err != nil {
+		t.Fatalf("RecordFill (identical): %v", err)
+	}
+	for _, r := range pump(t, s) {
+		if !r.OK() {
+			t.Fatalf("an identical re-observation of trade-1 was rejected: %v",
+				r.Err)
+		}
+	}
+	if hl := s.Health(); !hl.Healthy() {
+		t.Fatalf("an identical duplicate made the store unhealthy: %+v", hl)
+	}
+
+	// A different price for the same trade id: two irreconcilable accounts of
+	// one exchange fact.
+	other := fill("trade-1", "ord-a")
+	other.Price4 = 9999
+	rcpt, err := s.RecordFill(h, other, 1_700_000_005_000, false)
+	if err != nil {
+		t.Fatalf("RecordFill (divergent): %v", err)
+	}
+	var outcome Result
+	var seen bool
+	for _, r := range pump(t, s) {
+		if r.Receipt.Seq() == rcpt.Seq() {
+			outcome, seen = r, true
+		}
+	}
+	if !seen {
+		t.Fatal("the divergent duplicate produced no result at all")
+	}
+	if outcome.Err == nil {
+		t.Fatal("a trade id that came back with a DIFFERENT price was accepted " +
+			"as already recorded; the database now asserts one price and the " +
+			"account holds another, and nothing anywhere records that both " +
+			"were seen")
+	}
+
+	// The first observer's row is untouched: a refusal is not a rewrite.
+	row, ok, err := s.Reader().Fill("trade-1")
+	if err != nil || !ok {
+		t.Fatalf("read fill: ok=%v err=%v", ok, err)
+	}
+	if row.Price4 != 5000 {
+		t.Fatalf("price4 is %d after a refused divergent duplicate, want the "+
+			"first observer's 5000", row.Price4)
+	}
+	if row.FirstRunID != "runa" || row.Backfilled {
+		t.Fatalf("the observation columns moved: run=%q backfilled=%v",
+			row.FirstRunID, row.Backfilled)
+	}
+
+	// And the contradiction is a permanent fault, not a retry: this store has
+	// a hole in it and never reports healthy again.
+	if hl := s.Health(); hl.Healthy() || hl.AllowsAdding() {
+		t.Fatalf("a permanently rejected fill left the store reporting %+v", hl)
+	}
+}
+
+// TestOurFillFirstObserverWinsAcrossRuns is H-ORD-6's observation columns.
 //
 // A fill seen live and re-read by a later run's backfill walk is the same fill.
 // Letting the backfill overwrite it relabels a live observation as history --
 // and `backfilled` is the field that says whether we were watching when it
-// happened. `M-HS-FILLREPLACE` makes the last writer win.
+// happened. The exchange facts are identical here on purpose: a divergence in
+// THOSE is a permanent refusal, which is
+// `TestDivergentDuplicateTradeIsRefusedNotSwallowed`. This test is about the
+// three columns that record who saw it and when.
+//
+// `M-HS-FILLREPLACE` makes the last writer win.
 func TestOurFillFirstObserverWinsAcrossRuns(t *testing.T) {
 	dbPath, logPath := paths(t)
 
@@ -253,8 +381,10 @@ func TestOurFillFirstObserverWinsAcrossRuns(t *testing.T) {
 	s2 := openAt(t, dbPath, logPath)
 	t.Cleanup(func() { s2.Close() })
 	h2 := begin(t, s2, "runb", 1_700_000_100_000)
+	// The same exchange facts, which is what a re-read of the same trade
+	// actually looks like. Only the OBSERVATION differs: a later run, a later
+	// sighting, and `backfilled` true.
 	again := fill("trade-1", "ord-a")
-	again.Price4 = 9999
 	if _, err := s2.RecordFill(h2, again, 1_700_000_101_000, true); err != nil {
 		t.Fatalf("RecordFill (backfill): %v", err)
 	}
@@ -279,9 +409,6 @@ func TestOurFillFirstObserverWinsAcrossRuns(t *testing.T) {
 	}
 	if row.FirstSeenMs != 1_700_000_003_000 {
 		t.Fatalf("first_seen_ms %d, want the first sighting", row.FirstSeenMs)
-	}
-	if row.Price4 != 5000 {
-		t.Fatalf("price4 %d, want the first observer's 5000", row.Price4)
 	}
 	if row.ExchangeTsMs != live.ExchangeTsMs {
 		t.Fatalf("exchange_ts_ms %d, want %d", row.ExchangeTsMs,

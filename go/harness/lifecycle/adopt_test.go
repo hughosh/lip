@@ -389,7 +389,7 @@ func TestStartupSeedsExchangePositionWithoutReplayingHistoricalFills(t *testing.
 	if err != nil {
 		t.Fatalf("convertStartupFills: %v", err)
 	}
-	at.Adoption.Portfolio().ApplyFills(again, ownsAll("o1"), risk.Live)
+	at.Adoption.Portfolio().ApplyFills(again, ownsAll("o1"), risk.Live, startupNow.UnixMilli())
 	if got := at.Adoption.Portfolio().Q("HELD"); got != want {
 		t.Fatalf("q = %s after the next live poll redelivered the same three "+
 			"fills, want %s: seeding must record their identities, not just "+

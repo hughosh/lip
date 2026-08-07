@@ -138,7 +138,7 @@ func TestIncompletePortfolioReadPreservesStateAndFreshness(t *testing.T) {
 		completeFills([]rest.Fill{
 			restFill("t1", "ord-1", fxTicker, quote.SideYes, 3, "0.0000", false),
 		}))
-	eff := ApplyPortfolio(g, pf, own, good, risk.Seed, at(0).Mono, p)
+	eff := ApplyPortfolio(g, pf, own, nil, good, risk.Seed, at(0).Mono, p)
 	for k := Truth(0); k < truthCount; k++ {
 		if !eff.Applied[k] {
 			t.Fatalf("%v was not applied from a complete read", k)
@@ -157,7 +157,7 @@ func TestIncompletePortfolioReadPreservesStateAndFreshness(t *testing.T) {
 		completePositions(map[string]num.Qty{fxTicker: contracts(4)}),
 		rest.OrdersResult{Walk: failedWalk("transport reset")},
 		completeFills(nil))
-	eff = ApplyPortfolio(g, pf, own, partial, risk.Live, at(5).Mono, p)
+	eff = ApplyPortfolio(g, pf, own, nil, partial, risk.Live, at(5).Mono, p)
 
 	if !eff.Applied[TruthPositions] || !eff.Applied[TruthFills] {
 		t.Fatalf("a failed orders walk withheld the other two endpoints: %v",
@@ -198,7 +198,7 @@ func TestIncompletePortfolioReadPreservesStateAndFreshness(t *testing.T) {
 	late := good
 	late.completedAt = at(8)
 	late.seq = 3
-	lateEff := ApplyPortfolio(g, pf, own, late, risk.Live, at(8).Mono, p)
+	lateEff := ApplyPortfolio(g, pf, own, nil, late, risk.Live, at(8).Mono, p)
 	if !lateEff.Stale {
 		t.Fatal("a read carrying a pre-disconnect token was applied")
 	}
@@ -317,7 +317,7 @@ func TestFillConversionFailureDiscardsTheWholeWalk(t *testing.T) {
 				restFill("t1", "o", fxTicker, quote.SideYes, 2, "0.0000", false),
 				restFill("t2", "o", fxTicker, quote.SideYes, 2, tc.fee, false),
 			}))
-			eff := ApplyPortfolio(g, pf, owns("o"), read, risk.Live, at(0).Mono, p)
+			eff := ApplyPortfolio(g, pf, owns("o"), nil, read, risk.Live, at(0).Mono, p)
 
 			if eff.Applied[TruthFills] {
 				t.Fatal("a fills walk with an unconvertible record was applied")
@@ -358,7 +358,7 @@ func TestFillConversionFailureDiscardsTheWholeWalk(t *testing.T) {
 		read := newRead(tok, at(0), 1, completePositions(nil), completeOrders(nil), completeFills([]rest.Fill{
 			restFill("t1", "o", fxTicker, quote.SideYes, 2, "0.0000", false),
 		}))
-		eff := ApplyPortfolio(g, pf, nil, read, risk.Live, at(0).Mono, p)
+		eff := ApplyPortfolio(g, pf, nil, nil, read, risk.Live, at(0).Mono, p)
 
 		if eff.Applied[TruthFills] {
 			t.Fatal("a fills walk was applied with no ownership ledger")
@@ -398,7 +398,7 @@ func TestFillConversionFailureDiscardsTheWholeWalk(t *testing.T) {
 	read := newRead(tok, at(0), 1, completePositions(nil), completeOrders(nil), completeFills([]rest.Fill{
 		restFill("t1", "o", fxTicker, quote.SideYes, 2, "0.0100", false),
 	}))
-	eff := ApplyPortfolio(g, pf, owns("o"), read, risk.Live, at(0).Mono, p)
+	eff := ApplyPortfolio(g, pf, owns("o"), nil, read, risk.Live, at(0).Mono, p)
 	if !eff.Stop || !hasClass(eff.Anomalies, "TAKER_FILL") {
 		t.Fatalf("a fill with a positive fee did not trip S2's corroborator: "+
 			"stop=%v classes=%v", eff.Stop, classesOf(eff.Anomalies))
@@ -454,7 +454,7 @@ func TestPortfolioTruthAppliesDuringWebsocketOutage(t *testing.T) {
 		completeFills([]rest.Fill{
 			restFill("t1", "ord-1", fxTicker, quote.SideYes, 12, "0.0000", false),
 		}))
-	eff := ApplyPortfolio(g, pf, own, outage, risk.Live, at(15).Mono, p)
+	eff := ApplyPortfolio(g, pf, own, nil, outage, risk.Live, at(15).Mono, p)
 
 	if eff.Stale {
 		t.Fatal("a read taken under the DISCONNECT token was discarded; the " +
@@ -484,7 +484,7 @@ func TestPortfolioTruthAppliesDuringWebsocketOutage(t *testing.T) {
 	late := newRead(connTok, at(16), 3,
 		completePositions(map[string]num.Qty{fxTicker: contracts(99)}),
 		completeOrders(nil), completeFills(nil))
-	lateEff := ApplyPortfolio(g, pf, own, late, risk.Live, at(16).Mono, p)
+	lateEff := ApplyPortfolio(g, pf, own, nil, late, risk.Live, at(16).Mono, p)
 	if !lateEff.Stale {
 		t.Fatal("a read carrying the DEAD connection's token was applied")
 	}
@@ -498,14 +498,14 @@ func TestPortfolioTruthAppliesDuringWebsocketOutage(t *testing.T) {
 	stillOutage := newRead(de.Token, at(21), 4,
 		completePositions(map[string]num.Qty{fxTicker: contracts(1)}),
 		completeOrders(nil), completeFills(nil))
-	if e := ApplyPortfolio(g, pf, own, stillOutage, risk.Live, at(21).Mono, p); !e.Stale {
+	if e := ApplyPortfolio(g, pf, own, nil, stillOutage, risk.Live, at(21).Mono, p); !e.Stale {
 		t.Fatal("the outage token survived the reconnect")
 	}
 	g.ApplyFrame(snapFrame(fxTicker), okHandle, at(21))
 	fresh := newRead(ce.Token, at(21), 5,
 		completePositions(map[string]num.Qty{fxTicker: contracts(12)}),
 		completeOrders(nil), completeFills(nil))
-	ApplyPortfolio(g, pf, own, fresh, risk.Live, at(21).Mono, p)
+	ApplyPortfolio(g, pf, own, nil, fresh, risk.Live, at(21).Mono, p)
 	if !g.Actionable(fxTicker, at(21)) {
 		t.Fatal("a complete post-reconnect reconciliation did not unlock the " +
 			"market")
@@ -573,7 +573,7 @@ func TestAuthoritativePositionIsFinalAfterSameCycleFill(t *testing.T) {
 		completeFills([]rest.Fill{
 			restFill("t1", "ord-1", fxTicker, quote.SideYes, 12, "0.0000", false),
 		}))
-	eff := ApplyPortfolio(g, pf, owns("ord-1"), read, risk.Live, at(5).Mono, p)
+	eff := ApplyPortfolio(g, pf, owns("ord-1"), nil, read, risk.Live, at(5).Mono, p)
 
 	if got := pf.Q(fxTicker); got != contracts(12) {
 		t.Fatalf("q = %s, want 12.00. The fill and the position are the same "+
@@ -623,7 +623,7 @@ func TestEndpointTruthAgeStartsWhenItsWalkStarts(t *testing.T) {
 		completePositions(map[string]num.Qty{fxTicker: contracts(1)}),
 		completeOrders(nil), completeFills(nil))
 
-	ApplyPortfolio(g, pf, owns(), read, risk.Live, done.Mono, p)
+	ApplyPortfolio(g, pf, owns(), nil, read, risk.Live, done.Mono, p)
 
 	if age := g.TruthAge(TruthFills, done); age != slow {
 		t.Fatalf("fills truth age = %v, want %v -- it must be measured from "+
@@ -649,7 +649,7 @@ func TestEndpointTruthAgeStartsWhenItsWalkStarts(t *testing.T) {
 	fast := newStaggeredRead(tok2, 1, at(0), at(0), at(0), at(0),
 		completePositions(map[string]num.Qty{fxTicker: contracts(1)}),
 		completeOrders(nil), completeFills(nil))
-	ApplyPortfolio(g2, risk.NewPortfolio(), owns(), fast, risk.Live, at(0).Mono, p)
+	ApplyPortfolio(g2, risk.NewPortfolio(), owns(), nil, fast, risk.Live, at(0).Mono, p)
 	if !g2.Actionable(fxTicker, at(0)) {
 		t.Fatal("a cycle with three current walks did not license placement")
 	}
@@ -692,7 +692,7 @@ func TestOwnershipLookupFailureAppliesNothingAndRefreshesNoTruth(t *testing.T) {
 	read := newRead(tok, at(0), 1,
 		completePositions(map[string]num.Qty{fxTicker: contracts(0)}),
 		completeOrders(nil), fills)
-	eff := ApplyPortfolio(g, pf, broken, read, risk.Live, at(0).Mono, p)
+	eff := ApplyPortfolio(g, pf, broken, nil, read, risk.Live, at(0).Mono, p)
 
 	if eff.Applied[TruthFills] {
 		t.Fatal("the fills endpoint was reported current after a walk whose " +
@@ -726,7 +726,7 @@ func TestOwnershipLookupFailureAppliesNothingAndRefreshesNoTruth(t *testing.T) {
 	read2 := newRead(tok, at(1), 2,
 		completePositions(map[string]num.Qty{fxTicker: contracts(3)}),
 		completeOrders(nil), fills)
-	eff = ApplyPortfolio(g, pf, good, read2, risk.Live, at(1).Mono, p)
+	eff = ApplyPortfolio(g, pf, good, nil, read2, risk.Live, at(1).Mono, p)
 
 	if !eff.Applied[TruthFills] {
 		t.Fatal("the recovered walk was not applied")
