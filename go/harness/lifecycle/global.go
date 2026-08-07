@@ -52,9 +52,40 @@ type GlobalDecision struct {
 	// polling, reconciliation and monitoring all continue while it is set.
 	BlockAdding bool
 
-	// RetryLatch asks the caller to call Decide again with a well-formed cause.
-	// A failed latch write is a transient disk condition far more often than a
-	// permanent one, and the cost of retrying is nothing.
+	// RetryLatch asks the caller to CommitStop again with a well-formed cause
+	// before advancing. A failed latch write is a transient disk condition far
+	// more often than a permanent one, and the cost of retrying is nothing.
+	RetryLatch bool
+
+	Anomalies []risk.Anomaly
+}
+
+// StopCommit is what CommitStop did to the DURABLE latch, and nothing else.
+//
+// Splitting this out of GlobalDecision is the whole point of lip-eyq's boundary
+// change. The previous API fused two different authorities into one call:
+// "make this cause durable" and "tell me the next global state". Fusing them
+// meant the ordinary STARTING -> RUNNING edge had to be expressed as a stop with
+// an empty cause, so a zero StopCause acquired a second meaning -- "no stop is
+// being requested" -- on a type whose only job is to describe a stop. A caller
+// that forgot an argument got that meaning by accident.
+//
+// Separated, each call says one thing. CommitStop cannot transition anything and
+// Advance cannot write anything, so neither can be induced to do the other's job
+// by a malformed argument.
+type StopCommit struct {
+	// Durable is the only success condition: the cause reached disk and the
+	// cached latch is now set. A caller may not publish a halted state without
+	// it.
+	Durable bool
+
+	// BlockAdding is I1's response to every uncertainty here, and is
+	// deliberately the ONLY prohibition: cancels, reducing quotes, position
+	// polling, reconciliation and monitoring all continue while it is set.
+	BlockAdding bool
+
+	// RetryLatch asks the caller to commit again. A failed latch write is a
+	// transient disk condition far more often than a permanent one.
 	RetryLatch bool
 
 	Anomalies []risk.Anomaly
@@ -99,6 +130,13 @@ type BootstrapEffects struct {
 // So the rule is stated over the OUTPUT, not over the arguments: this type never
 // returns a publishable transition into WINDING_DOWN unless the durable state on
 // disk already justifies it. `Stop` without a cause is refused.
+//
+// lip-eyq made that structural rather than defensive. The one call became two --
+// `CommitStop` writes and `Advance` transitions -- so the two authorities cannot
+// be confused by an argument at all: a call that writes cannot return a state,
+// and a call that returns a state cannot write. `Advance` additionally refuses a
+// halted state the caller merely ASSERTS, because nothing this controller
+// produces can be halted without a committed cause.
 type GlobalController struct {
 	store   LatchStore
 	latched bool
@@ -144,60 +182,42 @@ func NewGlobalController(store LatchStore) (*GlobalController, BootstrapEffects,
 // forever true for this process.
 func (c *GlobalController) Latched() bool { return c.latched }
 
-// Decide is the whole protocol, in the order H-HALT-4 fixes.
+// CommitStop makes a cause DURABLE and updates the cached latch. It transitions
+// nothing and returns no state: that is Advance's job, and the separation is
+// what stops a forgotten argument from producing an uncommitted halt.
 //
-// A zero `StopCause` means "no stop is being requested BY THIS CALL", which is
-// how the ordinary STARTING -> RUNNING and WINDING_DOWN -> DRAINED edges are
-// taken. It is not permission to stop without a cause: see `in.Stop` below.
+// H-HALT-4 fixes the order, and the order is across the two calls rather than
+// inside one: the latch reaches disk here, and only a later Advance can publish
+// the transition it justifies. A caller that commits and then never advances has
+// a durable stop that the next process start will read -- which is the correct
+// failure direction. A caller that advances without committing gets refused.
 //
-// When a stop IS requested the sequence is:
+// Setting the cached latch here, before any Advance, is why a stop discovered
+// during STARTING cannot flicker through RUNNING. Without it, a foreign fill
+// found during reconciliation would hand NextGlobal a STARTING input with
+// Reconciled true, get RUNNING back, and the market would be quotable for
+// exactly as long as it took the next tick to notice. With it, the next Advance
+// carries Latched=true and A14's rule fires first, producing
+// WINDING_DOWN/GTLatch directly.
 //
-//  1. validate the cause -- a latch with no trigger is useless to the operator;
-//  2. Ensure it durable;
-//  3. set the cached Latched input;
-//  4. call quote.NextGlobal;
-//  5. only then return a publishable transition.
-//
-// Step 3 before step 4 is why a stop discovered during STARTING cannot flicker
-// through RUNNING. Without it, a foreign fill found during reconciliation would
-// hand `NextGlobal` a STARTING input with `Reconciled` true, get RUNNING back,
-// and the market would be quotable for exactly as long as it took the next tick
-// to notice. With it, the input carries `Latched=true` and A14's rule fires
-// first, producing WINDING_DOWN/GTLatch directly.
-func (c *GlobalController) Decide(in quote.GlobalInput, cause StopCause) GlobalDecision {
-	in.Latched = c.latched
-
-	if cause == (StopCause{}) {
-		// No cause supplied. If the INPUT nonetheless asks to stop, and nothing
-		// durable on disk already justifies stopping, this is the causeless stop
-		// described on the type: refuse it rather than publish a halt that a
-		// restart erases.
-		if in.Stop && !c.latched {
-			return c.refuse(in, "", risk.Anomaly{
-				Class: "STOP_CAUSE_MISSING", Sev: risk.SEV1,
-				Text: "a global stop was requested through GlobalInput.Stop " +
-					"with no StopCause, so there is nothing to write to the " +
-					"durable halt latch and the stop would not survive a " +
-					"restart; adding is blocked and the caller must retry with " +
-					"the trigger, timestamp and market H-HALT-4 requires",
-			})
-		}
-		st, tr := quote.NextGlobal(in)
-		return GlobalDecision{State: st, Trigger: tr, Committed: true}
-	}
-
+// A zero StopCause is not special-cased. It has no Trigger, so validateCause
+// rejects it like any other malformed cause -- the sentinel meaning is gone.
+func (c *GlobalController) CommitStop(cause StopCause) StopCommit {
 	rec := cause.record()
 	if err := validateCause(rec); err != nil {
 		// A malformed cause is a programming error, and the response is NOT to
 		// drop the stop. Adding is blocked and the caller is asked to retry with
 		// a well-formed cause; the harness does not keep quoting because the
 		// thing that wanted it to stop filled the struct in wrong.
-		return c.refuse(in, cause.Market, risk.Anomaly{
-			Class: "LATCH_WRITE_FAILED", Sev: risk.SEV1, Ticker: cause.Market,
-			Text: fmt.Sprintf("a global stop was requested with a cause that "+
-				"cannot be latched, so the stop is not durable and adding is "+
-				"blocked until it is: %v", err),
-		})
+		return StopCommit{
+			BlockAdding: true, RetryLatch: true,
+			Anomalies: []risk.Anomaly{{
+				Class: "LATCH_WRITE_FAILED", Sev: risk.SEV1, Ticker: cause.Market,
+				Text: fmt.Sprintf("a global stop was requested with a cause that "+
+					"cannot be latched, so the stop is not durable and adding is "+
+					"blocked until it is: %v", err),
+			}},
+		}
 	}
 
 	durable, err := c.store.Ensure(rec)
@@ -208,25 +228,81 @@ func (c *GlobalController) Decide(in quote.GlobalInput, cause StopCause) GlobalD
 		// stopped managing its inventory because it could not write a file has
 		// converted a storage failure into an unobserved position.
 		//
-		// The in-memory transition is NOT returned. Returning it would leave the
-		// process in WINDING_DOWN believing it had latched, and a restart would
-		// find no file and resume adding -- HR-009 exactly, with the harness
-		// having been told the write failed.
+		// The cached latch is NOT set. Setting it would leave the process
+		// believing it had latched, and a restart would find no file and resume
+		// adding -- HR-009 exactly, with the harness having been told the write
+		// failed.
 		if err == nil {
 			err = errors.New("the latch store reported the record as not durable")
 		}
-		return c.refuse(in, cause.Market, risk.Anomaly{
-			Class: "LATCH_WRITE_FAILED", Sev: risk.SEV1, Ticker: cause.Market,
-			Text: fmt.Sprintf("the durable halt latch could not be written for "+
-				"trigger %q, so this stop would not survive a restart; adding "+
-				"is blocked and the write is retried, while cancelling, "+
-				"reducing, reconciling and monitoring continue: %v",
-				cause.Trigger, err),
-		})
+		return StopCommit{
+			BlockAdding: true, RetryLatch: true,
+			Anomalies: []risk.Anomaly{{
+				Class: "LATCH_WRITE_FAILED", Sev: risk.SEV1, Ticker: cause.Market,
+				Text: fmt.Sprintf("the durable halt latch could not be written for "+
+					"trigger %q, so this stop would not survive a restart; adding "+
+					"is blocked and the write is retried, while cancelling, "+
+					"reducing, reconciling and monitoring continue: %v",
+					cause.Trigger, err),
+			}},
+		}
 	}
 
 	c.latched = true
-	in.Latched = true
+	return StopCommit{Durable: true}
+}
+
+// Advance injects the cached latch and calls quote.NextGlobal. It writes
+// nothing: if a transition needs a durable justification, CommitStop must
+// already have supplied it.
+//
+// Two inputs are refused, and both are refusals of a state the caller is
+// ASSERTING rather than one the machine produced:
+//
+//  1. `Stop` with nothing latched. This is the causeless stop: NextGlobal's
+//     RUNNING rule is `if in.Stop { return WindingDown, GTStop }`, so honouring
+//     it would publish a halt with nothing on disk -- one that a panic and
+//     `launchd KeepAlive` erase completely. Every §12 trigger is one forgotten
+//     CommitStop away from that.
+//
+//  2. A purported existing state of WINDING_DOWN or DRAINED with nothing
+//     latched. Nothing Advance produced can be in either state unlatched --
+//     rule 1 is the only door into WINDING_DOWN and it requires the latch -- so
+//     such an input did not come from this machine. Accepting it would let a
+//     caller walk a forged WINDING_DOWN to DRAINED and have the harness declare
+//     its drain complete with no durable record that it ever stopped. DRAINED
+//     rests no reducer, so the forged path ends with an unmanaged position and
+//     nothing on disk to explain it.
+//
+// Both refusals block adding and publish nothing, per I1.
+func (c *GlobalController) Advance(in quote.GlobalInput) GlobalDecision {
+	in.Latched = c.latched
+
+	if !c.latched {
+		if in.Stop {
+			return c.refuse(in, "", risk.Anomaly{
+				Class: "STOP_CAUSE_MISSING", Sev: risk.SEV1,
+				Text: "a global stop was requested through GlobalInput.Stop " +
+					"with nothing committed to the durable halt latch, so the " +
+					"stop would not survive a restart; adding is blocked and " +
+					"the caller must CommitStop with the trigger, timestamp " +
+					"and market H-HALT-4 requires before advancing",
+			})
+		}
+		if in.State == quote.WindingDown || in.State == quote.Drained {
+			return c.refuse(in, "", risk.Anomaly{
+				Class: "GLOBAL_STATE_UNJUSTIFIED", Sev: risk.SEV1,
+				Text: fmt.Sprintf("the caller asserted global state %s with "+
+					"nothing on the durable halt latch; no state this "+
+					"controller produced can be halted without a committed "+
+					"cause, so this input did not come from the state machine "+
+					"and advancing it could drain a halt that was never "+
+					"recorded; adding is blocked and nothing is published",
+					in.State),
+			})
+		}
+	}
+
 	st, tr := quote.NextGlobal(in)
 	return GlobalDecision{State: st, Trigger: tr, Committed: true}
 }

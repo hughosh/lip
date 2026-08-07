@@ -244,7 +244,10 @@ func TestForeignFillAtStartupLatchesBeforeReconciliationCanExposeRunning(t *test
 			"would prove nothing", st)
 	}
 
-	dec := ctrl.Decide(in, causes[0])
+	if c := ctrl.CommitStop(causes[0]); !c.Durable {
+		t.Fatalf("the startup stop was not made durable: %v", classesOf(c.Anomalies))
+	}
+	dec := ctrl.Advance(in)
 	if !dec.Committed {
 		t.Fatalf("the startup stop was not committed: %v", classesOf(dec.Anomalies))
 	}

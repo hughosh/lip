@@ -93,9 +93,9 @@ func TestMalformedOrUnreadableLatchFailsClosed(t *testing.T) {
 
 			// A latched bootstrap forces WINDING_DOWN out of NextGlobal even
 			// from a state that otherwise reconciles into RUNNING (A14).
-			dec := ctrl.Decide(quote.GlobalInput{
+			dec := ctrl.Advance(quote.GlobalInput{
 				State: quote.Starting, TruthReadable: true, Reconciled: true,
-			}, StopCause{})
+			})
 			if wantLatched {
 				if dec.State != quote.WindingDown || dec.Trigger != quote.GTLatch {
 					t.Fatalf("latched bootstrap produced %v/%v, want "+
@@ -189,9 +189,13 @@ func TestGlobalStopIsDurableBeforePublicationAndSurvivesRestart(t *testing.T) {
 		t.Fatal("a fresh directory bootstrapped as latched")
 	}
 
-	in := quote.GlobalInput{State: quote.Running}
+	in := quote.GlobalInput{State: quote.Running, Stop: true}
 	cause := StopCause{Trigger: "taker_fill", Market: "M", TsMillis: 4242}
-	dec := ctrl.Decide(in, cause)
+	commit := ctrl.CommitStop(cause)
+	if !commit.Durable {
+		t.Fatalf("the cause was not made durable: %v", classesOf(commit.Anomalies))
+	}
+	dec := ctrl.Advance(in)
 
 	if !dec.Committed {
 		t.Fatalf("the stop was not committed: %v", classesOf(dec.Anomalies))
@@ -230,9 +234,9 @@ func TestGlobalStopIsDurableBeforePublicationAndSurvivesRestart(t *testing.T) {
 
 	// And it enters WINDING_DOWN directly from STARTING, ahead of the
 	// reconciliation that would otherwise produce RUNNING.
-	dec2 := ctrl2.Decide(quote.GlobalInput{
+	dec2 := ctrl2.Advance(quote.GlobalInput{
 		State: quote.Starting, TruthReadable: true, Reconciled: true,
-	}, StopCause{})
+	})
 	if dec2.State != quote.WindingDown || dec2.Trigger != quote.GTLatch {
 		t.Fatalf("the restarted process produced %v/%v from a complete "+
 			"reconciliation, want WINDING_DOWN/GTLatch",
@@ -260,10 +264,27 @@ func TestLatchWriteFailureBlocksAddingWithoutTransitioningOrStoppingTheExit(t *t
 			if err != nil {
 				t.Fatalf("NewGlobalController: %v", err)
 			}
-			in := quote.GlobalInput{State: quote.Running}
-			dec := ctrl.Decide(in, StopCause{
+			// lip-eyq: the stop is now expressed in BOTH places -- CommitStop
+			// makes it durable, in.Stop asks the machine to move. That is the
+			// point of the split: neither call can do the other's job, so a
+			// failed write cannot be laundered into a transition.
+			in := quote.GlobalInput{State: quote.Running, Stop: true}
+			commit := ctrl.CommitStop(StopCause{
 				Trigger: "pnl_kill", TsMillis: 7,
 			})
+			if commit.Durable {
+				t.Fatal("a failed latch write reported the cause as durable")
+			}
+			if !commit.BlockAdding || !commit.RetryLatch {
+				t.Fatalf("commit BlockAdding=%v RetryLatch=%v, want both true",
+					commit.BlockAdding, commit.RetryLatch)
+			}
+			if !hasClass(commit.Anomalies, "LATCH_WRITE_FAILED") {
+				t.Fatalf("no LATCH_WRITE_FAILED on the commit; got %v",
+					classesOf(commit.Anomalies))
+			}
+
+			dec := ctrl.Advance(in)
 
 			if dec.Committed {
 				t.Fatal("a failed latch write reported the stop as committed")
@@ -277,13 +298,90 @@ func TestLatchWriteFailureBlocksAddingWithoutTransitioningOrStoppingTheExit(t *t
 				t.Fatalf("BlockAdding=%v RetryLatch=%v, want both true",
 					dec.BlockAdding, dec.RetryLatch)
 			}
-			if !hasClass(dec.Anomalies, "LATCH_WRITE_FAILED") {
-				t.Fatalf("no LATCH_WRITE_FAILED; got %v", classesOf(dec.Anomalies))
+			// The advance refuses for its own reason: nothing is latched, so a
+			// stop request has no durable justification to publish.
+			if !hasClass(dec.Anomalies, "STOP_CAUSE_MISSING") {
+				t.Fatalf("no STOP_CAUSE_MISSING on the advance; got %v",
+					classesOf(dec.Anomalies))
 			}
 			if ctrl.Latched() {
 				t.Fatal("the controller latched itself on a write that failed")
 			}
 		})
+	}
+}
+
+// TestAdvanceRefusesAnUnjustifiedHaltedState is lip-eyq's forge guard.
+//
+// Nothing Advance produces can be in WINDING_DOWN or DRAINED without the latch:
+// the only door into WINDING_DOWN is the Stop rule, and that rule already
+// refuses when nothing is committed. So an input ARRIVING in either state with
+// a clear latch did not come from this state machine.
+//
+// Accepting it is the interesting failure, because it is not merely a wrong
+// state -- it is a path to a false DRAINED. A caller that asserts WINDING_DOWN
+// with flat risk flags walks straight to DRAINED, and DRAINED rests no reducer
+// and has no path back to RUNNING without an operator. The harness would then
+// be announcing a completed drain for a halt that was never recorded, and a
+// restart would find no latch and resume adding.
+//
+// This is the guard `M-L-CAUSELESS` is retargeted onto.
+func TestAdvanceRefusesAnUnjustifiedHaltedState(t *testing.T) {
+	for _, st := range []quote.GlobalState{quote.WindingDown, quote.Drained} {
+		t.Run(st.String(), func(t *testing.T) {
+			store := &recordingLatch{}
+			ctrl, boot, err := NewGlobalController(store)
+			if err != nil {
+				t.Fatalf("NewGlobalController: %v", err)
+			}
+			if boot.Latched {
+				t.Fatal("a fresh directory bootstrapped as latched")
+			}
+
+			// Flat, quiet, and truth established -- everything DRAINED wants.
+			dec := ctrl.Advance(quote.GlobalInput{
+				State: st, RiskKnown: true,
+				AnyInventory: false, AnyLiveOrder: false,
+			})
+
+			if dec.Committed {
+				t.Fatalf("an asserted %s with nothing latched was published as "+
+					"%v: this is a drain completed for a halt that was never "+
+					"recorded, and a restart finds no latch and resumes adding",
+					st, dec.State)
+			}
+			if dec.State == quote.Drained && st != quote.Drained {
+				t.Fatalf("a forged %s advanced to DRAINED", st)
+			}
+			if !dec.BlockAdding {
+				t.Fatal("an unjustified halted state did not block adding")
+			}
+			if !hasClass(dec.Anomalies, "GLOBAL_STATE_UNJUSTIFIED") {
+				t.Fatalf("no GLOBAL_STATE_UNJUSTIFIED; got %v",
+					classesOf(dec.Anomalies))
+			}
+			if len(store.ensures) != 0 {
+				t.Fatalf("the refused advance wrote to disk: %+v", store.ensures)
+			}
+		})
+	}
+
+	// The same states are fine once something durable justifies them: this
+	// guard refuses UNJUSTIFIED halted states, not halted states.
+	store := &recordingLatch{}
+	ctrl, _, err := NewGlobalController(store)
+	if err != nil {
+		t.Fatalf("NewGlobalController: %v", err)
+	}
+	if c := ctrl.CommitStop(StopCause{Trigger: "pnl_kill", TsMillis: 5}); !c.Durable {
+		t.Fatalf("the cause was not made durable: %+v", c)
+	}
+	dec := ctrl.Advance(quote.GlobalInput{
+		State: quote.WindingDown, RiskKnown: true,
+	})
+	if !dec.Committed || dec.State != quote.Drained {
+		t.Fatalf("a latched WINDING_DOWN with established flat truth produced "+
+			"%+v, want a committed DRAINED", dec)
 	}
 }
 
@@ -295,14 +393,24 @@ func TestMalformedStopCauseIsNotSilentlyDropped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewGlobalController: %v", err)
 	}
-	dec := ctrl.Decide(quote.GlobalInput{State: quote.Running},
-		StopCause{Trigger: "", TsMillis: 5})
+	commit := ctrl.CommitStop(StopCause{Trigger: "", TsMillis: 5})
 
-	if dec.Committed || !dec.BlockAdding || !dec.RetryLatch {
+	if commit.Durable || !commit.BlockAdding || !commit.RetryLatch {
 		t.Fatalf("a stop with no trigger was not treated as an unlatched stop: "+
-			"%+v", dec)
+			"%+v", commit)
 	}
 	if len(store.ensures) != 0 {
 		t.Fatalf("an invalid cause reached the disk: %+v", store.ensures)
+	}
+
+	// And the advance that follows it must not publish the halt either: the
+	// zero StopCause no longer has a sentinel meaning, so nothing about this
+	// sequence can be mistaken for "no stop was requested".
+	dec := ctrl.Advance(quote.GlobalInput{State: quote.Running, Stop: true})
+	if dec.Committed || !dec.BlockAdding {
+		t.Fatalf("a stop whose cause never latched was still published: %+v", dec)
+	}
+	if ctrl.Latched() {
+		t.Fatal("the controller latched itself on a cause it rejected")
 	}
 }

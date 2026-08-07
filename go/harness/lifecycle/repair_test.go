@@ -45,7 +45,7 @@ func TestCauselessStopCannotEnterWindingDown(t *testing.T) {
 			"pass vacuously", st)
 	}
 
-	dec := ctrl.Decide(in, StopCause{})
+	dec := ctrl.Advance(in)
 	if dec.Committed {
 		t.Fatal("a stop with no cause was committed")
 	}
@@ -68,15 +68,18 @@ func TestCauselessStopCannotEnterWindingDown(t *testing.T) {
 		t.Fatalf("a causeless stop reached the disk: %+v", store.ensures)
 	}
 
-	// With a cause, the same input transitions and IS durable.
-	ok := ctrl.Decide(in, StopCause{Trigger: "pnl_kill", TsMillis: 5})
+	// With a cause committed first, the same input transitions and IS durable.
+	if c := ctrl.CommitStop(StopCause{Trigger: "pnl_kill", TsMillis: 5}); !c.Durable {
+		t.Fatalf("a well-formed cause was not made durable: %+v", c)
+	}
+	ok := ctrl.Advance(in)
 	if !ok.Committed || ok.State != quote.WindingDown {
 		t.Fatalf("a well-formed cause produced %+v", ok)
 	}
 
-	// And once the latch IS on disk, a causeless Stop is fine -- the durable
-	// state already justifies the transition.
-	after := ctrl.Decide(in, StopCause{})
+	// And once the latch IS on disk, an advance with no further commit is fine
+	// -- the durable state already justifies the transition.
+	after := ctrl.Advance(in)
 	if !after.Committed || after.State != quote.WindingDown {
 		t.Fatalf("after latching, a causeless stop produced %+v", after)
 	}

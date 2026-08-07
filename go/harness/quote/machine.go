@@ -334,6 +334,28 @@ type GlobalInput struct {
 	// SIGTERM enters WINDING_DOWN, cancels are dispatched, and inventory reads
 	// zero before any of their responses land.
 	AnyLiveOrder bool
+
+	// RiskKnown is whether AnyInventory and AnyLiveOrder are ANSWERS rather than
+	// merely zero. It is deliberately zero-conservative: the zero value means the
+	// risk flags are not yet known, and a false flag that nobody established is
+	// indistinguishable in memory from a false flag that was measured.
+	//
+	// This exists because DRAINED is the one state reached by two falses. Every
+	// other edge is driven by a positive fact -- a latch present, truth
+	// unreadable, reconciliation complete, a stop requested -- so a caller that
+	// fails to populate the input gets a conservative answer for free. The drain
+	// edge inverts that: a `GlobalInput{State: WindingDown}` that a failed
+	// startup walk never filled in reads exactly like a flat, quiet account, and
+	// returns DRAINED. That is a harness announcing its inventory is gone on the
+	// strength of a read that did not happen -- and DRAINED rests no reducer, so
+	// the position it did not look at is now unmanaged.
+	//
+	// Only a complete, final, no-cancel startup pass sets this true. An
+	// incomplete or latched attempt leaves it false and the state stays
+	// WINDING_DOWN, which keeps the reducer alive. Positive inventory or order
+	// evidence still returns DRAINED to WINDING_DOWN regardless of this flag:
+	// evidence of risk is believed whether or not the sweep completed.
+	RiskKnown bool
 }
 
 // NextGlobal is §5.1, evaluated. It is the ONLY place the global state changes
@@ -410,7 +432,16 @@ func NextGlobal(in GlobalInput) (GlobalState, GlobalTrigger) {
 		// are in flight is one ignored cancel away from being long again -- and
 		// DRAINED rests no reducer. Declaring the drain complete there is a
 		// stop condition that adds risk after announcing it has stopped.
-		if !in.AnyInventory && !in.AnyLiveOrder {
+		//
+		// RiskKnown carries that reasoning one step further. Both flags being
+		// false is the only way into DRAINED, which makes this the one edge an
+		// UNPOPULATED input can take by accident: a zero-valued GlobalInput
+		// describes an account nobody read exactly as it describes a flat, quiet
+		// one. So the drain requires the flags to be ANSWERS, not merely zero.
+		// Absence of evidence does not drain; evidence of risk still blocks it
+		// below whether or not the sweep that would have established the flags
+		// ever completed.
+		if in.RiskKnown && !in.AnyInventory && !in.AnyLiveOrder {
 			return Drained, GTDrained
 		}
 		return same()

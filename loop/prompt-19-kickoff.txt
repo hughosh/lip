@@ -1,0 +1,273 @@
+PRIMARY DRIVER — STRATEGY KICKOFF. IS THE v3 BOUNDARY THE RIGHT PARK POINT?
+
+You are the primary driver for this work item. You have no prior context in this
+thread, so everything you need is below or on disk. Your access is READ-ONLY:
+read anything, run `go test` / `go vet` / `git log`, but do not edit the tree.
+An implementer (a separate agent) will carry out whatever you direct afterwards.
+
+You are NOT being asked to re-review the code line by line, and you are NOT being
+asked to find new bugs. Four driver rounds ran while you were unavailable and the
+work item they governed is now COMPLETE and mechanically green. Your job is to
+decide whether the programme should keep going, stop, or change shape — and to
+say what the minimum remaining work is to reach a defensible park point.
+
+## WHY THIS ROUND EXISTS
+
+You (Codex) were the driver for rounds 1-14. Round 14 finished 2026-08-06 11:28
+(`loop/codex-14-audit.log`). You then hit a session limit and were unavailable for
+about a day. Rounds 15, 16, 17 and 18 ran with a different model (Fable) in the
+driver seat. Your quota reset today, 2026-08-07.
+
+**Everything from round 15 onward is a stretch you have not seen.** Read it with
+the same scepticism you would apply to any unreviewed driver output — it is not
+your reasoning and it has not been checked by you. Two of those rounds materially
+changed the plan; one of them argued for inverting the whole dependency order of
+the programme. That argument is the main thing you are being asked to rule on.
+
+## THE SYSTEM
+
+`/Users/hugh/kek/lip` is a market-making harness for Kalshi's liquidity incentive
+programme (LIP). It places resting quotes on a real account with real money,
+unattended. An earlier Python version lost money through failures that are now
+written down as numbered rules in `notes/harness-spec.md` (SHA-pinned — never
+edit it, but read it: it is the contract).
+
+The commercial thesis: Kalshi pays market makers for resting size near the touch.
+An earlier attended Python probe placed and cancelled real orders, was paid $7.65
+against a $7.574 model prediction (−1.0% error), and lost −$1.67 net — the loss
+decomposed to a halt-with-inventory that held 6.1h unmanaged, an unattended-harness
+defect, not a strategy defect (the market settled where holding would have made
++$51.73). That calibration is in `notes/reeval-verdict.md` §4.
+
+## WHAT HAPPENED IN ROUNDS 15-18 (read these; do not take my summary as fact)
+
+    loop/fable-15-audit2.log       audit of the v2 candidate: FAITHFUL / CLEAN /
+                                   ADVANCE: YES, plus two integration items
+                                   deferred to later beads
+    loop/fable-16-adversarial.log  a fresh adversarial thread attacked v2 and
+                                   returned 2 material, 7 minor, 3 speculative
+    loop/fable-17-adjudicate.log   adjudicated all 12: 11 accepted, F7(a)
+                                   rejected on spec text, SPEC-1 rejected as
+                                   cosmetic. ADVANCE: NO. Issued an 18-item v3
+                                   implementation directive. Also authored a
+                                   time estimate at the operator's request.
+    loop/fable-18-worthwhile.log   the operator asked, in effect, "is this whole
+                                   thing worth finishing?" This round answered
+                                   with the dependency inversion you must rule on.
+
+The prompts that produced them are `loop/prompt-15-*.txt` through
+`loop/prompt-18-*.txt`. `loop/prompt-17-adjudicate.txt` is the shape a driver
+prompt takes here.
+
+## STATE OF THE TREE — MECHANICAL FACTS
+
+All 18 items of the v3 directive in `loop/fable-17-adjudicate.log` are
+IMPLEMENTED. Items 1-5 landed in an earlier session; items 6-14 in the most
+recent one. Verbatim gates result:
+
+    ===GATES===
+    PASS  build / vet / gofmt / test-race / check.py / negative-control
+    VERDICT: GREEN   ADVANCE_ELIGIBLE: YES
+
+`notes/harness-negative-control.md`: **124 of 124 mutations produced their
+expected outcome** — no SURVIVED, no DID-NOT-BUILD, no NOT-INERT. The catalogue
+grew 106 → 124 exactly as round 17 directed. A full run is ~41 min.
+
+Treat this as A DESCRIPTION OF WHAT WAS CHECKED, not as evidence of correctness.
+
+What changed in items 6-14 specifically (items 1-5 are the F1 journal
+crash-tolerance work and the F2 ownership model — schema `user_version` 2 with
+`owned_order.abandoned_ms`, tri-state `risk.Ownership`, deferring consumers, and
+the binding wsx walk):
+
+  6.  F6      `hstore/sqlite.go` — new `statFresh` refuses a zero-byte DB file;
+              `inspectDatabase(db, path)` now runs on the WRITABLE connection
+              before `applyJournalMode`.
+  7.  F9      `hstore/writer.go` — `releaseWriter` drains the queue, publishing
+              one terminal `Result{Err}` per record plus `own.failBinding` for a
+              `KindBindOrder`.
+  8.  SPEC-2  `hstore/sqlite.go` — `recordFill` is read-compare-insert in a tx
+              over new `fillFacts`/`factsOf` (exchange-fact columns only);
+              a content-divergent duplicate is a permanent refusal.
+  9.  SPEC-3  `hstore/sqlite.go` — new `readerDSN` carries `query_only(1)`.
+  10. F3      `ping/deadman.go` — new `parseFailure` extracts `*url.Error.Err`
+              so the raw endpoint never reaches an error string.
+  11. F4      `ping/service.go` — `health = s.store.Health()` re-snapshotted
+              immediately before the poll-deadline clause.
+  12. F7b     `ping/service.go` — `healthPushDedupMs` (5 min), `lastHealthPushMs`,
+              new `healthPushDueMs()`.
+  13. F5      `ping/service.go` — the dead `retryAt` arm in `record()` deleted.
+  14. F8      `risk/position.go` — `ORDER_TICKER_CONFLICT` SEV1 in
+              `Portfolio.order()`.
+
+Every non-"pin" test was proved FAILING before its repair. Two amendments worth
+knowing: `TestReaderDSNCarriesQueryOnlyPragma` also failed first (stronger than
+the pin the directive asked for), and `TestOurFillFirstObserverWinsAcrossRuns`
+had to be amended — it used a divergent duplicate (`again.Price4 = 9999`), which
+item 8 now makes a permanent refusal.
+
+Round 17 item 16 (bd notes) is filed: `lip-eyq` carries the startup resolve walk
+plus drain-before-Close and SEV1 `STORE_RECORD_REJECTED`; `lip-3af` carries bind
+on `rest.CreateResult`; the H-ORD-9 interpretation is recorded on `lip-6w5` and
+via `bd remember --key hord9-ledger-decides-ours`.
+
+`lip-6w5` is still OPEN. `lip-eyq` is still BLOCKED. Nothing has been closed.
+
+## TWO FINDINGS FROM THE CATALOGUE WORK — THEY WILL RECUR
+
+1. An `ast.parse` anchor audit found **five** rotted `old` anchors after the v3
+   edits (`M-HS-FILLREPLACE`, `M-HS-RUNSTOP`, `M-HS-PRAGMACONN`,
+   `M-P-RETRYWAKE`, `M-P-STATUSRETRY`) — two more than a careful read of the diff
+   predicted. `str.replace` silently no-ops on a missing anchor, so a rotted
+   anchor is a mutation that quietly tests nothing. All five were repaired. The
+   audit must be re-run after ANY signature change.
+
+2. `M-P-REFUSESILENT` SURVIVED its first targeted run. Writing `s.retryAt` inside
+   `record()` is inert because `pushGroup` deletes those entries on the very next
+   line. That is INDEPENDENT CONFIRMATION of F5's own finding, arrived at
+   mechanically rather than by reading. It was rewritten as three coordinated
+   edits (record returns a bool; pushGroup honours it) and is now caught.
+
+Both facts bear on how much the 124-mutation number is actually worth. Say so if
+you think it is worth less than it looks.
+
+## THE COMMERCIAL PICTURE ROUND 18 DREW (rule on this)
+
+Round 18's verdict was "continue with named cuts — but INVERT the dependency."
+Its argument, compressed (read the log for the full version, it is 7 KB):
+
+- **The Go build should stop being the path to the decision and become the reward
+  for it.** Two cheap facts decide everything and both are purchasable this week
+  without the Go harness.
+- **Fact 1 — the programme end date.** A July note in this repo says the LIP
+  programme ends 2026-09-01. Round 18 read the February CFTC filing directly and
+  confirmed that text: "until the earlier of September 1, 2026, or the date that
+  Kalshi amends or terminates the Program". It then claims the "amends" branch has
+  been exercised and Kalshi's help centre now says **January 1, 2027**. It
+  explicitly flags that this second date reached it through fetch-summariser paths,
+  and that `notes/economics.md:75` documents that exact tooling FABRICATING answers
+  about this exact document. So the Jan-2027 date is UNCONFIRMED. If Sept 1 stands,
+  round 18 says its own verdict flips to stop.
+- **Fact 2 — does the modelled edge survive today's competition?** The pilot rung's
+  headline question ("do we get paid; does the model predict the payout") is
+  already answered at −1.0% error. The live unknown is the thin-book selection
+  model (`notes/reeval-verdict.md` §5: $282/day at $100, $596/day at $500 —
+  explicitly "MODELLED, not verified", with competition and thin-book adverse
+  selection unmeasured, and the snapshot now ~12 days stale). Round 18 proposes an
+  attended ~$100 Python probe on ONE thin 1-day-period market, S=12, on a dedicated
+  account, with `revmodel`'s size-conditional prediction PRE-REGISTERED — and a
+  stopping rule: if the observed payout materially misses (it suggests <60%),
+  competition has eaten the edge, stop the loop and keep the rig.
+- **Tracker drift, not rigour, inflated the last estimate.** `pilot-plan.md`
+  already cut the ceremony (72h dry run → 4-6h read-only; advancement catalogue →
+  12 mutations; 18 faults → 6), but two beads are STALE against those cuts:
+  `lip-q01` still says 72h, `lip-jy4` still says M1-M23. Round 17's estimate
+  (8-14 days to first live order) was built on the stale numbers. Round 18's
+  corrected estimate is **2-3.5 weeks**, on the grounds that defect discovery has
+  not plateaued.
+- Round 18 considered and NARROWLY REJECTED a full pause, and said the rejection
+  turns on one fact only the operator knows: whether the Codex driver slots have a
+  higher-value use for two weeks.
+
+You have no network access in this sandbox. **Do not attempt to settle the end
+date yourself and do not state a date as fact.** Treat it as a branch: rule on
+what follows if it is 2026-09-01 and on what follows if it is 2027-01-01, and say
+which observable would resolve it.
+
+## WHAT HAS CHANGED SINCE ROUND 18 WROTE THAT
+
+Round 18's single loudest operational warning — "~35k lines sit uncommitted on one
+disk, push the checkpoint to a remote today" — has been PARTIALLY discharged. The
+operator authorised a local commit and it is done:
+
+    7e8002f  lip-6w5 v3: all 16 directive items; gates GREEN at 124/124 mutations
+    8f016d8  checkpoint: harness v2 before the lip-6w5 v3 repair
+
+The working tree is now clean on branch `harness/lip-6w5-v2-checkpoint`. **There
+is still no git remote**, so the single-disk risk stands and the working-tree-loss
+risk does not. Factor the residual correctly; do not re-raise the discharged half
+as though it were open.
+
+## TRACKER FACTS (from `bd`, measured this session — round 17 quoted these wrong)
+
+    Total 49 — 19 open, 0 in progress, 5 deferred, 25 closed.
+
+Round 17's estimate said "19 open, 0 closed". That was wrong; 25 are closed. The
+open P1s: `lip-6w5` (this bead), `lip-eyq`, `lip-bw0`, `lip-3af` on the blocking
+chain to a running binary; `lip-dgg`, `lip-gp8`, `lip-b1r`, `lip-0qj` off it.
+The open P2 epics include `lip-q01` and `lip-jy4`, the two round 18 calls stale.
+`cmd/harness/main.go` still exits 2 deliberately — no runnable binary exists yet;
+every package built so far is a component wired to nothing.
+
+## WHAT YOU MUST DECIDE
+
+Four questions. Answer each explicitly and separately; do not let one collapse
+into another.
+
+**Q1 — IS THE v3 BOUNDARY THE RIGHT PARK POINT?**
+Given a green tree at 124/124, `lip-6w5` complete but unclosed, and no runnable
+binary: is stopping here a coherent, defensible resting state for this programme?
+If not, name the nearest boundary that is, and say why it is better rather than
+merely further.
+
+**Q2 — WHAT IS THE MINIMUM TO REACH IT?**
+Concrete, ordered, by bead and by round. If the answer to Q1 is "here", say what
+the closing-out work is (what gets closed, what gets recorded, what gets archived).
+If it is "one bead further", say which and what the round ladder for it is. Cost
+your answer in DRIVER ROUNDS, not calendar days — driver availability has been the
+binding constraint all along and round 17 says so itself.
+
+**Q3 — DOES ROUND 18'S DEPENDENCY INVERSION HOLD?**
+Should the two facts (end date, live competition) be bought BEFORE more ladder
+work, with the build as reward rather than path? Rule on the reasoning, not just
+the conclusion. In particular: is the attended ~$100 probe actually decisive, or
+does it answer a narrower question than round 18 claims? Is the pre-registered
+`revmodel` prediction plus a <60% stopping rule the right instrument, and is
+"one thin 1-day market, S=12" enough sample to conclude anything? If you think
+round 18 over-claimed, say exactly where.
+
+**Q4 — WHAT DOES THE §17 LADDER BECOME?**
+Round 17's item 17 lists nine behaviour changes and the ladder sequencing assumed
+the build was the path. If Q3 says invert, the ladder becomes conditional on facts
+that do not exist yet. Say what the ladder is under each branch (Sept-1 date vs
+Jan-2027 date; probe confirms vs probe misses), and what work is worth doing
+UNCONDITIONALLY because it pays off in every branch.
+
+## CONSTRAINTS ON WHAT YOU MAY DIRECT
+
+- `notes/harness-spec.md` is SHA-pinned. Never edit. If something implies the spec
+  is wrong, say so as a note — do not direct a spec edit.
+- `go/core`, `go/feed`, `go/store`, `go/cmd/rig` are hash-pinned; editing fails the
+  gates. `lip/rig.db` and every other `*.db` are off limits — two evidence
+  collectors write them.
+- Every non-test Go file must end with a `// confidence: high` trailer.
+  `scripts/check.py` rejects `t.Skip`, `testing.Short`, stub panics and `_ = err`.
+- Do NOT direct closing `lip-6w5`, unblocking `lip-eyq`, any commit, any push, or
+  any run of `loop/conductor.py`. If you believe one of those should happen, say
+  so as a recommendation to the operator and stop there.
+- If you direct catalogue work, every accepted item needs a mutation ID and a
+  NAMED catcher test, and you must say how many mutations you expect the catalogue
+  to end at — a full run is ~41 min and the count is the floor on gate turnaround.
+
+## WHAT TO RETURN
+
+    VERDICT
+      One line. Continue / park / stop, and under what condition.
+
+    Q1 PARK POINT        is v3 the right resting state — yes or no, and why
+    Q2 MINIMUM PATH      ordered, by bead, costed in driver rounds
+    Q3 INVERSION RULING  does round 18's argument hold; where it over-claims
+    Q4 LADDER            per branch, plus the unconditional work
+
+    WHAT I VERIFIED, AND COULD NOT
+      Separate what you read in-tree from what you inferred. You have no network;
+      say plainly which claims you could not check because of that.
+
+    WHERE ROUNDS 15-18 WERE WRONG
+      You are the first reviewer of that stretch. If the fable rounds made an
+      error — of fact, of adjudication, or of scope — name it. If they did not,
+      say that plainly rather than manufacturing a disagreement.
+
+    MOBILE RELAY
+      <=180 words, verdict first, <=5 bullets, at most one next action or
+      question. It is read on a phone and relayed verbatim.

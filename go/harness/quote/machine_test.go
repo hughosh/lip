@@ -468,13 +468,21 @@ func TestGlobalNoRunningToUnknownRiskEdge(t *testing.T) {
 }
 
 // TestGlobalDrainAndReturn covers both ends of DRAINED.
+//
+// lip-eyq amendment: the drain edge now also requires RiskKnown, so the cases
+// that expect DRAINED set it. This test is about the INVENTORY rule, not the
+// truth-established rule -- see TestWindingDownRequiresKnownFlatTruthBeforeDrained
+// for the latter -- so establishing the flags is the right way to keep it
+// asserting what it was written to assert.
 func TestGlobalDrainAndReturn(t *testing.T) {
-	got, trig := NextGlobal(GlobalInput{State: WindingDown, AnyInventory: false})
+	got, trig := NextGlobal(GlobalInput{
+		State: WindingDown, RiskKnown: true, AnyInventory: false})
 	if got != Drained || trig != GTDrained {
 		t.Errorf("WINDING_DOWN with everything flat -> %s (%s), want DRAINED",
 			got, trig)
 	}
-	if got, _ := NextGlobal(GlobalInput{State: WindingDown, AnyInventory: true}); got != WindingDown {
+	if got, _ := NextGlobal(GlobalInput{
+		State: WindingDown, RiskKnown: true, AnyInventory: true}); got != WindingDown {
 		t.Error("WINDING_DOWN drained with inventory still open")
 	}
 
@@ -669,6 +677,10 @@ func TestNothingRestsIntoTheClose(t *testing.T) {
 // are dispatched, and inventory reads zero before any of their responses land.
 // Declaring the drain complete there is a stop condition that adds risk after
 // announcing it has stopped.
+//
+// lip-eyq amendment: RiskKnown is set throughout, because every case here is
+// about whether a KNOWN flag blocks the drain. The separate question of an
+// unestablished flag is TestWindingDownRequiresKnownFlatTruthBeforeDrained.
 func TestDrainRequiresOrdersConfirmedAbsent(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
@@ -684,6 +696,7 @@ func TestDrainRequiresOrdersConfirmedAbsent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got, _ := NextGlobal(GlobalInput{
 				State:        WindingDown,
+				RiskKnown:    true,
 				AnyInventory: tc.inventory,
 				AnyLiveOrder: tc.liveOrder,
 			})
@@ -702,6 +715,56 @@ func TestDrainRequiresOrdersConfirmedAbsent(t *testing.T) {
 	if got != WindingDown || trig != GTInventory {
 		t.Errorf("DRAINED with a live order -> %s (%s), want WINDING_DOWN",
 			got, trig)
+	}
+}
+
+// TestWindingDownRequiresKnownFlatTruthBeforeDrained is lip-eyq's drain gate.
+//
+// DRAINED is the only state in §5.1 reached by the ABSENCE of two facts. Every
+// other edge turns on a positive one -- a latch present, truth unreadable,
+// reconciliation complete, a stop requested -- so an input a caller failed to
+// populate degrades safely. The drain edge does not: a `GlobalInput{State:
+// WindingDown}` whose risk flags were never established is byte-identical to
+// one describing a flat, quiet account, and the machine returned DRAINED for it.
+//
+// That is the failure this gate closes. A startup walk that dies before reading
+// positions knows nothing about inventory; if the coordinator then advances the
+// state machine with a zero-valued input, the harness declares the drain
+// complete on the strength of a read that did not happen. DRAINED rests no
+// reducer, so a position nobody looked at is now unmanaged -- I1's exact
+// prohibition, reached by omission rather than by decision.
+//
+// The asymmetry is deliberate and is asserted below: absence of evidence does
+// not drain, but evidence of risk is believed whether or not the sweep
+// completed. RiskKnown gates only the two-falses edge.
+func TestWindingDownRequiresKnownFlatTruthBeforeDrained(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		riskKnown bool
+		inventory bool
+		liveOrder bool
+		want      GlobalState
+	}{
+		{"flat and clean, truth established", true, false, false, Drained},
+		{"flat and clean, truth NOT established", false, false, false, WindingDown},
+		{"inventory known, truth established", true, true, false, WindingDown},
+		{"inventory seen despite incomplete sweep", false, true, false, WindingDown},
+		{"live order seen despite incomplete sweep", false, false, true, WindingDown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, _ := NextGlobal(GlobalInput{
+				State:        WindingDown,
+				RiskKnown:    tc.riskKnown,
+				AnyInventory: tc.inventory,
+				AnyLiveOrder: tc.liveOrder,
+			})
+			if got != tc.want {
+				t.Fatalf("WINDING_DOWN riskKnown=%v inventory=%v liveOrder=%v -> %s, "+
+					"want %s: an unestablished flat is not a flat, and DRAINED "+
+					"rests no reducer over the position nobody read",
+					tc.riskKnown, tc.inventory, tc.liveOrder, got, tc.want)
+			}
+		})
 	}
 }
 

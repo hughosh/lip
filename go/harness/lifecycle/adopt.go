@@ -417,26 +417,42 @@ func (s *Startup) Run(ctx context.Context, in quote.GlobalInput,
 	}
 }
 
-// commit runs every discovered cause through the controller, in order.
+// commit makes every discovered cause durable, then advances the machine ONCE.
 //
-// With no causes it still calls Decide -- with a complete reconciliation, which
-// is what takes STARTING to RUNNING through §5.1 rather than by assignment.
+// The one-Advance-per-step rule (lip-eyq §3.8) is not tidiness. The previous
+// shape called Decide once per cause and fed each returned state back in as the
+// next call's input, so N causes produced N transitions and the intermediate
+// ones were publishable. A second cause arriving in the same walk therefore had
+// to be adjudicated against a state the first cause had already moved -- and if
+// the second failed to commit, the caller had already been handed a transition
+// justified by a latch set that was never completed.
+//
+// Committing every cause first collapses that: the durable record is the whole
+// set, and exactly one transition is derived from it. With no causes at all the
+// Advance still happens -- with a complete reconciliation, which is what takes
+// STARTING to RUNNING through §5.1 rather than by assignment.
 func (s *Startup) commit(in quote.GlobalInput, causes []StopCause) GlobalDecision {
 	in.TruthReadable = true
 	in.Reconciled = true
 
-	if len(causes) == 0 {
-		return s.ctrl.Decide(in, StopCause{})
+	var anoms []risk.Anomaly
+	for _, c := range causes {
+		sc := s.ctrl.CommitStop(c)
+		anoms = append(anoms, sc.Anomalies...)
+		if !sc.Durable {
+			// I1: the cause is not on disk, so no transition is publishable and
+			// no Adoption may be returned. Cancelling, reducing, reconciling and
+			// monitoring all continue; the caller retries the write.
+			return GlobalDecision{
+				State: in.State, Trigger: quote.GTNone,
+				Committed: false, BlockAdding: true, RetryLatch: true,
+				Anomalies: anoms,
+			}
+		}
 	}
 
-	var dec GlobalDecision
-	for _, c := range causes {
-		dec = s.ctrl.Decide(in, c)
-		if !dec.Committed {
-			return dec
-		}
-		in.State = dec.State
-	}
+	dec := s.ctrl.Advance(in)
+	dec.Anomalies = append(anoms, dec.Anomalies...)
 	return dec
 }
 
@@ -461,7 +477,7 @@ func (s *Startup) fail(in quote.GlobalInput, anoms []risk.Anomaly,
 
 	at := Attempt{
 		Err:       err,
-		Decision:  s.ctrl.Decide(in, StopCause{}),
+		Decision:  s.ctrl.Advance(in),
 		Retry:     true,
 		After:     startupBackoffAt(s.consecutiveFailures),
 		Anomalies: anoms,

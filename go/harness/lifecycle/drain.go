@@ -120,8 +120,16 @@ func (c *SignalController) Handle(sig os.Signal, in quote.GlobalInput,
 
 	eff.Recognised = true
 	in.Stop = true
-	cause := StopCause{Trigger: name, TsMillis: wallMillis}
-	eff.Decision = c.ctrl.Decide(in, cause)
+
+	// Commit first, advance second (lip-eyq §2). The signal's whole meaning is a
+	// durable stop, so the latch write is the operation and the transition is its
+	// consequence. Advancing first would ask the machine to publish WINDING_DOWN
+	// on the strength of `in.Stop` alone -- which Advance now refuses -- and the
+	// refusal is the right answer rather than a hurdle: an unlatched SIGTERM that
+	// published a halt is HR-009, erased by the next `launchd KeepAlive` restart.
+	commit := c.ctrl.CommitStop(StopCause{Trigger: name, TsMillis: wallMillis})
+	eff.Anomalies = append(eff.Anomalies, commit.Anomalies...)
+	eff.Decision = c.ctrl.Advance(in)
 	eff.Anomalies = append(eff.Anomalies, eff.Decision.Anomalies...)
 	eff.Anomalies = append(eff.Anomalies, risk.Anomaly{
 		Class: "SIGNAL_DRAIN", Sev: risk.SEV2,

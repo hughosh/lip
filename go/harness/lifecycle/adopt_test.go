@@ -316,9 +316,9 @@ func TestUnknownRiskBeginsOnThirdFailureAndRetriesForever(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewGlobalController: %v", err)
 	}
-	dec := ctrl.Decide(quote.GlobalInput{
+	dec := ctrl.Advance(quote.GlobalInput{
 		State: quote.UnknownRisk, TruthReadable: true, Reconciled: true,
-	}, StopCause{})
+	})
 	if dec.State != quote.Running || dec.Trigger != quote.GTReconciled {
 		t.Fatalf("recovery produced %v/%v, want RUNNING/GTReconciled",
 			dec.State, dec.Trigger)
