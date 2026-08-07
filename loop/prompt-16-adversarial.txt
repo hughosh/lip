@@ -1,0 +1,138 @@
+ADVERSARIAL REVIEW — two new Go packages in a live-money trading harness.
+
+You are being asked to BREAK this code, not to review it. Assume it is wrong and
+find the case that proves it. Do not summarise it, do not praise it, do not
+suggest style improvements, and do not tell me it looks correct — if you cannot
+break it, say precisely what you attacked and what stopped you.
+
+Your access is READ-ONLY. Do not edit anything.
+
+## THE SYSTEM
+
+`/Users/hugh/kek/lip` is a market-making harness for Kalshi's liquidity incentive
+programme. It places resting quotes on a real account with real money, unattended,
+and an earlier Python version of it lost money through failures that are now
+written down as numbered rules in `notes/harness-spec.md` (never edit it).
+
+The rules cited most below:
+
+- `H-ORD-6` — an order's ownership record must be DURABLE BEFORE the order is
+  dispatched.
+- `H-ORD-9` — fills are classified as ours or foreign by `order_id` against a
+  durable ledger, "never by heuristic, never by `run_id`". A fill wrongly called
+  foreign raises SEV1 and stops the harness globally; one wrongly called ours
+  corrupts the position model.
+- `H-ORD-7` — `lip/rig.db` belongs to two evidence collectors and is READ-ONLY to
+  the harness.
+- `H-STORE-3` — a persistence failure revokes the authority to ADD risk. It must
+  never stop reducing risk, monitoring it, or alerting.
+- `I1` — every stop path stops ADDING risk; no stop path stops reducing it or
+  watching it.
+- `F18` — "the harness stopped and nobody noticed", detected only by the absence
+  of an external dead-man check-in.
+- `§13.1` — an anomaly is journalled in two places before any delivery is
+  attempted. `§13.2` — SEV1 immediate and urgent, SEV2 one push per
+  (class,ticker) per 15 minutes, SEV3 batched into the next heartbeat.
+
+## THE CANDIDATE
+
+Two packages, both new:
+
+    go/harness/hstore/   the operational SQLite store: five tables, a single
+                         writer goroutine, the durable ownership ledger, and a
+                         read-only view. ~2,000 lines including tests.
+    go/harness/ping/     alert delivery: queued ntfy pushes, severity rate
+                         limiting, an hourly heartbeat, and an external dead-man
+                         check-in. ~1,100 lines including tests.
+
+plus a breaking change to the ownership seam consumed by `go/harness/risk`,
+`go/harness/wsx` and `go/harness/lifecycle`:
+
+    risk.OwnershipLookup.OwnsOrders(orderIDs []string) ([]bool, error)
+
+Read the code. Start with `hstore/writer.go`, `hstore/ledger.go`,
+`hstore/sqlite.go`, `ping/service.go`, and `risk/position.go`'s `ApplyFills`.
+
+## WHAT IT CLAIMS
+
+These are CLAIMS to be attacked, not facts to be confirmed:
+
+1. An order cannot be dispatched unless its client-order-id reservation has
+   COMMITTED to SQLite. The permit that authorises dispatch is issued only after
+   the transaction commits.
+2. The ownership index answers only from committed bindings. An in-flight or
+   failed binding is an ERROR, never "owned" and never "foreign".
+3. No submitted audit record is ever dropped. Not under a stalled writer, not on
+   close, not on a permanent failure of some other record.
+4. A storage failure revokes ADDING and nothing else. Reducing orders stay
+   dispatchable; monitoring, audit production, alerting and retries continue.
+5. An anomaly is invisible to delivery until BOTH its SQLite row and its JSONL
+   text line are durable, and a restart reconciles the crash window in both
+   directions.
+6. `Open` cannot modify a database that is not this schema's, including the
+   evidence collectors' `rig.db`.
+7. The ntfy topic and the dead-man endpoint are bearer credentials that appear in
+   no error, log, database column, journal record, notification title or body —
+   only in the destination URL.
+8. `Service.Step` is deterministic, owns no clock, and publishes a deadline
+   (`NextStepMs`) early enough that every retry ladder and rate-limit bucket is
+   actually honoured.
+
+## WHERE TO ATTACK
+
+Suggestions, not a limit. Better attacks than these exist and I want them.
+
+- CONCURRENCY. The store has one mutex, one writer goroutine, a submission path
+  callable from any goroutine, and a `Health()` that mutates. Find an
+  interleaving that drops a record, double-processes one, deadlocks, or lets a
+  licence outlive the condition that justified it. `go test -race` passes; that
+  is not the same as being right.
+- LICENCE LIFETIME. `RunHandle` and `DispatchPermit` are values a caller can hold
+  indefinitely. Find a sequence where a permit is still honoured after the thing
+  that authorised it has gone away, or where one is refused when it should not be.
+- PARTIAL FAILURE. Every durable write can fail at any step. Walk the anomaly's
+  three-step commit, the two-stage order reservation/binding, and `Open`'s
+  reconciliation, and find a crash point that leaves a state the next `Open`
+  either accepts wrongly or refuses forever.
+- THE OWNERSHIP SEAM. `ApplyFills` must classify a whole walk before mutating
+  anything. Find an input — duplicate trade ids, an empty order id, a short or
+  over-long answer from the lookup, a fill for an order bound in a previous run —
+  that corrupts the position or marks a fill seen that was never applied.
+- SECRETS. Find any path by which the ntfy topic or the dead-man URL reaches a
+  string a caller could log. Consider wrapped errors, `%v` on a struct,
+  redirects, and non-2xx responses.
+- THE ALERT SCHEDULER. Find a state where an alert is owed and `NextStepMs` does
+  not schedule it, or where a row is marked delivered without a successful push,
+  or delivered twice.
+- TESTS THAT PROVE NOTHING. The most valuable finding: a test asserting something
+  true under conditions that never put the code in the state the assertion is
+  about. Check that each test's SETUP actually reaches the branch it claims to
+  cover.
+
+## EVIDENCE, AND WHY IT IS NOT REASSURANCE
+
+`./loop/gates.sh` passes and `scripts/harness_negative_control.py` reports every
+one of its 106 mutations producing its declared outcome. Treat both as DESCRIPTION
+OF WHAT WAS CHECKED, not as evidence of correctness — a mutation catalogue only
+covers the failures somebody thought of, and this repository has already shipped
+tests that asserted true things under conditions that never exercised the code.
+A hole in that catalogue is itself a finding worth reporting.
+
+You may run `go test`, `go vet`, and read anything. Do not run `loop/gates.sh`
+(it takes ~35 minutes) and do not modify the tree.
+
+## WHAT TO RETURN
+
+For each finding:
+
+    SEVERITY   material | minor | speculative
+    CLAIM      which numbered claim above, or which rule, it defeats
+    MECHANISM  the exact sequence — interleaving, input, or crash point
+    EVIDENCE   file:line, and a concrete failing case if you can construct one
+
+Then:
+
+    MATERIAL BREAKS: <count>
+    WHAT I ATTACKED AND COULD NOT BREAK: <short list — this is required, and is
+    the part that tells me how much your zero is worth>
+    MOBILE RELAY: <=150 words, most dangerous finding first, read on a phone

@@ -1,0 +1,68 @@
+AUDIT GATE, round 3 — confirmation only. `harness/rest` @ post-ratchet, bead
+`lip-qdg`. Untracked; files on disk.
+
+Return FIDELITY and CHANGE-SAFETY, then DECISION, IMPLEMENTATION DIRECTIVE,
+ADVANCE, MOBILE RELAY.
+
+## AGAINST YOUR EIGHT-ENTRY DIRECTIVE
+
+Appended without removing or renaming any existing entry:
+
+  M-R-COUNTNEG      w.Count = "-1.00"
+  M-R-COUNTOVER     w.Count = "99.00"
+  M-R-PRICEBAD      w.Price = "1.9900"
+  M-R-TIF           w.TimeInForce = "immediate_or_cancel"
+  M-R-SIDEFLIP      w.Side = Bid
+  M-R-TICKER        w.Ticker = "OTHER-TICKER"
+  M-R-ACKMALFORMED  on parseAck error: CreateAcked, MaxLive=0, return
+  M-R-ACKOPTIONAL   strict coid block -> the former optional check
+
+`M-R-ACKOPTIONAL` substitutes the exact current strict block, lifted verbatim
+from write.go at table-build time into a `STRICT_COID_BLOCK` constant, so the
+mutation cannot silently rot into a no-op if that block is reworded.
+
+`M-R-ACKCOIDPRESENT` retained; its argument now says neutralising the branch
+changes NO SAFETY BEHAVIOUR — classification, retry count, MaxLive and
+reconciliation identical — and that only the diagnostic text differs, so it is
+safety-inert rather than completely behaviour-inert.
+
+## OBSERVED TOOL FACTS
+
+Full catalogue, every entry, each applied to a pristine tree:
+
+  27 of 27 mutations produced their expected outcome.
+
+Caught, with the tests that caught them:
+
+  M-R-COUNTNEG      TestCreateOrderPayloadIsByteForByte,
+                    TestCreateOrderValidatesTheCountBeforeFormatting
+  M-R-COUNTOVER     same two
+  M-R-PRICEBAD      TestCreateOrderPayloadIsByteForByte
+  M-R-TIF           TestCreateOrderPayloadIsByteForByte, TestPostOnlyIsStructural
+  M-R-SIDEFLIP      TestCreateOrderPayloadIsByteForByte
+  M-R-TICKER        TestCreateOrderPayloadIsByteForByte
+  M-R-ACKMALFORMED  TestOnlyObservedAckShapesNarrowMaxLive
+  M-R-ACKOPTIONAL   TestOnlyObservedAckShapesNarrowMaxLive
+
+Inert as declared: M26, M-R-ACKCOIDPRESENT.
+
+`./loop/gates.sh` -> build, vet, gofmt, test-race, check.py, negative-control
+all PASS. VERDICT: GREEN. `notes/harness-negative-control.md` regenerated and
+states "27 of 27". No production or Go-test file was changed this round.
+
+`lip-qdg` is CLOSED, on your directive item 5 ("obtain 27/27 expected outcomes
+and GREEN gates, then close lip-qdg"). Say so if you consider that premature.
+
+## PROCESS NOTE
+
+An earlier attempt at this append silently no-op'd: `str.replace` does not error
+on a missing anchor, and I had anchored on text that was not at the table end.
+The entry count was verified by parsing the module and counting `MUTATIONS`
+elements (19 -> 27), not by trusting the edit.
+
+## FOR YOUR ADJUDICATION
+
+`ADVANCE` has been NO for three rounds. If the remaining blocker is the fresh
+adversarial round rather than anything in `harness/rest`, say that plainly so
+the operator knows what is actually outstanding, and state whether you want that
+round run now or deferred until the websocket layer exists.

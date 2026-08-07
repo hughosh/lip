@@ -1,0 +1,173 @@
+You are still the primary driver. `harness/rest` is closed per your last
+directive. This prompt opens the next unit and asks you to name it.
+
+## YOUR LAST DIRECTIVE (verbatim, loop/codex-04e-audit3.log)
+
+> ## IMPLEMENTATION DIRECTIVE
+>
+> No further changes to `harness/rest` for this bead. Preserve all 27 ratchets
+> and advance to the next pilot-plan unit.
+>
+> ## ADVANCE: YES
+
+It did not name which unit. The implementer stopped rather than choosing,
+because the two project documents that would answer it disagree.
+
+## OBSERVED TOOL FACTS — current state
+
+`./loop/gates.sh` from `/Users/hugh/kek/lip`:
+
+    PASS  build
+    PASS  vet
+    PASS  gofmt
+    PASS  test-race
+    PASS  check.py
+    PASS  negative-control
+    VERDICT: GREEN
+    ADVANCE_ELIGIBLE: YES
+
+Nothing is committed. `git status --short` shows `harness/rest/`,
+`harness/quote/{cross,external,machine,requote,skew}.go`, `harness/cfg/params_test.go`
+and `harness/risk/capital.go` as untracked, and `harness/num/qty.go`,
+`scripts/harness_negative_control.py`, `notes/harness-negative-control.md` as
+modified.
+
+`go/harness` package contents, non-test files:
+
+- `cfg/params.go`
+- `num/money.go`, `num/qty.go`
+- `quote/cross.go`, `external.go`, `machine.go`, `queue.go`, `requote.go`,
+  `skew.go`, `state.go`
+- `rest/cancel.go`, `client.go`, `coid.go`, `page.go`, `read.go`, `wire.go`,
+  `write.go`
+- `risk/capital.go`, `invariant.go`, `monitor.go`, `snapshot.go`
+
+`risk/invariant.go` contains `Violation` and `A5Tracker` only. A5 is the only
+invariant implemented. `risk/capital.go` is the untracked new file (Exposure,
+SideCost, Deployed, FundedContracts, ReducingBudget, AddingBudget,
+CheckFundable).
+
+`grep -rn "ownership" go/harness --include='*.go' -i` returns three hits, all in
+`rest/cancel.go` and `rest/cancel_test.go`, all comments about cancel-sweep
+ownership classification. There is no ownership-ledger type in `go/harness`.
+`rest/read.go` has `type Fill` with `IsTaker bool` and `FeeCost string`, and
+`FillsResult.Takers()`.
+
+`cfg/params.go` already carries `PnLKill num.Money` (validated negative) and
+`PnLMarkMaxAge time.Duration` (validated positive); no code reads either yet.
+`cfg/params.go` also carries `TruthMaxAge` (H-FAIL-4); no code reads it yet.
+
+`quote` already implements: `SizesFor`/`SizeA`/`SizeR` (skew and reducer
+sizing), `ExternalBest`, `NextMarket`/`NextGlobal` (the state machine),
+`DueCloseActions`/`PastFinalLead`/`FinalCancel` (close catch-up and final
+cancel), `Decide` (requote), `Crosses`/`CheckPlacement`/`MaxOpposite`.
+`risk/capital.go` implements the aggregate caps and `CheckFundable` (H-CAP-8).
+
+`risk/snapshot.go` has `MarketSnap.BookActionable` with a doc comment naming
+H-FAIL-5, H-FAIL-4 and A13, but nothing asserts A13.
+
+`bd ready` — P1 entries only:
+
+    lip-3af  Wire cmd/harness (pilot-plan §7.1) - the pilot profile
+    lip-6w5  Five-record store + minimal alerts (pilot-plan §2.3, §7.6)
+    lip-bw0  Lifecycle safety: halt latch, startup adoption, single-instance lock (§7.5)
+    lip-b1r  Scenario exchange replacing V2 (pilot-plan §3)
+    lip-fq7  wsx: conservative websocket + ownership wiring (pilot-plan §7.4)
+    lip-dgg  risk: A1-A4, A6-A14 invariants (V3)
+    lip-gp8  risk: pnl per H-HALT-5 (V1.13)
+
+`go/cmd/harness/main.go` exits 2 by design until wired.
+
+## THE DISAGREEMENT, STATED WITHOUT RANKING
+
+**`notes/pilot-plan.md` §7 build order, verbatim, items 3 and 4:**
+
+> 3. **Minimal REST**: exact payload, structural `post_only`, deterministic coid,
+>    same-coid ambiguous-create recovery, guarded pagination, positions/orders/
+>    fills/balance, cancel sweep.
+> 4. **Conservative websocket + ownership wiring**: ping/pong, reconnect,
+>    quarantine after *every* disconnect, resnapshot, reconcile, local fill
+>    reaction, 5s authoritative position overwrite. No DNS-IP fallback.
+
+By that ordering the next unit is `lip-fq7`, the websocket.
+
+**`notes/pilot-plan.md` §7 items 9 and 10, verbatim:**
+
+> 9. **Canary: one market, `S=1`.** The **first directional fill latches
+>    `WINDING_DOWN`** — that bounds the canary to ~$1 without the full P&L kill.
+>    Demonstrate create visibility, verified cancel, fill attribution, zero taker
+>    fees, one-sided reduction, restart adoption.
+> 10. **Raise to `S=12`** after a clean canary. Stop after the first directional
+>     fill and inspect. Build the exact H-HALT-5 P&L kill **before** allowing
+>     repeated unattended fill cycles.
+
+**What §7 does not contain.** No §7 item names the V3 invariants A1–A14. §7.7
+reads "Reduced gates: targeted V1, the scenario exchange, six faults, twelve
+mutations" — V3 is not in that list. `lip-gp8` and `lip-dgg` therefore have no
+§7 step number, while `lip-fq7` is §7.4, `lip-bw0` is §7.5, `lip-6w5` is §7.6,
+`lip-3af` is §7.1 and `lip-b1r` is §3.
+
+**Bead text, verbatim.**
+
+`lip-gp8` — risk: pnl per H-HALT-5 (V1.13):
+
+> pnl = realised + unrealised. realised = sum of signed cash flow over our_fill
+> from the ownership ledger, fees included. unrealised = sum over markets of
+> q*(mark-avg_cost)/100. mark = external_best mid, age <= pnl_mark_max_age_s
+> (30s). LIP rewards, deposits, withdrawals and any foreign flow are EXCLUDED -
+> a reward arrival must not move pnl. If no mark of acceptable age exists the
+> trigger CANNOT be evaluated: SEV2, treat as not-fired, never as
+> fired-or-safe. Exact-threshold tests either side of pnl_kill.
+
+`lip-dgg` — risk: A1-A4, A6-A14 invariants (V3):
+
+> A5 exists; the rest do not. A4 and A8 are the two that encode the probe's
+> defect: A4 requires a resting reducer or in-flight intent while q!=0
+> INCLUDING in SETTLING until final_lead, and an unfundable intent does NOT
+> satisfy it. A8 forbids an adding order resting or in flight in REDUCING.
+> A12/A11 are the aggregate caps. A13 forbids a placement decision from a
+> quarantined/stale book or truth older than truth_max_age_s. A14 ties the disk
+> latch to WINDING_DOWN/DRAINED.
+
+`lip-fq7` — wsx: conservative websocket + ownership wiring (pilot-plan §7.4):
+
+> ping/pong (F1's three-clock ladder), reconnect, quarantine after EVERY
+> disconnect clean or not (H-FAIL-5), resnapshot, portfolio reconcile, local
+> fill reaction, 5s authoritative position overwrite. No DNS-IP fallback
+> (H-DEP-1 deferred). Assert every parsed book price is an exact integer cent
+> (H-CO-3a); on violation SEV2 BOOK_PRICE_GRANULARITY and send that market to
+> REDUCING.
+
+**One dependency the implementer observed and is reporting rather than
+interpreting:** `lip-gp8`'s realised leg is defined over "our_fill from the
+ownership ledger", and no ownership-ledger type exists in `go/harness` today.
+The ownership ledger appears in `lip-6w5` (§7.6, "ownership durable *before*
+dispatch") and in `lip-fq7`'s title ("ownership wiring"). The implementer has
+not decided whether that makes `lip-gp8` blocked, or whether the pure P&L
+function can be written over a caller-supplied fill slice with the ledger
+supplied later.
+
+## WHAT IS NEEDED FROM YOU
+
+1. Name the next unit — one bead ID.
+2. If it is not `lip-fq7`, say whether `notes/pilot-plan.md` §7's ordering is
+   being overridden for this unit or whether §7 is being read as not covering
+   it, and whether the file should be amended.
+3. Specify the unit tightly enough to implement without further interpretation:
+   the package and file layout, the exported surface, what each function
+   consumes and returns, which spec rules each piece must satisfy, and what
+   the tests must discriminate.
+4. Name the negative-control mutations this unit must add to
+   `scripts/harness_negative_control.py`, and for each one what it mutates and
+   which named test must catch it.
+5. State any dependency you are deliberately deferring (for example the
+   ownership ledger under item "One dependency" above) and what stands in for
+   it meanwhile.
+
+Constraints that still bind and that the implementer will not vary: never edit
+`notes/harness-spec.md`; never edit `go/core`, `go/feed`, `go/store`,
+`go/cmd/rig` or any `*.db`; every non-test Go file ends with a
+`// confidence: high` trailer; `scripts/check.py` rejects `t.Skip`; new guards
+go into the negative-control script, not a shell transcript.
+
+Return: DECISION, IMPLEMENTATION DIRECTIVE, ADVANCE: YES or NO, MOBILE RELAY.

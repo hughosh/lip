@@ -1,0 +1,244 @@
+AUDIT GATE — `lip-bw0` (lifecycle safety, pilot-plan §7.5), v2.
+
+You are still the primary driver. This is the repair packet for the ten material
+breaks in your v1 audit, `loop/codex-10-audit.log:9446-9568`. Return FIDELITY and
+CHANGE-SAFETY verdicts.
+
+The sandbox is read-only and the whole tree is present. Read the files directly;
+nothing below is a substitute for them.
+
+## SOURCE INSTRUCTION
+
+Your v1 audit's IMPLEMENTATION DIRECTIVE, `loop/codex-10-audit.log:9483-9554`,
+items 1-9. The packet it answered is `loop/prompt-10-audit.txt`.
+
+## OBSERVED TOOL FACTS — v1 breaks recorded BEFORE the repair
+
+Your item 9 says "First record the new tests failing against v1." Nine of the ten
+breaks were expressible against the v1 API and were recorded failing, in an
+external-package probe deleted before the repair. Verbatim from the run:
+
+    BREAK 1 CONFIRMED: entered WINDING_DOWN with no latch written; a panic and
+      launchd restart resumes adding against the full account
+    BREAK 2 CONFIRMED: a foreign fill produced a completed adoption with the
+      cause handed back for the caller to remember; nothing was latched
+    BREAK 3 CONFIRMED: &lifecycle.Adoption{} compiles externally and yields a
+      non-nil licence asserting a flat account, nothing resting and nothing
+      foreign
+    BREAK 4 CONFIRMED: any caller can grant planned-exit authority with a literal
+      true, with no durable stop having been committed
+    BREAK 5 CONFIRMED: a FOREIGN fill with an unreadable fee is reported as a
+      conversion failure and retried; it never reaches FOREIGN_FILL, and after
+      backfill_h it disappears entirely
+    BREAK 6 CONFIRMED: a cancel sweep ran and the adoption was built from the
+      position read taken BEFORE it; a fill during cancellation leaves q stale
+    BREAK 7 CONFIRMED: an adopted, exchange-fillable order is absent from
+      Portfolio.LiveOrders, so AnyLiveOrder reads false and a drain can be
+      authorised while it rests
+    BREAK 8 CONFIRMED: with both stamps carrying monotonic readings, wallDelta IS
+      monoDelta and the divergence is always ~0; F7 cannot fire in production
+    BREAK 10 CONFIRMED: Summary() hands out the internal slice, so a reporting
+      consumer can mutate the managed set
+
+Break 9 (`M-L-EXISTDURABLE`) could NOT be recorded against v1: demonstrating it
+requires the private sync seam your item 7 asks for, which did not exist. It is
+recorded instead as `M-L-EXISTDURABLE` failing `TestExistingLatchRetryResyncsParentBeforeDurable`
+in the catalogue run below.
+
+Break 8 was independently reproduced outside the harness before the repair:
+
+    synthetic (time.Unix + Add): wallDelta=2h0m0s monoDelta=1s divergence=1h59m59s
+    both from time.Now():        Sub=22.070489ms  hasMonotonic=true
+
+which is the whole finding -- the v1 tests used `time.Unix(...)`, whose Times
+carry no monotonic reading, so `Sub` fell back to wall arithmetic and the tests
+passed while every production call compared the monotonic clock with itself.
+
+## OBSERVED TOOL FACTS — gates
+
+`./loop/gates.sh` from `/Users/hugh/kek/lip`, against a frozen tree:
+
+    PASS  build
+    PASS  vet
+    PASS  gofmt
+    PASS  test-race
+    PASS  check.py
+    PASS  negative-control
+    VERDICT: GREEN
+    ADVANCE_ELIGIBLE: YES
+
+Catalogue: 72 entries. 70 **caught**, 2 **inert, as expected** (`M26`,
+`M-R-ACKCOIDPRESENT`, both pre-existing). 72/72 produce their declared outcome,
+and for all 72 the DECLARED catching test is among the tests that actually
+failed -- checked by parsing the report rather than by reading it.
+
+## AN INTERMEDIATE RED RUN, REPORTED IN FULL
+
+The first 72-entry run was **RED**. `M-L-SWEEP` -- an existing ratchet, not a new
+one -- **SURVIVED**, and the cause was the repair itself.
+
+Your item 5 requires a rewalk after any successful cancel sweep. With that in
+place, `M-L-SWEEP` (which makes `if !res.Clean` unreachable) no longer produces
+"startup fails on the unclean sweep"; it produces "startup accepts the unclean
+sweep, reports orders cancelled, rewalks, sees them again, and eventually
+exhausts the rewalk bound". Both outcomes are a non-nil error, and
+`TestInvalidAdoptedOrdersRequireVerifiedCleanSweep` asserted only `Err != nil`.
+
+The repair weakened an existing test without changing it. That is reported here
+rather than quietly fixed because it is the class of regression the negative
+control exists to find, and because it bears on the bound discussed below.
+
+The test now counts cancel attempts -- refusing an unclean sweep makes exactly
+one, swallowing it makes one per rewalk -- and asserts the error is attributed to
+the sweep. Verified by hand: 4 attempts under the mutation, 1 without. No other
+mutation changed outcome between the two runs.
+
+## HOW EACH DIRECTIVE ITEM WAS IMPLEMENTED
+
+### 1. GlobalController as a real choke point
+
+The guard is stated over the OUTPUT rather than over the arguments, because the
+break was a caller supplying `GlobalInput.Stop` and no cause.
+`GlobalController.Decide` now refuses to return a publishable transition into
+WINDING_DOWN unless the durable state on disk already justifies it:
+
+    if in.Stop && !c.latched {   // zero StopCause
+        -> current state, Committed=false, BlockAdding=true, RetryLatch=true,
+           SEV1 STOP_CAUSE_MISSING, nothing written
+
+Once the latch IS on disk, a causeless `Stop` is permitted -- the durable state
+justifies it. `TestCauselessStopCannotEnterWindingDown` first asserts that the
+control input genuinely produces WINDING_DOWN in `quote.NextGlobal`, so it cannot
+pass vacuously.
+
+### 2. Startup integrated with the controller
+
+`Startup.Run(ctx, quote.GlobalInput, now) Attempt`. `Attempt.State` is gone;
+`Attempt.Decision` is a `GlobalDecision` produced by the controller.
+
+- No cause: `commit` calls `ctrl.Decide` with `TruthReadable=true,
+  Reconciled=true`, so STARTING -> RUNNING is taken by §5.1.
+- Every cause is committed BEFORE the licence is returned. If any commit fails,
+  no Adoption is returned at all and the attempt retries.
+- UNKNOWN_RISK is reached through the state machine: `fail()` sets
+  `in.TruthReadable = consecutiveFailures < 3`, and §5.1's STARTING rule turns
+  that into UNKNOWN_RISK/GTTruthFailed. Nothing assigns a state.
+- A latched process cannot regress: every outcome goes through `Decide`, so A14
+  produces WINDING_DOWN/GTLatch on failing AND succeeding attempts.
+  `TestLatchedStartupFailureCannotRegressToStartingOrUnknownRisk` covers both.
+
+### 3. Adoption sealed
+
+`Adoption` is now an exported INTERFACE with the eleven accessors plus an
+unexported `isAdoption()`; `adoption` is the private concrete type;
+`Attempt.Adoption` is the interface and its zero value is nil. `Summary()`
+deep-copies the position map and all three slices via `StartupSummary.clone()`.
+
+The seal test asserts the KIND is an interface, that at least one method is
+unexported, that the exported surface matches an eleven-name allowlist, and that
+`var lifecycle.Adoption` and `lifecycle.Attempt{}.Adoption` are both nil.
+
+### 4. Planned-exit authority bound to a durable stop
+
+`DrainPermit` has three private fields and an invalid zero value.
+`NewSignalController(*GlobalController)`; `Handle` sets `in.Stop = true`, calls
+`Decide`, and issues the permit ONLY on `Committed`. `Begin(bool, ...)` is
+replaced by `BeginPlanned(DrainPermit, mono) error` -- which rejects an invalid
+permit -- and `BeginUnplanned(mono)`, which escalates and can never authorise an
+exit.
+
+One behaviour is an interpretation and is flagged: `BeginPlanned` on an ALREADY
+STARTED unplanned drain upgrades it to planned without restarting the escalation
+clock (`TestSignalDuringAnUnplannedDrainCanStillAuthoriseTheExit`). The argument
+written in is that an operator who signals a harness already winding down from a
+taker fill has asked for the process to end once it is safe to, and that refusing
+would make the signal inert exactly when it is most deliberate. If you consider
+that out of scope, it comes out.
+
+### 5. Startup consistency
+
+- `ForeignGuard.Classify` runs on the RAW `rest.Fill` slice before anything is
+  converted; `convertStartupFills` then runs only over `fe.OwnedFills`.
+- A foreign fill with a missing or malformed fee therefore still produces
+  `SEV1 FOREIGN_FILL`, is excluded from owned history, and latches
+  `foreign_fill`. An unreadable fee on a fill that IS ours remains a hard startup
+  failure. Both halves are asserted in
+  `TestForeignFillWithUnusableFeeStillLatches`.
+- `Startup.walk` loops: a pass that cancelled anything discards its result,
+  raises `SEV2 STARTUP_REWALK`, and reruns all four reads WITHOUT incrementing
+  the failure counter.
+- The final no-cancel pass installs every kept order via
+  `portfolio.ReplaceOrders(keptAsLive(kept), nil, true)`. `foreign` is passed nil
+  on purpose: no foreign or cancelled order enters our model, and `ForeignGuard`
+  has already raised their anomaly, so passing them would double-report.
+- `managedSet` takes the KEPT orders rather than every owned resting order.
+
+**The rewalk bound is an addition and is flagged.** `maxSweepRewalks = 3`.
+Termination does not depend on it: `Clean` means a complete verifying read found
+none of the requested orders resting, and an order the exchange confirmed absent
+cannot come back, so an honest source cancels nothing on the rewalk. The bound
+exists because an unbounded loop in a startup path is a hang rather than an
+error. It is also what turned the `M-L-SWEEP` regression above into a survived
+mutation rather than a hang, which is the strongest argument for it and also the
+reason it deserves your adjudication rather than mine.
+
+### 6. Wall source unambiguous
+
+`SleepDetector.Observe(wallMillis int64, mono time.Duration)`. The test asserts
+by reflection that no parameter is a `time.Time`, since the signature IS the fix.
+The strict `> 5s` boundary and the backward-step behaviour are unchanged and
+still asserted.
+
+### 7. Latch retry durability
+
+`FileLatch.syncDirFn` is a private seam defaulted in the constructor. The EEXIST
+branch now runs the parent sync before returning durable, and returns
+not-durable if it fails. `TestExistingLatchRetryResyncsParentBeforeDurable` fails
+the first sync, asserts the first Ensure reports not-durable, asserts the file
+nonetheless exists (so the EEXIST path is genuinely exercised), then asserts the
+retry syncs a second time and only then reports durable.
+
+### 8. Prose
+
+`GlobalDecision.Committed`'s comment now reads "a transition was returned FOR
+PUBLICATION". `M-L-ADOPTORDER`'s catalogue description now reads "§7.5's fixed
+acquisition sequence is violated" rather than claiming it replays fills.
+
+### 9. Ratchets, 62 -> 72
+
+All ten added with the IDs and named catchers you specified. Four EXISTING
+anchors were retargeted because the refactor moved them, and nothing was removed,
+renamed or weakened:
+
+- `M11` -- `attempt` now returns four values and the concrete type is private.
+- `M-L-ADOPTORDER` -- `var anoms []risk.Anomaly` now appears in `walk` as well as
+  `attempt`, so the hoist anchors on `attempt`'s signature instead.
+- `M-L-RETRYEXIT` -- `fail()` no longer assigns `Attempt.State`; it now anchors on
+  the threshold branch.
+- `M-L-DRAINEXIT` -- `d.planned` became `d.permit.Valid()`.
+
+The splice was again made by locating `MUTATIONS` with `ast.parse`, splicing at
+`end_lineno`, re-parsing, asserting the count moved by exactly 10, and asserting
+every anchor in all 72 entries appears EXACTLY ONCE in its file.
+
+## WHAT TO CHECK
+
+1. The rewalk bound `maxSweepRewalks = 3` (§5 above) -- an addition to your
+   directive, and the thing that converted a swallowed unclean sweep into a
+   survived mutation.
+2. `BeginPlanned` upgrading an in-progress unplanned drain (§4 above).
+3. Whether `TestInvalidAdoptedOrdersRequireVerifiedCleanSweep`'s new
+   cancel-attempt count is the right discriminator, or whether the unclean sweep
+   should fail before the rewalk can ever be reached by construction.
+4. Whether passing `nil` foreign orders to `ReplaceOrders` (§5 above) loses
+   anything, given `ForeignGuard` already reports them.
+5. Anything else you consider DRIFT or NEW-BREAK.
+
+Please answer with:
+
+    FIDELITY: FAITHFUL or DRIFT
+    CHANGE-SAFETY: CLEAN or NEW-BREAK
+    DECISION
+    IMPLEMENTATION DIRECTIVE
+    ADVANCE: YES or NO
+    MOBILE RELAY

@@ -1,0 +1,235 @@
+STEP-BACK DEEP DIVE — `lip-bw0` (lifecycle safety, pilot-plan §7.5), round 12.
+
+**This is not an audit gate.** Nothing has been implemented since your v2 audit.
+The tree you audited as `loop/codex-11-audit2.log` is the tree that is on disk
+now, unchanged. Do not re-audit it.
+
+The operator has interrupted the loop before implementation of your v2 directive
+and is asking you to STEP BACK and adjudicate a question about the unit itself.
+You remain the primary driver.
+
+The sandbox is read-only and the whole tree is present. Read the files directly;
+nothing below is a substitute for them.
+
+## USER STATEMENT — verbatim, the reason this round exists
+
+    Do NOT start implementing Codex's v2 repair directive yet. First get Codex to
+    do a STEP-BACK DEEP DIVE on why `lip-bw0` has now failed two audit rounds,
+    and to course-correct the plan if the remaining breaks point at a design
+    problem rather than three independent bugs.
+
+    [...] Ask Codex explicitly whether the residue is three independent bugs or
+    evidence that `Startup`/`GlobalController`'s division of responsibility is
+    wrong, and whether the v2 directive should be revised, replaced, or split
+    into a separate bead.
+
+Two of the protocol's three audit cycles are used. The operator chose to spend
+the third on this adjudication rather than on implementation.
+
+## THE LEDGER — two rounds, same unit
+
+### Round 1: your v1 audit, `loop/codex-10-audit.log:9446-9568`
+
+Verdict: FIDELITY DRIFT / CHANGE-SAFETY NEW-BREAK. Ten material breaks. Your
+DECISION opened: "Reject v1 and keep `lip-bw0` open. The reported 62/62 catalogue
+does not cover several reachable composition failures."
+
+The ten breaks, verbatim headline clauses:
+
+ 1. `GlobalController.Decide` accepts `GlobalInput.Stop=true` with a zero
+    `StopCause`, returns `WINDING_DOWN/GTStop` as committed, and writes no latch.
+ 2. `Startup.Run` never uses its controller. It returns causes for a caller to
+    remember and directly manufactures `Starting`/`UnknownRisk` instead of going
+    through `NextGlobal`.
+ 3. The claimed Adoption seal is false. `new(lifecycle.Adoption)` constructs a
+    non-nil zero "licence" despite every field being private.
+ 4. `DrainTracker.Begin` accepts an arbitrary `planned bool`; `SignalController`
+    grants it before the latch is attempted.
+ 5. Startup converts all fills before classifying ownership.
+ 6. A clean startup cancel sweep is followed immediately by constructing
+    Adoption; a fill during cancellation leaves the initial position stale.
+ 7. **Kept orders are returned separately but never installed into
+    `Portfolio.LiveOrders`. The process can calculate `AnyLiveOrder=false`,
+    duplicate an adopted order, or authorize drain while an exchange-fillable
+    order remains.**
+ 8. `SleepDetector.Observe` calls `time.Time.Sub` on values carrying monotonic
+    readings.
+ 9. `FileLatch.Ensure` returns durable immediately on `EEXIST`.
+10. `Summary()` returns maps and slices aliasing internal Adoption state.
+
+All ten were implemented in full per your nine-item directive. Nine were first
+recorded failing against v1 in an external-package probe; the tenth
+(`M-L-EXISTDURABLE`) required the private sync seam your directive asked for and
+was recorded in the catalogue instead. Catalogue went 62 -> 72. Gates GREEN.
+
+### Round 2: your v2 audit, `loop/codex-11-audit2.log:8779-8859`
+
+Verdict: FIDELITY DRIFT / CHANGE-SAFETY NEW-BREAK again. Your DECISION opened:
+"Keep `lip-bw0` open. The ten repairs exist, but three reachable composition
+failures remain. Their unsafe forms are present in the current GREEN tree, so
+72/72 is already their survivor result."
+
+The three residual breaks, verbatim:
+
+ 1. Stop causes are committed only after the entire walk succeeds at
+    `adopt.go:384`. A balance error precedes classification, while owned-fill
+    conversion, policy, and sweep errors can occur after a foreign cause is
+    discovered but before commitment. After `backfill_h`, that fill disappears
+    and startup can resume against the full $100 account without a latch.
+
+ 2. Startup decisions use stale zero risk fields. Multiple causes roll the state
+    from `WINDING_DOWN` into `DRAINED` at `adopt.go:424`, despite the Adoption
+    containing inventory or resting orders. Failed-retry tests repeatedly supply
+    a fresh `STARTING` input at `repair_test.go:161`, rather than feeding back
+    the returned state. A latched restart can therefore report `DRAINED` with up
+    to the full account unobserved for the duration of a REST outage.
+
+ 3. H-ORD-5c lacks necessary lifecycle facts. The policy receives the raw
+    selected set and no indication that adding authority was revoked at
+    `adopt.go:629`; the managed set also uses raw selection at `adopt.go:696`. A
+    loaded/new latch or foreign-order exclusion can therefore preserve an adding
+    order worth about $1 during canary or $12 after promotion.
+
+Your v2 IMPLEMENTATION DIRECTIVE is six items expecting 76/76 and four new
+ratchets (`M-L-CAUSEFAIL`, `M-L-FALSEFLAT`, `M-L-STOPKEEP`, `M-L-EXCLUDESELECT`),
+plus a retarget of `M-L-STARTUPCAUSE`. **None of it has been implemented.**
+
+### Choices you ACCEPTED in v2, verbatim
+
+- Three bounded rewalks are safe because exhaustion returns no Adoption and
+  enters the indefinite outer retry.
+- A durable SIGTERM/SIGINT permit may upgrade an unplanned drain without
+  resetting its clock.
+- The strengthened one-attempt sweep assertion correctly catches `M-L-SWEEP`.
+- Passing `nil` foreign orders to `ReplaceOrders` loses only duplicate
+  reporting; `ForeignGuard` remains authoritative.
+
+## OBSERVED TOOL FACTS
+
+These are raw tool outputs, transported without interpretation. They are offered
+as evidence for your adjudication, not as an argument for any conclusion.
+
+### Gates, against the frozen current tree
+
+`./loop/gates.sh` from `/Users/hugh/kek/lip`:
+
+    PASS  build
+    PASS  vet
+    PASS  gofmt
+    PASS  test-race
+    PASS  check.py
+    PASS  negative-control
+    VERDICT: GREEN
+    ADVANCE_ELIGIBLE: YES
+
+Catalogue: 72 entries, 70 caught, 2 inert-as-expected (`M26`,
+`M-R-ACKCOIDPRESENT`, both pre-existing). 72/72 produce their declared outcome,
+and for all 72 the DECLARED catching test is among the tests that actually
+failed, checked by parsing the report rather than reading it.
+
+### Writers of the two risk fields named in your v2 break 2
+
+    $ grep -rn "AnyLiveOrder:\|AnyInventory:\|AnyLiveOrder =\|AnyInventory =" go/
+    go/harness/lifecycle/drain_test.go:112:  State: quote.Running, AnyInventory: true, AnyLiveOrder: true,
+    go/harness/lifecycle/drain_test.go:138:  TruthKnown: true, AnyInventory: true, AnyLiveOrder: true,
+    go/harness/lifecycle/drain_test.go:238:    DrainObservation{TruthKnown: true, AnyInventory: true}, false},
+    go/harness/lifecycle/drain_test.go:240:    DrainObservation{TruthKnown: true, AnyLiveOrder: true}, false},
+    go/harness/lifecycle/drain_test.go:295:  obs := DrainObservation{TruthKnown: true, AnyInventory: true}
+    go/harness/lifecycle/drain_test.go:358:  eff := d.Observe(DrainObservation{TruthKnown: true, AnyInventory: true},
+    go/harness/lifecycle/drain_test.go:402:  in := quote.GlobalInput{State: quote.Running, AnyInventory: true}
+    go/harness/lifecycle/drain_test.go:432:  obs := DrainObservation{TruthKnown: true, AnyInventory: true}
+    go/harness/quote/machine_test.go:396:            Stop: stop, AnyInventory: inv,
+    go/harness/quote/machine_test.go:472: got, trig := NextGlobal(GlobalInput{State: WindingDown, AnyInventory: false})
+    go/harness/quote/machine_test.go:477: if got, _ := NextGlobal(GlobalInput{State: WindingDown, AnyInventory: true}); got != WindingDown {
+    go/harness/quote/machine_test.go:484: got, trig = NextGlobal(GlobalInput{State: Drained, AnyInventory: true})
+    go/harness/quote/machine_test.go:687:            AnyInventory: tc.inventory,
+    go/harness/quote/machine_test.go:688:            AnyLiveOrder: tc.liveOrder,
+    go/harness/quote/machine_test.go:701: got, trig := NextGlobal(GlobalInput{State: Drained, AnyLiveOrder: true})
+
+Every hit is in a `_test.go` file. There is no non-test assignment of either
+field anywhere in `go/`.
+
+### The startup test input
+
+    go/harness/lifecycle/stub_test.go:328:
+    func startingInput() quote.GlobalInput {
+        return quote.GlobalInput{State: quote.Starting}
+    }
+
+Every field other than `State` is the zero value.
+
+### Call sites of `Startup.Run` in the package's tests
+
+25 call sites across `repair_test.go`, `foreign_test.go` and `adopt_test.go`.
+All 25 pass `startingInput()`. `repair_test.go:161`, which your v2 break 2 names,
+is one of them; the enumeration is:
+
+    repair_test.go:101,132,162,179,226,255,285,310,360,392,542
+    foreign_test.go:35,98,219
+    adopt_test.go:60,88,212,263,310,329,365,426,479,515,575
+
+### Production callers of `Startup`
+
+    $ grep -rn "Startup\b" go/harness go/cmd --include="*.go" | grep -v _test.go
+
+returns only definitions and comments inside `go/harness/lifecycle` itself, plus
+`PhaseStartup` in `foreign.go`. `lip-bw0` has no production consumer: the bead it
+blocks, `lip-3af` ("Wire cmd/harness, pilot-plan §7.1"), is the unit that would
+construct and drive `Startup`, and it is not started.
+
+### Provenance of the tests named in your v2 break 2
+
+`repair_test.go` is 585 lines and contains exactly the eleven tests written by
+the implementer during the v1 repair, one per break plus the causeless-stop
+test:
+
+    TestCauselessStopCannotEnterWindingDown
+    TestStartupCommitsEveryCauseBeforeReturningDecision
+    TestStartupWithNoCauseReachesRunningThroughTheStateMachine
+    TestLatchedStartupFailureCannotRegressToStartingOrUnknownRisk
+    TestExternalCodeCannotForgeCompleteAdoption
+    TestForeignFillWithUnusableFeeStillLatches
+    TestStartupRewalksAfterEveryCancelSweep
+    TestStartupPortfolioContainsEveryKeptOrder
+    TestSleepDetectorUsesIndependentWallTime
+    TestExistingLatchRetryResyncsParentBeforeDurable
+    TestStartupSummaryIsADeepCopy
+
+Your v2 break 2 states that these tests "mask the defect". They are the
+implementer's work product for your v1 directive, not pre-existing tests.
+
+### One prior instance of a repair weakening an existing ratchet
+
+Recorded in the v2 packet and already adjudicated by you. The rewalk repair made
+`M-L-SWEEP` SURVIVE: both the mutated and unmutated paths returned a non-nil
+error and the test asserted only `Err != nil`. It was caught by re-running the
+full catalogue after the behavioural change, not by the gates.
+
+## WHAT TO DECIDE
+
+The operator's question is above, verbatim. Answer it directly. In particular:
+
+1. Are the three residual v2 breaks three independent bugs, or are they faces of
+   a single design problem in how `Startup` and `GlobalController` divide
+   responsibility? Say which, and say what the evidence is.
+
+2. Does the two-round pattern — ten breaks, then three more on the same unit
+   after a full and faithful repair — indicate that the unit's decomposition is
+   wrong, that the audit is working as intended, or something else?
+
+3. Should your v2 IMPLEMENTATION DIRECTIVE be implemented as written, revised,
+   replaced, or split into a separate bead? If it should change, author the
+   replacement.
+
+4. If the residue implicates the tests written for the v1 repair, say whether
+   the remedy is confined to the tests your v2 break 2 names or whether a
+   test-methodology change is required across the package.
+
+5. Anything else you consider load-bearing that this packet did not ask about.
+
+The implementer will not begin v3 until you have answered. Please answer with:
+
+    DECISION
+    IMPLEMENTATION DIRECTIVE
+    ADVANCE: YES or NO
+    MOBILE RELAY

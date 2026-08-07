@@ -1,0 +1,325 @@
+AUDIT GATE — `lip-bw0` (lifecycle safety, pilot-plan §7.5), v1.
+
+You are still the primary driver. This is the audit packet for your directive in
+`loop/codex-09.log:9080-9427`. Return FIDELITY and CHANGE-SAFETY verdicts.
+
+The sandbox is read-only and the whole tree is present. Read the files directly;
+nothing below is a substitute for them.
+
+## SOURCE INSTRUCTION
+
+Your own IMPLEMENTATION DIRECTIVE, `loop/codex-09.log:9080-9427`, sections 1-13.
+The prompt it answered is `loop/prompt-09.txt`.
+
+## WHAT WAS WRITTEN
+
+New package `go/harness/lifecycle` (every file new; the package did not exist):
+
+    doc.go        64   package boundary, the deferral ledger
+    latch.go     265   LatchRecord, LatchStore, FileLatch, latchInvalid
+    global.go    222   StopCause, GlobalDecision, BootstrapEffects,
+                       GlobalController
+    adopt.go     633   PortfolioSource, AdoptionDecision, AdoptionPolicy,
+                       CancelSweeper, AdoptionFacts, Adoption, StartupSummary,
+                       Startup, Attempt, managedSet, convertStartupFills
+    foreign.go   203   Phase, ForeignEffects, ForeignGuard
+    drain.go     229   SignalEffects, SignalController, DrainObservation,
+                       DrainEffects, DrainTracker, nextEscalation
+    lock.go      125   InstanceLock, AcquireInstanceLock
+    sleep.go     132   SleepEffects, SleepDetector
+    launchd.go   213   LaunchdPlan, Validate, Command, Render
+
+    stub_test.go     294
+    latch_test.go    308
+    adopt_test.go    557
+    foreign_test.go  265
+    drain_test.go    286
+    lock_test.go     123
+    sleep_test.go    141
+    launchd_test.go  170
+    seal_test.go     181   package lifecycle_test — EXTERNAL
+
+Modified outside the package, and this is the ONLY such edit:
+
+    go/harness/risk/position.go:145-176   NewSeededPortfolio added, immediately
+                                          above Q(). Nothing else in the file
+                                          was touched.
+    go/harness/risk/position_test.go:602-691
+                                          two tests appended.
+
+Modified: `scripts/harness_negative_control.py`, seventeen mutations appended,
+45 -> 62. No existing entry was touched. Regenerated:
+`notes/harness-negative-control.md`, `notes/harness-negative-control.partial.md`.
+
+`bd`: `lip-3af` now depends on `lip-bw0`, `lip-6w5` and `lip-0qj`. `lip-bw0` is
+NOT closed and nothing is committed.
+
+Nothing else was edited. `cmd/harness`, `wsx`, `rest`, `quote`, `cfg`, `core`,
+`feed`, `store`, `cmd/rig` and `notes/harness-spec.md` are unchanged.
+
+## OBSERVED TOOL FACTS — gates
+
+`./loop/gates.sh` from `/Users/hugh/kek/lip`, against a frozen tree:
+
+    PASS  build
+    PASS  vet
+    PASS  gofmt
+    PASS  test-race
+    PASS  check.py
+    PASS  negative-control
+    VERDICT: GREEN
+    ADVANCE_ELIGIBLE: YES
+
+Catalogue: 62 entries. 60 **caught**, 2 **inert, as expected** (`M26`,
+`M-R-ACKCOIDPRESENT` — both pre-existing). 62/62 produce their declared
+outcome. Every one of the seventeen new mutations is caught, and in every case
+the declared catching test is among the tests that failed.
+
+## HOW EACH SECTION OF THE DIRECTIVE WAS IMPLEMENTED
+
+### §1 Package and files
+
+All nine files created with the names you gave. Every production file carries a
+`// confidence: high` trailer. The additive constructor is
+`risk.NewSeededPortfolio(map[string]num.Qty) *Portfolio`: it copies non-zero
+positions into a fresh portfolio, drops flat entries rather than storing zeros,
+and touches neither `driftStreak` nor `seenTrade` nor `orders`.
+
+Its rationale, as written in the doc comment: startup cannot use
+`ReplacePositions`, because that function compares a poll against a prior belief
+and at startup there is no prior belief. A fresh `Portfolio` has an empty `q`, so
+every non-zero position the exchange reports reads as a full-magnitude delta —
+on any account holding more than `pos_drift_hard`, an immediate SEV1
+`POSITION_DRIFT` and a global stop, fired by the act of starting up correctly on
+the exact path H-ORD-5 calls normal after a SIGKILL.
+`TestSeededPortfolioAdoptsWithoutManufacturingDrift` asserts that contrast
+directly: the same input through `ReplacePositions` on a fresh portfolio DOES
+set `Stop`.
+
+### §2 Durable latch
+
+`LatchRecord`, `LatchStore`, `FileLatch`, `NewFileLatch` exactly as specified.
+
+- `Load` returns `(rec, false, nil)` for `os.IsNotExist` and NOTHING else.
+- Empty, truncated, JSON null, empty object, wrong version, missing trigger,
+  non-positive timestamp and unknown fields all return `present=true` plus an
+  error. `DisallowUnknownFields` supplies the diagnostic; the verdict is still
+  latched.
+- `Ensure` is `O_WRONLY|O_CREATE|O_EXCL` at 0600, then Write, `Sync`, `Close`,
+  then `syncDir` on the parent. `os.IsExist` returns `(true, nil)` and leaves
+  the existing file untouched.
+- There is no exported clear, remove, reset, overwrite or resume, on the struct
+  or on the interface.
+- `NewFileLatch` requires an ABSOLUTE path. That is an addition to your section
+  and is flagged for adjudication: the argument written into the code is that a
+  relative latch is resolved against whatever directory the supervisor started
+  the process in, so a halt written to one directory and read from another
+  self-clears. If you consider it out of scope, say so and it comes out.
+
+### §3 Write-before-transition controller
+
+`StopCause`, `GlobalDecision`, `BootstrapEffects`, `NewGlobalController`,
+`Decide`, with the field sets you gave.
+
+- `NewGlobalController` calls `store.Load()` immediately. A load error does not
+  fail construction — it bootstraps `Latched=true`, `BlockAdding=true`,
+  `RetryLatch=true`, `SEV1 LATCH_INVALID`. The reason written into the code:
+  failing construction leaves the process with no controller, which is a process
+  that cannot latch the stop it is in the middle of discovering.
+- `NewStartup` requires a controller with a private `booted` flag set, which only
+  `NewGlobalController` sets. `&GlobalController{}` and `nil` are both refused.
+  That is the "may only be constructed from an already-bootstrapped controller"
+  requirement.
+- `Decide` order: validate cause -> `Ensure` -> set cached `Latched` -> call
+  `quote.NextGlobal` -> return.
+- On persistence failure: `Committed=false`, `BlockAdding=true`,
+  `RetryLatch=true`, `SEV1 LATCH_WRITE_FAILED`. **The in-memory transition is NOT
+  taken**; `dec.State` is the input state. This is an interpretation of your
+  section and is flagged: your text says "return the current state with
+  Committed=false", which the code reads as the state not advancing. The
+  argument written in is that a process sitting in WINDING_DOWN believing it
+  latched would restart into a directory with no file and resume adding — HR-009
+  with the harness having been told the write failed.
+- A malformed `StopCause` (empty trigger, non-positive timestamp) is NOT dropped:
+  same blocked-adding, retry-requested shape, and nothing reaches the disk.
+- A zero `StopCause` means "no stop requested" and passes the input through, which
+  is how STARTING -> RUNNING and WINDING_DOWN -> DRAINED are taken.
+
+### §4 Startup adoption
+
+Interfaces as specified. `PortfolioSource` matches `*rest.Client`'s method set.
+`AdoptionUnset` is the zero value and is refused with an error naming H-ORD-5c.
+`AdoptionFacts.clone()` deep-copies the position map and both slices;
+`TestAdoptionFactsAreDefensiveCopies` runs a policy that mutates its facts and
+asserts `q` is unmoved.
+
+The nine steps run in order. Reads are unfiltered (`""` ticker) and orders use
+`rest.StatusResting`. Fills go back `now - params.Backfill`.
+
+Foreign classification runs BEFORE the portfolio sees anything, and only
+`fe.OwnedFills` are converted and passed to `ApplyFills`. That is a decision
+flagged for adjudication: `risk.Portfolio.ApplyFills` ALREADY classifies against
+the same ledger and already emits `FOREIGN_FILL` + `Stop`. Passing the full walk
+would emit the anomaly twice for one fill. Filtering to owned first means
+`ApplyFills` still supplies H-ORD-8's taker and non-zero-fee stops for the fills
+that are ours — which is your "owned taker fills or positive fees continue to use
+the existing `risk.Portfolio` stop effects" — while `ForeignGuard` owns the
+foreign half. If you want the duplicate instead, say so.
+
+`Adoption` has ten private fields and eleven read-only accessors, plus
+`StartupSummary`. `Causes()` carries both the guard's causes and a
+`startup_fill_history` cause when `ApplyFills` reports `Stop` (an owned taker
+fill or a side contradiction in the backfill).
+
+Managed set is the union of selected, non-zero positions, and owned resting
+orders, sorted. Every non-zero position gets `quote.Reducing` including
+unselected markets; everything else in the managed set gets `quote.Idle`.
+Foreign orders never reach the policy or the sweeper. A foreign-only ticker is
+excluded and unmanaged; a ticker with both a foreign order and our inventory is
+excluded AND managed AND reducing
+(`TestForeignOnlyTickerWithInventoryStaysManagedAndReducing`).
+
+No failure returns a partial adoption: eight distinct failure paths are
+table-tested and every one asserts `Adoption == nil`.
+
+### §5 Retry semantics
+
+`startupFailureThreshold = 3`, private, in `adopt.go`. `cfg.Params` is unchanged.
+
+Failures 1 and 2 stay `quote.Starting`. The third and every subsequent one is
+`quote.UnknownRisk` plus `SEV1 STARTUP_RECONCILE_FAILED`. `Retry` is true on
+every failure and there is no exhausted or terminal outcome. Backoff is
+1,2,4,8,16,32,60 then 60 forever. A success resets the counter and the ladder.
+
+The threshold is pinned by BEHAVIOUR: `TestUnknownRiskBeginsOnThirdFailureAndRetriesForever`
+writes the literal `3` rather than referencing `startupFailureThreshold`. This
+was a defect found during implementation — the test originally referenced the
+constant, which made `M-L-RETRYTHRESH` (3 -> 1) pass silently. It was verified
+failing under the mutation after the fix.
+
+### §6 Foreign activity
+
+`Phase` with `PhaseUnset` as the zero value, classified as live. Startup foreign
+order: `SEV2 FOREIGN_ORDER`, ticker excluded, never cancelled, no cause. Live or
+unset: `SEV1`, no exclusion, a `foreign_order` cause, still never cancelled. Any
+foreign fill in any phase: excluded from owned, `SEV1 FOREIGN_FILL`, a
+`foreign_fill` cause. `NewForeignGuard(nil)` is an error.
+
+Orders are classified by `rest.Order.Ours` (the coid, §7.5 step 5); fills by the
+ledger (`order_id`, H-ORD-9). The reason written in: a resting order is something
+we can look at, whereas a fill is history whose order may be long gone —
+including a previous incarnation's, which a run-scoped coid check would call
+foreign.
+
+`TestForeignFillAtStartupLatchesBeforeReconciliationCanExposeRunning` proves the
+ordering claim of §3 end to end: it first asserts the control input produces
+RUNNING without a latch, then asserts the same input through `Decide` with the
+foreign-fill cause produces WINDING_DOWN/GTLatch.
+
+### §7 Signals and draining
+
+`SignalController.Handle(os.Signal, quote.GlobalInput, int64, time.Duration)`
+with the signature you gave. SIGINT and SIGTERM both recognised, both
+`PlannedDrain`, both a durable cause. SIGWINCH is inert. No `signal.Notify` and
+no `os.Exit` in production code.
+
+`DrainTracker.Observe` authorises exit only on `planned && TruthKnown &&
+!AnyInventory && !AnyLiveOrder`. There is no code path from the timeout to
+`ExitAuthorised`. Escalation: first `SEV1 DRAIN_TIMEOUT` at `DrainTimeout`, then
+halving with a floor of `min(1h, DrainTimeout)`, forever. A second `Begin` does
+not restart the clock.
+
+The SIGTERM test is a subprocess test as directed: the binary re-executes itself,
+the child raises a real SIGTERM at itself, handles it, drives the drain 100x past
+`drain_timeout_h` with inventory open, and prints
+`ALIVE_AFTER_SIGTERM_WITH_INVENTORY`. The parent asserts on the MARKER, not the
+exit code — `os.Exit(0)` exits zero and would otherwise read as success. This was
+verified by hand: splicing `os.Exit(0)` into the SIGTERM branch makes the test
+fail on the missing marker.
+
+### §8 Single-instance lock
+
+Absolute path required, 0600, `syscall.Flock(LOCK_EX|LOCK_NB)`, descriptor
+retained on the struct, PID written and synced only after the lock is held.
+Nothing reads, trusts or signals a PID. `Close` unlocks and closes without
+removing the path.
+
+`TestInstanceLockExcludesASecondProcessAndAllowsAStalePID` covers both halves:
+it seeds a stale file containing PID 999999 and asserts acquisition succeeds
+(the V4.17 restart case), then re-executes the binary as a genuine second
+PROCESS and asserts it is refused — `flock` is per-open-file-description, so an
+in-process second lock would succeed and prove nothing.
+
+### §9 Host-sleep detector
+
+Paired wall/monotonic samples, first establishes the baseline. Divergence
+strictly greater than 5s emits `SEV2 HOST_SLEEP_OR_STALL` with `Resnapshot`,
+`ReconcileNow` and `Downtime`. Exactly 5s does not fire (asserted). A backward
+wall step past the threshold sets `Resnapshot` and `ReconcileNow` but records
+zero downtime and zero `Gap`. No reference to `wsx` anywhere in the file.
+
+### §10 launchd/caffeinate
+
+`LaunchdPlan.Command()` is `[/usr/bin/caffeinate, -is, <exe>, args...]`.
+`Render()` validates then emits through `encoding/xml`. `Validate` requires a
+non-empty label and absolute exec, working-directory, stdout and stderr paths,
+and rejects `nohup`, `sh`, `bash`, `zsh`, `env`, `open`, `script` in the
+executable or any argument. KeepAlive and RunAtLoad are asserted as key-then-true
+PAIRS, since a key-presence check would pass `M-L-KEEPALIVE`. Nothing is written
+to disk.
+
+### §11 Tests
+
+All seventeen named tests exist under those exact names, plus eleven supporting
+tests. `seal_test.go` is `package lifecycle_test` and inspects value and pointer
+method sets for `FileLatch`, `LatchStore`, `Adoption` and `DrainTracker`, pins
+`Adoption`'s exported surface to an eleven-name allowlist, and asserts the zero
+`Phase` and zero `AdoptionDecision` are the conservative ones.
+
+### §12 Ratchets
+
+All seventeen appended, 45 -> 62, no existing entry touched. The splice was made
+by locating the `MUTATIONS` list with `ast.parse`, splicing at `end_lineno`,
+re-parsing, and asserting the element count moved by exactly 17 and that every
+new `old` anchor appears EXACTLY ONCE in its file — `str.replace` silently no-ops
+on a missing anchor and would otherwise record a mutation as "survived".
+
+Two entries deviate mechanically from your one-line descriptions and are flagged:
+
+- `M-L-LOCK` is implemented as `err != nil && false` rather than as a deleted
+  branch, following `M14b`'s existing `} else if false {` precedent, so it
+  compiles and stays production-only.
+- `M-L-ADOPTORDER` needs three patches to one file rather than one: hoist a
+  `var orders rest.OrdersResult`, move the `Orders` call above `Positions`, and
+  delete the original `orders :=` line. A single-anchor swap would not compile.
+
+`M4`/`M12` were not aliased and `M2`, `M13`, `M19`, `M21` were left alone, as
+directed.
+
+### §13 Deferrals
+
+`doc.go` names every one of them. Enforcement is by constructor rather than by
+comment: `NewForeignGuard(nil)`, `NewGlobalController(nil)`, `NewStartup` with a
+nil source, policy or sweeper all return errors. There is no in-memory ledger, no
+permissive default policy and no no-op sink anywhere in the package.
+
+## WHAT TO CHECK
+
+The four flagged interpretations above, in particular:
+
+1. `Decide` NOT taking the in-memory transition on a latch-write failure.
+2. Filtering to owned fills before `ApplyFills` to avoid a duplicate
+   `FOREIGN_FILL`.
+3. `NewFileLatch` requiring an absolute path (an addition to your section).
+4. `M-L-LOCK` and `M-L-ADOPTORDER`'s mechanical form.
+
+And anything else you consider DRIFT or NEW-BREAK.
+
+Please answer with:
+
+    FIDELITY: FAITHFUL or DRIFT
+    CHANGE-SAFETY: CLEAN or NEW-BREAK
+    DECISION
+    IMPLEMENTATION DIRECTIVE
+    ADVANCE: YES or NO
+    MOBILE RELAY

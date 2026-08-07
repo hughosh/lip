@@ -39,6 +39,8 @@ GO_BIN = "/usr/local/bin/go"
 
 PKGS = ["./harness/...", "./cmd/harness/..."]
 
+STRICT_COID_BLOCK = '\techoedRaw, ok := rec["client_order_id"]\n\tif !ok {\n\t\treturn ack{}, fmt.Errorf("2xx with no client_order_id: the measured "+\n\t\t\t"acknowledgement carries one, and without it this response cannot "+\n\t\t\t"be tied to the order we sent (%q)", coid)\n\t}\n\tif isJSONNull(echoedRaw) {\n\t\treturn ack{}, fmt.Errorf("2xx with a null client_order_id (we sent %q)",\n\t\t\tcoid)\n\t}\n\techoed := scalar(echoedRaw)\n\tif echoed == "" {\n\t\treturn ack{}, fmt.Errorf("2xx with an empty client_order_id (we sent %q)",\n\t\t\tcoid)\n\t}\n\tif echoed != coid {\n\t\treturn ack{}, fmt.Errorf("2xx echoes client_order_id %q but we sent "+\n\t\t\t"%q; this response is about a different order", echoed, coid)\n\t}'
+
 # (id, mutation name, [(relpath, old, new), ...], expected catching test)
 #
 # Every `old` must appear EXACTLY ONCE in its file.
@@ -120,6 +122,1084 @@ MUTATIONS = [
           "\t\treturn Qty(math.Floor(scaled))"),
      ],
      "TestQtyRoundTripAndFormat"),
+
+    # ------------------------------------------------------------------
+    # harness/rest, round 4. Every entry below was a SURVIVOR or a defect
+    # found by the codex red-team pass recorded in loop/out-04-rest.md, and
+    # each is here rather than in a shell transcript because a hand-run
+    # mutation is evidence today and a ratchet never. Two of them (M-R-POST,
+    # M-R-200) survived all 68 tests at the time they were found.
+    #
+    # The original exported-field form of M-R-POST -- `body.PostOnly = false`
+    # in Create -- is NOT listed: CreateOrder no longer has that field, so it
+    # does not compile. It is recorded as SUPERSEDED in
+    # notes/harness-negative-control.md, not as caught. Its compiling
+    # replacement mutates the private wire value after validation and
+    # immediately before marshal, which is the same defect expressed where the
+    # defect can still exist.
+    # ------------------------------------------------------------------
+
+    ("M-R-200",
+     "the live transport reports every response as HTTP 200 "
+     "-- the H-ORD-2b recovery 409 becomes a fake ack",
+     [
+         ("harness/rest/client.go",
+          "\treturn Response{Status: resp.StatusCode, Body: raw}, nil",
+          "\treturn Response{Status: http.StatusOK, Body: raw}, nil"),
+     ],
+     "TestHTTPDoerPassesEveryStatusThroughUnchanged"),
+
+    ("M-R-REDIR",
+     "follow redirects on the live transport "
+     "-- a 307 preserves the method, so a redirected create is a second create",
+     [
+         ("harness/rest/client.go",
+          "\t\t\tCheckRedirect: func(*http.Request, []*http.Request) error {\n"
+          "\t\t\t\treturn http.ErrUseLastResponse\n\t\t\t},\n",
+          ""),
+     ],
+     "TestHTTPDoerDoesNotFollowRedirects"),
+
+    ("M5a",
+     "post_only false on the completed wire body, after validation "
+     "-- H-Q-3 with the structural guarantee removed at the last instant",
+     [
+         ("harness/rest/write.go",
+          "\tpayload, err := json.Marshal(w)",
+          "\tw.PostOnly = false\n\tpayload, err := json.Marshal(w)"),
+     ],
+     "TestPostOnlyIsStructural"),
+
+    ("M5b",
+     "self-trade prevention `maker` on the completed wire body "
+     "-- cancels our RESTING order on a self-match (H-CO-5)",
+     [
+         ("harness/rest/write.go",
+          "\tpayload, err := json.Marshal(w)",
+          '\tw.SelfTradePrevention = "maker"\n\tpayload, err := json.Marshal(w)'),
+     ],
+     "TestPostOnlyIsStructural"),
+
+    ("M-R-COID",
+     "dispatch under a foreign coid "
+     "-- H-ORD-2b's same-coid recovery becomes unavailable in principle",
+     [
+         ("harness/rest/write.go",
+          "\tpayload, err := json.Marshal(w)",
+          '\tw.ClientOrderID = "someone-elses-coid"\n'
+          "\tpayload, err := json.Marshal(w)"),
+     ],
+     "TestCreateOrderPayloadIsByteForByte"),
+
+    ("M-R-COUNT",
+     'dispatch "0.00" -- H-CO-4b says it is never sent',
+     [
+         ("harness/rest/write.go",
+          "\tpayload, err := json.Marshal(w)",
+          '\tw.Count = "0.00"\n\tpayload, err := json.Marshal(w)'),
+     ],
+     "TestCreateOrderPayloadIsByteForByte"),
+
+    ("M-R-ACKCOID",
+     "accept a create acknowledgement whose echoed client_order_id is not ours "
+     "-- another order's fill state is read onto ours, and a lying zero-count "
+     "ack erases a live order and licenses a replacement",
+     [
+         ("harness/rest/write.go",
+          "\tif echoed != coid {",
+          "\tif false {"),
+     ],
+     "TestOnlyObservedAckShapesNarrowMaxLive"),
+
+    # Expected to SURVIVE, and argued rather than assumed, per this file's own
+    # doctrine. Neutralising the ABSENT-key branch alone changes NO SAFETY
+    # BEHAVIOUR -- classification, retry count, MaxLive and reconciliation are
+    # all identical with and without it. Only the diagnostic text differs, so
+    # this is not completely behaviour-inert, it is safety-inert:
+    # with the key absent, `echoedRaw` is the zero RawMessage, `isJSONNull`
+    # reports false on it, `scalar` returns "", and the immediately following
+    # `echoed == ""` check rejects the acknowledgement anyway. The branch earns
+    # its place by naming the failure precisely in the error text, not by being
+    # the thing that stops it -- the nonempty and equality checks are, and both
+    # are ratcheted (M-R-ACKCOID above, plus the absent/null/empty cases in
+    # TestOnlyObservedAckShapesNarrowMaxLive, which pass under this mutation
+    # because the outcome is unchanged).
+    #
+    # Found by this script, not by hand: the hand-run mutation ledger for round
+    # 4 never applied this one, and it was reported as a permanent ratchet on
+    # the strength of the others. That is exactly the false confidence the
+    # negative control exists to strip out.
+    ("M-R-ACKCOIDPRESENT",
+     "drop the absent-key branch of the acknowledgement coid check",
+     [
+         ("harness/rest/write.go",
+          '\techoedRaw, ok := rec["client_order_id"]\n\tif !ok {',
+          '\techoedRaw, ok := rec["client_order_id"]\n\tif !ok && false {'),
+     ],
+     "inert"),
+
+    ("M-R-NULLTAKER",
+     "decode is_taker into a bool instead of a pointer "
+     "-- JSON null silently reads as false and H-ORD-8 fails open",
+     [
+         ("harness/rest/read.go",
+          '\tif isTaker == nil {\n'
+          '\t\treturn Fill{}, fmt.Errorf("fill %s has a null is_taker; H-ORD-8 must "+\n'
+          '\t\t\t"never fail open, and null is not false", f.TradeID)\n\t}',
+          "\tif isTaker == nil {\n\t\tvar f bool\n\t\tisTaker = &f\n\t}"),
+     ],
+     "TestNullIsTakerIsRefused"),
+
+    ("M-R-NULLBAL",
+     "treat a null balance as zero "
+     "-- a held position is left with no funded reducer (H-CAP-8)",
+     [
+         ("harness/rest/read.go",
+          '\tif cents == nil {\n'
+          '\t\treturn Balance{}, fmt.Errorf("balance is null; null is not zero, and " +\n'
+          '\t\t\t"a zero balance would leave a held position with no funded reducer")\n\t}',
+          "\tif cents == nil {\n\t\tvar z int64\n\t\tcents = &z\n\t}"),
+     ],
+     "TestNullBalanceIsRefused"),
+
+    ("M-R-SWEEP",
+     "filter the verifying read through Ours() before matching requested ids "
+     "-- a requested order with an unparseable coid reads as absent",
+     [
+         ("harness/rest/cancel.go",
+          "\t\tfor _, o := range read.Orders {",
+          "\t\tfor _, o := range read.Ours() {"),
+     ],
+     "TestSweepMatchesRequestedIDBeforeOwnership"),
+
+    ("M-R-PAGE",
+     "accept a page with no cursor key as a terminal page "
+     "-- `200 {}` becomes a complete, empty portfolio truth",
+     [
+         ("harness/rest/page.go",
+          '\t\treturn page{}, fmt.Errorf("%s: cursor field %q is absent; every "+\n'
+          '\t\t\t"measured page carries it, present but empty when terminal, so an "+\n'
+          '\t\t\t"absent cursor is a malformed response and not an empty account",\n'
+          "\t\t\tep.Path, ep.CursorField)",
+          '\t\tours = json.RawMessage(`""`)'),
+     ],
+     "TestMalformedPageIsNeverAnEmptyAccount"),
+
+    ("M-R-WALKZERO",
+     "make WalkComplete the zero value again "
+     "-- an unpopulated or closed-channel Walk replaces state with nothing",
+     [
+         ("harness/rest/page.go",
+          "func (w Walk) Replaces() bool { return w.Outcome == WalkComplete }",
+          "func (w Walk) Replaces() bool {\n"
+          "\treturn w.Outcome != WalkRewound && w.Outcome != WalkFailed\n}"),
+     ],
+     "TestZeroValuedResultsReplaceNothing"),
+
+    # --- audit round 2: the six late-wire companions that were hand-run and
+    # reported as permanent, but never installed here. ---------------------
+
+    ("M-R-COUNTNEG",
+     "dispatch a negative count -- H-CO-4b requires strictly positive",
+     [("harness/rest/write.go", "\tpayload, err := json.Marshal(w)",
+       '\tw.Count = "-1.00"\n\tpayload, err := json.Marshal(w)')],
+     "TestCreateOrderPayloadIsByteForByte"),
+
+    ("M-R-COUNTOVER",
+     "dispatch 99 contracts regardless of the derived bound "
+     "-- one order at 99c exposes $98.01 of a $100 account",
+     [("harness/rest/write.go", "\tpayload, err := json.Marshal(w)",
+       '\tw.Count = "99.00"\n\tpayload, err := json.Marshal(w)')],
+     "TestCreateOrderPayloadIsByteForByte"),
+
+    ("M-R-PRICEBAD",
+     "dispatch a price outside the tradable range",
+     [("harness/rest/write.go", "\tpayload, err := json.Marshal(w)",
+       '\tw.Price = "1.9900"\n\tpayload, err := json.Marshal(w)')],
+     "TestCreateOrderPayloadIsByteForByte"),
+
+    ("M-R-TIF",
+     "dispatch immediate_or_cancel instead of good_till_canceled "
+     "-- a post_only IOC order rests for no time at all and scores nothing",
+     [("harness/rest/write.go", "\tpayload, err := json.Marshal(w)",
+       '\tw.TimeInForce = "immediate_or_cancel"\n\tpayload, err := json.Marshal(w)')],
+     "TestCreateOrderPayloadIsByteForByte"),
+
+    ("M-R-SIDEFLIP",
+     "flip the wire side after H-CO-1 has been applied "
+     "-- the order lands on the opposite leg of the book",
+     [("harness/rest/write.go", "\tpayload, err := json.Marshal(w)",
+       "\tw.Side = Bid\n\tpayload, err := json.Marshal(w)")],
+     "TestCreateOrderPayloadIsByteForByte"),
+
+    ("M-R-TICKER",
+     "dispatch against a different market than the one intended",
+     [("harness/rest/write.go", "\tpayload, err := json.Marshal(w)",
+       '\tw.Ticker = "OTHER-TICKER"\n\tpayload, err := json.Marshal(w)')],
+     "TestCreateOrderPayloadIsByteForByte"),
+
+    # --- and the F1 defect itself, which had no permanent mutation at all ---
+
+    ("M-R-ACKMALFORMED",
+     "treat a malformed acknowledgement as an ACK with nothing live "
+     "-- a live 12-lot reads as MaxLive=0, the requote ladder replaces it, "
+     "24 contracts and $23.76",
+     [("harness/rest/write.go",
+       "\t\t\t\tres.Outcome = CreateUnknown\n"
+       "\t\t\t\tres.MaxLive = requested\n"
+       "\t\t\t\tres.Err = err\n"
+       "\t\t\t\tcontinue // same-coid recoverable",
+       "\t\t\t\tres.Outcome = CreateAcked\n"
+       "\t\t\t\tres.MaxLive = 0\n"
+       "\t\t\t\tres.Err = err\n"
+       "\t\t\t\treturn res")],
+     "TestOnlyObservedAckShapesNarrowMaxLive"),
+
+    ("M-R-ACKOPTIONAL",
+     "revert the acknowledgement coid check to the pre-audit optional form "
+     "-- checked only when nonempty, so absent, null and empty all pass",
+     [("harness/rest/write.go", STRICT_COID_BLOCK,
+       '\tif echoed := scalar(rec["client_order_id"]); echoed != "" && echoed != coid {\n'
+       '\t\treturn ack{}, fmt.Errorf("2xx echoes client_order_id %q but we sent "+\n'
+       '\t\t\t"%q; this response is about a different order", echoed, coid)\n\t}')],
+     "TestOnlyObservedAckShapesNarrowMaxLive"),
+    # -----------------------------------------------------------------------
+    # lip-fq7 -- harness/wsx and the ownership wiring
+    # -----------------------------------------------------------------------
+
+    ("M-W-PONG",
+     "ignore the pong timeout and keep the session alive "
+     "-- a peer that is gone while the TCP connection is still established",
+     [
+         ("harness/wsx/session.go",
+          "\t\tcase <-pongDue:\n\t\t\tclearPing()\n"
+          "\t\t\treturn fmt.Errorf(\"no pong within pong_timeout_s %v: the peer is \"+\n"
+          "\t\t\t\t\"gone while the connection is still established, which a read \"+\n"
+          "\t\t\t\t\"deadline alone would take read_deadline_s to notice\",\n"
+          "\t\t\t\ts.p.PongTimeout)\n",
+          "\t\tcase <-pongDue:\n\t\t\tclearPing()\n"),
+     ],
+     "TestSupervisorPingPongReadDeadlineLadder"),
+
+    ("M-W-CLEAN",
+     "return from a CLEAN disconnect before quarantining "
+     "-- the shadow rig's correct behaviour, which is fatal in a trader",
+     [
+         ("harness/wsx/gate.go",
+          "\tif !g.connected {\n\t\treturn DisconnectEffects{}\n\t}\n",
+          "\tif !g.connected {\n\t\treturn DisconnectEffects{}\n\t}\n"
+          "\tif clean {\n\t\treturn DisconnectEffects{}\n\t}\n"),
+     ],
+     "TestEveryDisconnectQuarantinesUntilFreshSnapshotAndAllPortfolioTruth"),
+
+    ("M-W-RECON",
+     "let a fresh snapshot authorise placement without post-disconnect "
+     "portfolio reconciliation",
+     [
+         ("harness/wsx/gate.go",
+          "\t\tif !g.truthOK[k] || g.truthGen[k] != g.gen {\n\t\t\treturn false\n\t\t}\n",
+          "\t\tif false {\n\t\t\treturn false\n\t\t}\n"),
+     ],
+     "TestEveryDisconnectQuarantinesUntilFreshSnapshotAndAllPortfolioTruth"),
+
+    ("M-W-GRAN",
+     "stop rejecting a fractional-cent BOOK price (H-CO-3a)",
+     [
+         ("harness/wsx/frame.go",
+          "\tif _, exact := rest.CentsExact(p4); !exact {\n",
+          "\tif _, exact := rest.CentsExact(p4); !exact && false {\n"),
+     ],
+     "TestFractionalBookPriceNeverReachesCore"),
+
+    ("M-W-POS",
+     "preserve q_local instead of assigning q_exch on a complete poll "
+     "-- argue with the exchange (H-POS-1)",
+     [
+         ("harness/risk/position.go",
+          "\t\tif remote == 0 {\n\t\t\tdelete(p.q, t)\n\t\t} else {\n"
+          "\t\t\tp.q[t] = remote\n\t\t}\n",
+          "\t\t// M-W-POS: keep the local reading.\n"),
+     ],
+     "TestCompletePositionPollOverwritesLocalAndRecordsAgreements"),
+
+    ("M-W-OWN",
+     "bypass the ownership-ledger classification, so every fill is ours "
+     "(H-ORD-9)",
+     [
+         ("harness/risk/position.go",
+          "\t\tif !owned[i] {\n",
+          "\t\tif false && owned[i] {\n"),
+     ],
+     "TestFillOwnershipUsesOrderIDLedgerAndForeignStopsGlobally"),
+
+    ("M-W-TAKER",
+     "disable the is_taker / fee>0 detector on our own fills "
+     "(H-ORD-8 and S2 together)",
+     [
+         ("harness/risk/position.go",
+          "\t\tif f.IsTaker || f.Fee > 0 {\n",
+          "\t\tif false {\n"),
+     ],
+     "TestOwnedTakerOrPositiveFeeStopsGlobally"),
+
+    ("M-W-TRUTH",
+     "treat positions freshness alone as all portfolio truth "
+     "-- orders and fills may be arbitrarily stale (A13)",
+     [
+         ("harness/wsx/gate.go",
+          "\tfor k := Truth(0); k < truthCount; k++ {\n",
+          "\tfor k := Truth(0); k <= TruthPositions; k++ {\n"),
+     ],
+     "TestAnyStalePortfolioEndpointStopsAllPlacementButNotCancel"),
+
+    ("M-W-DISC60",
+     "disable the disconnect-duration reduction (F4)",
+     [
+         ("harness/wsx/supervisor.go",
+          "\t\tif !*reduceSent && down >= s.p.DisconnectReduce {\n",
+          "\t\tif false && !*reduceSent && down >= s.p.DisconnectReduce {\n"),
+     ],
+     "TestDisconnectThresholdReducesWithoutStoppingRESTOrSupervisor"),
+
+    ("M-W-QUIET",
+     "disable the per-market quiet-feed detector (F5) "
+     "-- a wedged single market while the socket stays healthy",
+     [
+         ("harness/wsx/gate.go",
+          "\t\t\tif now.Mono-m.lastFrame <= g.p.Quiet {\n",
+          "\t\t\tif now.Mono-m.lastFrame <= g.p.Quiet || true {\n"),
+     ],
+     "TestQuietMarketAloneReducesAndResnapshots"),
+    # -----------------------------------------------------------------------
+    # lip-fq7 audit round 2 -- the four reachable safety failures green gates
+    # missed, plus the seal on the opening path
+    # -----------------------------------------------------------------------
+
+    ("M-W-OUTAGE",
+     "return a zero token on disconnect, so every portfolio read taken during "
+     "an outage is discarded and position monitoring goes blind",
+     [
+         ("harness/wsx/gate.go",
+          "\treturn DisconnectEffects{\n"
+          "\t\tToken:      ReconcileToken{gen: g.gen, valid: true},\n"
+          "\t\tResetBooks: !clean,\n",
+          "\treturn DisconnectEffects{\n"
+          "\t\tToken:      ReconcileToken{},\n"
+          "\t\tResetBooks: !clean,\n"),
+     ],
+     "TestPortfolioTruthAppliesDuringWebsocketOutage"),
+
+    ("M-W-COREACK",
+     "ignore core's refusal of a book frame and certify the book anyway",
+     [
+         ("harness/wsx/gate.go",
+          "\tif err := handle(); err != nil {\n",
+          "\tif err := handle(); false {\n"),
+     ],
+     "TestCoreRejectedBookFrameCannotUnlockOrRefreshGate"),
+
+    ("M-W-POLLORDER",
+     "read the authoritative position BEFORE the fills",
+     [
+         ("harness/wsx/portfolio.go",
+          "\t\tread.fillsAt = p.clk.Now()\n"
+          "\t\tread.fills = p.src.Fills(ctx, \"\", time.Time{})\n"
+          "\t\tread.ordersAt = p.clk.Now()\n"
+          "\t\tread.orders = p.src.Orders(ctx, \"\", rest.StatusResting)\n"
+          "\t\tread.positionsAt = p.clk.Now()\n"
+          "\t\tread.positions = p.src.Positions(ctx)\n",
+          "\t\tread.positionsAt = p.clk.Now()\n"
+          "\t\tread.positions = p.src.Positions(ctx)\n"
+          "\t\tread.fillsAt = p.clk.Now()\n"
+          "\t\tread.fills = p.src.Fills(ctx, \"\", time.Time{})\n"
+          "\t\tread.ordersAt = p.clk.Now()\n"
+          "\t\tread.orders = p.src.Orders(ctx, \"\", rest.StatusResting)\n"),
+     ],
+     "TestPortfolioPollReadsFillsBeforeAuthoritativePosition"),
+
+    ("M-W-POSORDER",
+     "apply the authoritative position BEFORE the fills, so a fill already in "
+     "q_exch is counted twice and the reducer can flip the sign of q",
+     [
+         ("harness/wsx/portfolio.go",
+          "\tapplyFills(g, pf, own, read, mode, &eff)\n"
+          "\tapplyOrders(g, pf, read, &eff)\n"
+          "\tapplyPositions(g, pf, read, p, &eff)\n",
+          "\tapplyPositions(g, pf, read, p, &eff)\n"
+          "\tapplyOrders(g, pf, read, &eff)\n"
+          "\tapplyFills(g, pf, own, read, mode, &eff)\n"),
+     ],
+     "TestAuthoritativePositionIsFinalAfterSameCycleFill"),
+
+    ("M-W-TRUTHSTAMP",
+     "stamp every endpoint's freshness with the cycle's COMPLETION time, so a "
+     "slow fills walk reads as current for its own duration",
+     [
+         ("harness/wsx/portfolio.go", "read.fillsAt)", "read.completedAt)"),
+         ("harness/wsx/portfolio.go", "read.ordersAt)", "read.completedAt)"),
+         ("harness/wsx/portfolio.go", "read.positionsAt)", "read.completedAt)"),
+     ],
+     "TestEndpointTruthAgeStartsWhenItsWalkStarts"),
+
+    ("M-W-TRUTHFORGE",
+     "export noteTruth, so any caller can declare a portfolio endpoint "
+     "reconciled without a complete walk -- SetActionable with a longer name",
+     [
+         ("harness/wsx/gate.go",
+          "func (g *Gate) noteTruth(kind Truth, tok ReconcileToken, now Stamp) bool {\n",
+          "func (g *Gate) NoteTruth(kind Truth, tok ReconcileToken, now Stamp) bool {\n"
+          "\treturn g.noteTruth(kind, tok, now)\n}\n\n"
+          "func (g *Gate) noteTruth(kind Truth, tok ReconcileToken, now Stamp) bool {\n"),
+     ],
+     "TestPortfolioTruthHasNoPublicBypass"),
+
+    ("M-W-READTOKEN",
+     "export the reconciliation token on PortfolioRead, so a caller can "
+     "assemble a complete-looking reconciliation out of nothing",
+     [
+         ("harness/wsx/portfolio.go",
+          "\ttoken ReconcileToken\n\tseq   uint64\n",
+          "\tToken ReconcileToken\n\ttoken ReconcileToken\n\tseq   uint64\n"),
+     ],
+     "TestPortfolioTruthHasNoPublicBypass"),
+    ("M-W-REJECTLIVE",
+     "a book frame core never accepted leaves an ALREADY-ACTIONABLE market "
+     "licensed to place -- quoting against a book we know is behind",
+     [
+         ("harness/wsx/gate.go",
+          "\tm.quarantined = true\n\tm.snapGen = 0\n}\n",
+          "}\n"),
+     ],
+     "TestRejectedBookFrameImmediatelyQuarantinesAnActionableMarket"),
+    # -----------------------------------------------------------------------
+    # lip-bw0 — lifecycle safety (pilot-plan §7.5)
+    # -----------------------------------------------------------------------
+    ("M3",
+     "os.Exit(0) on SIGTERM instead of draining "
+     "-- H-HALT-3's rule deleted, and invisible to any in-process assertion",
+     [
+         ("harness/lifecycle/drain.go",
+          "\tcase syscall.SIGTERM:\n\t\tname = \"sigterm\"\n",
+          "\tcase syscall.SIGTERM:\n\t\tos.Exit(0)\n\t\tname = \"sigterm\"\n"),
+     ],
+     "TestSIGTERMWithInventoryOutlivesSignalAndDrainTimeout"),
+
+    ("M11",
+     "startup is marked complete after the positions walk, before orders, "
+     "fills, balance, the adoption policy and the verified sweep",
+     [
+         ("harness/lifecycle/adopt.go",
+          "\t// --- Step 2: resting orders, UNFILTERED --------------------------------\n",
+          "\treturn &adoption{\n"
+          "\t\tportfolio: risk.NewSeededPortfolio(pos.ByTicker),\n"
+          "\t\tstates:    map[string]quote.MarketState{},\n"
+          "\t}, anoms, 0, nil\n\n"
+          "\t// --- Step 2: resting orders, UNFILTERED --------------------------------\n"),
+     ],
+     "TestStartupNeverLicensesBeforeFourReadsPolicyAndCleanSweeps"),
+
+    ("M20",
+     "the latch reports Ensure durable without writing anything "
+     "-- the stop looks committed and does not survive the restart",
+     [
+         ("harness/lifecycle/latch.go",
+          "\tfh, err := os.OpenFile(f.path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)\n",
+          "\treturn true, nil\n\n"
+          "\tfh, err := os.OpenFile(f.path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)\n"),
+     ],
+     "TestGlobalStopIsDurableBeforePublicationAndSurvivesRestart"),
+
+    ("M-L-BOOTORDER",
+     "the global controller defers the latch read, so the first portfolio "
+     "request happens before H-HALT-4's read",
+     [
+         ("harness/lifecycle/global.go",
+          "\t_, present, err := store.Load()\n",
+          "\tvar present bool\n\tvar err error\n"),
+     ],
+     "TestLatchReadPrecedesEveryPortfolioRequest"),
+
+    ("M-L-LATCHFAIL",
+     "a present-but-unparseable latch reads as CLEAR "
+     "-- HR-009 through a file truncated by the crash that wrote it",
+     [
+         ("harness/lifecycle/latch.go",
+          "\trec, err := decodeLatch(b)\n\tif err != nil {\n\t\treturn rec, true, err\n\t}\n",
+          "\trec, err := decodeLatch(b)\n\tif err != nil {\n\t\treturn rec, false, nil\n\t}\n"),
+     ],
+     "TestMalformedOrUnreadableLatchFailsClosed"),
+
+    ("M-L-ADOPTORDER",
+     "the startup walk reads resting orders before positions "
+     "-- §7.5's fixed acquisition sequence is violated",
+     [
+         ("harness/lifecycle/adopt.go",
+          "\tpos := s.src.Positions(ctx)\n",
+          "\torders = s.src.Orders(ctx, \"\", rest.StatusResting)\n"
+          "\tpos := s.src.Positions(ctx)\n"),
+         ("harness/lifecycle/adopt.go",
+          "\torders := s.src.Orders(ctx, \"\", rest.StatusResting)\n",
+          ""),
+         ("harness/lifecycle/adopt.go",
+          "\t[]risk.Anomaly, int, error) {\n\n\tvar anoms []risk.Anomaly\n",
+          "\t[]risk.Anomaly, int, error) {\n\n\tvar anoms []risk.Anomaly\n"
+          "\tvar orders rest.OrdersResult\n"),
+     ],
+     "TestStartupReadsPositionsOrdersFillsBalanceInOrder"),
+
+    ("M-L-RETRYTHRESH",
+     "startup gives up after ONE failed reconciliation instead of three",
+     [
+         ("harness/lifecycle/adopt.go",
+          "const startupFailureThreshold = 3\n",
+          "const startupFailureThreshold = 1\n"),
+     ],
+     "TestUnknownRiskBeginsOnThirdFailureAndRetriesForever"),
+
+    ("M-L-RETRYEXIT",
+     "startup stops retrying once it reaches UNKNOWN_RISK "
+     "-- a process sitting next to inventory it decided not to look at again",
+     [
+         ("harness/lifecycle/adopt.go",
+          "\tif s.consecutiveFailures >= startupFailureThreshold {\n"
+          "\t\tat.Anomalies = append(at.Anomalies, risk.Anomaly{\n",
+          "\tif s.consecutiveFailures >= startupFailureThreshold {\n"
+          "\t\tat.Retry = false\n"
+          "\t\tat.Anomalies = append(at.Anomalies, risk.Anomaly{\n"),
+     ],
+     "TestUnknownRiskBeginsOnThirdFailureAndRetriesForever"),
+
+    ("M-L-SEEDLIVE",
+     "historical startup fills are applied with risk.Live "
+     "-- every fill that produced the seeded position is counted twice",
+     [
+         ("harness/lifecycle/adopt.go",
+          "\tfx := portfolio.ApplyFills(ownedConverted, s.guard.own, risk.Seed)\n",
+          "\tfx := portfolio.ApplyFills(ownedConverted, s.guard.own, risk.Live)\n"),
+     ],
+     "TestStartupSeedsExchangePositionWithoutReplayingHistoricalFills"),
+
+    ("M-L-FOREIGNCANCEL",
+     "the adoption policy is run over EVERY resting order, so a foreign "
+     "order can be swept -- an action on somebody else's risk",
+     [
+         ("harness/lifecycle/adopt.go",
+          "\tfor _, o := range ownedResting {\n\t\td, err := s.policy.DecideAdopted(ctx, o, facts.clone())\n",
+          "\tfor _, o := range orders.Orders {\n\t\td, err := s.policy.DecideAdopted(ctx, o, facts.clone())\n"),
+     ],
+     "TestStartupForeignOrderIsExcludedAndNeverCancelled"),
+
+    ("M-L-FOREIGNLIVE",
+     "a foreign order appearing AFTER startup is handled as a startup "
+     "exclusion -- the harness keeps quoting beside a live third party",
+     [
+         ("harness/lifecycle/foreign.go",
+          "\t\tif phase == PhaseStartup {\n",
+          "\t\tif phase == PhaseStartup || phase == PhaseLive {\n"),
+     ],
+     "TestLiveForeignActivityRequestsDurableGlobalStop"),
+
+    ("M-L-SWEEP",
+     "the startup cancel sweep's Clean verdict is ignored "
+     "-- H-FAIL-3's cancel-requested orders are treated as off",
+     [
+         ("harness/lifecycle/adopt.go",
+          "\t\tif !res.Clean {\n",
+          "\t\tif false {\n"),
+     ],
+     "TestInvalidAdoptedOrdersRequireVerifiedCleanSweep"),
+
+    ("M-L-LOCK",
+     "the non-blocking exclusive flock's failure is ignored "
+     "-- two harnesses on one account, H-DEP-5's unrecoverable conflict",
+     [
+         ("harness/lifecycle/lock.go",
+          "\tif err := syscall.Flock(int(fh.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {\n",
+          "\tif err := syscall.Flock(int(fh.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil && false {\n"),
+     ],
+     "TestInstanceLockExcludesASecondProcessAndAllowsAStalePID"),
+
+    ("M-L-DRAINEXIT",
+     "the drain authorises a process exit once drain_timeout_h expires, with "
+     "inventory still open -- HR-009's timer doing what the document forbids",
+     [
+         ("harness/lifecycle/drain.go",
+          "\tif d.permit.Valid() && obs.TruthKnown && !obs.AnyInventory && !obs.AnyLiveOrder {\n",
+          "\tif d.permit.Valid() && obs.TruthKnown && (mono-d.begin >= d.p.DrainTimeout ||\n"
+          "\t\t(!obs.AnyInventory && !obs.AnyLiveOrder)) {\n"),
+     ],
+     "TestSIGTERMWithInventoryOutlivesSignalAndDrainTimeout"),
+
+    ("M-L-SLEEP",
+     "the wall/monotonic divergence response is disabled "
+     "-- a host sleep leaves a stale book quoting with no resnapshot",
+     [
+         ("harness/lifecycle/sleep.go",
+          "\tif divergence <= sleepDivergence {\n\t\treturn eff\n\t}\n",
+          "\tif divergence <= sleepDivergence || true {\n\t\treturn eff\n\t}\n"),
+     ],
+     "TestClockDivergenceForcesResnapshotAndReconcile"),
+
+    ("M-L-KEEPALIVE",
+     "the launchd plan renders KeepAlive false "
+     "-- F18's supervision becomes a one-shot launcher",
+     [
+         ("harness/lifecycle/launchd.go",
+          "\tif err := emitKey(\"KeepAlive\"); err != nil {\n\t\treturn nil, err\n\t}\n"
+          "\tif err := emitTrue(); err != nil {\n\t\treturn nil, err\n\t}\n",
+          "\tif err := emitKey(\"KeepAlive\"); err != nil {\n\t\treturn nil, err\n\t}\n"
+          "\tif err := enc.Encode(plistBool{XMLName: xml.Name{Local: \"false\"}}); err != nil {\n"
+          "\t\treturn nil, err\n\t}\n"),
+     ],
+     "TestLaunchdPlanUsesKeepAliveAndCaffeinateIS"),
+
+    ("M-L-CAFFEINATE",
+     "the launchd job execs the harness directly, bypassing "
+     "`/usr/bin/caffeinate -is` -- the Mac idle-sleeps under a live position",
+     [
+         ("harness/lifecycle/launchd.go",
+          "\targv := []string{caffeinatePath, caffeinateFlags, p.Executable}\n",
+          "\targv := []string{p.Executable}\n"),
+     ],
+     "TestLaunchdPlanUsesKeepAliveAndCaffeinateIS"),
+    # -----------------------------------------------------------------------
+    # lip-bw0 v2 — the audit's ten material breaks, ratcheted
+    # -----------------------------------------------------------------------
+    ("M-L-CAUSELESS",
+     "GlobalInput.Stop with a zero StopCause reaches WINDING_DOWN "
+     "-- a halt that a panic and a launchd restart erase completely",
+     [
+         ("harness/lifecycle/global.go",
+          "\t\tif in.Stop && !c.latched {\n",
+          "\t\tif false {\n"),
+     ],
+     "TestCauselessStopCannotEnterWindingDown"),
+
+    ("M-L-STARTUPCAUSE",
+     "startup returns a completed adoption without committing the causes it "
+     "found -- a foreign fill becomes a to-do item for the caller",
+     [
+         ("harness/lifecycle/adopt.go",
+          "\tdec := s.commit(in, ad.causes)\n",
+          "\tdec := s.commit(in, nil)\n"),
+     ],
+     "TestStartupCommitsEveryCauseBeforeReturningDecision"),
+
+    ("M-L-ADOPTIONFORGE",
+     "the Adoption interface loses its unexported marker method, so any "
+     "package can implement the licence to leave STARTING",
+     [
+         ("harness/lifecycle/adopt.go",
+          "\t// isAdoption cannot be implemented outside this package. It is the whole\n"
+          "\t// seal.\n\tisAdoption()\n}\n",
+          "}\n"),
+     ],
+     "TestExternalCodeCannotForgeCompleteAdoption"),
+
+    ("M-L-PLANFORGE",
+     "the signal handler issues a planned-drain permit before the latch is "
+     "committed -- the process may exit on a stop it failed to record",
+     [
+         ("harness/lifecycle/drain.go",
+          "\tif eff.Decision.Committed {\n\t\teff.Permit = DrainPermit{valid: true, trigger: name, tsMillis: wallMillis}\n\t}\n",
+          "\teff.Permit = DrainPermit{valid: true, trigger: name, tsMillis: wallMillis}\n"),
+     ],
+     "TestSignalCannotAuthoriseExitUntilLatchIsDurable"),
+
+    ("M-L-FOREIGNFEE",
+     "startup converts every fill before classifying ownership, so a FOREIGN "
+     "fill with an unreadable fee becomes a generic retry and never latches",
+     [
+         ("harness/lifecycle/adopt.go",
+          "\townedConverted, err := convertStartupFills(fe.OwnedFills)\n",
+          "\townedConverted, err := convertStartupFills(fills.Fills)\n"),
+     ],
+     "TestForeignFillWithUnusableFeeStillLatches"),
+
+    ("M-L-SWEEPREPLAY",
+     "the adoption is built from the position read that PRECEDED the cancel "
+     "sweep -- an order that filled while being cancelled leaves q stale",
+     [
+         ("harness/lifecycle/adopt.go",
+          "\tif cancelled > 0 {\n"
+          "\t\t// The caller rewalks. Nothing below would be built from a current read.\n"
+          "\t\treturn nil, anoms, cancelled, nil\n\t}\n",
+          ""),
+     ],
+     "TestStartupRewalksAfterEveryCancelSweep"),
+
+    ("M-L-ADOPTRESTING",
+     "adopted orders are never installed into the portfolio, so AnyLiveOrder "
+     "reads false while an exchange-fillable order of ours rests",
+     [
+         ("harness/lifecycle/adopt.go",
+          "\toe := portfolio.ReplaceOrders(keptAsLive(kept), nil, true)\n",
+          "\toe := portfolio.ReplaceOrders(nil, nil, true)\n"),
+     ],
+     "TestStartupPortfolioContainsEveryKeptOrder"),
+
+    ("M-L-WALLCLOCK",
+     "the sleep detector uses the monotonic delta as its wall delta -- the "
+     "same clock compared against itself, so F7 can never fire",
+     [
+         ("harness/lifecycle/sleep.go",
+          "\twallDelta := time.Duration(wallMillis-s.lastWallMillis) * time.Millisecond\n",
+          "\twallDelta := mono - s.lastMono\n"),
+     ],
+     "TestSleepDetectorUsesIndependentWallTime"),
+
+    ("M-L-EXISTDURABLE",
+     "an EEXIST retry reports the latch durable without completing the parent "
+     "directory sync the first attempt failed",
+     [
+         ("harness/lifecycle/latch.go",
+          "\t\t\tif serr := f.syncDirFn(f.dir); serr != nil {\n"
+          "\t\t\t\treturn false, fmt.Errorf(\"latch %s exists but its parent \"+\n"
+          "\t\t\t\t\t\"directory %s could not be synced, so the entry naming it \"+\n"
+          "\t\t\t\t\t\"may not survive a power cut: %w\", f.path, f.dir, serr)\n"
+          "\t\t\t}\n\t\t\treturn true, nil\n",
+          "\t\t\treturn true, nil\n"),
+     ],
+     "TestExistingLatchRetryResyncsParentBeforeDurable"),
+
+    ("M-L-SUMMARYALIAS",
+     "Summary() hands out the internal maps and slices, so a reporting "
+     "consumer can rewrite the adoption's managed set",
+     [
+         ("harness/lifecycle/adopt.go",
+          "func (a *adoption) Summary() StartupSummary { return a.summary.clone() }\n",
+          "func (a *adoption) Summary() StartupSummary { return a.summary }\n"),
+     ],
+     "TestStartupSummaryIsADeepCopy"),
+
+    ('M-HS-PERMIT',
+     "issue a dispatch permit when the reservation is enqueued -- H-ORD-6's ownership record is no longer durable before dispatch",
+     [
+         ('harness/hstore/ledger.go',
+          '\trec, err := newReservation(h, o, role, reservedMs)\n\tif err != nil {\n\t\treturn Receipt{}, err\n\t}\n\treturn s.submit(&submission{\n\t\tkind:    KindReserveOrder,\n\t\treserve: rec,\n\t\torder:   o,\n\t\trole:    role,\n\t})\n',
+          '\trec, err := newReservation(h, o, role, reservedMs)\n\tif err != nil {\n\t\treturn Receipt{}, err\n\t}\n\trcpt, serr := s.submit(&submission{\n\t\tkind:    KindReserveOrder,\n\t\treserve: rec,\n\t\torder:   o,\n\t\trole:    role,\n\t})\n\tif serr == nil {\n\t\ts.mu.Lock()\n\t\ts.publishLocked(Result{Receipt: rcpt, Kind: KindReserveOrder,\n\t\t\tpermit: DispatchPermit{coid: rec.Coid, order: o, role: role,\n\t\t\t\tstore: s}})\n\t\ts.mu.Unlock()\n\t}\n\treturn rcpt, serr\n'),
+     ],
+     'TestDispatchPermitExistsOnlyAfterCommittedOwnership'),
+
+    ('M-HS-BINDCACHE',
+     'update the ownership index before the binding commits, so an intention that never lands reads as a durable fact',
+     [
+         ('harness/hstore/ledger.go',
+          '\ts.own.markPending(orderID)\n\trcpt, err := s.submit(&submission{kind: KindBindOrder, bind: bind})\n',
+          '\ts.own.markPending(orderID)\n\ts.own.commitBinding(orderID, coid)\n\trcpt, err := s.submit(&submission{kind: KindBindOrder, bind: bind})\n'),
+     ],
+     'TestFailedBindingNeverEntersCommittedOwnership'),
+
+    ('M-HS-OWNRUN',
+     'recognise only order ids from the current run -- every fill from before the last restart becomes a SEV1 foreign fill (H-ORD-9)',
+     [
+         ('harness/hstore/sqlite.go',
+          '\t\t`SELECT order_id, coid FROM owned_order WHERE order_id IS NOT NULL`)\n',
+          '\t\t`SELECT order_id, coid FROM owned_order\n\t\t  WHERE order_id IS NOT NULL\n\t\t    AND run_id = (SELECT run_id FROM run\n\t\t                   ORDER BY started_ms DESC LIMIT 1)`)\n'),
+     ],
+     'TestOwnershipSurvivesRunsAndTerminalOrders'),
+
+    ('M-HS-LOOKUPFAIL',
+     'turn an ownership lookup error into all-foreign and keep applying -- a storage outage manufactures a foreign-fill stop on a consumed walk',
+     [
+         ('harness/risk/position.go',
+          '\towned, err := own.OwnsOrders(orderIDs)\n\tif err != nil || len(owned) != len(unseen) {\n',
+          '\towned, err := own.OwnsOrders(orderIDs)\n\tif err != nil || len(owned) != len(unseen) {\n\t\towned = make([]bool, len(unseen))\n\t}\n\tif false {\n'),
+     ],
+     'TestOwnershipLookupFailureAppliesNothingAndRefreshesNoTruth'),
+
+    ('M-HS-FILLREPLACE',
+     'change our_fill to INSERT OR REPLACE, so a later backfill walk relabels a live observation as history (H-ORD-6)',
+     [
+         ('harness/hstore/sqlite.go',
+          'INSERT OR IGNORE INTO our_fill',
+          'INSERT OR REPLACE INTO our_fill'),
+     ],
+     'TestOurFillFirstObserverWinsAcrossRuns'),
+
+    ('M-HS-AUDITDROP',
+     'evict the oldest waiting audit record while the writer is stalled -- the rows describing the incident are deleted by the incident',
+     [
+         ('harness/hstore/writer.go',
+          '\ts.queue = append(s.queue, sub)\n\ts.mu.Unlock()\n',
+          '\ts.queue = append(s.queue, sub)\n\tif s.inflight && len(s.queue) > 1 {\n\t\ts.queue = append(s.queue[:1], s.queue[2:]...)\n\t}\n\ts.mu.Unlock()\n'),
+     ],
+     'TestAuditQueueNeverDropsWhileWriterIsStalled'),
+
+    ('M-HS-ANOMRACE',
+     'expose an anomaly to delivery after only ONE journal succeeds, so a record can be pushed once and then lost in a crash (§13.1)',
+     [
+         ('harness/hstore/sqlite.go',
+          '\t\t  WHERE journaled_ms IS NOT NULL AND delivered_ms IS NULL\n',
+          '\t\t  WHERE delivered_ms IS NULL\n'),
+     ],
+     'TestAnomalyIsInvisibleToDeliveryUntilBothJournalsAreDurable'),
+
+    ('M-HS-STOREGATE',
+     "permit an ADDING dispatch while store health is false -- H-STORE-3's revocation deleted, and the order's ownership cannot be recorded",
+     [
+         ('harness/hstore/records.go',
+          '\tif p.role == quote.RoleAdding && !p.store.Health().AllowsAdding() {\n',
+          '\tif p.role == quote.RoleAdding && false {\n'),
+     ],
+     'TestStoreFailureBlocksAddingButNotReducerOrMonitorWork'),
+
+    ('M-HS-PRAGMA',
+     'set SQLite synchronous mode to OFF -- committed records are lost on the power cut they exist to describe',
+     [
+         ('harness/hstore/schema.go',
+          '\tpragmaSynchronous = "NORMAL"\n',
+          '\tpragmaSynchronous = "OFF"\n'),
+     ],
+     'TestSchemaIsExactlyThePilotFiveAndPragmasArePinned'),
+
+    ('M-HS-STATE',
+     "persist a global transition carrying trigger `none` -- A9's reason is lost and a non-transition is recorded as one",
+     [
+         ('harness/hstore/state.go',
+          '\tif trigger == quote.GTNone {\n\t\treturn StateEvent{}, fmt.Errorf("global transition %v -> %v carries "+\n\t\t\t"trigger `none`: A9 requires the reason, and NextGlobal returns "+\n\t\t\t"GTNone only when nothing happened", from, to)\n\t}\n',
+          ''),
+     ],
+     'TestStateEventPersistsScopeStatesAndTrigger'),
+
+    ('M-P-SEV1',
+     'send SEV1 through the fifteen-minute bucket -- an unmanaged risk state is reported up to a quarter of an hour late (§13.2)',
+     [
+         ('harness/ping/service.go',
+          '\t\twindow := int64(sev2BucketMs)\n\t\tif g.sev == risk.SEV1 {\n\t\t\twindow = sev1DedupMs\n\t\t}\n',
+          '\t\twindow := int64(sev2BucketMs)\n'),
+     ],
+     'TestSEV1IsUrgentImmediateAndFiveMinuteDeduplicated'),
+
+    ('M-P-SEV2',
+     'bypass SEV2 suppression, so every occurrence pushes and the operator learns to ignore the channel (§13.2)',
+     [
+         ('harness/ping/service.go',
+          '\t\tlast, seen := s.bucket(g)\n\t\tif seen && nowMs-last < window {\n',
+          '\t\tlast, seen := s.bucket(g)\n\t\tif seen && nowMs-last < window && g.sev == risk.SEV1 {\n'),
+     ],
+     'TestSEV2IsLimitedPerClassMarketAndReportsSuppression'),
+
+    ('M-P-RESTART',
+     'load pending anomalies only from the current run -- every restart discards the backlog the restart is evidence for',
+     [
+         ('harness/hstore/sqlite.go',
+          '\t\t  ORDER BY first_ms, anomaly_id`)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tdefer rows.Close()\n\tvar out []AnomalyRow\n',
+          '\t\t    AND run_id = (SELECT run_id FROM run\n\t\t                   ORDER BY started_ms DESC LIMIT 1)\n\t\t  ORDER BY first_ms, anomaly_id`)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tdefer rows.Close()\n\tvar out []AnomalyRow\n'),
+     ],
+     'TestUndeliveredAlertsSurviveRestartAndDrainOldestFirst'),
+
+    ('M-P-HEALTHBEAT',
+     "suppress the heartbeat unless storage is healthy and the state is RUNNING -- the dead man's switch goes quiet exactly when its silence would be read as F18",
+     [
+         ('harness/ping/service.go',
+          '\t"lip/harness/hstore"\n\t"lip/harness/risk"\n)\n',
+          '\t"lip/harness/hstore"\n\t"lip/harness/quote"\n\t"lip/harness/risk"\n)\n'),
+         ('harness/ping/service.go',
+          '\tdue := s.lastHeartbeatMs == 0 || nowMs-s.lastHeartbeatMs >= s.interval.Milliseconds()\n',
+          '\tdue := (s.lastHeartbeatMs == 0 ||\n\t\tnowMs-s.lastHeartbeatMs >= s.interval.Milliseconds()) &&\n\t\thb.StoreHealthy && hb.Global == quote.Running\n'),
+     ],
+     'TestHeartbeatContinuesInEveryStateAndNamesStoreFailure'),
+
+    ('M-P-TOPIC',
+     "include the ntfy topic in the message body -- the channel's bearer credential lands in every notification history and lock screen",
+     [
+         ('harness/ping/ntfy.go',
+          '\tdest := s.base + "/" + url.PathEscape(topic)\n\tbody := m.Body\n',
+          '\tdest := s.base + "/" + url.PathEscape(topic)\n\tbody := m.Body + "\\n(topic: " + topic + ")"\n'),
+     ],
+     'TestTopicNeverLeavesDestinationURL'),
+
+    ('M-P-DEADMAN',
+     'accept a nil dead-man endpoint -- the only F18 detector that survives this process dying becomes optional (§13.4)',
+     [
+         ('harness/ping/service.go',
+          '\tif !dead.valid() {\n\t\treturn nil, errors.New("no dead-man endpoint: §13.4 requires a " +\n\t\t\t"concrete external check-in, and a harness that cannot be missed " +\n\t\t\t"by anything outside itself is unattended in the only sense that " +\n\t\t\t"matters")\n\t}\n',
+          ''),
+     ],
+     'TestAlertServiceRejectsMissingDeadman'),
+
+    ('M-P-REDIRECT',
+     'allow the bearer transports to follow redirects, so one 302 discloses the ntfy topic or the dead-man endpoint to whatever answered',
+     [
+         ('harness/ping/secret.go',
+          '\t\tCheckRedirect: refuseRedirect,\n',
+          '\t\tCheckRedirect: nil,\n'),
+     ],
+     'TestBearerTransportsDoNotFollowRedirects'),
+
+
+    ('M-HS-PERMHEALTH',
+     'a permanently rejected record does not latch the store unhealthy, so adding continues over a hole in the audit trail',
+     [
+         ('harness/hstore/writer.go',
+          '\t\ts.popLocked()\n\t\ts.fault = err.Error()\n\t\ts.healthy = false\n\t\ts.adding = false\n',
+          '\t\ts.popLocked()\n'),
+     ],
+     'TestPermanentRecordFailureRevokesAddingAndCannotHealAcrossTheGap'),
+
+    ('M-HS-ONERUN',
+     'disable the single-writer guard, so two Run calls claim one head and each pop -- discarding the record behind it with no error anywhere',
+     [
+         ('harness/hstore/writer.go',
+          '\tif !s.claimWriter() {\n\t\treturn\n\t}\n\tdefer s.releaseWriter()\n',
+          '\ts.claimWriter()\n\tdefer s.releaseWriter()\n'),
+     ],
+     'TestOnlyOneWriterRunCanOwnTheFIFO'),
+
+    ('M-HS-RUNSTOP',
+     'a writer that has exited leaves adding enabled, so an outstanding permit dispatches an order nothing can record',
+     [
+         ('harness/hstore/writer.go',
+          '\ts.running = false\n\ts.writerGone = true\n\ts.healthy = false\n\ts.adding = false\n\ts.inflight = false\n\ts.wakeLocked()\n',
+          '\ts.running = false\n\ts.wakeLocked()\n'),
+     ],
+     'TestStoppedWriterRevokesOutstandingAddingPermits'),
+
+    ('M-HS-CLOSEDROP',
+     'Close discards accepted audit records that are still queued',
+     [
+         ('harness/hstore/writer.go',
+          '\tif n := len(s.queue); n > 0 {\n\t\ts.mu.Unlock()\n\t\treturn fmt.Errorf("refusing to close with %d accepted record(s) still "+\n\t\t\t"queued: each was accepted as durable-in-progress, and discarding "+\n\t\t\t"them here loses exactly the evidence a shutdown is most likely to "+\n\t\t\t"be about", n)\n\t}\n',
+          ''),
+     ],
+     'TestCloseCannotDiscardAcceptedAuditRecords'),
+
+    ('M-HS-FOREIGNDB',
+     'accept an existing version-zero database that already holds another schema -- a mistyped path writes this schema into rig.db (H-ORD-7)',
+     [
+         ('harness/hstore/sqlite.go',
+          '\t\tif len(tables) > 0 {\n',
+          '\t\tif false {\n'),
+     ],
+     'TestOpenRefusesForeignVersionZeroDatabaseWithoutWritingIt'),
+
+    ('M-HS-SCHEMAEXTRA',
+     'accept a version-one database whose user tables are not exactly the pilot five',
+     [
+         ('harness/hstore/sqlite.go',
+          '\t\tif !reflect.DeepEqual(tables, userTables) {\n',
+          '\t\tif reflect.DeepEqual(tables, userTables) && false {\n'),
+     ],
+     'TestOpenRejectsAnySixthOrMissingPilotTable'),
+
+    ('M-HS-PRAGMACONN',
+     'apply foreign_keys once to one connection instead of through the DSN, so a replacement connection silently arrives with it OFF',
+     [
+         ('harness/hstore/sqlite.go',
+          '\t\t"&_pragma=foreign_keys(" + pragmaForeignKeys + ")" +\n',
+          ''),
+         ('harness/hstore/sqlite.go',
+          '\tb := &sqliteBackend{db: db}\n\tif err := b.applyJournalMode(); err != nil {\n',
+          '\tb := &sqliteBackend{db: db}\n\tif _, ferr := db.Exec("PRAGMA foreign_keys=" + pragmaForeignKeys); ferr != nil {\n\t\tdb.Close()\n\t\treturn nil, ferr\n\t}\n\tif err := b.applyJournalMode(); err != nil {\n'),
+     ],
+     'TestWritePragmasSurviveConnectionReplacement'),
+
+    ('M-HS-PATHALIAS',
+     'accept the same path as both the database and the anomaly journal, so each destroys the other',
+     [
+         ('harness/hstore/writer.go',
+          '\tif err := distinctArtifacts(c.DBPath, c.AnomalyLogPath); err != nil {\n\t\treturn nil, err\n\t}\n',
+          ''),
+     ],
+     'TestStoreArtifactsMustBeDistinctFiles'),
+
+    ('M-HS-JOURNALGAP',
+     "ignore a database row that claims journalled text the JSONL does not hold, so the operator's fallback copy can be erased silently",
+     [
+         ('harness/hstore/writer.go',
+          '\t\tif _, ok := byID[st.rec.AnomalyID]; !ok {\n',
+          '\t\tif _, ok := byID[st.rec.AnomalyID]; ok && false {\n'),
+     ],
+     'TestMissingJournalLineIsAContradiction'),
+
+    ('M-HS-JOURNALDIR',
+     'skip the parent-directory sync when creating the anomaly journal, so the entry naming it may not survive a power cut',
+     [
+         ('harness/hstore/sqlite.go',
+          '\t\tif err := syncDirFn(filepath.Dir(path)); err != nil {\n\t\t\treturn fail(fmt.Errorf("the directory entry naming the new anomaly "+\n\t\t\t\t"journal %s could not be synced, so the operator\'s fallback "+\n\t\t\t\t"copy may not survive a power cut: %w", path, err))\n\t\t}\n',
+          ''),
+     ],
+     'TestNewJournalSyncsItsParentBeforeOpenSucceeds'),
+
+    ('M-HS-STALLCLOCK',
+     'measure the writer-progress bound in WALL time, so an NTP step declares a healthy writer stalled and a backward step hides a wedged one (F21)',
+     [
+         ('harness/hstore/writer.go',
+          '\ts.inflightSince = s.monoNow()\n',
+          '\ts.inflightSince = time.Duration(s.nowMs()) * time.Millisecond\n'),
+         ('harness/hstore/writer.go',
+          '\tcase s.inflight && s.monoNow()-s.inflightSince >= s.stallBound:\n',
+          '\tcase s.inflight && time.Duration(s.nowMs())*time.Millisecond-s.inflightSince >= s.stallBound:\n'),
+     ],
+     'TestWriterStallUsesMonotonicTime'),
+
+    ('M-P-ERRSECRET',
+     "wrap the transport's *url.Error, which carries the whole destination URL -- so the ntfy topic reaches every log that records an error",
+     [
+         ('harness/ping/ntfy.go',
+          '\t\treturn transportError("ntfy delivery", err)\n',
+          '\t\treturn fmt.Errorf("ntfy delivery failed in transport: %w", err)\n'),
+     ],
+     'TestBearerSecretsNeverAppearInAnyError'),
+
+    ('M-P-ZEROSENDER',
+     'accept and dereference a forged zero-value ntfy sender, which panics inside the alert loop',
+     [
+         ('harness/ping/service.go',
+          '\tif !sender.valid() {\n',
+          '\tif sender == nil {\n'),
+         ('harness/ping/ntfy.go',
+          '\tif !s.valid() {\n\t\treturn errNoSender\n\t}\n',
+          ''),
+     ],
+     'TestZeroValueSenderIsRejectedWithoutPanic'),
+
+    ('M-P-ZERODEAD',
+     "accept and dereference a forged zero-value dead man, so §13.4's only surviving F18 detector is silently absent",
+     [
+         ('harness/ping/service.go',
+          '\tif !dead.valid() {\n',
+          '\tif dead == nil {\n'),
+         ('harness/ping/deadman.go',
+          '\tif !d.valid() {\n\t\treturn errNoDeadman\n\t}\n',
+          ''),
+     ],
+     'TestZeroValueDeadmanIsRejectedWithoutPanic'),
+
+    ('M-P-RETRYWAKE',
+     'publish only the next heartbeat deadline, so the private 1-60 second alert ladder and every rate-limit bucket resolve to an hour',
+     [
+         ('harness/ping/service.go',
+          '\tnext := earliest(0, eff.NextHeartbeatMs, nowMs)\n\tnext = earliest(next, nextAlert, nowMs)\n\tif s.healthOwed {\n\t\tnext = earliest(next, s.healthRetryAt, nowMs)\n\t}\n\tif s.beatAttempts > 0 {\n\t\tnext = earliest(next, s.beatRetryAt, nowMs)\n\t}\n\tif s.deadAttempts > 0 {\n\t\tnext = earliest(next, s.deadRetryAt, nowMs)\n\t}\n',
+          '\tnext := earliest(0, eff.NextHeartbeatMs, nowMs)\n\tif nextAlert < 0 {\n\t\tnext = earliest(next, nextAlert, nowMs)\n\t}\n'),
+     ],
+     'TestNextStepSchedulesFailedAndSuppressedAlertRetries'),
+
+    ('M-P-INITIALHEALTH',
+     'require a prior HEALTHY observation before the urgent health notice, so a harness that started broken never says so',
+     [
+         ('harness/ping/service.go',
+          '\t} else if !s.healthSeen || s.lastHealthy {\n',
+          '\t} else if s.healthSeen && s.lastHealthy {\n'),
+     ],
+     'TestInitiallyUnhealthyStoreAlertsUrgently'),
+
+    ('M-P-STATUSRETRY',
+     'discard a failed health, heartbeat or dead-man push instead of retrying it on the 1-60 second ladder, so the watchdog alarms on a live harness',
+     [
+         ('harness/ping/service.go',
+          '\tif s.healthOwed && nowMs >= s.healthRetryAt {\n',
+          '\tif s.healthOwed && s.healthAttempts == 0 {\n'),
+         ('harness/ping/service.go',
+          '\tretryBeat := s.beatAttempts > 0 && nowMs >= s.beatRetryAt\n',
+          '\tretryBeat := false\n'),
+         ('harness/ping/service.go',
+          '\tif eff.Heartbeat || (s.deadAttempts > 0 && nowMs >= s.deadRetryAt) {\n',
+          '\tif eff.Heartbeat {\n'),
+     ],
+     'TestFailedStatusPushesRetryBeforeTheHour'),
+
 ]
 
 

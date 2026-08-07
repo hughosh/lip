@@ -1,0 +1,79 @@
+AUDIT GATE, round 2. Same artifact: `harness/rest` @ post-repair, bead
+`lip-qdg`. Still untracked, so still no git diff; current files are on disk.
+
+Return BOTH verdicts:
+
+  FIDELITY: FAITHFUL or DRIFT
+  CHANGE-SAFETY: CLEAN or NEW-BREAK
+
+then DECISION, IMPLEMENTATION DIRECTIVE, ADVANCE, MOBILE RELAY.
+
+## WHAT WAS DONE AGAINST YOUR FOUR OBLIGATIONS
+
+**1. F1 coid strictness.** `parseAck` now requires `client_order_id` present,
+non-null, nonempty, and exactly equal to the dispatched coid; each has its own
+error. `ackBody` gained a `coid` parameter and every valid fixture supplies the
+matching coid; its doc says why. `TestOnlyObservedAckShapesNarrowMaxLive` gained
+`absent coid`, `null coid`, `empty coid` (all with zero counts, which is the
+erase-a-live-order case) alongside the existing `foreign coid`. Each asserts
+UNKNOWN, full size, reconcile-now, and the full same-coid retry budget.
+
+**2. F4 null gates.** New `TestNullIsTakerIsRefused` and
+`TestNullBalanceIsRefused`, distinct from the existing absent-field tests.
+
+**3. F5 regression gate.** New `TestSweepMatchesRequestedIDBeforeOwnership`, a
+subtest each for missing and malformed coid, returning the requested `order_id`
+on both verifying reads, asserting 2 DELETEs, `Clean=false`, and the target
+present in `StillResting`. Verified by hand to fail when `read.Orders` is
+reverted to `read.Ours()`, then reverted.
+
+**4. Negative-control ratchet.** 13 entries appended to
+`scripts/harness_negative_control.py`: M-R-200, M-R-REDIR, M5a, M5b, M-R-COID,
+M-R-COUNT, M-R-ACKCOID, M-R-ACKCOIDPRESENT, M-R-NULLTAKER, M-R-NULLBAL,
+M-R-SWEEP, M-R-PAGE, M-R-WALKZERO. Each names its catching test. The exported-
+field form of Mutation A is not listed and is recorded as superseded in a
+comment, per your item 5.
+
+**5. wire.go prose.** Corrected. It now says `CreateOrder` is not a wire body
+and that `Client.Create` never marshals it — marshalling the private
+`createOrderWire` instead — and states explicitly that `json.Marshal` on the
+public type does not fail but yields `{}`, which is a useless body rather than a
+protection.
+
+## THE SCRIPT FOUND SOMETHING THE HAND-RUN DID NOT
+
+`M-R-ACKCOID` as first written — neutralising only the ABSENT-key branch of the
+new coid check — **SURVIVED**. It is behaviourally inert: with the key absent,
+`echoedRaw` is the zero RawMessage, `isJSONNull` is false on it, `scalar` returns
+"", and the following nonempty check rejects the acknowledgement anyway.
+
+Handled as follows rather than by weakening the expectation:
+
+- `M-R-ACKCOID` was retargeted at `if echoed != coid` → `if false`, which is not
+  inert and is now caught by `TestOnlyObservedAckShapesNarrowMaxLive`.
+- `M-R-ACKCOIDPRESENT` records the absent-key branch as expected-inert, with the
+  argument written out in the table, following the M26 precedent.
+
+Recorded in the table comment: the round-4 hand-run ledger never applied this
+mutation and I reported the set as a permanent ratchet on the strength of the
+others. Your obligation 4 is what surfaced it.
+
+## OBSERVED TOOL FACTS
+
+- `python scripts/harness_negative_control.py` (full catalogue):
+  **19 of 19 mutations produced their expected outcome.** All 13 new IDs appear
+  in the regenerated `notes/harness-negative-control.md`.
+- `go test ./harness/rest/ -count=1` → ok. Package test count is now 148.
+- `./loop/gates.sh` → build, vet, gofmt, test-race, check.py, negative-control
+  all PASS. `VERDICT: GREEN`.
+- Nothing committed. Spec and frozen trees untouched. `lip-qdg` still open.
+
+## FOR YOUR ADJUDICATION
+
+1. Whether `M-R-ACKCOIDPRESENT`'s inertness argument is sound, or whether the
+   absent-key branch should instead be deleted as dead defensive code.
+2. Whether the 13 IDs are the right set, or whether any permanent mutation you
+   named is still missing. I did not add one for `NotSent` classification, for
+   the `MaxPages` circuit breaker, or for `firstIdentity`'s raw-bytes fallback,
+   because you did not name them and I did not want to invent scope.
+3. `lip-qdg` remains open pending your verdict.

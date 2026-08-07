@@ -1,0 +1,434 @@
+AUDIT GATE — `lip-6w5` (five-record store + minimal alerts, pilot-plan §2.3, §7.6), v2.
+
+You are the AUDITOR. You have no prior context in this repository and you are not
+expected to; everything you need is on disk and is named below. Read the files
+directly — nothing in this packet is a substitute for them, and where the packet
+and the code disagree the code is what is true.
+
+Your access is READ-ONLY. Do not edit anything.
+
+## WHAT THIS REPOSITORY IS
+
+`/Users/hugh/kek/lip` is a market-making harness for Kalshi's liquidity
+incentive programme, being rebuilt in Go after an earlier Python probe lost
+money through a set of failures that are now enumerated as numbered rules.
+
+- `notes/harness-spec.md` is the CONTRACT. It is SHA-pinned and must never be
+  edited. Rules are cited by tag throughout the code: `H-ORD-*` (orders and
+  ownership), `H-STORE-*` (persistence), `H-POS-*` (position), `H-HALT-*`,
+  `F1`-`F21` (failure modes), `A5`/`A9`/`A13` (assertions), `I1` ("every stop
+  path stops ADDING risk; no stop path stops reducing it or watching it").
+- `notes/pilot-plan.md` §2.3 cuts §15's eleven tables to FIVE for the pilot.
+- `scripts/harness_negative_control.py` is §17's negative control: it applies one
+  deliberate mutation at a time to a pristine copy of `go/`, runs the suite, and
+  requires a NAMED test to catch each one. A mutation that survives is a defect
+  in the verification, not a curiosity.
+- `loop/gates.sh` is the oracle: build, vet, gofmt, `go test -race`,
+  `scripts/check.py`, and the negative control.
+
+`lip-6w5` is the bead being audited. It builds two new packages,
+`go/harness/hstore` (the five-table store, its sole writer, the durable
+ownership barrier) and `go/harness/ping` (queued ntfy alerting, rate limiting,
+heartbeat, external dead-man check-in), plus a breaking change to the ownership
+seam in `go/harness/risk`, `go/harness/wsx` and `go/harness/lifecycle`.
+
+## SOURCE INSTRUCTION — what this version was built against
+
+A previous auditor reviewed v1 of this bead, rejected it, and wrote a repair
+directive. THAT DIRECTIVE IS THE SPECIFICATION YOU ARE AUDITING AGAINST, and it
+is not reproduced here because you should read it yourself:
+
+    loop/codex-14-audit.log:10590-10606   the DECISION, seven numbered break
+                                          classes found in v1
+    loop/codex-14-audit.log:10608-10736   the IMPLEMENTATION DIRECTIVE, items 1-9
+
+The packet that audit answered is `loop/prompt-14-audit.txt`, and the ORIGINAL
+directive that produced v1 is `loop/codex-13-store.log:5579-5886`.
+
+Read all of `:10590-10736` before judging anything below. This packet claims to
+have implemented it; your job is to decide whether that claim is true and whether
+the implementation broke anything.
+
+## WHAT TO RETURN
+
+Two verdicts, both required:
+
+    FIDELITY: FAITHFUL or DRIFT
+    CHANGE-SAFETY: CLEAN or NEW-BREAK
+
+FIDELITY asks whether the directive was implemented as written. CHANGE-SAFETY
+asks whether the change introduced new defects — reachable failures, not style.
+You may also identify pre-existing defects separately.
+
+Be adversarial. Assume this packet is plausibly wrong and look for the
+counterexample: a concurrency interleaving that defeats a guard, a failure path
+that leaves a licence valid, an assertion that is true but tests nothing because
+its setup never puts the code in the state it describes. That last one has
+already happened three times in this bead and is documented below.
+
+Then:
+
+    DECISION
+    IMPLEMENTATION DIRECTIVE   (only if you are rejecting)
+    ADVANCE: YES or NO
+    MOBILE RELAY              (<=180 words, verdict first, <=5 bullets, at most
+                               one next action or question; it is read on a phone)
+
+## OBSERVED TOOL FACTS — the seven breaks, recorded BEFORE the repair
+
+Directive item 1: "Before repairs, add behavioral probes demonstrating all seven
+classes against v1. The probes must fail behaviorally, not by compile failure."
+
+All seven were expressible against the v1 API and were recorded failing, in
+`hstore/probe_v1_test.go` and `ping/probe_v1_test.go`, both deleted before the
+repair. Twenty-one distinct assertions across the seven classes. Verbatim:
+
+    BREAK 1: audit record p-c was accepted and never became durable; two Run
+      calls completed one head and each popped, so a queued anomaly was
+      discarded without being written
+    BREAK 2a: the writer has exited and the store still reports {healthy:true
+      adding:true stalled:false pending:1 failures:0 committed:2 lastErr:};
+      nothing submitted from now on can ever become durable, and adding
+      authority is still granted
+    BREAK 2b: an ADDING permit issued before the writer stopped is still usable;
+      the order can be dispatched while its binding and every audit row have no
+      writer to record them
+    BREAK 2c: Close succeeded with an accepted audit record still queued,
+      discarding it silently
+    BREAK 3a: a record was permanently REJECTED and the store reports
+      {healthy:true adding:true ... failures:1 ...}; a binding that will never
+      exist means the fills on that order can never be classified, and adding
+      continues
+    BREAK 3b: an ADDING order is still permitted after a record was permanently
+      lost
+    BREAK 3c: a later sequence crossed the recovery watermark and healed a store
+      with a known-lost record
+    BREAK 4a: Open accepted a version-zero database that already held another
+      schema; a mistyped absolute path puts WAL mode and five new tables into
+      the evidence collectors' database (H-ORD-7)
+    BREAK 4b: the foreign database was MODIFIED before being rejected; its
+      tables are now [anomaly fill our_fill owned_order run state_event]
+    BREAK 4c: Open accepted a version-one database whose user tables are not
+      exactly the pilot five
+    BREAK 5: a row whose journaled_ms is set has no line in the text journal and
+      Open accepted it; the reconciliation only checks text-without-row, so the
+      fallback the operator reads when the database will not open can be erased
+      silently
+    BREAK 6a: the ntfy transport error contains the topic, which is the
+      channel's bearer credential: ntfy delivery failed in transport: Post
+      "http://127.0.0.1:50500/sekrit-probe-topic-zz": dial tcp ...
+    BREAK 6b: the dead-man transport error contains the check-in endpoint;
+      anyone holding it can report a dead harness alive indefinitely: ... Get
+      "https://127.0.0.1:50503/checkin-token-qq": dial tcp ...
+    BREAK 6c: the redirect refusal error contains the topic
+    BREAK 6d: a zero NTFYSender PANICKED inside the alert path: runtime error:
+      invalid memory address or nil pointer dereference
+    BREAK 6e: a zero HTTPSDeadman PANICKED inside the alert path: runtime error:
+      invalid memory address or nil pointer dereference
+    BREAK 6f: NewService accepted forged zero-value sender and dead-man
+      pointers; it checks only for nil
+    BREAK 7a: Effects has no NextStepMs field, so the caller cannot know when to
+      Step again; the private 1-60 second retry ladder has no way to be honoured
+    BREAK 7b: a SEV1 push failed and the only deadline offered is the next
+      heartbeat, 3600000 ms away
+    BREAK 7c: a FAILED heartbeat push is not retried before the next hourly
+      slot, so the dead man is not checked in and F18 fires on a healthy harness
+    BREAK 7d: a service whose FIRST observation is an unhealthy store sends no
+      urgent health notice
+
+BREAK 7a used reflection on `Effects`, as directive item 1 specifies for the
+field that did not yet exist. Every other assertion ran against the real v1 API and failed on
+behaviour.
+
+Two of the seven were confirmed in a form worth noting:
+
+- BREAK 1's dropped record is `p-c` on this run and could equally be `p-b`.
+  WHICH record the second pop discards depends on scheduling; THAT one is
+  discarded does not.
+- BREAK 4b is the one that cannot be undone. By the time v1 rejected the foreign
+  database it had already created all five tables in it and switched its journal
+  mode.
+
+## OBSERVED TOOL FACTS — gates
+
+`./loop/gates.sh` from `/Users/hugh/kek/lip`, against a frozen tree:
+
+    PASS  build
+    PASS  vet
+    PASS  gofmt
+    PASS  test-race
+    PASS  check.py
+    PASS  negative-control
+    VERDICT: GREEN
+    ADVANCE_ELIGIBLE: YES
+
+## OBSERVED TOOL FACTS — the negative control
+
+Catalogue: **106 entries**, 89 preserved and 17 added with exactly the IDs and
+named catchers of the table at `loop/codex-14-audit.log:10692-10712`.
+
+Full run, from `notes/harness-negative-control.md`:
+
+    **106 of 106 mutations produced their expected outcome.**
+
+104 **caught**, 2 **inert, as expected** (`M26` and `M-R-ACKCOIDPRESENT`, both
+pre-existing and both carrying their original positive argument). No row reads
+SURVIVED, NOT INERT, DID NOT BUILD, or "caught, but NOT by the named test". For
+all 104 caught rows the DECLARED catching test is among the tests that actually
+failed -- the runner asserts that itself (`ok = caught and expected in fails`),
+so 106/106 IS that assertion.
+
+The 17 new entries, from the targeted run, verbatim (`M-HS-PATHALIAS` is the
+corrected re-run; see the section below):
+
+    ok M-HS-PERMHEALTH: caught -> ['TestPermanentRecordFailureRevokesAddingAndCannotHealAcrossTheGap']
+    ok M-HS-ONERUN: caught -> ['TestOnlyOneWriterRunCanOwnTheFIFO']
+    ok M-HS-RUNSTOP: caught -> ['TestStoppedWriterRevokesOutstandingAddingPermits']
+    ok M-HS-CLOSEDROP: caught -> ['TestCloseCannotDiscardAcceptedAuditRecords']
+    ok M-HS-FOREIGNDB: caught -> ['TestOpenRefusesForeignVersionZeroDatabaseWithoutWritingIt']
+    ok M-HS-SCHEMAEXTRA: caught -> ['TestOpenRejectsAnySixthOrMissingPilotTable']
+    ok M-HS-PRAGMACONN: caught -> ['TestWritePragmasSurviveConnectionReplacement']
+    ok M-HS-PATHALIAS: caught -> ['TestStoreArtifactsMustBeDistinctFiles']
+    ok M-HS-JOURNALGAP: caught -> ['TestMissingJournalLineIsAContradiction']
+    ok M-HS-JOURNALDIR: caught -> ['TestNewJournalSyncsItsParentBeforeOpenSucceeds']
+    ok M-HS-STALLCLOCK: caught -> ['TestWriterStallUsesMonotonicTime']
+    ok M-P-ERRSECRET: caught -> ['TestBearerSecretsNeverAppearInAnyError']
+    ok M-P-ZEROSENDER: caught -> ['TestZeroValueSenderIsRejectedWithoutPanic']
+    ok M-P-ZERODEAD: caught -> ['TestZeroValueDeadmanIsRejectedWithoutPanic']
+    ok M-P-RETRYWAKE: caught -> ['TestFailedStatusPushesRetryBeforeTheHour', 'TestNextStepSchedulesFailedAndSuppressedAlertRetries']
+    ok M-P-INITIALHEALTH: caught -> ['TestInitiallyUnhealthyStoreAlertsUrgently']
+    ok M-P-STATUSRETRY: caught -> ['TestFailedStatusPushesRetryBeforeTheHour']
+
+and the three re-pointed preserved entries, verbatim:
+
+    ok M-HS-PERMIT: caught -> ['TestDispatchPermitExistsOnlyAfterCommittedOwnership']
+    ok M-HS-BINDCACHE: caught -> ['TestFailedBindingNeverEntersCommittedOwnership']
+    ok M-P-DEADMAN: caught -> ['TestAlertServiceRejectsMissingDeadman', 'TestZeroValueDeadmanIsRejectedWithoutPanic']
+
+Three of the 89 had anchors the repair moved, and each was re-pointed at the
+equivalent line with the same semantic break, the same id, the same description
+and the same declared catching test. Nothing was removed, renamed or weakened:
+
+- `M-HS-PERMIT` and `M-HS-BINDCACHE` — `submit` now returns `(Receipt, error)`
+  (directive item 2's closed-check-in-the-critical-section), so both anchors and both
+  replacements needed the new signature.
+- `M-P-DEADMAN` — `dead == nil` became `!dead.valid()` (directive item 6).
+
+The splice was again made by locating `MUTATIONS` with `ast.parse`, splicing at
+the list node's `end_lineno`, re-parsing, asserting the count moved by exactly
+17, and asserting every `old` anchor in all 106 entries appears EXACTLY ONCE in
+its file. Verbatim from the parse check:
+
+    verified 23 anchors across 17 new mutations
+    re-pointing preserved anchors moved by the v2 repair:
+      re-pointed M-HS-PERMIT -> harness/hstore/ledger.go
+      re-pointed M-HS-BINDCACHE -> harness/hstore/ledger.go
+      re-pointed M-P-DEADMAN -> harness/ping/service.go
+    catalogue: 89 -> 106 mutations
+    all 106 catalogue anchors appear exactly once
+
+## AN INTERMEDIATE RED RUN, REPORTED IN FULL
+
+Per directive item 9 the new mutations were run targeted, BEFORE the full
+catalogue.
+That run was **RED on one entry**:
+
+    !! M-HS-PATHALIAS: SURVIVED -> []
+
+with the other nineteen `ok ... caught` by their declared test on the first run.
+
+`TestStoreArtifactsMustBeDistinctFiles` asserted that `Open` returns an error
+when the database and the anomaly journal are the same path. It does — with the
+guard AND without it. Pointed at one file the two artifacts destroy each other so
+thoroughly that `Open` fails anyway, further down, when the JSONL parser is
+handed a SQLite page and finds no terminating newline. "It returned an error"
+cannot distinguish a guard from an accident.
+
+What distinguishes them is WHEN. The check runs before anything is opened, so a
+refused configuration leaves NOTHING on disk; without it the database is created
+at that path first and the operator is left with a file that is neither artifact.
+The test now asserts non-existence after the refusal, covers the `-wal` sidecar
+the same way, and adds a hard-link case that no string comparison could catch.
+Re-run verbatim:
+
+    ok M-HS-PATHALIAS: caught -> ['TestStoreArtifactsMustBeDistinctFiles']
+
+This is the third time in this bead that a mutation has been caught by the wrong
+thing or not at all because the test asserted a true property under conditions
+that did not exercise the code — `M-HS-AUDITDROP` in v1, `M-W-OWN`'s compile
+failure in v1, and this. In all three the targeted-first ordering the directive
+requires is what found it.
+
+## HOW EACH DIRECTIVE ITEM WAS IMPLEMENTED
+
+### 2. Writer ownership and shutdown
+
+`Run` now claims the FIFO through `claimWriter` and releases it through
+`releaseWriter`, both under the store mutex:
+
+- `claimWriter` refuses when a writer is running, has already gone, or the store
+  is closed. A concurrent second `Run` returns immediately without touching the
+  FIFO.
+- `releaseWriter` latches `writerGone`, sets `healthy=false` and `adding=false`,
+  clears `inflight`, and wakes observers on the result channel.
+- `writerGone` is TERMINAL: a later `Run` is refused rather than resuming. A
+  store whose writer returned has a gap in it, and health that recovered would
+  assert durability for whatever was submitted during the gap. FLAGGED — the directive
+  asks only for the revocation, not for the refusal.
+- `inflightSince` is now a `time.Duration` from an injected `monoNow`. Wall
+  milliseconds remain for records only (`first_ms`, `bound_ms`, the journal's
+  `written_ms`).
+- `Close` refuses, WITHOUT changing state, while a write is in flight or the
+  FIFO is non-empty, and the test proves the store is still usable afterwards.
+- The closed check moved INSIDE `submit`'s critical section, so `submit` now
+  returns `(Receipt, error)` and every submission method propagates it.
+  `checkOpen` is gone.
+- `DispatchPermit.Order` consults `Health().AllowsAdding()`, which is now a
+  conjunction over `healthy && fault=="" && !writerGone && !closed`. A reducing
+  permit does not consult it at all, so it survives writer loss and close.
+
+### 3. Permanent-failure semantics
+
+Kept the classification and kept popping the head, so later audit rows still
+progress. Added `Store.fault`, a sticky string set on any permanent failure:
+
+- `healthy` and `adding` go false at the same moment;
+- the terminal `Result` is published as before;
+- the transient recovery branch is guarded by `s.fault == ""`, and
+  `healthLocked` ANDs on it independently, so no later sequence crossing
+  `recoverAt` can heal the store;
+- `submit` does NOT refuse on a fault, so later valid audit rows are still
+  accepted and written;
+- `Health().LastError()` reports the fault, which is what `lip-eyq` and
+  `lip-3af` will raise `SEV1 STORE_RECORD_REJECTED` from.
+
+### 4. Database opening
+
+`Open` now runs `distinctArtifacts` first, then `openSQLite`, which runs
+`inspectDatabase` BEFORE opening any writable connection:
+
+- `distinctArtifacts` rejects identical cleaned paths, SQLite's own `-wal`,
+  `-shm` and `-journal` sidecars, and two names for one file via `os.SameFile`.
+- `inspectDatabase` opens `mode=ro&_pragma=query_only(1)`. A missing or
+  zero-length file is fresh. Version zero WITH any user table is rejected;
+  version one whose table set is not exactly `userTables` is rejected; any other
+  version is rejected. Nothing is written on any of those paths -- the test
+  asserts the foreign database's table list AND its journal mode are unchanged.
+- `writerDSN` carries `_pragma=synchronous(NORMAL)` and
+  `_pragma=foreign_keys(ON)`, so a replacement connection from the pool inherits
+  them. `journal_mode=WAL` stays an explicit statement because it is a database
+  property, not a connection one.
+- `createSchema` runs the DDL and `PRAGMA user_version=1` in ONE transaction.
+- `assertPragmas` is the retained read-back, now also checking `foreign_keys`.
+- `Store.Pragmas` is gone; `Store.pragmas` is private and used by the tests.
+- `deferredTables` is now exactly your list: `balance_poll`, `market`,
+  `order_event`, `order_intent`, `position_poll`, `snap`, `uptime`.
+
+### 5. The journal, both ways
+
+- `openJournal` records whether it CREATED the file, and on creation syncs the
+  file and then its parent directory through the `syncDirFn` seam.
+- `reconcile` now reads `anomalyJournalStates` -- every row plus whether the
+  database believes its text is durable -- and fails closed on a row whose
+  `journaled_ms` is set and whose id has no line in the JSONL.
+- Both legitimate null-`journaled_ms` crash windows are repaired exactly as
+  before, and truncated, malformed, conflicting and text-only records are still
+  rejected.
+
+One addition, FLAGGED: a journal file this call created and could not sync is
+REMOVED. Left behind, the next `Open` would find an existing journal, skip the
+creation path, and never sync the entry -- so one failed sync would permanently
+downgrade the artifact it guards. The test asserts this by counting syncs across
+a failed open, a successful open, and a reopen.
+
+### 6. Transports
+
+- `NTFYSender.valid()` and `HTTPSDeadman.valid()`; `Send` and `CheckIn` return
+  fixed `errNoSender`/`errNoDeadman` for a zero or nil receiver and never
+  dereference one.
+- `NewService` tests `!sender.valid()` and `!dead.valid()` rather than `== nil`.
+- `transportError` classifies from the error's TYPE and the sentinels --
+  `context.Canceled`, `context.DeadlineExceeded`, `url.Error.Timeout()`,
+  `*net.OpError` -- and quotes NOTHING from the error text. No `*url.Error` is
+  returned or wrapped anywhere.
+- `refuseRedirect` returns a package-level `errRedirect` naming neither url;
+  `transportError` recognises it and preserves the classification.
+- A non-2xx still reports `resp.Status`, which carries no URL.
+
+### 7. The scheduler
+
+`Effects.NextStepMs` is the earliest of: the nominal heartbeat, every failed
+alert's next attempt, every rate-limit bucket's reopening, the failed health
+notice, the failed heartbeat, the failed dead-man check-in, and -- while
+`Health().Pending() > 0` or the store is unhealthy -- `nowMs +
+hstore.HealthPollInterval`. `NextHeartbeatMs` is unchanged and remains nominal.
+
+- `Service.dueAt` prefers this process's `retryAt` and falls back to the
+  PERSISTED `attempts` and `last_attempt_ms`, so a restart does not treat a row
+  already attempted six times as brand new.
+- The urgent health notice is owed on the transition AND on a first observation
+  that is already unhealthy, and is retried on the 1-60 second ladder until it
+  lands.
+- A failed heartbeat is retried on the ladder; the nominal hourly cadence does
+  NOT move when a retry succeeds.
+- A failed dead-man check-in is retried on its own ladder rather than waiting
+  for the next heartbeat.
+- `hstore.HealthPollInterval` is a new exported constant, one second, so the
+  deadline `lip-3af` must honour is named where it is enforced.
+
+### 8. The directive's adjudications of v1's flagged choices
+
+Every "accepted unchanged" item is unchanged. `Health()` still conservatively
+mutates while observing a stall and now uses `monoNow`; the one-second deadline
+it implies is published as above for `lip-3af` to drive.
+
+### 9. Ratchets
+
+89 preserved, 17 added with the directive's exact IDs and catchers. Evidence
+above.
+
+## FLAGGED CHOICES
+
+1. **`writerGone` refuses a later `Run`.** The directive asks for revocation on
+   writer loss; refusing a restart is an addition. The argument is that a store with a gap
+   cannot honestly recover, and a second `Run` that restored health would assert
+   durability for records submitted during the gap. If a restarted writer should be
+   allowed to resume, it comes out.
+
+2. **A failed journal creation removes the file it created** (§5 above).
+
+3. **`submit` returns `(Receipt, error)`.** Forced by moving the closed check
+   into the append's critical section, but it is a public signature change to
+   every submission method.
+
+4. **`Service.dueAt` falls back to persisted state only when this process has no
+   memory of the row.** A row this process has already retried uses its own
+   `retryAt`.
+
+5. **The health poll is published only while `Pending() > 0` or the store is
+   unhealthy.** A store that is idle and healthy has no blocked writer to
+   observe, so a permanent one-second wakeup would be noise. If it should be unconditional, say so.
+
+6. **`transportError` maps `*net.OpError` to `"could not <op>"`** -- the OP
+   only, never the address. That is the one place a category is taken from the
+   error rather than from a sentinel.
+
+7. **`hstore.HealthPollInterval` is exported.** `ping` needs it and `lip-3af`
+   will, and duplicating the constant in two packages is how they drift.
+
+## WHAT TO CHECK
+
+1. `writerGone` being terminal (flagged choice 1) -- the one place the directive
+   was extended rather than implemented.
+2. Whether `Close` refusing on a non-empty FIFO is right for a process that is
+   being SIGKILLed anyway, or whether it needs a drain-then-close helper that
+   `lip-3af` would otherwise write itself.
+3. Whether `inspectDatabase` treating a zero-length existing file as fresh is
+   safe, given a crashed `open(2)` can leave one.
+4. Whether the sticky fault should also be reported through a distinct accessor
+   rather than only through `Health().LastError()`, given `lip-eyq` and
+   `lip-3af` must raise `SEV1 STORE_RECORD_REJECTED` from it.
+5. `transportError`'s `*net.OpError` case (flagged choice 6).
+6. Anything else you consider DRIFT or NEW-BREAK.
+
+Answer in the format given under WHAT TO RETURN at the top of this packet.

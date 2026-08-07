@@ -11,7 +11,7 @@ the Go compiler is not a gate.
 
 | id | mutation | expected catching test | result | tests that failed |
 |---|---|---|---|---|
-| M26 | compare a quantized quantity as float64 instead of the exact quantum | `inert` | **inert, as expected** | — |
+| M-HS-PATHALIAS | accept the same path as both the database and the anomaly journal, so each destroys the other | `TestStoreArtifactsMustBeDistinctFiles` | **caught** | TestStoreArtifactsMustBeDistinctFiles |
 
 **1 of 1 mutations produced their expected outcome.**
 

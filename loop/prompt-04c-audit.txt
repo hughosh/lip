@@ -1,0 +1,157 @@
+AUDIT GATE. You are the primary driver auditing the implementer's change-set
+against your own directive.
+
+Return BOTH verdicts, verbatim labels:
+
+  FIDELITY: FAITHFUL or DRIFT
+  CHANGE-SAFETY: CLEAN or NEW-BREAK
+
+Then DECISION, IMPLEMENTATION DIRECTIVE, ADVANCE, MOBILE RELAY as before. You may
+separately identify pre-existing defects or advancement blockers.
+
+## ARTIFACT IDENTIFIER
+
+`harness/rest` @ post-round-4 fixes. Bead `lip-qdg`. Nothing is committed and
+`go/harness/rest/` is entirely untracked, so **there is no git diff to send** —
+no "before" revision exists in version control. You read the pre-fix state in
+this same thread. The current files are on disk and you have read access; read
+them directly. I have not fabricated a diff.
+
+## WHAT WAS CHANGED, BY FINDING
+
+**F7 (done first, per your ordering).** New `harness/rest/transport_test.go`
+exercises the real `HTTPDoer` against `httptest` servers with a real
+`feed.Signer` over a generated 2048-bit RSA key. It verifies the PSS signature
+with the public key over `ts+METHOD+path`, asserts it verifies for the
+query-excluded path AND does NOT verify when the query is included, asserts the
+injected clock is used, sweeps status passthrough over
+{200,201,400,401,404,409,429,500,503}, asserts body and content-type reach the
+wire, asserts a closed listener is ambiguous (`WasSent` true), and asserts a nil
+signer is `NotSent`.
+
+Writing it surfaced **two production defects not in your seven**, both now fixed
+in `client.go`:
+
+1. `HTTPDoer` followed redirects. `net/http` does so by default; a 307/308
+   preserves method and body, so a redirected create is a second create sent to
+   a host we did not sign for. `NewHTTPDoer` now sets
+   `CheckRedirect: func(...) error { return http.ErrUseLastResponse }`, so a 3xx
+   surfaces as a Response and `Create` classifies it UNKNOWN under its default
+   branch.
+2. A nil `Signer` panicked. `feed.Signer.Headers` dereferences its key; `Do` did
+   not guard. In the write path that panic takes down the process holding
+   inventory. `Do` now returns `&NotSent{}` for a nil signer.
+
+**F6.** `WalkOutcome` gained `WalkUnset` as the zero value; `WalkComplete` is now
+1. `String()` updated.
+
+**F2.** `decodePage` now requires the measured shape: the declared cursor field
+must be PRESENT (absent → error, after the existing wrong-key check), must not
+be JSON null, and every declared item array must be present and non-null. New
+`isJSONNull` helper, because `encoding/json` unmarshals null into a slice as nil
+with no error. Grounded in `notes/pagecontract.json`: every page of all four
+endpoints carried its cursor key and all declared arrays; positions' terminal
+page top-level keys were exactly {cursor, event_positions, market_positions}.
+
+**F4.** `is_taker` and `balance` now decode through `*bool` / `*int64`; nil is
+rejected with a named error.
+
+**F5.** `CancelAndSweep` now iterates `read.Orders` and matches
+`requested[o.OrderID]` FIRST, falling through to `o.Ours` for `OtherOurs`.
+A requested id is retained regardless of coid parseability.
+
+**F3.** `CreateOrder` is now the opaque type you specified — private
+`ticker, side, priceCents, count, derivedFrom, clientOrderID`, with exactly the
+five accessors `Ticker() Side() PriceCents() Count() ClientOrderID()`. No
+setters, no `derivedFrom` accessor, no public marshal. New private
+`createOrderWire` holds the JSON fields in the previous order. `validate()`
+rejects empty ticker, any side other than exactly SideYes/SideNo, out-of-range
+price, `num.ValidateCount` failures, and a coid that does not parse, does not
+round-trip exactly through `Coid`, or whose parsed side differs from the order
+side. Market-index-to-ticker matching was NOT invented. `wire()` hard-codes GTC,
+`taker_at_cross`, `post_only:true`. `validateWire(w, o)` independently checks the
+completed body against the intent.
+
+`Create` now: revalidates `body.validate()`, derives `body.wire()`, runs
+`validateWire`, then marshals ONCE and reuses those bytes for every retry. Any
+rejection returns `CreateRejected, Attempts=0, MaxLive=0` and never calls `Doer`.
+
+`wire.go`'s prose was rewritten per your item 7: it now states the structural
+property comes from the absence of wire-policy fields on the public type, that
+the private completed wire value is independently checked before dispatch, that
+the previous claim was false at the send path and why, and that a zero
+`CreateOrder` exists but is not dispatchable.
+
+**F1.** `applyAck` replaced by `parseAck(body, coid, requested) (ack, error)`.
+Only 200 and 201 are acknowledgement statuses. It requires a decodable non-null
+object, non-empty `order_id`, an echoed `client_order_id` matching ours if
+present, present-and-parseable `remaining_count` AND `fill_count`, non-negative
+counts, and `remaining <= requested && filled <= requested && remaining+filled
+<= requested`. Any failure returns the create to UNKNOWN at full requested size
+and `continue`s the same-coid loop. Any other 2xx (202/204/206) is likewise
+UNKNOWN at full size.
+
+**V1.2 relocated** per your item 4: `TestCreateOrderPayloadIsByteForByte` now
+asserts the byte-exact payload captured from `Request.Body` via a new
+`capturePayload` helper that drives `Client.Create`, using canonical coid
+`lipH-01JQRUN-042-no-00000007`. `TestPostOnlyIsStructural` sweeps all 99 prices
+x 2 sides through the real send path and asserts on the captured bytes.
+
+## MUTATION LEDGER
+
+Before fixes, on pristine copies:
+
+- A `body.PostOnly = false` in `Create` — **SURVIVED** 68/68.
+- B `HTTPDoer.Do` forcing `http.StatusOK` — **SURVIVED** 68/68.
+
+After fixes:
+
+- A — **no longer compiles**: `body.PostOnly undefined (type CreateOrder has no
+  field or method PostOnly)`. Recorded as SUPERSEDED, not caught, per your item 5.
+- B — **CAUGHT**: TestHTTPDoerPassesEveryStatusThroughUnchanged and
+  TestHTTPDoerDoesNotFollowRedirects fail.
+
+Permanent compiling late-wire mutations, each inserted after `validateWire` and
+immediately before `json.Marshal(w)`, each applied/run/reverted individually.
+All **CAUGHT**:
+
+    w.PostOnly = false                      (M5a)   2 tests fail
+    w.SelfTradePrevention = "maker"                 2 tests fail
+    w.ClientOrderID = "someone-elses-coid"          2 tests fail
+    w.Count = "0.00"                                2 tests fail
+    w.Count = "-1.00"                               2 tests fail
+    w.Count = "99.00"                               2 tests fail
+    w.Price = "1.9900"                              1 test fails
+    w.TimeInForce = "immediate_or_cancel"           2 tests fail
+    w.Side = Bid                                    1 test fails
+    w.Ticker = "OTHER-TICKER"                       1 test fails
+
+## OBSERVED TOOL FACTS
+
+- `go test ./harness/rest/ -count=1 -v` → 136 PASS (was 68), 0 failures.
+- `./loop/gates.sh` → build PASS, vet PASS, gofmt PASS, test-race PASS,
+  check.py PASS, negative-control PASS. `VERDICT: GREEN`.
+- Nothing committed. Spec and frozen trees untouched.
+
+## THINGS THE IMPLEMENTER WANTS ON THE RECORD
+
+1. Three tests written in the previous session asserted the OLD unsafe
+   behaviour and were rewritten rather than deleted:
+   `TestNullCursorTerminatesTheWalk` and `TestAbsentItemArrayIsEmptyNotTerminal`
+   (both asserted malformed pages were terminal) became
+   `TestMalformedPageIsNeverAnEmptyAccount`,
+   `TestPositionsRejectsAPageMissingEitherArray`,
+   `TestWellFormedEmptyPageIsTerminal` and
+   `TestEmptyArrayWithLiveCursorKeepsWalking`.
+   `TestUndecodableAckKeepsTheFullSizeLive` (asserted an unreadable 2xx is
+   ACKED) became `TestOnlyObservedAckShapesNarrowMaxLive`. Judge whether
+   rewriting rather than preserving them lost coverage.
+2. The `jsonPage` test helper now fills every declared item array with an empty
+   array by default, so existing fixtures match the measured shape. Tests that
+   want a malformed page build the body literally. Judge whether that weakened
+   any existing assertion.
+3. `sweepRetries` remains a hard-coded 1. `MaxPages` remains 1000 per endpoint.
+4. `Fills()` still walks all history and filters client-side (`lip-0ns`, P3).
+5. Not addressed, and the implementer does not know whether you consider it in
+   scope: your closing note that the `CancelResult` reflection test "cannot prove
+   a future caller will not subtract `ReducedBy` from its separate `Order`".

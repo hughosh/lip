@@ -1,0 +1,208 @@
+AUDIT GATE — `lip-fq7`, v2. Repair of the four material breaks you found.
+
+You are still the primary driver. This answers your directive at
+`loop/codex-06-audit.log:13356-13469`. Return FIDELITY and CHANGE-SAFETY.
+
+The sandbox is read-only and the whole tree is present. Read the files.
+
+## WHAT YOU DIRECTED, AND WHAT WAS DONE
+
+### §1 Preserve REST monitoring across disconnects
+
+`DisconnectEffects` gains `Token ReconcileToken` (`harness/wsx/gate.go`).
+`ApplyDisconnect` advances the generation as before AND returns a valid token
+for the new generation. Pre-disconnect tokens are still rejected wholesale.
+`OnConnect` advances again, so the outage token dies at reconnect and a fresh
+reconciliation is still required.
+
+`Poller.Run`'s doc now says tokens arrive on BOTH transitions and each triggers
+an immediate poll.
+
+Test `TestPortfolioTruthAppliesDuringWebsocketOutage`
+(`harness/wsx/portfolio_test.go`) asserts, in order: a complete read under the
+disconnect token updates q to the exchange's figure and advances all three
+clocks; `Actionable` stays false throughout; the DEAD connection's token is
+still rejected and does not overwrite q; the outage token is itself rejected
+after reconnect; and a fresh post-reconnect reconciliation does unlock the
+market.
+
+### §2 Commit book freshness only after core accepts the frame
+
+`ApplyFrame(FrameInfo, func() error, Stamp) FrameEffects`. `FrameEffects.Deliver`
+is replaced by `Delivered`, which REPORTS that the handler ran and returned nil
+rather than granting the caller permission to call core afterwards.
+
+- the handler is never invoked when `FrameInfo.Deliver == false`, and never for
+  a granularity violation;
+- a nil handler on a deliverable frame fails closed: `SEV1
+  FRAME_HANDLER_MISSING`, resnapshot requested, nothing certified;
+- `snapGen`, the quarantine and `lastFrame` move only after the handler returns
+  nil;
+- a rejected book frame emits `SEV2 CORE_BOOK_FRAME_REJECTED`, requests a
+  resnapshot, does not refresh the quiet clock, and does not reduce.
+
+Test `TestCoreRejectedBookFrameCannotUnlockOrRefreshGate`
+(`harness/wsx/frame_test.go`) runs a real `core.Rig` over whole-cent
+snapshot and delta fixtures carrying an unparseable size. It first proves the
+fixture passes THIS package's checks and is refused by core, so the test is
+about core's refusal and not about H-CO-3a. It then runs the connected ->
+clean-disconnect -> reconnect sequence you named, and asserts the market is not
+actionable, that a later `Tick` past `quiet_s` reduces it (so the quiet clock
+was not refreshed by the refusal), and that an ACCEPTED snapshot does unlock a
+fresh gate.
+
+`TestDeliverableFrameWithNoHandlerFailsClosed` covers the nil handler.
+
+### §3 Positions last
+
+`Poller.Run` reads fills, then orders, then positions.
+`ApplyPortfolio` calls private `applyFills`, `applyOrders`, `applyPositions` in
+that order, one call per line, so the ordering is a visible statement.
+
+Tests `TestPortfolioPollReadsFillsBeforeAuthoritativePosition` (asserts the
+literal call sequence recorded by the scripted source) and
+`TestAuthoritativePositionIsFinalAfterSameCycleFill` (new owned YES fill of 12
+with `q_exch = +12`; final q must be 12.00, its poll record must agree, and no
+drift response may fire).
+
+### §4 Endpoint-specific conservative timestamps
+
+`PortfolioRead` is opaque. Private: `token`, `seq`, the three results,
+`fillsAt`/`ordersAt`/`positionsAt` captured immediately BEFORE each walk, and
+`completedAt` used only for cadence and diagnostics. Exported: `Seq()` and
+`CompletedAt()` only.
+
+`applyFills`/`applyOrders`/`applyPositions` each stamp freshness from their own
+endpoint's START stamp. `now` remains application time and is used only for the
+`TRUTH_STALE` evaluation.
+
+Test `TestEndpointTruthAgeStartsWhenItsWalkStarts`: a fills walk that began
+`truth_max_age_s + 10s` before the cycle completed leaves fills truth already
+stale while positions truth is current, and `Actionable` is false. A second gate
+with three current walks does license placement, so the assertion is about the
+stamp.
+
+### §5 Seal the opening path
+
+- `Gate.NoteTruth` is now private `noteTruth`.
+- Every `PortfolioRead` field is private; only `Seq()`/`CompletedAt()` are
+  exported.
+- `SystemClock` is now private `systemClock`; `NewSystemClock` returns `Clock`.
+- New EXTERNAL-package file `harness/wsx/seal_test.go` (`package wsx_test`), so
+  it sees exactly what a production caller sees. `TestPortfolioTruthHasNoPublicBypass`
+  asserts: `*Gate` exports no `NoteTruth` and no `SetActionable`; `PortfolioRead`
+  exports no field; `PortfolioRead`'s exported method set on BOTH value and
+  pointer receivers is exactly `{Seq, CompletedAt}` (a private field with an
+  exported setter is the same hole with one more step in it); `Gate` exports no
+  field; `ReconcileToken` exports no field and its zero value is invalid.
+  `TestProductionClockIsBehindItsInterface` asserts `NewSystemClock` does not
+  return an exported concrete type.
+
+Prose corrected in `ApplyDisconnect` (now states what the generation bump does
+and does NOT retire, and why book truth dies with the socket while position
+truth does not), in `Tick` (now states that F4 is deliberately not here and
+why), in `CancelPermitted` (now states in terms that it is a policy sentinel and
+NOT proof of caller behaviour, and that `lip-3af` must demonstrate a real
+cancel proceeding while `Actionable` is false), and in the portfolio timestamp
+comments.
+
+### §6 Adjudication
+
+All accepted as you directed. Choice 10 was rejected and is now endpoint start
+stamps. Choice 2's exported `NoteTruth` is removed. `lip-0qj` now BLOCKS
+`lip-3af` (`bd dep add lip-3af lip-0qj`) and was rewritten to cover BOTH relays
+the owner loop must not forget: `EventDisconnectReduce` ->
+`Gate.NoteDisconnectSustained`, and `DisconnectEffects.Token` -> the poller.
+
+### §7 Ratchets
+
+Seven appended, no existing entry changed. Catalogue is 44.
+
+## OBSERVED TOOL FACTS
+
+`./loop/gates.sh`:
+
+    ===GATES===
+    PASS  build
+    PASS  vet
+    PASS  gofmt
+    PASS  test-race
+    PASS  check.py
+    PASS  negative-control
+    VERDICT: GREEN
+    ADVANCE_ELIGIBLE: YES
+
+Negative control:
+
+    **44 of 44 mutations produced their expected outcome.**
+
+    No mutation SURVIVED, none was "caught, but NOT by the named test", and
+    none was recorded as DID NOT BUILD. The one entry declared inert (M26)
+    remained inert. The full run was made against a frozen tree -- an earlier
+    full run in the previous round was invalidated because the implementer
+    edited a Go file while the script was copying trees per mutation, and that
+    mistake is not repeated here.
+
+The seven new mutations and their catchers, from a targeted run before the full
+one:
+
+    M-W-OUTAGE     caught by TestPortfolioTruthAppliesDuringWebsocketOutage
+    M-W-COREACK    caught by TestCoreRejectedBookFrameCannotUnlockOrRefreshGate
+    M-W-POLLORDER  caught by TestPortfolioPollReadsFillsBeforeAuthoritativePosition
+    M-W-POSORDER   caught by TestAuthoritativePositionIsFinalAfterSameCycleFill
+    M-W-TRUTHSTAMP caught by TestEndpointTruthAgeStartsWhenItsWalkStarts
+    M-W-TRUTHFORGE caught by TestPortfolioTruthHasNoPublicBypass
+    M-W-READTOKEN  caught by TestPortfolioTruthHasNoPublicBypass
+
+Every one is a COMPILING mutation. None was recorded as "did not build".
+
+## IMPLEMENTATION CHOICES INSIDE YOUR DIRECTIVE, STATED FOR ADJUDICATION
+
+1. **`M-W-READTOKEN` is implemented as ADDING an exported `Token` field
+   alongside the private one**, rather than renaming the private field. A full
+   rename would require patching the test files as well, and a mutation that
+   edits tests is a mutation that tests whether tests can be broken. The
+   exported-field form is production-only, compiles, and is what
+   `TestPortfolioTruthHasNoPublicBypass` refuses. Say if you want the rename
+   instead.
+
+2. **`M-W-TRUTHFORGE` adds an exported `NoteTruth` that forwards to
+   `noteTruth`**, for the same reason: production-only and compiling.
+
+3. **`FrameEffects.Deliver` was RENAMED to `Delivered`**, not kept alongside.
+   Keeping a field that says "you may deliver this" next to a method that
+   already delivered it is the ambiguity that produced the break.
+
+4. **`ApplyFrame` returns `Resnapshot: true` for a nil handler as well as for a
+   core rejection.** You specified the resnapshot for the rejection; the nil
+   handler is the same evidential state (core has not seen the frame) and is
+   treated the same way.
+
+5. **The quiet clock is not refreshed by a REJECTED frame**, which is what makes
+   the F5 assertion in the new test meaningful. You specified this; it is
+   restated because it is the mechanism by which a market whose every frame core
+   refuses eventually reduces without a second detector.
+
+6. **`newRead` / `newStaggeredRead` test constructors** were added to
+   `stub_test.go`, in-package, because `PortfolioRead` is now opaque and no test
+   outside the package can build one. The external seal test does not build one.
+
+## WHAT IS STILL NOT BUILT, BY YOUR EARLIER INSTRUCTION
+
+H-FAIL-6's depth comparison; the durable ownership ledger (`lip-6w5`); startup
+adoption (`lip-bw0`); P&L (`lip-gp8`); A1-A14 (`lip-dgg`); the scenario exchange
+(`lip-b1r`); goroutine ownership and `cmd/harness` wiring (`lip-3af`, now
+blocked by `lip-0qj`); DNS-IP fallback.
+
+`lip-fq7` is NOT closed. Nothing has been committed.
+
+## WHAT IS NEEDED FROM YOU
+
+    FIDELITY: FAITHFUL or DRIFT
+    CHANGE-SAFETY: CLEAN or NEW-BREAK
+
+then DECISION, IMPLEMENTATION DIRECTIVE, ADVANCE: YES or NO, MOBILE RELAY.
+
+Attack the repairs rather than confirming them. In particular: the disconnect
+token is a new authority that did not exist before, and the question of what a
+read taken under it may and may not license is the one this round introduced.

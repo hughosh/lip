@@ -1,0 +1,83 @@
+Continuing the harness/rest review. You are still the primary driver.
+
+## USER STATEMENT (verbatim)
+
+> what was decided as the codex implementor model class, let it decide
+
+The operator is delegating the open design fork below to you rather than letting
+the implementer pick it.
+
+## OBSERVED TOOL FACTS — directive step 1 executed
+
+Both named mutations were applied to pristine copies, run, and reverted. The
+package was green before and after.
+
+- Mutation A: `body.PostOnly = false` inserted as the first statement of
+  `Create`, immediately after `res := CreateResult{Coid: body.ClientOrderID}`.
+  Result: **SURVIVOR.** `go test ./harness/rest/ -count=1` → `ok`, 68/68 pass.
+- Mutation B: `client.go` `HTTPDoer.Do` final return changed to
+  `Response{Status: http.StatusOK, Body: raw}`.
+  Result: **SURVIVOR.** `go test ./harness/rest/ -count=1` → `ok`, 68/68 pass.
+
+Your prediction for both was correct. Nothing has been fixed yet; no production
+file has been edited since the review. Bead `lip-qdg` (P1) was filed recording
+the seven findings and both survivor results.
+
+## THE FORK, AS THE IMPLEMENTER READ IT
+
+Your directive item 4 says: "Make create payloads opaque **or** revalidate every
+invariant immediately before transmission." The implementer read that as two
+materially different designs and stopped rather than choosing. Stated neutrally:
+
+**Option 1 — opaque.** Unexport or otherwise seal `CreateOrder` so
+`NewCreateOrder` is the only way to obtain one and no caller can mutate a field
+after construction. Mutation A stops compiling rather than being caught by a
+test.
+- Consequence: the exported API changes. `CreateOrder` is currently an exported
+  struct with exported fields, marshalled directly by `Create`. `wire.go`'s
+  V1.1/V1.2 tests marshal it and compare bytes. Future callers (the queue, the
+  scenario exchange, the store's ownership ledger) would need whatever accessor
+  surface replaces the fields.
+- Consequence: a mutation that cannot compile cannot appear in the negative
+  control as a caught mutation. Your directive item 5 says to keep each current
+  unsafe form as a permanent negative mutation; a non-compiling mutation may not
+  satisfy that.
+
+**Option 2 — revalidate at transmission.** Keep `CreateOrder` as it is and
+re-assert every invariant inside `Create` immediately before `json.Marshal`:
+`post_only == true`, `self_trade_prevention_type == "taker_at_cross"`,
+`time_in_force`, coid well-formed and matching, count strictly positive and
+within its derived bound, price within the tradable range, ticker non-empty.
+- Consequence: mutation A compiles and is caught by a named test, which fits
+  item 5's negative-control requirement directly.
+- Consequence: the guard is a runtime check rather than a structural
+  impossibility. The spec's framing of H-Q-3 elsewhere is structural — "no
+  exception, no flag, and no code path that sets it false" — and `wire.go`
+  currently argues in comments that `post_only` is a constant of the struct's
+  construction. A check is weaker than that claim, so the claim would need to
+  change.
+
+A third shape exists and the implementer did not evaluate it: do both — seal the
+type AND revalidate — accepting the API churn and keeping a compiling mutation
+somewhere else on the path.
+
+## WHAT IS NEEDED FROM YOU
+
+Decide the fork and specify it tightly enough to implement without further
+interpretation. In particular state:
+
+1. Which option, and what exactly the resulting type/API looks like.
+2. Whether the permanent negative mutation for `post_only` is a compiling
+   mutation, a compile-failure recorded differently, or something else.
+3. Whether the same treatment applies to the other invariants the finding named
+   (`maker` STP, arbitrary coids, zero/negative counts, malformed prices), or
+   only to `post_only`.
+4. Whether `wire.go`'s existing comments claiming structural `post_only` must be
+   amended, given they are currently load-bearing prose that a reader may rely
+   on.
+
+If you want the remaining six findings implemented in a particular order, or any
+of them re-specified, say so; otherwise the implementer will proceed with F1,
+F2, F4, F5, F6 as already directed while this fork is resolved.
+
+Return: DECISION, IMPLEMENTATION DIRECTIVE, ADVANCE: YES or NO, MOBILE RELAY.

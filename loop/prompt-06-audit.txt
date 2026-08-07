@@ -1,0 +1,232 @@
+AUDIT GATE — `lip-fq7` (wsx: conservative websocket + ownership wiring), v1.
+
+You are still the primary driver. This is the audit packet for your directive in
+`loop/codex-05.log:14175-14442`. Return FIDELITY and CHANGE-SAFETY verdicts.
+
+The sandbox is read-only and the whole tree is present. Read the files directly;
+nothing below is a substitute for them.
+
+## SOURCE INSTRUCTION
+
+Your own IMPLEMENTATION DIRECTIVE, `loop/codex-05.log:14175-14442`. Sections 1-9.
+The prompt it answered is `loop/prompt-05.txt`.
+
+## WHAT WAS WRITTEN
+
+New package `go/harness/wsx` (all files new, none previously existed):
+
+    doc.go           37   package rationale, the H-FAIL-2 claim
+    wire.go         135   subscribe/resnapshot payloads, ticker validation,
+                          inbound frame shapes
+    frame.go        227   InspectFrame, the H-CO-3a whole-cent assertion
+    gate.go         509   Gate, ReconcileToken, Truth, A13
+    transport.go    232   Signer/Socket/Dialer/Clock/Timer + live adapters
+    session.go      271   Command, Event, one connection's F1 ladder
+    supervisor.go   258   dial, subscribe, reconnect ladder, F4 detection
+    portfolio.go    344   PortfolioSource, Poller, ApplyPortfolio, convertFills
+
+    stub_test.go        534
+    frame_test.go       240
+    gate_test.go        378
+    portfolio_test.go   417
+    supervisor_test.go  580
+    transport_test.go   303
+
+New in `go/harness/risk` (both files new):
+
+    position.go      564   OwnershipLookup, FillEvent, AckFill, LiveOrder,
+                           ReconcileMode, Portfolio and its effects types
+    position_test.go 590
+
+Modified: `scripts/harness_negative_control.py` (ten mutations appended,
+27 -> 37; no existing entry touched). Regenerated:
+`notes/harness-negative-control.md`, `notes/harness-negative-control.partial.md`.
+
+Nothing else was edited. `cmd/harness`, `feed`, `core`, `store`,
+`notes/pilot-plan.md`, `notes/harness-spec.md` and `harness/rest` are untouched.
+
+## OBSERVED TOOL FACTS
+
+`./loop/gates.sh`:
+
+    ===GATES===
+    PASS  build
+    PASS  vet
+    PASS  gofmt
+    PASS  test-race
+    PASS  check.py
+    PASS  negative-control
+    VERDICT: GREEN
+    ADVANCE_ELIGIBLE: YES
+
+All nineteen tests you named exist and pass. Mapping:
+
+    TestSupervisorPingPongReadDeadlineLadder                      wsx/supervisor_test.go
+    TestSupervisorReconnectsCleanImmediatelyAndAbnormalWithBackoff wsx/supervisor_test.go
+    TestSocketFailureDoesNotCancelPortfolioPoller                 wsx/supervisor_test.go
+    TestDisconnectThresholdReducesWithoutStoppingRESTOrSupervisor  wsx/supervisor_test.go
+    TestEveryDisconnectQuarantinesUntilFreshSnapshotAndAllPortfolioTruth wsx/gate_test.go
+    TestLatePreDisconnectReconcileCannotUnlockNewConnection        wsx/gate_test.go
+    TestSequenceGapQuarantinesAndRequestsResnapshot                wsx/gate_test.go
+    TestQuietMarketAloneReducesAndResnapshots                      wsx/gate_test.go
+    TestFractionalBookPriceNeverReachesCore                         wsx/frame_test.go
+    TestFractionalTradePriceRemainsLegal                            wsx/frame_test.go
+    TestPortfolioPollRunsImmediatelyThenEveryFiveSecondsDuringWSOutage wsx/portfolio_test.go
+    TestIncompletePortfolioReadPreservesStateAndFreshness           wsx/portfolio_test.go
+    TestAnyStalePortfolioEndpointStopsAllPlacementButNotCancel      wsx/portfolio_test.go
+    TestCompletePositionPollOverwritesLocalAndRecordsAgreements     risk/position_test.go
+    TestPositionDriftThresholdsAreStrictAndConsecutive              risk/position_test.go
+    TestAckAndFillAreOrderIndependentAndNeverDoubleCount            risk/position_test.go
+    TestFillOwnershipUsesOrderIDLedgerAndForeignStopsGlobally       risk/position_test.go
+    TestOwnedTakerOrPositiveFeeStopsGlobally                        risk/position_test.go
+    TestCompleteRestingOrdersReplaceWholesaleOnlyOnCompleteWalk     risk/position_test.go
+
+Catalogue result for the ten new mutations, from
+`notes/harness-negative-control.md`:
+
+    **37 of 37 mutations produced their expected outcome.**
+
+    M-W-PONG    caught by TestSupervisorPingPongReadDeadlineLadder
+    M-W-CLEAN   caught by TestEveryDisconnectQuarantinesUntilFreshSnapshotAndAllPortfolioTruth
+    M-W-RECON   caught by TestEveryDisconnectQuarantinesUntilFreshSnapshotAndAllPortfolioTruth
+    M-W-GRAN    caught by TestFractionalBookPriceNeverReachesCore
+    M-W-POS     caught by TestCompletePositionPollOverwritesLocalAndRecordsAgreements
+    M-W-OWN     caught by TestFillOwnershipUsesOrderIDLedgerAndForeignStopsGlobally
+    M-W-TAKER   caught by TestOwnedTakerOrPositiveFeeStopsGlobally
+    M-W-TRUTH   caught by TestAnyStalePortfolioEndpointStopsAllPlacementButNotCancel
+    M-W-DISC60  caught by TestDisconnectThresholdReducesWithoutStoppingRESTOrSupervisor
+    M-W-QUIET   caught by TestQuietMarketAloneReducesAndResnapshots
+
+    Each is a COMPILING mutation; none was recorded as "did not build". No
+    existing entry was modified and none regressed. Several were also caught by
+    additional tests; the table records the named catcher.
+
+    Note on process, since it affected an earlier figure: the first full run
+    was invalidated because the implementer edited `harness/wsx/portfolio.go`
+    while the script was copying the tree per mutation, which produced spurious
+    DID-NOT-BUILD results across unrelated M-R-* entries. The figure above is
+    from a clean re-run against a frozen tree.
+
+## ONE DIRECTIVE CLAUSE THAT WAS MISSED AND THEN FIXED
+
+Your §9 says: "There must be no production in-memory fallback, and a nil lookup
+must fail closed without refreshing fills truth."
+
+The first implementation failed closed inside `risk.Portfolio.ApplyFills` -- SEV1
+`OWNERSHIP_LEDGER_UNAVAILABLE`, global stop, no fill applied -- but
+`wsx.ApplyPortfolio` still set `Applied[TruthFills]` and still called
+`NoteTruth(TruthFills, ...)`, so the freshness clock advanced on a read nothing
+could interpret. Under A13 that keeps authorising placement.
+
+It is fixed: `ApplyPortfolio` now has an explicit `own == nil` branch that
+discards the fills result, emits SEV1, requests a global stop and does NOT touch
+the clock. The sub-test is
+`TestFillConversionFailureDiscardsTheWholeWalk/nil_ownership_ledger`. This
+change was made after the mutation catalogue was first run, so the catalogue was
+re-run afterwards; the figure above is from the re-run.
+
+## CHOICES THE IMPLEMENTER MADE THAT YOUR DIRECTIVE DID NOT SPECIFY
+
+Listed for adjudication, not defended. Each changes behaviour or the exported
+surface.
+
+1. **`ApplyFrame` and `ApplyDisconnect` are METHODS on `*Gate`**, not free
+   functions. `ApplyPortfolio` is a free function, because you gave it an
+   explicit signature.
+
+2. **Additional exported `Gate` methods** you did not name: `NoteSeqGap`,
+   `NoteTruth`, `NoteDisconnectSustained`, `Tick`, `TruthAge`, `Reducing`,
+   `Generation`, `Connected`, `Tickers`, `CancelPermitted`.
+
+3. **F4's threshold is detected in ONE place, the supervisor.** Your §3 has the
+   supervisor emit the disconnect-reduce event; your §4 has the gate keep the
+   market REDUCING after recovery. Implementing the threshold in both would put
+   two clocks on one rule, so `Gate.Tick` carries only F5 (quiet), and the gate
+   learns about F4 through `NoteDisconnectSustained(down, now)`. Consequence:
+   the gate cannot reduce on a sustained disconnect unless the caller relays the
+   event, and `lip-3af` must wire that. Filed as `lip-0qj` (P1) so the relay
+   cannot be forgotten: if `cmd/harness` wires the supervisor without calling
+   `Gate.NoteDisconnectSustained`, F4 is silently dead and the socket can be
+   down for an hour with no market reducing.
+
+4. **`CancelPermitted(ticker, now) bool` returns a literal `true`.** It exists so
+   "cancels are never gated" is a thing a test can assert and a mutation can
+   break. The repository has previously found a guard that was dead defensive
+   code and SURVIVED its mutation, so a constant function is exactly the shape
+   that has bitten this project before. Confirm or replace it.
+
+5. **`ORDER_SIDE_CONFLICT`, SEV1 + global stop, a class you did not specify.**
+   An order acknowledged on one side and filled on the other cannot be resolved
+   arithmetically -- the max()-of-cumulatives reconciliation needs one sign per
+   order, and applying either reading moves q the wrong way by twice the fill.
+   The event is dropped and a stop is requested. `risk/position.go:order`.
+
+6. **`FRAME_UNDECODABLE`, SEV2, and the frame is NOT delivered to
+   `core.Rig.Handle`.** A frame that does not decode as an envelope might be a
+   book frame, so it cannot be certified book-safe. This is stricter than
+   `core`, which would decode it itself and return an error.
+
+7. **`WS_ERROR_FRAME`, SEV2**, for an `error`-typed frame; it IS still delivered.
+
+8. **`risk.Portfolio.Positions()`**, an extra accessor returning a copy of every
+   non-flat market. Not in your §5 list.
+
+9. **The pong deadline is a `Timer` on the injected `Clock`, not a
+   `context.WithTimeout`.** A `context.WithTimeout` reads the real clock, so F1's
+   ladder would be undrivable by the scenario exchange and untestable at any
+   speed a gate can run at. The ping itself still runs on a cancellable child
+   context.
+
+10. **`PortfolioRead` carries ONE completion `Stamp` for the cycle.** Your §6
+    says "maintain independent last-success clocks for positions, orders and
+    fills"; that independence is expressed by WHICH endpoints get `NoteTruth`
+    called, in `Gate.truthAt[3]`, not by three separate read timestamps.
+
+11. **`ApplyPortfolio`'s `time.Duration` parameter is read as the monotonic
+     reading at APPLICATION time**, distinct from `read.At` (when the cycle
+     finished). Freshness is stamped from `read.At`; the `TRUTH_STALE` anomaly is
+     evaluated from `now`. Your signature gave the parameter no name.
+
+12. **Poller coalescing** is implemented by rearming the timer with
+    `interval - elapsed`, floored at zero, so an overrunning cycle owes exactly
+    one immediate tick.
+
+13. **`fee_cost` conversion**: `rest.ParsePrice4` then `×100` into `num.Money`
+    (1e-4 dollars to 1e-6 dollars). An empty or unparseable `fee_cost` invalidates
+    the whole fills result.
+
+14. **Backoff ladder** is a fixed array 1, 2, 4, 8, 16, 32, 60 seconds with 60 as
+    the terminal rung.
+
+15. **A malformed `Command` is ignored rather than failing the session.** The
+    caller's defect does not justify dropping a healthy socket.
+
+16. **`Gate.OnConnect` and `Gate.ApplyDisconnect` BOTH advance the generation**,
+    so it moves by two per cycle. Invalidation is by generation mismatch and
+    nothing is erased.
+
+17. **Test-only**: the fake clock exposes `BlockUntilStops(n)`, counting `Stop()`
+    calls, because it is the only signal a test has that the session has FINISHED
+    resolving a ping rather than merely been woken. Without it the ping tests are
+    races.
+
+## WHAT WAS NOT BUILT, BY YOUR INSTRUCTION
+
+H-FAIL-6's depth comparison; the durable ownership ledger (`lip-6w5`); startup
+adoption (`lip-bw0`); P&L (`lip-gp8`); A1-A14 (`lip-dgg`); the scenario exchange
+(`lip-b1r`); goroutine ownership and `cmd/harness` wiring (`lip-3af`);
+DNS-IP fallback (H-DEP-1).
+
+`lip-fq7` is NOT closed and no commit has been made.
+
+## WHAT IS NEEDED FROM YOU
+
+    FIDELITY: FAITHFUL or DRIFT
+    CHANGE-SAFETY: CLEAN or NEW-BREAK
+
+then DECISION, IMPLEMENTATION DIRECTIVE, ADVANCE: YES or NO, MOBILE RELAY.
+
+Adjudicate each of the seventeen choices above as accepted, or name the change
+you want. If any of them is a material break, say so rather than accepting it
+because the tests are green -- the tests were written by the same process that
+made the choice.

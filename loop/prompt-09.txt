@@ -1,0 +1,526 @@
+You are still the primary driver. `lip-fq7` is CLOSED per your last directive.
+This prompt opens `lip-bw0` — lifecycle safety, pilot-plan §7.5 — and asks you
+for its implementation directive.
+
+## YOUR LAST DIRECTIVE (verbatim, loop/codex-08-audit3.log)
+
+> ## IMPLEMENTATION DIRECTIVE
+>
+> - Close `lip-fq7` as completed.
+> - Preserve the implementation, tests, and all 45 mutation ratchets unchanged.
+> - Advance next to `lip-bw0`, lifecycle safety (§7.5). Do not start `lip-3af`
+>   while `lip-0qj` blocks its required owner-loop relays.
+> - Do not commit unless separately authorized.
+>
+> ## ADVANCE: YES
+
+## OBSERVED TOOL FACTS — current state
+
+`./loop/gates.sh` from `/Users/hugh/kek/lip`, run at the top of this session
+against a frozen tree:
+
+    PASS  build
+    PASS  vet
+    PASS  gofmt
+    PASS  test-race
+    PASS  check.py
+    PASS  negative-control
+    VERDICT: GREEN
+    ADVANCE_ELIGIBLE: YES
+
+The catalogue is 45 mutations, 45/45 producing their declared outcome.
+
+`bd show lip-fq7` reports CLOSED. `bd ready` P1 entries:
+
+    lip-0qj  wsx: cmd/harness must relay EventDisconnectReduce to Gate.NoteDisconnectSustained
+    lip-6w5  Five-record store + minimal alerts (pilot-plan §2.3, §7.6)
+    lip-bw0  Lifecycle safety: halt latch, startup adoption, single-instance lock (pilot-plan §7.5)
+    lip-b1r  Scenario exchange replacing V2 (pilot-plan §3)
+    lip-dgg  risk: A1-A4, A6-A14 invariants (V3)
+    lip-gp8  risk: pnl per H-HALT-5 (V1.13)
+
+`lip-3af` remains BLOCKED by `lip-0qj` and has not been started.
+
+### The bead text, verbatim
+
+> `lip-bw0` · Lifecycle safety: halt latch, startup adoption, single-instance
+> lock (pilot-plan §7.5)   [P1 · OPEN]
+>
+> H-HALT-4 durable latch written BEFORE the in-memory state changes; file
+> authoritative over SQLite. H-HALT-3 SIGTERM does not exit - drain_timeout_h
+> ESCALATES, never exits with q!=0. §7.5 startup adoption: a restarted process
+> recovers every position before acting. Foreign-activity assertion on the
+> dedicated account. launchd + caffeinate (see the mac-sleep memory).
+
+### `go/harness` package contents, non-test files
+
+- `cfg/params.go`
+- `num/money.go`, `num/qty.go`
+- `quote/cross.go`, `external.go`, `machine.go`, `queue.go`, `requote.go`,
+  `skew.go`, `state.go`
+- `rest/cancel.go`, `client.go`, `coid.go`, `page.go`, `read.go`, `wire.go`,
+  `write.go`
+- `risk/capital.go`, `invariant.go`, `monitor.go`, `position.go`, `snapshot.go`
+- `wsx/doc.go`, `frame.go`, `gate.go`, `portfolio.go`, `session.go`,
+  `supervisor.go`, `transport.go`, `wire.go`
+
+`go/cmd/harness/` is exactly three files: `main.go` (29 lines), `monitor.go`
+(85 lines), `monitor_test.go` (661 lines).
+
+### What already exists that this unit builds on
+
+`quote/machine.go:305-337` — `GlobalInput` already carries the latch as an
+INPUT:
+
+    // Latched is the durable halt latch on disk (H-HALT-4), read before
+    // anything else at STARTING. The file is authoritative if it and the
+    // database disagree, because SQLite may be the thing that failed.
+    Latched bool
+
+`quote/machine.go:275-276` — the trigger already exists:
+
+    GTLatch  // H-HALT-4: a durable latch from a previous incarnation
+
+`quote/machine.go:353-377` — `NextGlobal`'s A14 rule is already evaluated,
+ahead of every other rule:
+
+    if in.Latched && in.State != WindingDown && in.State != Drained {
+        return WindingDown, GTLatch
+    }
+
+So the latch's CONSUMER exists and is tested. Nothing WRITES or READS the
+durable file. `Latched` has no producer anywhere in the tree.
+
+`risk/position.go:509-562` — `ReplaceOrders` already separates foreign orders
+and explicitly defers their MEANING to this unit:
+
+    // Foreign is every resting order on the account that is not ours. They are
+    // REPORTED and never cancelled here: cancelling an order we do not
+    // understand is an action on someone else's risk, and the lifecycle decides
+    // what a foreign order means depending on whether we are still STARTING.
+    Foreign   []LiveOrder
+
+It raises `Anomaly{Class: "FOREIGN_ORDER", Sev: SEV2}` per foreign order, with
+text ending "...depends on whether this process is still adopting a
+pre-existing account". There is no `FOREIGN_FILL` class anywhere in the tree.
+
+`risk/position.go:74-95` — `ReconcileMode` already distinguishes the startup
+walk from steady state:
+
+    // Seed is the startup reconciliation. The exchange has just told us the
+    // position directly (`GET /portfolio/positions`), so the historical fills
+    // that produced it must NOT be replayed on top of it [...]
+    Seed ReconcileMode = iota
+    // Live is steady state, where a newly observed fill is news and moves q.
+    Live
+
+`risk/position.go:29-31` — `OwnershipLookup` is an interface with one method,
+`OwnsOrder(orderID string) bool`. Its doc says the durable ledger lives in
+`harness.db`, that `lip-6w5` implements it against storage, and that "this
+package never learns how". No implementation of that interface exists outside
+tests.
+
+`cmd/harness/monitor.go` — the I2 monitor goroutine, driven by an injected
+`tick <-chan time.Time` and an injected `now func() time.Duration`. It holds an
+`*atomic.Pointer[risk.Snapshot]` and an `emit` func and nothing else. It runs
+at 1 Hz with no condition in the loop. `M1` mutates it.
+
+`risk/monitor.go` + `risk/invariant.go` — `MonitorState.Step`, `A5Tracker`,
+`lastAdvance`/`stalled`. `M14` and `M14b` mutate these. The advancing-sequence
+detection A5 asserts is therefore already implemented and already ratcheted; it
+is the PRODUCER (an owner that publishes a `seq`) that does not exist.
+
+`cmd/harness/main.go` — 29 lines, prints a refusal and `os.Exit(2)`. Wiring is
+`lip-3af`, which is blocked.
+
+### What does not exist anywhere in `go/harness` or `go/cmd/harness`
+
+`grep -rn '"os"|"path/filepath"|"syscall"|"os/signal"|database/sql' --include='*.go' harness cmd`
+returns, excluding tests, exactly one hit inside the harness tree:
+`cmd/harness/main.go:15: "os"` (for `os.Exit(2)`). The other hits are
+`cmd/rig/main.go` and `cmd/replay/main.go`, both hash-pinned and out of scope.
+
+There is no file I/O, no signal handling, no lockfile, no PID handling, and no
+`harness.db` anywhere in `go/harness` or `go/cmd/harness`. `harness/quote` and
+`harness/risk` are pure by rule (`state.go:1-8`: "no clock, no I/O, no
+goroutines [...] Anything needing a clock lives in cmd/harness and is passed
+in").
+
+`cfg.Params` (§16) currently carries, relevant to this unit:
+
+    OwnerStall       time.Duration // owner_stall_s       H-TOP-5 / I3
+    TruthMaxAge      time.Duration // truth_max_age_s     H-FAIL-4
+    PnLMarkMaxAge    time.Duration // pnl_mark_max_age_s  H-HALT-5
+    DisconnectReduce time.Duration // disconnect_halt_s, RENAMED per H-HALT-1
+    DrainTimeout     time.Duration // drain_timeout_h
+    Heartbeat        time.Duration // heartbeat_s  H-PING-1
+    Backfill         time.Duration // backfill_h   §7.5 step 3
+
+`cfg.Params` has NO `startup_retries` field. §7.5 names `startup_retries` (3)
+and `notes/harness-spec.md:1826-1870`'s §16 parameter table does not list it.
+
+### The `wsx` sealed surface (do not widen)
+
+`go/harness/wsx/seal_test.go` is an EXTERNAL-package test (`package wsx_test`)
+that asserts by reflection that `*Gate` exports no `NoteTruth`, that
+`PortfolioRead` exports no field and no method beyond `Seq()`/`CompletedAt()`,
+and that `ReconcileToken` exports no field. `Gate.noteTruth` is private.
+
+`Gate` exports: `Tickers`, `Generation`, `Connected`, `Reducing`, `OnConnect`,
+`ApplyDisconnect`, `ApplyFrame`, `NoteSeqGap`, `TruthAge`, `Actionable`,
+`CancelPermitted`, `Tick`, `NoteDisconnectSustained`.
+
+## SPEC CLAUSES — verbatim from notes/harness-spec.md (SHA-pinned, never edited)
+
+### H-HALT-3, and the drain timeout (spec:1656-1668)
+
+> **H-HALT-3** — SIGTERM does not exit. It sets `WINDING_DOWN`, keeps the
+> process alive, and exits only when every market is flat or closed. An operator
+> who genuinely wants the process gone with inventory open must SIGKILL, which
+> is an explicit and recoverable act (§7.5), not an accident.
+
+> **`drain_timeout_h` (12h) escalates; it does not exit.** At the timeout the
+> harness pings `SEV1` and keeps pinging on an escalating cadence — it does not
+> terminate with `q ≠ 0`.
+>
+> > Red-team HR-009: the earlier rule permitted exit after 12 hours **with
+> > inventory open**. That is I1 and H-FAIL-1 contradicted in the parameter
+> > table — a timer that eventually does the exact thing the whole document
+> > forbids. A drain timeout is evidence the operator is needed, not authority
+> > to abandon.
+
+### H-HALT-4 (spec:1670-1682)
+
+> **H-HALT-4 — A global halt is durable and survives restart.**
+>
+> The global halt state is written to a **latch that outlives the process** —
+> `harness.halt` on disk, written **before** the in-memory state changes, with
+> the trigger, timestamp and market — and to `state_event`. The file is
+> authoritative if the two disagree, because SQLite may be the thing that
+> failed.
+>
+> - `STARTING` reads the latch **before any placement** and, if set, enters
+>   `WINDING_DOWN` directly.
+> - **The harness never self-clears it.** Clearing is the operator action of
+>   §10.4.
+> - A planned exit either restarts into a latched `DRAINED` or disables
+>   `KeepAlive`; it never exits into a supervisor that will immediately resume
+>   quoting.
+
+### The HR-009 sequence H-HALT-4 closes (spec:1687-1692)
+
+> Sequence: a taker fill latches global `WINDING_DOWN` (F14) — the most serious
+> stop condition in the system. An unrelated panic kills the process. `launchd
+> KeepAlive: true` (H-DEP-2) restarts it. `STARTING` had no notion of a prior
+> halt, so flat markets resumed adding quotes. **The halt self-cleared without
+> any operator action, because the supervision policy the spec mandates erased
+> the safety state the spec mandates.** §10.4's `harness.resume.ok` sentinel
+> governed *resuming* from a halt; nothing persisted the halt at the moment it
+> was set.
+
+### §10.4 restart from WINDING_DOWN (spec:1477-1481)
+
+> Only by operator action: remove the sentinel file `harness.resume.ok` guard
+> and restart the process. The harness never self-clears a global halt. It also
+> never requires a restart to keep managing inventory — that is the whole point
+> of `WINDING_DOWN` being a live state.
+
+### H-FAIL-1 — the only process exits (spec:1514-1517)
+
+> **H-FAIL-1 — No failure response is "exit".** Not one row above terminates the
+> process. The only process exits are: operator SIGINT/SIGTERM (which enters
+> `WINDING_DOWN` and keeps running until drained, then exits), and SIGKILL or
+> power loss (which are recovered by §7.5 on restart).
+
+### The SIGTERM divergence from cmd/rig (spec:1694-1697, and 2242-2244)
+
+> This deliberately diverges from `cmd/rig`, where SIGTERM rolls the transaction
+> back to reproduce Python's unhandled-signal behaviour (port-spec §6a.3). That
+> faithfulness rule binds the rig, not the harness. The harness has inventory;
+> the rig does not.
+
+> 4. **§12 H-HALT-3 makes SIGTERM non-terminal.** This diverges deliberately
+>    from `cmd/rig`, where SIGTERM rolls back to reproduce Python. Stated at the
+>    rule. **`drain_timeout_h` no longer exits** (HR-009) — it escalates.
+
+### §7.5 startup adoption, the whole procedure (spec:869-897)
+
+> ### 7.5 Startup adoption — the exchange is authoritative
+>
+> **H-ORD-5 — Reconcile before quoting. Always. No exceptions.**
+>
+> `STARTING` runs, in this order, and does not place a single order until all of
+> it succeeds:
+>
+> 1. `GET /portfolio/positions` → seed `q` for every market with a non-zero
+>    position, **including markets not in the selection set.**
+> 2. `GET /portfolio/orders?status=resting` → every resting order on the
+>    account.
+> 3. `GET /portfolio/fills` → paginate back `backfill_h` (24h) into `our_fill`.
+> 4. `GET /portfolio/balance` → seed the capital model.
+> 5. Classify every resting order:
+>    - coid matches `lipH-*` → **adopt** into the state machine at its stated
+>      price and size.
+>    - coid does not match → **not ours.** Do not cancel it. Ping `SEV2`
+>      (`FOREIGN_ORDER`) and exclude that market from selection — an account
+>      with unexplained orders on it is an account whose position model we
+>      cannot trust. **Foreign activity appearing *after* startup latches global
+>      `WINDING_DOWN`** (H-ORD-9), because by then it is not a pre-existing
+>      condition we adopted but a live third party trading the account we are
+>      modelling.
+> 6. Any market with `q ≠ 0` enters at `REDUCING`, **not** `QUOTING`, regardless
+>    of size. Adopted inventory is inventory whose provenance we do not know.
+> 7. Emit a `STARTUP` ping summarising adopted position and orders.
+>
+> If any of steps 1–4 fails after `startup_retries` (3), the harness enters
+> **`UNKNOWN_RISK`**, pings `SEV1`, and **retries indefinitely with backoff**.
+> It does **not** proceed to quote against an unknown position, and it does
+> **not** exit.
+
+### H-ORD-5a / 5b / 5c (spec:899-929)
+
+> **H-ORD-5a — Ignorance is not a halt state.** The earlier rule sent this case
+> to `WINDING_DOWN`. Red-team HR-008: `WINDING_DOWN`'s entire purpose is keeping
+> the *reducing* quote alive, and a reducing quote requires knowing `q` — which
+> side to quote and how much. Entered from a failed position read, it has no
+> `q`, so it can do nothing at all, and no continuing reconciliation was
+> specified. It would simply sit there with inventory it could not see.
+> `UNKNOWN_RISK` is a distinct state whose only job is to **keep trying to find
+> out**, forever, while placing nothing.
+
+> **H-ORD-5b — The managed set is not the selected set.** Markets under
+> management are the **union** of:
+>
+> - every selected market,
+> - **every market with a non-zero position**, and
+> - **every market with a resting, sending or unknown `lipH-` order**,
+>
+> **irrespective of LIP program status, selection rank, or `core.Rig` universe
+> membership.** The harness subscribes to whatever it holds.
+
+> **H-ORD-5c — Adopted adding orders are validated, not just inherited.** Before
+> leaving `STARTING`, every adopted `lipH-` order that is invalid under current
+> selection, close, size, price or capital rules is **cancelled and swept**
+> (H-ORD-4). Adoption preserves orders we would place today; it is not a licence
+> for a prior incarnation's orders to persist unexamined — including an adding
+> order in a market that is now flat and unselected.
+
+### H-ORD-9 — ownership ledger and foreign activity (spec:977-1008)
+
+> **H-ORD-9 — Ownership is a ledger, not an inference, and foreign activity is
+> global.**
+>
+> [...]
+>
+> - `harness.db` keeps a **durable ownership ledger** covering every coid the
+>   harness has ever sent, **including terminal orders**. Fills are classified by
+>   `order_id` against that ledger — never by heuristic, never by `run_id`.
+> - A fill whose `order_id` is not in the ledger is **foreign**. It does not
+>   enter `our_fill`, does not trigger F14, and does trigger **`SEV1
+>   FOREIGN_FILL` and global `WINDING_DOWN`** — someone else is trading the
+>   account our position model describes, and that model is now unreliable
+>   everywhere, not in one market.
+> - H-SEL-11 wins over F15 on the exclusion question: a market with `q ≠ 0` stays
+>   under management in `REDUCING`. Exclusion applies to *new selection*, not to
+>   abandoning inventory.
+
+> **The cheaper fix is operational, and is recommended:** run the harness on a
+> **dedicated account with no manual activity**, and assert at startup and on
+> every poll that no foreign order or fill exists. That converts this entire
+> class from a modelling problem into a precondition. The ledger is specified
+> because the assertion can fail, not because the assertion is optional.
+
+Fault-table row F15 (spec:1506):
+
+> | F15 | **Foreign order on the account** | coid does not match `lipH-*` |
+> exclude that market from selection; do **not** cancel it | `SEV2` |
+
+Spec:2237-2241:
+
+> 3. **§7.5 does not cancel foreign orders at startup**, it excludes the market
+>    and pings. Cancelling someone else's — or a previous incarnation's — orders
+>    is a destructive act taken on incomplete information. **But foreign activity
+>    arising *after* startup now latches global `WINDING_DOWN`** (H-ORD-9), and a
+>    dedicated account is the recommended way to make this moot.
+
+### H-DEP-2 / H-DEP-3 / H-DEP-5 (spec:1757-1761)
+
+> | H-DEP-2 | **`launchd`, `KeepAlive: true`** | not `nohup`, not a terminal.
+> Restart on any exit, including exit 0. |
+> | H-DEP-3 | **`caffeinate`** | the launchd job execs `/usr/bin/caffeinate -is
+> <harness>`, so the assertion lives exactly as long as the process. The Mac
+> idle-sleeps and a sleep silently voids everything (F7). |
+> | H-DEP-5 | one instance only | a PID lockfile, checked at startup. Two
+> harnesses on one account is an unrecoverable position-model conflict. |
+
+### H-TOP-5 / I3 — the advancing-sequence requirement (spec:182-212)
+
+> ### H-TOP-5 — The snapshot is sequenced, because liveness is not truthfulness
+>
+> `Snapshot` carries a **monotonically advancing `seq`** and a **monotonic
+> publication timestamp**, both set by the owner at publication.
+>
+> > **I3 — The monitor must be able to detect that its own input has stopped
+> > advancing, and must say so rather than continue republishing it.**
+>
+> [...]
+>
+> - **A5 asserts source advancement, not row freshness** (§17 V3).
+> - A monitor observing a stalled `seq` emits `SEV1 OWNER_STALLED`, marks its
+>   output **stale**, and stops presenting it as current — in `snap` rows, in
+>   heartbeats, and in the integrated `uptime` accounting.
+> - Mutation **M14** (freeze owner publication, leave monitor and ping alive)
+>   must **fail** against the old A5 and **pass** against this one.
+
+### H-PING-1 — the dead-man heartbeat (spec:1732-1742)
+
+> **H-PING-1** — A `SEV3` heartbeat pushes every `heartbeat_s` (**3600s**)
+> carrying: global state, per-market state, `q` per market, total capital
+> deployed, integrated share per market, uptime fraction since start, and the
+> count of journalled-but-undelivered anomalies.
+>
+> This exists because **an anomaly-only channel cannot report its own death.**
+> F18 is detected by the *absence* of a heartbeat, which is the operator's job
+> unless a dead-man's-switch service is added later. The heartbeat is what makes
+> silence informative instead of ambiguous.
+
+### F7 — host sleep (spec:1498)
+
+> | F7 | **Host sleep / process stall** | per tick, compare wall-clock delta
+> against monotonic delta; divergence > 5s | treat the gap as downtime, force
+> resnapshot + `RECONCILE_NOW`, record the interval in `uptime` | `SEV2` |
+
+### F18 — process death (spec:1509)
+
+> | F18 | **Harness process death** | absence of the heartbeat (§11.4) | external
+> — supervision restarts it (§12); startup adoption (§7.5) recovers | operator
+> sees missing heartbeat |
+
+### The mutation the spec names for this unit (spec:2040)
+
+> | M3 | `os.Exit` on SIGTERM instead of draining | a lifecycle test asserting
+> the process outlives SIGTERM with `q ≠ 0` |
+
+Pilot-plan §5's retained mutation list is `M1, M2, M3, M4, M7, M11, M12, M13,
+M14, M19, M20, M21`. The catalogue currently contains M1, M14, M14b, M7, M26,
+M26a plus the 21 `M-R-*` REST entries and the 18 `M-W-*` websocket entries.
+`M2, M3, M4, M11, M12, M13, M19, M20, M21` are NOT in the catalogue.
+
+### Scenarios the spec ties to this unit
+
+> | V4.17 | **SIGKILL with inventory** | `kill -9` mid-run, then restart | §7.5
+> recovers `q` from the exchange, market enters `REDUCING`, resting orders
+> adopted by coid, `STARTUP` ping fires |
+
+> | V4.7 | Host sleep | `pmset sleepnow` with inventory open, live dry-run | gap
+> detected, resnapshot, reconcile, `uptime` records the interval, `SEV2` |
+
+> | V7.7 | SIGKILL and restart mid-position recovers correctly (V4.17, live) |
+
+### H-VER-1 — the dry-run guard (spec:2074-2078)
+
+> **H-VER-1 — The dry-run guard is structural, not a flag.**
+> `harness/rest` refuses any non-GET request unless **two independent
+> conditions** hold: `--live` on the command line *and* a `live_ok` file present
+> at a configured path. This reproduces `probebot.py`'s `DryRunViolation`
+> pattern, which is the one piece of that bot's safety design worth porting
+> verbatim.
+
+## PILOT-PLAN CLAUSES — verbatim from notes/pilot-plan.md
+
+§7 item 5, the unit itself (plan:129-131):
+
+> 5. **Lifecycle safety**: advancing-sequence monitor, durable halt latch,
+>    startup adoption, foreign-activity assertion, single-instance lock, launchd
+>    + caffeinate.
+
+§6, what must not be cut (plan:105-109):
+
+> - I1 / I2 / I3, A4 / A5 — never abandon inventory or monitoring; detect a
+>   frozen owner rather than reporting stale truth as fresh
+> - H-FAIL-3 / 4 / 5 — cancel-requested is still live; stale truth and
+>   disconnected books cannot authorise a placement
+> - H-HALT-3 / 4 and startup adoption — the halt survives restart; a restarted
+>   process recovers every position before acting
+> - H-CLOSE-3 — verified final cancel before close
+> - Dedicated account, one process, supervision, SEV1 alert, dead-man heartbeat
+
+§1, the dedicated-account precondition (plan:24-26):
+
+> Therefore, as a **precondition, not a preference**: the Kalshi account contains
+> exactly the pilot capital and nothing else. This is the single most effective
+> risk control available and it costs nothing.
+
+§7 item 1, the pilot profile (plan:117-119):
+
+> 1. **Pilot profile**: dedicated account with exactly the pilot capital; one
+>    operator-chosen ticker; no `can_close_early` markets; one REST writer;
+>    cancel-confirm-place only.
+
+## TENSIONS THE IMPLEMENTER OBSERVED AND DID NOT RESOLVE
+
+These are reported as observations, not as a proposed menu. Each is a place
+where the spec, the pilot plan, and the existing code do not jointly determine
+what to build, and the implementer stopped rather than choosing.
+
+1. **§7.5 items 2, 4 and 6 of pilot-plan §7's list — "startup adoption",
+   "foreign-activity assertion" — are specified in terms of REST calls,
+   selection, the capital model, `our_fill`, `state_event`, `harness.db`, and a
+   `STARTUP` ping.** Of those, `harness/rest` exists, the capital model exists,
+   and NONE of storage, selection, ping, or the ownership ledger exists.
+   `lip-6w5` (the five-record store and alerts) is a separate open P1 that the
+   `OwnershipLookup` doc names as the implementer of the ledger. `lip-3af`
+   (wiring `cmd/harness`) is BLOCKED. The bead's scope and the units it depends
+   on are not the same set.
+
+2. **H-HALT-4 says the latch is written "before the in-memory state changes",
+   and H-HALT-2 says `NextGlobal` is the only place the global state
+   transitions.** `NextGlobal` is pure and takes `Latched` as an INPUT, not as
+   something it writes. Nothing in the tree currently sits between "a trigger
+   fires" and "`NextGlobal` is called" where a write-before-transition could be
+   ordered.
+
+3. **`startup_retries` (3) is named in §7.5 prose but is absent from the §16
+   parameter table and absent from `cfg.Params`.** Adding a field to
+   `cfg.Params` changes a §16-derived struct that `params_test.go` asserts
+   field-by-field against a fixed map.
+
+4. **The single-instance lock (H-DEP-5) and the halt latch (H-HALT-4) both
+   require file I/O, and `cmd/harness` today contains only the pure monitor
+   loop plus a 29-line refusal.** `harness/quote` and `harness/risk` are pure by
+   an explicit package rule. Where the file-touching code lives — a new
+   `harness/` package, or `cmd/harness` — is not stated.
+
+5. **The advancing-sequence monitor is listed as part of this unit, but A5,
+   `MonitorState`, `A5Tracker`, `lastAdvance`/`stalled` and the `cmd/harness`
+   monitor goroutine already exist and are already ratcheted by M1, M14 and
+   M14b.** What is missing is a `seq`-publishing owner, which is `lip-3af`'s
+   wiring. It is not clear what this unit adds there that is not already
+   present.
+
+6. **launchd and caffeinate (H-DEP-2, H-DEP-3) are deployment artifacts, not
+   Go code.** `scripts/check.py` and `loop/gates.sh` gate the Go tree and the
+   Python catalogue. A `.plist` has no obvious gate, and the negative control
+   mutates `lip/go` only.
+
+## WHAT IS BEING ASKED
+
+The implementation directive for `lip-bw0`: what to build, where it lives, what
+it must NOT do, which parts of pilot-plan §7 item 5 belong to this bead versus
+to `lip-6w5`/`lip-3af`/`lip-0qj`, and which new negative-control mutations
+ratchet it. The implementer will build exactly what you name and nothing else,
+add every named mutation to `scripts/harness_negative_control.py`, and run
+`./loop/gates.sh`.
+
+Standing constraints, unchanged: `notes/harness-spec.md` is never edited;
+`go/core`, `go/feed`, `go/store`, `go/cmd/rig` are hash-pinned; no gate is
+weakened or deleted; every non-test Go file ends with a `// confidence: high`
+trailer; nothing is committed unless separately authorized; each mutation `old`
+anchor must appear exactly once, must compile, and must be production-only.
+
+Please answer with:
+
+    DECISION
+    IMPLEMENTATION DIRECTIVE
+    ADVANCE: YES or NO
+    MOBILE RELAY

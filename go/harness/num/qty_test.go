@@ -592,3 +592,96 @@ func TestValidateCountRejectsOvershoot(t *testing.T) {
 		t.Fatal("ValidateCount accepted an overshoot against a short position")
 	}
 }
+
+// TestParseQtyRejectsMalformed is the lip-6h0 regression.
+//
+// fmt.Sscanf("%g") does not require consuming its input. ParseQty("0.07abc")
+// returned Qty(7) with a nil error, so anything that is a number followed by
+// anything at all parsed as a quantity. That matters more here than it would in
+// an ordinary parser: ParseQty is the only path from an exchange-supplied count
+// to a local `q`, and H-CO-4a makes `q` the foundation of every sign and zero
+// comparison in the lifecycle. A count that is not really a count -- a
+// truncated frame, a field misread as `count`, a wire format that grows a
+// suffix -- became a position, and the caller had no error to escalate.
+//
+// The non-finite half is the more dangerous direction. QtyFromFloat maps NaN
+// and Inf to Qty(0), and Qty(0) is not a neutral answer: it is precisely the
+// answer that lets §5.2 leave REDUCING for IDLE and lets H-HALT-3 exit a
+// process with inventory. Parsing "NaN" as flat abandons an open position; the
+// only safe response is to refuse the parse.
+func TestParseQtyRejectsMalformed(t *testing.T) {
+	for _, tc := range []struct {
+		wire string
+		why  string
+	}{
+		{
+			wire: "0.07abc",
+			why: "the named lip-6h0 case: Sscanf(\"%g\") stopped at the first " +
+				"non-numeric byte and reported success, so a malformed count " +
+				"silently became a 0.07 position",
+		},
+		{"1.00 ", "a trailing space is still unconsumed input"},
+		{" 1.00", "H-CO-2's wire count carries no leading whitespace"},
+		{"12.00,", "a truncated frame can leave a delimiter attached"},
+		{"1.00.00", "two decimal points is not a fixed-point count"},
+		{"", "an absent field is not a zero position -- the caller must see " +
+			"the error and treat the count as unknown, not as flat"},
+		{"null", "a JSON null reaching the parser as a bare string must fail " +
+			"rather than quantize to flat"},
+		{"abc", "no numeric prefix at all"},
+		{"+-1.00", "malformed sign"},
+		{"1_000.00", "strconv.ParseFloat accepts Go literal underscores; " +
+			"H-CO-2's wire count has no such spelling, and reading it as " +
+			"1000 contracts is a three-orders-of-magnitude misread"},
+		{"0x1p+10", "nor is a hex float, which ParseFloat reads as 1024"},
+		{"1e3", "an exponent is not what a %.2f serializer emits"},
+		{"1.00e0", "including an exponent on an otherwise well-formed count"},
+		{".", "a bare decimal point has no digits"},
+		{"-", "a bare sign has no digits"},
+		{
+			wire: "NaN",
+			why: "QtyFromFloat maps NaN to Qty(0), and flat is the answer " +
+				"that lets REDUCING reach IDLE and lets H-HALT-3 exit with " +
+				"inventory (H-CO-4a)",
+		},
+		{"Inf", "an infinite count quantizes to flat, same abandonment"},
+		{"-Inf", "and so does the negative one"},
+		{
+			wire: "1e400",
+			why: "an overflowing literal returns ErrRange with a non-finite " +
+				"value; taking the value anyway would quantize to flat",
+		},
+	} {
+		got, err := ParseQty(tc.wire)
+		if err == nil {
+			t.Errorf("ParseQty(%q) = Qty(%d), want an error -- %s",
+				tc.wire, int64(got), tc.why)
+		}
+		if got != 0 {
+			t.Errorf("ParseQty(%q) returned Qty(%d) alongside its error, "+
+				"want the zero value: a caller that ignores the error must "+
+				"not receive a usable quantity", tc.wire, int64(got))
+		}
+	}
+
+	// The valid forms the exchange actually sends still parse. Rejecting
+	// trailing garbage must not narrow the accepted grammar.
+	for _, tc := range []struct {
+		wire string
+		want Qty
+	}{
+		{"0.00", 0}, {"1.00", 100}, {"12.00", 1200}, {"0.07", 7},
+		{"-0.07", -7}, {"50.00", 5000}, {"-12.00", -1200},
+	} {
+		got, err := ParseQty(tc.wire)
+		if err != nil {
+			t.Errorf("ParseQty(%q) returned an error: %v -- this is a count "+
+				"the exchange sends (H-CO-2)", tc.wire, err)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("ParseQty(%q) = Qty(%d), want Qty(%d)",
+				tc.wire, int64(got), int64(tc.want))
+		}
+	}
+}

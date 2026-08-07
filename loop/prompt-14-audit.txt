@@ -1,0 +1,447 @@
+AUDIT GATE — `lip-6w5` (five-record store + minimal alerts, pilot-plan §2.3, §7.6), v1.
+
+You are still the primary driver. This is the first audit of this bead. Return
+FIDELITY and CHANGE-SAFETY verdicts.
+
+The sandbox is read-only and the whole tree is present. Read the files directly;
+nothing below is a substitute for them.
+
+## SOURCE INSTRUCTION
+
+Your IMPLEMENTATION DIRECTIVE at `loop/codex-13-store.log:5579-5886`, sections
+1-10, together with the eleven tension adjudications at `:5586-5598`. The packet
+it answered is `loop/prompt-13-store.txt`.
+
+Nothing under `go/` existed for this bead when the directive was issued. All of
+it is new except the ownership seam, which is a breaking change to three
+existing packages.
+
+## OBSERVED TOOL FACTS — gates
+
+`./loop/gates.sh` from `/Users/hugh/kek/lip`, against a frozen tree:
+
+    PASS  build
+    PASS  vet
+    PASS  gofmt
+    PASS  test-race
+    PASS  check.py
+    PASS  negative-control
+    VERDICT: GREEN
+    ADVANCE_ELIGIBLE: YES
+
+## OBSERVED TOOL FACTS — the negative control
+
+Catalogue: **89 entries**, 72 preserved and 17 added with exactly the IDs and
+named catchers of your table at `loop/codex-13-store.log:5849-5867`.
+
+Full run, from `notes/harness-negative-control.md`:
+
+    **89 of 89 mutations produced their expected outcome.**
+
+87 **caught**, 2 **inert, as expected** (`M26` and `M-R-ACKCOIDPRESENT`, both
+pre-existing and both carrying their original positive argument). No row reads
+SURVIVED, NOT INERT, DID NOT BUILD, or "caught, but NOT by the named test". For
+all 87 caught rows the DECLARED catching test is among the tests that actually
+failed -- the runner asserts that itself (`ok = caught and expected in fails`),
+so 89/89 IS that assertion.
+
+The 17 new entries, from the targeted run required by your item 10, verbatim
+(the two RED rows are the corrected re-runs; see the section below):
+
+    ok M-HS-PERMIT: caught -> ['TestDispatchPermitExistsOnlyAfterCommittedOwnership']
+    ok M-HS-BINDCACHE: caught -> ['TestFailedBindingNeverEntersCommittedOwnership']
+    ok M-HS-OWNRUN: caught -> ['TestOwnershipSurvivesRunsAndTerminalOrders']
+    ok M-HS-LOOKUPFAIL: caught -> ['TestOwnershipLookupFailureAppliesNothingAndRefreshesNoTruth']
+    ok M-HS-FILLREPLACE: caught -> ['TestOurFillFirstObserverWinsAcrossRuns']
+    ok M-HS-AUDITDROP: caught -> ['TestAuditQueueNeverDropsWhileWriterIsStalled', ...]
+    ok M-HS-ANOMRACE: caught -> ['TestAnomalyIsInvisibleToDeliveryUntilBothJournalsAreDurable']
+    ok M-HS-STOREGATE: caught -> ['TestStoreFailureBlocksAddingButNotReducerOrMonitorWork']
+    ok M-HS-PRAGMA: caught -> ['TestSchemaIsExactlyThePilotFiveAndPragmasArePinned']
+    ok M-HS-STATE: caught -> ['TestStateEventPersistsScopeStatesAndTrigger']
+    ok M-P-SEV1: caught -> ['TestSEV1IsUrgentImmediateAndFiveMinuteDeduplicated']
+    ok M-P-SEV2: caught -> ['TestSEV2IsLimitedPerClassMarketAndReportsSuppression']
+    ok M-P-RESTART: caught -> ['TestUndeliveredAlertsSurviveRestartAndDrainOldestFirst']
+    ok M-P-HEALTHBEAT: caught -> ['TestHeartbeatContinuesInEveryStateAndNamesStoreFailure']
+    ok M-P-TOPIC: caught -> ['TestTopicNeverLeavesDestinationURL']
+    ok M-P-DEADMAN: caught -> ['TestAlertServiceRejectsMissingDeadman']
+    ok M-P-REDIRECT: caught -> ['TestBearerTransportsDoNotFollowRedirects']
+
+The splice was made by locating `MUTATIONS` with `ast.parse`, splicing at the
+list node's `end_lineno`, re-parsing, asserting the count moved by exactly 17,
+and then asserting that every `old` anchor in all 89 entries appears EXACTLY ONCE
+in its file. One pre-existing entry (`M-R-ACKOPTIONAL`) anchors on a module-level
+constant rather than a literal and is skipped by that check, as before.
+
+Verbatim from the parse check:
+
+    mutations: 89  unique ids: 89  non-literal anchors skipped: ['M-R-ACKOPTIONAL']  broken: 0
+
+## AN INTERMEDIATE RED RUN, REPORTED IN FULL
+
+Per your item 10 the 17 new mutations were run targeted, BEFORE the full
+catalogue. That run was **RED on two entries**, and both were defects in the
+verification rather than in the harness. Verbatim:
+
+    !! M-W-OWN: DID NOT BUILD (does not count as caught)
+    !! M-HS-AUDITDROP: caught, but NOT by the named test ->
+       ['TestUndeliveredAlertsSurviveRestartAndDrainOldestFirst']
+
+with the other sixteen `ok ... caught` by their declared test on the first run.
+
+### `M-W-OWN` — a preserved ratchet whose anchor I moved, and moved wrongly
+
+`M-W-OWN` is one of the 72. Its anchor was
+`if !own.OwnsOrder(f.OrderID) {`, which the batch seam deleted. I re-pointed it
+at the equivalent line in the new three-pass `ApplyFills`, `if !owned[i] {`, with
+the same replacement the entry always had, `if false {`.
+
+That does not compile. `i` is the index of `for i, f := range unseen`, and Go
+rejects an unused range variable. The mutation was therefore recorded DID NOT
+BUILD, which the runner correctly refuses to count as caught — this is exactly
+the false-negative §17 V5 exists to prevent, arriving through a mechanical
+re-point.
+
+The anchor is now `if !owned[i] {` -> `if false && owned[i] {`: the same
+semantic break (the foreign branch is unreachable, so every fill is ours), and it
+compiles. Re-run verbatim:
+
+    ok M-W-OWN: caught -> ['TestAnomalyTextNamesTheRuleItEnforces',
+      'TestFillOwnershipUsesOrderIDLedgerAndForeignStopsGlobally',
+      'TestOwnershipLookupFailureAppliesNothingAndRefreshesNoTruth']
+
+Nothing else about that entry changed: same id, same description, same declared
+catching test.
+
+### `M-HS-AUDITDROP` — the test asserted the right thing under the wrong conditions
+
+The mutation evicts the oldest waiting record **while the writer is in flight**.
+The first version of `TestAuditQueueNeverDropsWhileWriterIsStalled` submitted all
+eight records and only then waited for the writer's blocked-write handshake — so
+the store was free to have taken none of them under a stall, the eviction branch
+was never reached, and the named test passed under the mutation. It was caught
+only incidentally, by a `ping` test whose fixture noticed rows going missing.
+
+The test now records ONE anomaly, waits for the handshake — which proves the
+writer is inside a stalled write — and only then records the remaining seven.
+Re-run verbatim:
+
+    ok M-HS-AUDITDROP: caught -> ['TestAuditQueueNeverDropsWhileWriterIsStalled',
+      'TestSEV1IsUrgentImmediateAndFiveMinuteDeduplicated',
+      'TestUndeliveredAlertsSurviveRestartAndDrainOldestFirst']
+
+This is the same class as `M-L-SWEEP` on `lip-bw0`: an assertion that is correct
+and a setup that never puts the code in the state the assertion is about. It is
+reported rather than quietly fixed because the targeted-first ordering you
+required is the only reason it was found before the full run.
+
+## HOW EACH DIRECTIVE ITEM WAS IMPLEMENTED
+
+### 1. Files and permitted edits
+
+Created exactly the files you named:
+
+    go/harness/hstore/{doc,schema,records,sqlite,writer,ledger,state}.go
+    go/harness/ping/{doc,secret,ntfy,deadman,heartbeat,service}.go
+
+plus tests, including external-package seal tests in both
+(`hstore/seal_test.go` is `package hstore_test`; `ping/external_test.go` is
+`package ping_test`).
+
+Edited outside the two new packages, and nothing else: `harness/risk/position.go`,
+`harness/wsx/portfolio.go`, `harness/lifecycle/foreign.go`,
+`harness/lifecycle/adopt.go`, and the test stubs in those three packages.
+`rest`, `cfg`, `cmd/harness` and every frozen tree are untouched — `check.py`'s
+read-only tree check and the frozen-artifact checksums both pass. No dependency
+was added; `modernc.org/sqlite v1.54.0` was already in `go.mod`.
+
+### 2. The five tables
+
+`hstore/schema.go`. `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`
+applied on the single writable connection; a second connection is
+`query_only=ON`; `user_version=1`, and a nonzero unknown version is REJECTED
+rather than migrated.
+
+Column and constraint notes:
+
+- `owned_order.order_id` is nullable and UNIQUE, with
+  `CHECK ((order_id IS NULL) = (bound_ms IS NULL))` — null or non-null together.
+  The UNIQUE is also what lets `our_fill.order_id` reference it.
+- `our_fill.order_id REFERENCES owned_order(order_id)`, so a fill can only be
+  recorded against a durably BOUND order. That makes H-ORD-9 a foreign key
+  rather than a convention.
+- `state_event` CHECKs `scope IN ('global','market')`, `from_state <> to_state`
+  and `"trigger" <> 'none'`. `trigger` is quoted; it is a SQLite keyword.
+- `cfg.Params` is encoded with `encoding/json` straight off the struct. No
+  `String()` anywhere near it.
+- `our_fill` uses a literal `INSERT OR IGNORE`.
+- `run`, `owned_order`, `state_event` and `anomaly` are insert-or-verify: a
+  repeat with identical content succeeds, a repeat with different content is an
+  error.
+- Exact integer units throughout: `count_q` is quantity quanta, `price4` is
+  ten-thousandths of a dollar, `fee_micros` is microdollars.
+- The text journal is opened `O_APPEND|O_CREATE|O_WRONLY` and `Chmod(0600)`
+  (chmod as well as mode, so an existing file created under a laxer umask is
+  tightened), JSONL, one line per anomaly, carrying the anomaly id.
+
+`TestSchemaIsExactlyThePilotFiveAndPragmasArePinned` enumerates `sqlite_schema`
+and compares against the five by DeepEqual, then asserts six deferred names
+absent individually (`balance_poll`, `order_event`, `order_intent`,
+`position_poll`, `quote_state`, `snap`).
+
+### 3. Writer and health
+
+Public surface is exactly your list plus `Pragmas()` — see FLAGGED CHOICES.
+`Open` requires absolute paths, never deletes, never recreates.
+
+- Unbounded lock-protected FIFO; capacity-one `Wake()` channel for results and a
+  separate capacity-one channel to wake the writer. `submit` takes the mutex
+  briefly and never waits for SQLite.
+- The head is claimed WITHOUT holding the mutex across the write, which is the
+  only reason `Health()` remains answerable while a write is in flight.
+- A stalled or failed head stays queued. Nothing is ever evicted.
+- Private backoff ladder `writerBackoff`, 50ms..5s, bounded delay and unbounded
+  attempts.
+- `Health` has a conservative zero value (not healthy, not adding) and read-only
+  accessors. It exposes adding authority and diagnostics and has no mechanism
+  that touches reducing or monitoring.
+- Recovery: on failure, `recoverAt` is set to the sequence number of the last
+  record then queued; health returns healthy only once `committed >= recoverAt`.
+
+`RunHandle` and `DispatchPermit` have unexported fields only, invalid zero
+values, no public constructors, and are issued ONLY through `Result`.
+`DispatchPermit.Order()` re-checks that the carried order still names the coid
+the reservation committed, then applies H-STORE-3: an adding permit requires
+current healthy storage; a reducing permit does not.
+
+### 4. Dual anomaly journal
+
+`Store.applyAnomaly` is three resumable steps: row with `journaled_ms=NULL`,
+then the appended-and-`Sync`ed JSONL line, then the `journaled_ms` update.
+Progress flags live on the submission, so a retry after a failed journal append
+resumes at the journal instead of re-inserting the row.
+
+`Reader.PendingAnomalies` selects `journaled_ms IS NOT NULL AND delivered_ms IS
+NULL`, ordered by `first_ms`, across every run.
+
+`Store.reconcile` runs inside `Open`, before the store exists for anyone:
+
+- every journal line must have a row, and the row must match it, or `Open`
+  fails;
+- a duplicated id with different content fails;
+- a truncated final line (no terminating newline) or an unparseable line fails;
+- a row with `journaled_ms` NULL whose id IS in the journal has step three
+  completed using the journal line's own `written_ms`;
+- a row with `journaled_ms` NULL whose id is NOT in the journal has its text
+  appended and synced first, then step three.
+
+On a journal or database failure the record stays in the queue (immutable, in
+memory), health goes unhealthy, adding is revoked, the writer keeps retrying, and
+monitor/state/fill records keep being ACCEPTED. The anomaly is not delivered
+early because it never becomes delivery-visible.
+
+The healthy->unhealthy transition emits an immediate `PushHealth` with
+`Priority: urgent` whose body says persistence is unavailable and that ADDING is
+revoked while reducing, monitoring and alerting continue. It carries no anomaly
+ids at all, and the seal on that is asserted.
+
+### 5. Durable ownership interface
+
+`risk.OwnershipLookup` is now `OwnsOrders(orderIDs []string) ([]bool, error)`.
+`hstore.Ownership` implements it from an index loaded exclusively from committed
+`owned_order` bindings and updated only after commit. Three states per order id:
+committed (ours), absent with nothing outstanding (foreign), submitted-not-
+committed or failed (ERROR — never owned, never foreign).
+
+`risk.Portfolio.ApplyFills` is now three passes:
+
+1. collect unseen fills WITHOUT touching `seenTrade` (in-walk duplicates are
+   deduplicated here too);
+2. `OwnsOrders` over the whole batch. On error OR on a length mismatch: emit
+   `SEV1 OWNERSHIP_LEDGER_UNAVAILABLE`, set `Stop`, set the new
+   `FillEffects.Incomplete`, and return having mutated nothing;
+3. only then mark seen and apply.
+
+`wsx.applyFills` returns early on `Incomplete`, so `Applied[TruthFills]` stays
+false and `noteTruth` is not called — the endpoint ages out and H-FAIL-4 stops
+dispatch, which is the correct end state for a ledger outage.
+
+`ForeignGuard.Classify` now returns `(ForeignEffects, error)`. The ledger is
+consulted FIRST, for the whole walk, before any effect exists; an error returns
+a zero `ForeignEffects` and the error. `Startup.attempt` turns that into a failed
+pass that retries with backoff — not a set of foreign fills, and not a completed
+reconciliation.
+
+### 6. Ownership lifecycle
+
+`ReserveOrder(RunHandle, rest.CreateOrder, quote.Role, int64) (Receipt, error)`
+then `BindOrder(coid, orderID string, boundMs int64) (Receipt, error)`. Binding
+rules implemented exactly as specified: unknown coid is an error; the same
+mapping is idempotent success; a coid already mapped differently is an error; an
+order id already mapped to another coid is an error. The index is updated only
+in the success branch of `finish`, after the transaction commits.
+
+`owned_order` rows are never deleted and `loadBindings` has no run filter.
+
+`lip-eyq`'s startup binding and its two-run integration test are that bead's
+work; this one builds the store they will use.
+
+### 7. State events
+
+`NewGlobalStateEvent` and `NewMarketStateEvent` take the `quote` enums, reject an
+unchanged state, reject `GTNone`/`MTNone`, reject an unnamed state and (for
+market) an empty ticker, and return an immutable `StateEvent` whose every field
+is unexported with no setter. `RecordGlobalState`/`RecordMarketState` submit
+them against a `RunHandle`.
+
+This unit does not call `NextGlobal` or `NextMarket` and does not claim A9 is
+integrated; the package doc says so explicitly.
+
+### 8. Ping package
+
+Exactly your constructors. `LoadNTFYTopic` requires an absolute path and rejects
+absent, empty, duplicated, and (added) topics containing anything outside
+`[A-Za-z0-9_-]`, since the topic is a URL path segment.
+
+`Topic` and `HTTPSDeadman` hold their value behind a `func() string` rather than
+a string field, so `fmt.Sprintf("%v", ...)` prints an address. Neither has a
+`String`, `Format` or `Marshal*` method, and the external seal test asserts the
+absence of all of them plus the field-shape property that makes `%v` safe.
+
+Production destination is the constant `https://ntfy.sh` + `/` +
+`url.PathEscape(topic)`. Both live transports share `newBearerClient`, whose
+`CheckRedirect` refuses. Non-2xx and transport errors are both failures and leave
+rows pending. Delivery state goes through `hstore.Store.RecordDeliveryAttempt`;
+there is no SQL in `ping`.
+
+Delivery policy in `Service.Step` (deterministic, takes `nowMs`, no goroutine):
+SEV1 immediate + urgent + bypasses the fifteen-minute bucket + five-minute dedup
+per (class,ticker); SEV2 one push per (class,ticker) per fifteen minutes with
+suppressed occurrences remaining rows and one aggregate carrying their count and
+marking every represented row delivered; SEV3 batched into the next heartbeat.
+Recovery drains due SEV1 oldest-first then the rest oldest-first, from every run,
+carrying original timestamps. Failed pushes increment `attempts` and retry on a
+private 1-60s ladder.
+
+`Heartbeat` carries global state, per-market state and q, deployed capital,
+integrated share, uptime, source-stale, undelivered count and store health, with
+every optional metric a `Known` pair that renders `unknown` rather than zero.
+Heartbeats fire in every global state and during store failure, and every
+scheduled heartbeat checks in with the dead man. `NewService` rejects a nil
+endpoint.
+
+Operator provisioning and proof that a missed check-in fires are left to
+`lip-3af`, and the package doc says so.
+
+### 9. The eighteen tests
+
+All present, all named as specified, plus two extras
+(`TestAnomalyJournalIsPrivateAppendOnlyAndFailsClosed`,
+`TestNTFYTopicLoadsOnlyFromAnExplicitAbsoluteEnvFile`) and the two seal tests
+(`TestStoreSurfaceCannotForgeLicencesOrReachSQL`,
+`TestPingSurfaceKeepsSecretsOpaque`).
+
+Real SQLite only under `t.TempDir()`. `hstore`'s stall and disk-full paths use
+injected blocking/failing backend and journal wrappers with a channel handshake
+and an injected millisecond clock — no sleeps. `ping` drives a real `hstore` with
+its real writer goroutine.
+
+### 10. Ratchets
+
+72 preserved, 17 added with your exact IDs and catchers. See the evidence above.
+
+## FLAGGED CHOICES
+
+Each of these is a decision your directive did not make. They are listed so you
+can strike any of them.
+
+1. **`risk.FillEvent` gained `ExchangeTsMs int64`.** `our_fill.exchange_ts_ms` is
+   required and your `RecordFill` signature is fixed at
+   `(RunHandle, risk.FillEvent, int64, bool)`, but `FillEvent` carried no
+   timestamp. The field is populated from `rest.Fill.TsMillis` in both permitted
+   converters. `RecordFill` rejects a zero.
+
+2. **Permanent versus transient write failures.** Taken literally, "a failed head
+   remains queued and is retried" wedges the queue forever on a constraint
+   violation — a coid reserved twice with different content, a binding for a coid
+   that was never reserved — and blocks every audit record behind it for the life
+   of the process. So `SQLITE_CONSTRAINT` and this package's own rule violations
+   are classified PERMANENT: popped, reported to the submitter through
+   `Result.Err`, queue continues. Everything else (I/O error, SQLITE_BUSY, a full
+   disk) is transient and retried indefinitely. A permanent failure does NOT flip
+   store health — it is a caller error, not a persistence failure — but a failed
+   BINDING marks its order id unclassifiable, so `OwnsOrders` errors for it and
+   stays fail-closed.
+
+3. **`Store.Health()` can mutate.** A write that never returns cannot be observed
+   by the goroutine blocked inside it, so the writer-progress stall is detected
+   by whoever asks for health. `Health()` takes the mutex and, past
+   `defaultStallMs`, records the stall, revokes adding and sets the recovery
+   watermark. The mutation is one-way: it can revoke adding and never grant it.
+
+4. **`defaultStallMs = 5000`** — a private constant your directive does not name.
+
+5. **Recovery watermark.** "healthy only after the failed record and prior backlog
+   become durable" is implemented as: on failure `recoverAt` = the sequence of
+   the last record queued at that moment; healthy again when `committed >=
+   recoverAt`. Records submitted after the failure do not extend it.
+
+6. **`Store.Pragmas()`** is on your list nowhere. It exists because `synchronous`
+   and `foreign_keys` are per-connection, so `M-HS-PRAGMA` cannot be caught by
+   asking the query-only reader.
+
+7. **`DeliveryAttempt` carries a LIST of anomaly ids**, not one. "One aggregate
+   push marks every represented row delivered" is only true if that update is
+   atomic; per-row recording leaves a window in which a restart re-delivers the
+   remainder.
+
+8. **SEV3 rows are marked delivered by the heartbeat push that carried them.**
+
+9. **The health notice is rendered from `Heartbeat` with an urgent title** and
+   carries no anomaly ids.
+
+10. **`ReserveOrder` rejects a coid that does not parse as ours** (`rest.IsOurs`).
+    Not in your directive. The argument: §7.5's adoption classifies resting
+    orders by that parse, so reserving an unparseable coid records an order the
+    next incarnation will call foreign.
+
+11. **`Reader` gained three fixed queries beyond the obvious**
+    (`OwnedOrders`, `StateEvents`, `UndeliveredCount`) for the heartbeat and the
+    schema tests. There is still no method taking SQL, and the seal test asserts
+    that plus the absence of any `Query`/`Exec`/`Delete`-shaped exported method.
+
+12. **The `ping` store-failure test breaks persistence by taking SQLite's single
+    write lock from a second connection**, which produces `SQLITE_BUSY` — a
+    transient failure — and recovers on rollback. No injected fake crosses the
+    package boundary, but it is an unusual technique and worth your eye.
+
+13. **`M-W-OWN`'s anchor was re-pointed** (see the red run above). It is one of
+    the 72. Nothing was removed, renamed, or weakened, and its declared catching
+    test is unchanged.
+
+## WHAT TO CHECK
+
+1. The permanent/transient split (flagged choice 2). It is the one place I
+   departed from a literal reading of §3, and the failure mode it avoids —
+   one caller's constraint violation blinding the whole audit trail — is
+   traded against a rule violation no longer showing up as a storage failure.
+2. `Health()` mutating (flagged choice 3), and whether stall detection belongs on
+   the observer at all.
+3. Whether `risk.FillEvent.ExchangeTsMs` (flagged choice 1) is the intended
+   resolution, or whether `RecordFill` should have taken the timestamp
+   separately.
+4. Whether `ForeignGuard.Classify` returning a ZERO `ForeignEffects` alongside
+   its error is right, or whether the foreign-ORDER half of the pass (which is
+   classified by coid and did not depend on the ledger) should survive.
+5. Whether `FillEffects.Incomplete` is the right shape for "report the batch
+   incomplete", given `Applied` already exists one layer up in `wsx`.
+6. The six names in `deferredTables`, which are my list and not yours.
+7. Anything else you consider DRIFT or NEW-BREAK.
+
+Please answer with:
+
+    FIDELITY: FAITHFUL or DRIFT
+    CHANGE-SAFETY: CLEAN or NEW-BREAK
+    DECISION
+    IMPLEMENTATION DIRECTIVE
+    ADVANCE: YES or NO
+    MOBILE RELAY

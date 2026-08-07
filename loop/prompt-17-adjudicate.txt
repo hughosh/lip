@@ -1,0 +1,353 @@
+PRIMARY DRIVER — ADJUDICATE AN ADVERSARIAL ROUND AND AUTHOR A v3 IMPLEMENTATION DIRECTIVE.
+
+You are the primary driver for this work item. You have no prior context in this
+thread, so everything you need is below or on disk. Your access is READ-ONLY:
+read anything, run `go test` / `go vet`, but do not edit the tree. The
+implementer (a separate agent) will carry out your directive afterwards.
+
+You are NOT being asked to re-review the code from scratch, and you are NOT being
+asked to find new bugs. A fresh adversarial thread has already attacked this
+candidate and returned 12 findings. Your job is to ADJUDICATE those findings and
+tell the implementer exactly what to build.
+
+## THE SYSTEM
+
+`/Users/hugh/kek/lip` is a market-making harness for Kalshi's liquidity incentive
+programme. It places resting quotes on a real account with real money,
+unattended. An earlier Python version lost money through failures that are now
+written down as numbered rules in `notes/harness-spec.md` (SHA-pinned — never
+edit it, but read it: it is the contract).
+
+Rules that matter below:
+
+- `H-ORD-6` — an order's ownership record must be DURABLE BEFORE dispatch.
+- `H-ORD-9` — fills are classified ours/foreign by `order_id` against a durable
+  ledger, "never by heuristic, never by `run_id`". A fill wrongly called foreign
+  raises SEV1 and stops the harness globally; one wrongly called ours corrupts
+  the position model.
+- `H-ORD-7` — `lip/rig.db` belongs to two evidence collectors, READ-ONLY to the
+  harness.
+- `H-STORE-3` — a persistence failure revokes the authority to ADD risk; it never
+  stops reducing, monitoring, or alerting.
+- `I1` — every stop path stops ADDING risk; none stops reducing or watching it.
+- `F18` — "the harness stopped and nobody noticed", detected only by the absence
+  of an external dead-man check-in.
+- `§13.1` — an anomaly is journalled in two places before any delivery is
+  attempted. `§13.2` — SEV1 immediate and urgent, SEV2 one push per
+  (class,ticker) per 15 min, SEV3 batched into the next heartbeat.
+
+## THE WORK ITEM UNDER ADJUDICATION
+
+Bead `lip-6w5` — "Five-record store + minimal alerts". Two new packages:
+
+    go/harness/hstore/   operational SQLite store: five tables, single writer
+                         goroutine, durable ownership ledger, read-only Reader.
+    go/harness/ping/     alert delivery: queued ntfy pushes, severity rate
+                         limiting, hourly heartbeat, external dead-man check-in.
+
+plus a breaking change to the ownership seam consumed by `go/harness/risk`,
+`go/harness/wsx`, `go/harness/lifecycle`:
+
+    risk.OwnershipLookup.OwnsOrders(orderIDs []string) ([]bool, error)
+
+`lip-6w5` BLOCKS two downstream beads, which matters for scope decisions below:
+
+    lip-eyq — Lifecycle: transactional startup authority (H-ORD-5 / H-HALT-4)
+    lip-3af — Wire cmd/harness (pilot-plan §7.1), the pilot profile
+
+## THE CLAIMS THE ADVERSARY WAS TOLD TO ATTACK
+
+Verbatim from the adversarial packet (`loop/prompt-16-adversarial.txt`):
+
+1. An order cannot be dispatched unless its client-order-id reservation has
+   COMMITTED to SQLite. The permit authorising dispatch is issued only after the
+   transaction commits.
+2. The ownership index answers only from committed bindings. An in-flight or
+   failed binding is an ERROR, never "owned" and never "foreign".
+3. No submitted audit record is ever dropped. Not under a stalled writer, not on
+   close, not on a permanent failure of some other record.
+4. A storage failure revokes ADDING and nothing else. Reducing orders stay
+   dispatchable; monitoring, audit production, alerting and retries continue.
+5. An anomaly is invisible to delivery until BOTH its SQLite row and its JSONL
+   text line are durable, and a restart reconciles the crash window in both
+   directions.
+6. `Open` cannot modify a database that is not this schema's, including the
+   evidence collectors' `rig.db`.
+7. The ntfy topic and the dead-man endpoint are bearer credentials appearing in
+   no error, log, database column, journal record, notification title or body —
+   only in the destination URL.
+8. `Service.Step` is deterministic, owns no clock, and publishes a deadline
+   (`NextStepMs`) early enough that every retry ladder and rate-limit bucket is
+   actually honoured.
+
+## PRIOR STATE — WHAT WAS ALREADY ACCEPTED
+
+An AUDIT round (not adversarial) ran before this and returned
+`FIDELITY: FAITHFUL`, `CHANGE-SAFETY: CLEAN`, `ADVANCE: YES`. It verified all 9
+directive items and accepted all 7 flagged implementation choices. It raised two
+INTEGRATION requirements which it explicitly classed as work for LATER beads, not
+defects in this one:
+
+  (i)  shutdown must be drain (`Pending()==0`) -> cancel -> Close, in that order;
+  (ii) `SEV1 STORE_RECORD_REJECTED` should key off `Result.Err != nil` (terminal
+       by construction) rather than parsing `Health().LastError()`.
+
+Full log: `loop/fable-15-audit2.log`. That audit round is the reason this
+candidate was a v2 advancement candidate at all.
+
+Current mechanical state: `./loop/gates.sh` GREEN (build, vet, gofmt, test-race,
+check.py, negative-control); `scripts/harness_negative_control.py` at 106
+mutations, 106/106 producing their declared outcome (104 caught; 2 pre-existing
+inert: `M26`, `M-R-ACKCOIDPRESENT`). Treat this as a DESCRIPTION OF WHAT WAS
+CHECKED, not evidence of correctness.
+
+## THE ADVERSARIAL ROUND YOU ARE ADJUDICATING
+
+A fresh thread, given no endorsement, no prior rationale and no break ledger, was
+asked to break the candidate. It returned 2 material, 7 minor, 3 speculative, and
+a required list of what it attacked and could not break. Its complete output is
+reproduced verbatim below and also lives at `loop/fable-16-adversarial.log`.
+
+NOTHING in these findings has been triaged, filtered, ranked or endorsed by the
+implementer. Their merit is YOUR call, including whether a "material" is material
+and whether a "minor" or "speculative" is actually worse than labelled.
+
+=== BEGIN VERBATIM ADVERSARIAL OUTPUT ===
+Review complete (read-only; findings also saved to the plan file). `go vet` clean, all three packages' tests pass as claimed — and two of the claims break anyway.
+
+---
+
+## FINDING 1
+
+**SEVERITY** material
+**CLAIM** Defeats claim 5 ("a restart reconciles the crash window in both directions"); collateral damage to claim 3's spirit and to availability (F18 becomes the only detector).
+**MECHANISM** The anomaly JSONL append retry is not idempotent, and `Open` fails closed on the artifacts the retry itself creates. `applyAnomaly` re-stamps `sub.journalMs = s.nowMs()` on **every** attempt (writer.go:776). `fileJournal.appendLine` is write-then-sync on an O_APPEND fd with no offset tracking (sqlite.go:807-817). Three sequences, two of which need **no crash**:
+
+- **(a)** `Write` succeeds, `Sync` returns a transient error (EIO/ENOSPC — exactly the failures the store advertises retrying forever, writer.go:29-31). The retry appends a second well-formed line: same `anomaly_id`, different `written_ms`. The current run continues happily. The **next** `Open` → `reconcile` → `dup && prev != l` → `permanent` (writer.go:297-303) → Open fails. The file never changes, so it fails **forever**.
+- **(b)** `Write` returns a short-write error (ENOSPC mid-line). The partial bytes stay in the file; the retry appends a full line after them; the merged garbage line fails `json.Unmarshal` at the next Open (sqlite.go:852-856). Forever.
+- **(c)** Power cut during the step-2 append → torn tail, no trailing newline → `parseJournal` refuses (sqlite.go:843-848). The reconcile doc (writer.go:277-287) enumerates deaths *between* steps 1/2 and 2/3 — not **during** step 2, the likeliest crash point in an anomaly burst.
+
+**EVIDENCE** The suite is structurally blind to this: the fake journal injects failure **before** delegating to the real one (stub_test.go:297-302), so injected failures are atomic-nothing — a failure mode the real file does not have. `TestAnomalyIsInvisibleToDeliveryUntilBothJournalsAreDurable` proves "retry resumes at the journal" only under that unreal model; `TestAnomalyJournalIsPrivateAppendOnlyAndFailsClosed` enshrines torn-tail refusal as *intended*, framing it as tampering when it is also the store's own crash artifact. No `M-HS-*` mutation in `scripts/harness_negative_control.py` covers a post-write append failure — a catalogue hole. Concrete failing case: run `gatedStore`-style store against a journal whose `appendLine` writes the line then returns an error once; drain; reopen ⇒ `Open` returns "appears twice in the text journal with different content" permanently. Net effect: an unattended live-money harness that **cannot restart** after a routine transient disk error, until a human edits a file the system calls tamper-evident.
+
+## FINDING 2
+
+**SEVERITY** material
+**CLAIM** Defeats claim 2 ("An in-flight or failed binding is an ERROR, never 'owned' and never 'foreign'") and produces exactly the H-ORD-9 catastrophe it forbids (false foreign → SEV1 → global stop) from the harness's own order.
+**MECHANISM** The ownership model has a fourth state it cannot represent: **reservation committed (H-ORD-6 held), order dispatched, binding not yet committed**. `markPending` is keyed by `order_id`, which is unknowable before the ACK (ledger.go:111, 185-208); `loadBindings` loads only `order_id IS NOT NULL` rows (sqlite.go:645-647); so `OwnsOrders` answers `false` — FOREIGN, not error — for that order (ledger.go:61-82). Two windows:
+
+- **Live:** between wire-out and the ACK being processed (stretched to seconds+ by a REST timeout while the post-only order rests and can be hit). The poller reads fills **first** each cycle (wsx/portfolio.go:151); `risk.ApplyFills` then marks the fill **seen**, excludes it from `our_fill` forever, raises `FOREIGN_FILL` SEV1 and requests global stop (risk/position.go:358-375). Unlike the pending-binding ERROR path — which degrades safely to `Incomplete` (wsx/portfolio.go:338-347) — `false` gives the caller no way to distinguish "mine, in flight" from "third party".
+- **Crash before bind commit:** restart classifies through `ForeignGuard.Classify` (lifecycle/adopt.go:596; foreign.go:206-225) → `FOREIGN_FILL` SEV1 **plus a durable `foreign_fill` stop cause latched through `GlobalController.Decide`** — permanent WINDING_DOWN produced by our own fill. If the order fully filled during the gap it is absent from the resting walk, and `rest.Fill` carries no `ClientOrderID` (rest/read.go:407-418), so nothing the harness reads can ever repair it. Even for still-resting orders, the "same-coid recovery / adopted resting-order walk" named in `bindOrder`'s own doc (sqlite.go:431-433) **exists nowhere**: grep shows `BindOrder` is called only by tests.
+
+**EVIDENCE** The spec says the ledger "covers every coid the harness has ever sent"; the classifier keys on `order_id`, so coverage is lost in exactly the crash window H-ORD-6 exists to survive. `TestDispatchPermitExistsOnlyAfterCommittedOwnership`'s comment (ledger_test.go:16-18) claims the durable coid prevents next-incarnation false-foreign — it doesn't; only a committed **binding** does. No test classifies a fill against a reserved-unbound coid (`TestOwnershipSurvivesRunsAndTerminalOrders` binds everything); no mutation covers it. Failing case: reserve+dispatch, crash pre-bind, restart, offer the fill → FOREIGN + durable latch + the fill never enters `our_fill` (corrupting lip-gp8's cash-flow evidence).
+
+## FINDING 3
+
+**SEVERITY** minor
+**CLAIM** Defeats claim 7 ("appears in no error") at the constructor.
+**MECHANISM** `NewHTTPSDeadman` wraps `url.Parse`'s error (deadman.go:41-44); `*url.Error.Error()` embeds the **full raw URL**. A malformed-but-secret-bearing endpoint (stray space/control char/bad %-escape in the env line) puts the bearer URL into the one error every caller logs — the startup failure.
+**EVIDENCE** `url.Parse("https://hc-ping.com/uuid xyz")` → `parse "https://hc-ping.com/uuid xyz": invalid character " " in host name`. `TestBearerSecretsNeverAppearInAnyError` covers transport/redirect/status paths, never the constructor.
+
+## FINDING 4
+
+**SEVERITY** minor
+**CLAIM** Weakens claim 8's "NextStepMs … early enough", and violates the store's own polling contract (writer.go:133-140).
+**MECHANISM** The 1s health-poll deadline arms off the **Step-start** snapshot (`health` taken at service.go:221, tested at :340-343). But every delivering Step submits `RecordDeliveryAttempt` mid-Step (:568-586), so at return there **is** a write in flight and no 1s deadline exists. If that write hangs, ping observes nothing until the next scheduled event — worst case a full heartbeat interval (1h) with no STORE-UNHEALTHY urgent notice. Adding stays gated (permit redemption re-observes the stall via `Health()`), so the exposure is notification delay, not risk addition.
+**EVIDENCE** service.go:221 vs :340; no test submits after the snapshot and asserts `NextStepMs`.
+
+## FINDING 5
+
+**SEVERITY** minor
+**CLAIM** Contradicts claim 3's supporting machinery in `record()`'s own comment; untested path.
+**MECHANISM** In `pushGroup`, Send succeeds → `record()` → store refuses (`closed`/`writerGone`) → `record` schedules a 1s re-offer via `retryAt` (service.go:583) → the success branch immediately `delete(s.retryAt, id)` (service.go:492-505), erasing it. Rows then re-offer only at the 5/15-min bucket; with a dead writer the group re-delivers every window forever (double delivery is the "accepted direction", but the promised 1s re-offer is dead code).
+**EVIDENCE** service.go:492-505 vs :577-585.
+
+## FINDING 6
+
+**SEVERITY** minor
+**CLAIM** Defeats claim 6's absolutism (H-ORD-7).
+**MECHANISM** `inspectDatabase` treats a 0-byte file as fresh (sqlite.go:164-167). A just-created, not-yet-schema'd SQLite file — which is what a collector's `rig.db` is between creation and first commit, or a provisioning `touch` — is claimed, switched to WAL, given the five tables, and version-pinned. Separately, the stat→ro-inspect→rw-open sequence (sqlite.go:94-118) is a TOCTOU with no re-verification on the writable connection.
+**EVIDENCE** `TestOpenRefusesForeignVersionZeroDatabaseWithoutWritingIt` seeds the foreign DB with a table first; the empty-file and race windows are untested and un-mutated.
+
+## FINDING 7
+
+**SEVERITY** minor
+**CLAIM** §13.2 deviation both ways.
+**MECHANISM** (a) SEV1 is rate-limited: 5-min dedup per (class,ticker) (service.go:18-24) — a second *distinct* SEV1, e.g. a second foreign fill proving ongoing third-party trading, is delayed up to 5 minutes; §13.2 as cited says SEV1 immediate. Documented and test-pinned, but it is a softening the spec doesn't grant. (b) The invented `PushHealth` class has **no** rate limit at all: a store flapping at the ENOSPC boundary (fail → backlog drains → recover → fail) emits one urgent push per oscillation, unbounded — the battery argument used to justify (a) is absent exactly where repetition is likeliest.
+**EVIDENCE** service.go:239-262 (no dedup window on health transitions); sev1DedupMs const.
+
+## FINDING 8
+
+**SEVERITY** minor
+**CLAIM** Ownership-seam adjacent (position integrity).
+**MECHANISM** `Portfolio.order()` refuses a SIDE contradiction but silently accepts a TICKER contradiction (risk/position.go:438-458); `settle` books the delta to the **first-seen** ticker (:487-490). An ack or fill carrying a wrong ticker for a known order moves q in the wrong market with no anomaly until the next H-POS-1 overwrite heals it — the interim reducer sizing and any drift anomaly land on the wrong market.
+**EVIDENCE** The side check's own rationale ("the exchange and this process disagreeing about our own risk") applies identically to ticker; only side is checked.
+
+## FINDING 9
+
+**SEVERITY** minor
+**CLAIM** Claim 3 edge ("not on close").
+**MECHANISM** Cancel the writer's context with a non-empty FIFO: `writerGone` latches; `submit` refused, a second `Run` refused, and `Close` refuses **forever** (writer.go:503-509) — accepted receipts become permanent limbo with no per-record Result and no drain path. The records die with the process despite having been "accepted as durable-in-progress".
+**EVIDENCE** writer.go:583-591 (claim refused on `writerGone`), :600-609, :503-509. No test covers cancel-with-backlog.
+
+Speculative, noted without full construction: `recordDelivery` inflates `attempts` if a commit's success is misreported to the driver (sqlite.go:599-635, non-idempotent increment); `recordFill`'s `INSERT OR IGNORE` silently swallows a content-**divergent** duplicate `trade_id` — the only record type with no read-compare (sqlite.go:492-502); `Reader`'s `query_only` is a one-time `Exec` subject to pool reconnection — the exact trap `writerDSN`'s own comment lectures about (sqlite.go:126-135 vs :882-894).
+
+---
+
+**MATERIAL BREAKS: 2**
+
+**WHAT I ATTACKED AND COULD NOT BREAK:** single-writer FIFO claim/pop discipline and the submit-vs-Close critical section; permit-issuance-only-after-commit (claim 1, including forged zero values); OwnsOrders pending/failed transitions under double-bind, bind-after-fail, fail-after-commit, and cross-run reload; s.mu→o.mu lock ordering (no cycle, no RLock upgrade); monotonic stall clock (F21); `ApplyFills` against duplicate trade ids (batch and persistent), short/over-long/nil lookups, and Incomplete-never-refreshes-truth (A13); the §13.1 three-step ordering and `journaled_ms` delivery gate on the DB side (idempotent read-compare-insert throughout); wire-path secret laundering (url.Error/OpError type-only classification, redirect refusal, topic-in-body refusal, status-only non-2xx); SEV2 bucket aggregation atomicity and restart drain across runs; the run-row JSON round-trip. `go vet` clean; hstore/ping/risk tests pass.
+
+**MOBILE RELAY:** Two material breaks. (1) hstore's anomaly JSONL retry isn't idempotent: if an append partially writes, or fsync fails after the line lands, the retry appends a second/garbled line — and every future Open then fails closed in reconcile/parseJournal. One transient disk error or a crash mid-append permanently bricks restart until a human edits the journal. Tests can't see it: the fake journal fails before writing. (2) The ownership seam can't represent "reserved+dispatched, not yet bound." Fills in that window — ACK latency, REST timeout, or crash before bind — classify FOREIGN, not error: false SEV1, durable WINDING_DOWN latch at startup, fill marked seen and permanently excluded from our_fill. No same-coid rebind exists anywhere in-tree, and Kalshi fills carry no coid. Minor: dead-man URL leaks via url.Parse error; ping's 1s health poll arms off a stale snapshot.
+
+=== END VERBATIM ADVERSARIAL OUTPUT ===
+
+## OBSERVED TOOL FACTS (implementer ran these; output pasted, not interpreted)
+
+These were run to check whether the two "material" mechanisms exist as described.
+They are reported as raw observations. They are NOT an opinion about severity,
+scope, or whether either finding should be accepted.
+
+    $ grep -rn 'BindOrder(' go/ | grep -v _test.go
+    go/harness/hstore/ledger.go:185:func (s *Store) BindOrder(coid, orderID string, boundMs int64) (Receipt, error)
+
+    (that is the whole output — the declaration only)
+
+    $ sed -n '773,790p' go/harness/hstore/writer.go
+        if !sub.journalDone {
+            sub.journalMs = s.nowMs()
+            err := s.jrnl.appendLine(journalLine{
+                AnomalyID: sub.anom.AnomalyID,
+                ...
+                WrittenMs: sub.journalMs,
+            })
+            if err != nil {
+                return err
+            }
+            sub.journalDone = true
+        }
+        return s.back.markJournaled(sub.anom.AnomalyID, sub.journalMs)
+
+    $ sed -n '806,817p' go/harness/hstore/sqlite.go
+    func (j *fileJournal) appendLine(l journalLine) error {
+        b, err := json.Marshal(l)
+        if err != nil {
+            return err
+        }
+        b = append(b, '\n')
+        if _, err := j.f.Write(b); err != nil {
+            return err
+        }
+        return j.f.Sync()
+    }
+
+    $ sed -n '296,301p' go/harness/hstore/stub_test.go
+    func (g *gatedJournal) appendLine(l journalLine) error {
+        if err := g.c.jrnlGate(); err != nil {
+            return err
+        }
+        return g.journal.appendLine(l)
+    }
+
+## THE SCOPE QUESTION YOU MUST DECIDE (do not leave this implicit)
+
+Finding 2 straddles two beads and the implementer has deliberately NOT guessed:
+
+- One reading: it belongs to `lip-6w5`, because the OWNERSHIP MODEL ITSELF cannot
+  represent the state "reservation committed, order dispatched, binding not yet
+  committed". That model is this bead's deliverable.
+- The other reading: it belongs to `lip-eyq`, because the missing piece is the
+  same-coid rebind / adopted-resting-order walk at startup, which is that bead's
+  deliverable, and `bindOrder`'s own doc already names it as external.
+
+Decide which, and say so explicitly. If you split it, say exactly which half lands
+in `lip-6w5` v3 and which half becomes a requirement recorded against `lip-eyq`.
+The same split question may apply to other findings — apply the same discipline.
+
+## CONSTRAINTS ON WHAT YOU MAY DIRECT
+
+- `notes/harness-spec.md` is SHA-pinned. Never edit. If a finding implies the
+  spec is wrong, say so as a note — do not direct a spec edit.
+- `go/core`, `go/feed`, `go/store`, `go/cmd/rig` are hash-pinned; editing fails
+  the gates. Seam edits already permitted for this bead: `risk/position.go`,
+  `wsx/portfolio.go`, `lifecycle/foreign.go`, `lifecycle/adopt.go` (+ tests).
+- Every non-test Go file must end with a `// confidence: high` trailer.
+  `scripts/check.py` rejects `t.Skip`, `testing.Short`, stub panics and `_ = err`.
+- New SQLite test databases must live under `t.TempDir()` only. Never touch
+  `lip/rig.db` or any `*.db`.
+- The negative-control catalogue must gain a RATCHET per accepted finding — a
+  mutation that reintroduces the defect and a NAMED test that catches it. Give
+  each an explicit mutation ID and name the catcher. A full run is ~35 min, so
+  the count matters: say how many you expect.
+- Do NOT direct closing `lip-6w5`, unblocking `lip-eyq`, or any commit.
+
+## WHAT TO RETURN
+
+First, a per-finding table covering ALL TWELVE (F1-F9 plus the three speculative
+ones in the trailing paragraph). For each:
+
+    ID          F1..F9, or SPEC-1/2/3 for the speculative trio
+    CLASS       material | non-material | duplicate | accepted-tradeoff
+    BEAD        lip-6w5 | lip-eyq | lip-3af | other-bead | none
+    REASON      why — especially where you disagree with the adversary's own
+                severity label, in either direction
+    ACTION      repair now | record against later bead | reject | no action
+
+Then:
+
+    DECISION
+    IMPLEMENTATION DIRECTIVE
+      Ordered, concrete, by file. For each accepted finding: the repair, the
+      named test that must fail BEFORE it and pass after, and the catalogue
+      mutation ID + catcher. State any behaviour change to the on-disk format or
+      to a public seam explicitly — the implementer will not infer one.
+    ADVANCE: YES or NO
+    MOBILE RELAY
+      <=180 words, verdict first, <=5 bullets, at most one next action or
+      question. It is read on a phone and relayed verbatim.
+
+## ADDITIONAL REQUEST FROM THE OPERATOR (separate from the adjudication above)
+
+The operator asked, verbatim in intent: "how far are we for continuously running
+this" — and then: "get a time estimate in the next round". Author that estimate.
+Keep it clearly separate from the adjudication; it does not change any verdict
+above.
+
+OBSERVED FACTS supplied for the estimate (implementer measured these; they are
+raw observations, not an assessment):
+
+- Blocking chain to a continuously-running harness, from `bd`:
+      lip-6w5  five-record store + alerts        <- the bead under adjudication
+        blocks lip-eyq  transactional startup authority (H-ORD-5/H-HALT-4)
+        blocks lip-bw0  halt latch, startup adoption, single-instance lock,
+                        launchd + caffeinate
+        blocks lip-3af  wire cmd/harness — the pilot profile
+      then   lip-q01  EPIC V6: 72h dry run against live feed, ZERO writes
+        blocks lip-dwf  EPIC V7: live minimum-size run, S=1
+- `cmd/harness/main.go` currently exits 2 deliberately. No runnable binary
+  exists; every package built so far is a component wired to nothing.
+- Open P1 beads NOT on that chain: lip-dgg (risk invariants A1-A14), lip-gp8
+  (pnl per H-HALT-5), lip-b1r (scenario exchange), lip-0qj (wsx disconnect
+  relay).
+- Tracker totals: 19 open, 0 closed, 0 in progress. Nothing is committed; the
+  entire tree is uncommitted working state.
+- Delivery cost so far: 17 driver rounds between 2026-08-05 00:20 and
+  2026-08-06 14:30, i.e. ~38h wall clock. Active rounds ran 8-82 min (median
+  ~40). Gaps of +741, +482 and +371 min are operator sleep, not work. Each bead
+  has taken roughly 3-5 rounds: one authoring, one or two audits, one
+  adversarial, one adjudication.
+- Code delivered: ~16.4k lines source, ~18.5k lines test across 9 packages
+  under go/harness. This bead's two packages: 4.5k src, 3.5k test.
+- Negative-control catalogue: 106 mutations (M-L-* 24, M-HS-* 21, M-R-* 19,
+  M-W-* 18, M-P-* 13, 7 legacy Mnn). A full run takes ~35 min and is the floor
+  on gate turnaround.
+- The driver is rate-limited: this round itself failed with "You've hit your
+  session limit". Driver availability, not implementer throughput, may be the
+  binding constraint — factor that in explicitly.
+
+Return the estimate as:
+
+    ESTIMATE
+      Calendar time to lip-3af (a binary that starts), and to lip-dwf (first
+      live order at S=1). Give a range with the assumption behind each end.
+      State what dominates the critical path and what would compress it most.
+      Say plainly if the honest answer is that it cannot be estimated, and why.
