@@ -2222,6 +2222,79 @@ func TestAnUnknownCloseStopsAddingAndLeavesTheExitAlive(t *testing.T) {
 				n)
 		}
 	})
+
+	// The third case is the DANGEROUS one, and it is the reason the reading
+	// expires rather than merely being recorded.
+	//
+	// An absent schedule is conspicuous: `hasClose` is false and every rule that
+	// consults it says so. A schedule read once and never refreshed is not --
+	// it carries a real timestamp, every lead computed from it reads as
+	// enforced, and nothing in the arithmetic distinguishes it from a current
+	// one. §9 states outright that "neither is assumed static", and HR-017 is
+	// that difference costing a close: at `schedule_poll_s` = 300 with
+	// `final_lead` = 60s, a `close_time` that moved from 17:00 to 12:03 at
+	// 12:00:01 was next observed at 12:05 -- after the close. Neither the close
+	// lead nor the final cancel ever ran.
+	//
+	// The expiry is H-CLOSE-0's own rule turned on the reading: "a lead cannot
+	// be enforced unless the schedule is read at least twice within it", so a
+	// sample older than `final_lead` cannot enforce `final_lead`, whatever value
+	// it carries.
+	t.Run("a schedule read that has gone stale", func(t *testing.T) {
+		h := newSeamHarness(t, seamOptions{})
+		o := h.ownerFor()
+		h.connectGate()
+		h.installBook([][]string{{"0.4000", "20.00"}},
+			[][]string{{"0.5500", "20.00"}})
+		h.installPosition(num.QtyFromFloat(heldYes))
+		h.installResting(
+			risk.LiveOrder{OrderID: "EX-ADD", Ticker: seamTicker,
+				Side: quote.SideYes, Price4: 4000,
+				Remaining: num.QtyFromFloat(12)},
+			risk.LiveOrder{OrderID: "EX-EXIT", Ticker: seamTicker,
+				Side: quote.SideNo, Price4: 5500,
+				Remaining: num.QtyFromFloat(1)},
+		)
+
+		// The SAME complete read as the sub-test above, so the only difference
+		// between quoting normally and stopping is its age.
+		o.closeAt = time.Now().Add(24 * time.Hour)
+		o.hasClose = true
+		o.scheduleEver = true
+		o.scheduleRead = h.clk.monoNow()
+
+		// Past `final_lead`, with no further read. In production this is two
+		// consecutive failed schedule polls; one missed poll leaves the reading
+		// 30-60s old and still usable.
+		h.clk.Advance(h.cfg.Params.FinalLead + time.Second)
+		o.evaluate(h.clk.monoNow())
+
+		if _, has := o.untilClose(); has {
+			t.Fatalf("a schedule read %v ago still reports a usable close "+
+				"against final_lead %v. H-CLOSE-0 requires the schedule be "+
+				"sampled at least twice within the lead it enforces, and "+
+				"`cfg.Validate` already refuses a CONFIGURATION that cannot -- "+
+				"a READING older than the lead fails the same rule",
+				h.cfg.Params.FinalLead+time.Second, h.cfg.Params.FinalLead)
+		}
+		if o.market != quote.Reducing {
+			t.Fatalf("the market is %s on a stale schedule, want REDUCING. A "+
+				"stale close_time is more dangerous than an absent one because "+
+				"it looks exactly like a good one: the lead reads as enforced "+
+				"and the market may already have moved its close (HR-017)",
+				o.market)
+		}
+		// I1 again: the adding side comes off, the exit does not.
+		if adds := seamCancelsOn(h.rig.queue, quote.SideYes); len(adds) != 1 {
+			t.Fatalf("%d cancel intents were queued for the ADDING side, want 1",
+				len(adds))
+		}
+		if exits := seamCancelsOn(h.rig.queue, quote.SideNo); len(exits) != 0 {
+			t.Fatalf("%d cancel intent(s) were queued for the REDUCING side; a "+
+				"schedule this process could not refresh is not a reason to "+
+				"strand the position it was protecting", len(exits))
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------

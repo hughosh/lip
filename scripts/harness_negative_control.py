@@ -1715,6 +1715,131 @@ MUTATIONS = [
      ],
      'TestAbsenceIsClaimedOnlyFromACompleteRead'),
 
+    # The pilot is cancel-confirm-place EVERYWHERE (pilot-plan §2.7, §7.1), and
+    # this flag is the single line between that and two of our orders live at
+    # one price band at once. Its zero value is already false, so the mutation
+    # has to set it explicitly -- which is exactly the one-word edit a later
+    # revenue optimisation would make.
+    ('M-3AF-PTC',
+     'turn H-Q-9 place-then-cancel ON, so a requote rests the replacement while '
+     'the order it replaces is still live',
+     [
+         ('cmd/harness/run.go',
+          '\t\tAllowPlaceThenCancel: false,\n',
+          '\t\tAllowPlaceThenCancel: true,\n'),
+     ],
+     'TestRequotingAnExistingOrderIsAlwaysCancelConfirmPlace'),
+
+    # H-DEP-5. Two harnesses on one account do not produce a merge conflict,
+    # they produce two `q_local` models that are each individually consistent,
+    # each wrong, and each unable to tell that the fills moving the position came
+    # from the other one. The lock is taken before the first REST request
+    # precisely so the second process is refused before it can send one.
+    ('M-3AF-NOLOCK',
+     'start without the single-instance lock, so a second harness runs against '
+     'the same account and neither can tell whose fills moved the position',
+     [
+         ('cmd/harness/runtime.go',
+          '\tr.lock, err = lifecycle.AcquireInstanceLock(c.Paths.Lock)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n',
+          '\tr.lock, err = nil, error(nil)\n'),
+     ],
+     'TestTheInstanceLockIsHeldForTheWholeRunAndRefusesASecondRig'),
+
+    # H-HALT-4's latch survives the process ON PURPOSE -- "the harness never
+    # self-clears it" -- and §10.4 makes clearing it an OPERATOR action. A
+    # restart that quietly resumed quoting under a durable stop is the halt
+    # erased by a supervisor, which is the failure `launchd KeepAlive` makes
+    # automatic.
+    ('M-3AF-RESUME',
+     'start a latched harness without -resume, so a durable global stop is '
+     'cleared by restarting the process',
+     [
+         ('cmd/harness/runtime.go',
+          '\tif r.boot.Latched && !resume {\n',
+          '\tif false && r.boot.Latched && !resume {\n'),
+     ],
+     'TestASetLatchRefusesWithoutResumeAndWindsDownWithIt'),
+
+    # H-TOP-5 / I3. I2 makes the monitor unstoppable but does NOT make it
+    # truthful: an owner that stops publishing while continuing to run leaves the
+    # monitor re-reading one snapshot forever, stamping fresh rows and pushing
+    # hourly heartbeats about a world that has stopped moving. A5 passes at every
+    # tick. That is probebot.py's observable -- confident silence about live risk
+    # -- reached by a different route than probebot.py's `break`.
+    ('M-3AF-NOSNAP',
+     'publish a snapshot only when something changed, so a quiet owner looks '
+     'identical to a wedged one and the stall detector has nothing to detect',
+     [
+         ('cmd/harness/run.go',
+          '\to.snapSeq++\n',
+          '\tif o.snapSeq > 0 && o.market == quote.Idle {\n\t\treturn\n\t}\n\to.snapSeq++\n'),
+     ],
+     'TestTheSnapshotSequenceAdvancesOnEveryTickIncludingHalted'),
+
+    # `Queue.commit` advances a DEPENDENT intent's first leg to StageFirstSent at
+    # DEQUEUE -- "that one line is H-Q-9a: dispatch is not confirmation" -- and
+    # `Dispatchable()` is false there while `stillWanted` never drops it. So an
+    # intent whose write did not reach a terminal answer occupies its (market,
+    # side) forever and `enqueue`'s duplicate check refuses every replacement.
+    # The market stops quoting for the life of the process and nothing says so.
+    ('M-3AF-WEDGE',
+     'keep the intents of a write that never completed, so the side is wedged '
+     'at stage-first-sent and can never be quoted again',
+     [
+         ('cmd/harness/run.go',
+          '\tif res.Err != nil {\n\t\tfor _, id := range res.Req.IDs {\n\t\t\to.r.queue.Drop(id)\n\t\t}\n',
+          '\tif res.Err != nil {\n'),
+     ],
+     'TestAnIncompleteWriteReleasesItsIntentsRatherThanWedgingTheSide'),
+
+    # The window this composition creates and nothing else covers.
+    # `Portfolio.ReplaceOrders` is wholesale from a complete walk (H-POS-4), so
+    # an order just placed is in no aggregate until the next poll -- and §6.5
+    # restores presence on an empty side EVERY tick, deliberately without the
+    # debounce ("a presence gap is revenue"). Measured before the fix: one +8
+    # position produced ten identical 8-contract exits in about three seconds.
+    ('M-3AF-ACKGAP',
+     'drop an acknowledged order from the aggregate until the next orders walk, '
+     'so its side reads empty and §6.5 re-places it on every tick',
+     [
+         ('cmd/harness/run.go',
+          '\tif create.MaxLive > 0 {\n',
+          '\tif !create.Outcome.Definite() && create.MaxLive > 0 {\n'),
+     ],
+     'TestAnAckedOrderOccupiesTheAggregateBeforeAnyOrdersWalk'),
+
+    # H-CLOSE-0's sampling rule applied to the READING rather than only to the
+    # configuration. A close_time read once and never refreshed is a fact about
+    # the market as of then, and §9 is explicit that "neither is assumed static".
+    # HR-017 is that difference costing a close: a close_time that moved from
+    # 17:00 to 12:03 was next observed after the close had passed, so neither the
+    # close lead nor the final cancel ever ran. A stale schedule is more
+    # dangerous than an absent one because it looks exactly like a good one.
+    ('M-3AF-STALESCHED',
+     'let a schedule read stay authoritative forever, so a close_time that moved '
+     'is enforced from a reading nobody refreshed',
+     [
+         ('cmd/harness/run.go',
+          '\tif !o.hasClose || o.scheduleStale() {\n',
+          '\tif !o.hasClose {\n'),
+     ],
+     'TestAnUnknownCloseStopsAddingAndLeavesTheExitAlive'),
+
+    # The operator's H-CLOSE-4 rule. A `can_close_early` market settles on
+    # external information at a moment no schedule predicts, and 192 of the 200
+    # active LIP programmes carry the flag -- so "prefer against selecting them"
+    # does not scale to this universe, and the backoff is what bounds how much
+    # inventory is carried into an unpredictable settlement.
+    ('M-3AF-EARLYCLOSE',
+     'never fire the early-close backoff, so an unpredictably-settling market is '
+     'quoted right up to §16 close_lead like any other',
+     [
+         ('cmd/harness/run.go',
+          '\tif !hasClose || !o.canCloseEarly || o.r.cfg.EarlyCloseLead <= 0 {\n',
+          '\tif true || !hasClose || !o.canCloseEarly || o.r.cfg.EarlyCloseLead <= 0 {\n'),
+     ],
+     'TestTheEarlyCloseBackoffStopsAddingOnlyInsideItsOwnWindow'),
+
 ]
 
 
