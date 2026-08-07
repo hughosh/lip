@@ -351,16 +351,32 @@ type rig struct {
 // itself into RUNNING -- H-HALT-4's whole content is that the latch survives the
 // process -- so a set latch without `resume` is refused HERE, at the point where
 // the latch has just been read and nothing has been sent to the exchange.
-func newRig(ctx context.Context, c config, resume bool, ex exchange) (r *rig, err error) {
+// The rig under construction is a LOCAL, and the unwind closure closes over the
+// local rather than over a named result. That is not a style preference; the
+// obvious shape is wrong in a way that costs the entire refusal surface.
+//
+// With `(r *rig, err error)` as NAMED results and the unwind reading `r`, every
+// refusal written `return nil, err` assigns nil to `r` BEFORE the deferred
+// closure runs -- so the closure calls `unwind` on a nil `*rig` and the process
+// dies of a nil dereference instead of returning the refusal. Every clause of
+// the narrowed refusal goes that way: the instance lock (H-DEP-5), a set halt
+// latch without `-resume` (H-HALT-4), a missing store, a run row that would not
+// commit, and every collaborator constructor after them. `main.go` expects an
+// error it can classify and exit `exitRefused` with; it would get a SIGSEGV,
+// and `launchd KeepAlive` restarts a crash forever.
+//
+// Keeping the rig in a local the closure owns makes that unexpressible: there is
+// no assignment any `return` can make that the unwind path can see.
+func newRig(ctx context.Context, c config, resume bool, ex exchange) (*rig, error) {
 	if err := ex.validate(); err != nil {
 		return nil, err
 	}
 
-	r = &rig{cfg: c, ex: ex, snap: new(atomic.Pointer[risk.Snapshot])}
+	r := &rig{cfg: c, ex: ex, snap: new(atomic.Pointer[risk.Snapshot])}
+	var err error
 	defer func() {
 		if err != nil {
 			r.unwind()
-			r = nil
 		}
 	}()
 
@@ -447,7 +463,12 @@ func newRig(ctx context.Context, c config, resume bool, ex exchange) (r *rig, er
 	}
 	r.anom.raiseAll(r.boot.Anomalies)
 	if r.boot.Latched && !resume {
-		return nil, fmt.Errorf("the durable halt latch at %s is SET, and "+
+		// Assigned to `err` and not merely returned. The unwind closure reads
+		// `err`, so a refusal that returns a fresh error without storing it
+		// leaves this path holding the instance lock, the open store and a live
+		// writer goroutine -- and the next start is then refused by its own
+		// predecessor's lock, which reads as two harnesses running.
+		err = fmt.Errorf("the durable halt latch at %s is SET, and "+
 			"-resume was not given.\n\n"+
 			"H-HALT-4 makes the latch survive the process on purpose: the "+
 			"harness never self-clears it, so a restart into a latched state "+
@@ -456,6 +477,7 @@ func newRig(ctx context.Context, c config, resume bool, ex exchange) (r *rig, er
 			"latch, understand why it was written, and pass -resume to start "+
 			"a process that will wind the account down rather than quote it",
 			c.Paths.Latch)
+		return nil, err
 	}
 
 	// The exchange client. One `*rest.Client`, shared: it is stateless over the

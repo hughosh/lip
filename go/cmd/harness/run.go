@@ -70,6 +70,11 @@ const ownerTick = 250 * time.Millisecond
 const (
 	eventBuffer = 64
 	readBuffer  = 2
+	// scheduleBuffer is one. A schedule read is a REPLACEMENT, not an event:
+	// the newest answer supersedes every older one completely, so a queue of
+	// them is a queue of answers about the past -- and §9's whole point is that
+	// the schedule moves.
+	scheduleBuffer = 1
 )
 
 // owner is the state exactly one goroutine may touch.
@@ -121,42 +126,124 @@ type owner struct {
 	// count, and this field is what makes it observable from here.
 	inflight *writeRequest
 
-	// unresolved is every create whose outcome was not definite, with the
-	// maximum quantity that may be live because of it.
+	// pending is every create this process has made that the orders walk has
+	// not listed back yet -- unknown AND acked alike. See `pendingOrder`.
 	//
-	// H-ORD-2 clause 6: "an UNKNOWN order's maximum possibly-live quantity STAYS
-	// in the risk model and in every aggregate cap (H-Q-5b, H-CAP-7) until it is
-	// positively resolved." Absence from a walk is NOT that resolution --
-	// H-ORD-2a deleted the exhaustive-read proof of a negative -- so an entry
-	// leaves this map only when a complete orders walk LISTS its coid, at which
+	// An entry leaves ONLY when a complete orders walk LISTS its coid, at which
 	// point the order is in `Portfolio.LiveOrders` and counting it here as well
-	// would double it.
-	unresolved map[string]unknownOrder
+	// would double it. Absence from a walk is never the trigger: H-ORD-2a
+	// deleted the exhaustive-read proof of a negative, and "the order is not in
+	// the list" is that proof wearing a different hat.
+	pending map[string]pendingOrder
+
+	// --- §9's schedule, as READ ---------------------------------------------
+	//
+	// `harness-spec.md` §9 opens with a source table naming where each of these
+	// comes from: `market.close_time` from `/markets/{ticker}` ("trading stops;
+	// position settles") and `program.end_date` from
+	// `/incentive_programs?status=active` ("reward accrual stops"). It adds that
+	// "`close_time` may fall before or after `end_date`. Neither is assumed
+	// static" -- which is why these are polled at `schedule_poll_s` rather than
+	// read once, and why none of them is a config field.
+	//
+	// Every one of them starts UNKNOWN, and unknown is not "far away".
+	// `quote.MarketInput.HasClose` is explicit about the difference: "a market
+	// whose close_time we do not know is one we cannot enforce a lead on, and
+	// H-CLOSE-0 makes that the caller's problem to escalate rather than this
+	// function's to assume away."
+	closeAt  time.Time
+	hasClose bool
+	// canCloseEarly is H-CLOSE-4's flag, and on this exchange it is the common
+	// case rather than the exception -- 192 of 200 active LIP programmes on
+	// 2026-08-07. It selects the operator's early backoff, not a refusal.
+	canCloseEarly bool
+	// tradingClosed is the close OBSERVED. §5.2 is precise that this, and not
+	// the arithmetic, is authoritative: a `can_close_early` market settles
+	// before `close_time` and no lead computed from `close_time` sees it coming.
+	tradingClosed bool
+	// scheduleRead is when a COMPLETE schedule read last landed. H-CLOSE-0
+	// requires the schedule be sampled at least twice within the lead it
+	// enforces, so a schedule that has stopped arriving is itself a condition.
+	scheduleRead   time.Duration
+	scheduleEver   bool
+	schedulePinged bool
 
 	// --- what the loops have established -----------------------------------
 
-	reduceSticky bool
-	snapSeq      uint64
+	// reduceNoted is the reduce requests observed SINCE THE LAST EVALUATION, and
+	// it is cleared at the end of every one.
+	//
+	// It is not a latch, and an earlier version of this field being one was a
+	// wedge: `wsx.Gate` already holds the sticky reduce -- `Gate.Reducing`
+	// answers it and the gate is what clears it when the condition that set it
+	// goes away -- so a second latch here could only ever be an unclearable
+	// copy. One disconnect would have sent this market to REDUCING for the life
+	// of the process, and the socket coming back would not have brought it out.
+	//
+	// What the field IS for is the reduce requests that do NOT come from the
+	// gate: H-POS-2's position drift, arriving through `ApplyPortfolio`. Those
+	// need no latch of their own, because `quote.NextMarket` holds REDUCING
+	// itself until `q` reaches zero AND nothing is stopping the market.
+	reduceNoted bool
+
+	// reducerCancelPinged stops a refused reducing-side cancel from producing
+	// one anomaly per 250 ms tick. The condition is a programming error rather
+	// than a market event, so it is worth saying once and worth not saying four
+	// times a second into a 256-slot buffer.
+	reducerCancelPinged [2]bool
+
+	snapSeq uint64
 }
 
-// unknownOrder is one unresolved create, held for its risk contribution.
-type unknownOrder struct {
-	side    quote.Side
-	cents   int
-	maxLive num.Qty
-	at      time.Duration
-	pinged  bool
+// pendingOrder is one create this process has made that the orders walk has not
+// listed back yet, held for its risk contribution.
+//
+// It covers BOTH outcomes that leave quantity live, and the second one is the
+// one an earlier revision of this file missed:
+//
+//   - UNKNOWN, where H-ORD-2 clause 6 keeps the maximum possibly-live quantity
+//     in every cap until the order is positively resolved;
+//   - ACKED, where the order demonstrably exists and simply is not in
+//     `risk.Portfolio` yet, because `Portfolio.ReplaceOrders` is wholesale from
+//     a complete orders walk (H-POS-4) and the next one is up to
+//     `position_poll_s` away.
+//
+// Leaving the acked case out is not a reporting gap, it is a size failure.
+// `restingOn` feeds `RequoteInput.HasOurs` and `OurSize`, so an acked order the
+// aggregate cannot see makes the side read EMPTY -- and §6.5's answer to an
+// empty side is presence restoration, every tick, with no debounce (a presence
+// gap is revenue, so `Decide` deliberately does not wait). Measured on the
+// composed harness: one +8 position produced ten identical 8-contract exits in
+// about three seconds, bounded only by `write_burst`, none cancelled and none
+// filled -- 80 contracts of reducer against 8 contracts of inventory. H-Q-5a
+// caps a reducer at |q| and A12 says no fill sequence may change the sign of q
+// via a reducer; that sequence can.
+type pendingOrder struct {
+	side  quote.Side
+	cents int
+	// qty is what this order may have live: `CreateResult.MaxLive`, which is
+	// the requested count for anything that is not a definite rejection. It is
+	// the conservative figure on purpose -- H-Q-5b counts RESTING + SENDING +
+	// UNKNOWN + unconfirmed-cancel, and every cap is evaluated against that.
+	qty num.Qty
+	at  time.Duration
+	// acked distinguishes the two cases for ESCALATION only. Both occupy the
+	// aggregate identically; only an unresolved one is worth waking an operator
+	// about, because an acked order that has not appeared in a walk yet is
+	// simply younger than the poll.
+	acked  bool
+	pinged bool
 }
 
 func newOwner(r *rig, sd *shutdown) *owner {
 	return &owner{
-		r:          r,
-		sd:         sd,
-		p:          r.cfg.Params,
-		global:     quote.Starting,
-		market:     quote.Idle,
-		capacity:   r.cap,
-		unresolved: make(map[string]unknownOrder),
+		r:        r,
+		sd:       sd,
+		p:        r.cfg.Params,
+		global:   quote.Starting,
+		market:   quote.Idle,
+		capacity: r.cap,
+		pending:  make(map[string]pendingOrder),
 	}
 }
 
@@ -239,6 +326,15 @@ func (r *rig) serve(ctx context.Context) error {
 	// exactly once, per record, from `Result.Err`.
 	go r.dispatchLoop(ctx, writes, sd.Permits(), results)
 
+	// §9's schedule poll. It is a SEPARATE goroutine for the same reason the
+	// portfolio poller is: it is a REST read that must keep answering while the
+	// socket is down, and it must not be able to park the owner. Its cadence is
+	// `schedule_poll_s`, which `cfg.Validate` has already asserted is at least
+	// twice per `final_lead` -- H-CLOSE-0's sampling rule, checked as arithmetic
+	// rather than discovered at the close (HR-017).
+	schedules := make(chan rest.ScheduleResult, scheduleBuffer)
+	go r.scheduleLoop(ctx, schedules)
+
 	// The drain runs on its own goroutine, fed observations by this one.
 	//
 	// It is separate because it is the only code in this process that may end
@@ -278,6 +374,9 @@ func (r *rig) serve(ctx context.Context) error {
 
 		case res := <-results:
 			o.applyWriteResult(res)
+
+		case sch := <-schedules:
+			o.applySchedule(sch)
 
 		case sig := <-signals:
 			o.applySignal(sig)
@@ -504,13 +603,240 @@ func (o *owner) resnapshot(want bool) {
 	})
 }
 
+// scheduleLoop reads §9's schedule on `schedule_poll_s`, forever.
+//
+// It polls IMMEDIATELY on entry and then on the interval. The first read is the
+// one that lets the market quote at all -- until it lands there is no close to
+// enforce a lead against -- so waiting a full interval for it would mean every
+// start of this process spends `schedule_poll_s` stopped for a reason that has
+// nothing to do with the market.
+//
+// A failed read is not retried faster and is not escalated here. The owner owns
+// that judgement: it holds the previous reading, it knows how old it is, and
+// `scheduleStale` is where a reading stops being usable. A poller that decided
+// on its own that a schedule was too old would be a second opinion about the
+// same fact.
+func (r *rig) scheduleLoop(ctx context.Context, out chan<- rest.ScheduleResult) {
+	t := time.NewTicker(r.cfg.Params.SchedulePoll)
+	defer t.Stop()
+
+	for {
+		res := r.api.Schedule(ctx, r.cfg.Ticker)
+		select {
+		case out <- res:
+		case <-ctx.Done():
+			return
+		default:
+			// The owner has not taken the previous one. Drop THIS one rather
+			// than blocking: the reads are replacements, so the owner is about
+			// to consume an answer at most one interval older than this, and a
+			// poller parked on a send is a poller that has stopped observing.
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
+// applySchedule folds one complete schedule read into the owner.
+//
+// A read that did not land changes NOTHING -- not the close, not the flags, not
+// the freshness clock. That last one is the important part: refreshing the clock
+// on a failed read would report the schedule current while holding an answer
+// nobody re-established, which is precisely the shape `wsx.applyFills` refuses
+// for the same reason ("the walk itself completed, but no fill in it could be
+// attributed, and reporting the endpoint current on that basis leaves A13
+// authorising placement from a read we could not interpret").
+func (o *owner) applySchedule(res rest.ScheduleResult) {
+	o.r.anom.raiseAll(res.Anomalies)
+	if !res.Observed() {
+		return
+	}
+
+	if res.TradingClosed && !o.tradingClosed {
+		// H-CLOSE-4, OBSERVED. This is the one close the arithmetic cannot see
+		// coming, and until this read existed nothing in this binary could
+		// produce the flag at all.
+		o.r.anom.raise(risk.Anomaly{
+			Class: "TRADING_CLOSED", Sev: risk.SEV2, Ticker: o.r.cfg.Ticker,
+			Text: fmt.Sprintf("%s reports status %q: trading has stopped. This "+
+				"is the close OBSERVED rather than computed, which is the only "+
+				"way a can_close_early market's close is ever seen (H-CLOSE-4)",
+				o.r.cfg.Ticker, res.Status),
+		})
+	}
+
+	o.closeAt, o.hasClose = res.CloseTime, res.HasClose
+	o.canCloseEarly = res.CanCloseEarly
+	o.tradingClosed = res.TradingClosed
+	o.scheduleRead = o.r.ex.Mono()
+	o.scheduleEver = true
+}
+
+// untilClose is `close_time - now`, and whether we know it at all.
+//
+// The second result is `quote.MarketInput.HasClose` and it is not a
+// convenience. An unread schedule is NOT a close far away: §5.2 treats an
+// unknown close as a lead that cannot be enforced and escalates, whereas a
+// zero `time.Time` differenced against now is a close roughly two thousand
+// years in the past, which reads as "settle immediately".
+func (o *owner) untilClose() (time.Duration, bool) {
+	if !o.hasClose || o.scheduleStale() {
+		return 0, false
+	}
+	return time.Until(o.closeAt), true
+}
+
+// scheduleStale is H-CLOSE-0 stated as an expiry on the reading itself.
+//
+// A close_time we read once and have not refreshed is not a fact about the
+// market, it is a fact about the market AS OF THEN -- and §9 is explicit that
+// "neither is assumed static". HR-017 is that difference costing a close:
+//
+//	at schedule_poll_s = 300 with final_lead = 60s, a close_time that moves
+//	from 17:00 to 12:03 at 12:00:01 is next observed at 12:05 -- after the
+//	close. Neither the close lead nor the final cancel ever ran.
+//
+// The threshold is not a taste. H-CLOSE-0's rule is "a lead cannot be enforced
+// unless the schedule is read at least twice within it", which `cfg.Validate`
+// already enforces on the CONFIGURATION by refusing `schedule_poll_s * 2 >
+// final_lead`. The same rule applied to a READING says a sample older than
+// `final_lead` cannot enforce `final_lead`, whatever value it carries. So past
+// that age the schedule stops being usable and `HasClose` goes false -- which
+// stops the adding side through `closeUnknown` and leaves the exit alive.
+//
+// This is the direction that matters. An ABSENT schedule is conspicuous; a
+// STALE one looks exactly like a good one, and every lead computed from it
+// reads as enforced.
+func (o *owner) scheduleStale() bool {
+	if !o.scheduleEver {
+		return true
+	}
+	return o.r.ex.Mono()-o.scheduleRead > o.p.FinalLead
+}
+
+// untilCloseOrZero adapts `untilClose` to `PastFinalLead`'s argument pair.
+//
+// `PastFinalLead(untilClose, hasClose, p)` returns false when `hasClose` is
+// false, which is the correct reading: a market whose close we have not read is
+// not past its final lead, it is a market whose lead cannot be enforced -- and
+// §5.2 escalates that separately rather than acting on it here.
+func (o *owner) untilCloseOrZero() (time.Duration, bool, cfg.Params) {
+	u, has := o.untilClose()
+	return u, has, o.p
+}
+
+// closeUnknown stops the market while §9's schedule has not been read.
+//
+// H-CLOSE-0 hands this case to the caller rather than resolving it: "a market
+// whose close_time we do not know is one we cannot enforce a lead on, and
+// H-CLOSE-0 makes that the caller's problem to escalate rather than this
+// function's to assume away." This is the caller, and stopping is what
+// escalating means here.
+//
+// It stops ADDING and nothing else -- §5.2's response to a market-scoped stop
+// is REDUCING, so the exit stays alive and the position stays managed. The
+// alternative, quoting on, means resting a new adding order into a market that
+// may close before the next poll, with no lead having been enforced and no
+// H-CLOSE-3 final cancel having run. HR-017 is that failure with a slow poll;
+// this is the same failure with no poll at all.
+//
+// It is normal for a few seconds at startup, before the first schedule read
+// lands, so it is reported only once it has persisted past the interval that
+// was supposed to refresh it.
+func (o *owner) closeUnknown(hasClose bool) bool {
+	if hasClose {
+		// The schedule is current again. Re-arm, so a second outage is reported
+		// as loudly as the first -- a once-per-process alert about a recurring
+		// condition is an alert that describes the first hour of a deployment
+		// and nothing after it.
+		o.schedulePinged = false
+		return false
+	}
+	if !o.schedulePinged {
+		o.schedulePinged = true
+		age, known := o.scheduleAge()
+		o.r.anom.raise(risk.Anomaly{
+			Class: "SCHEDULE_UNUSABLE", Sev: risk.SEV1, Ticker: o.r.cfg.Ticker,
+			Text: fmt.Sprintf("%s has no usable close_time (%s). No close lead "+
+				"can be enforced from a schedule this process does not hold, "+
+				"and H-CLOSE-3's final cancel cannot run either, so the market "+
+				"is STOPPED: the adding side comes off and is confirmed absent, "+
+				"and the capped reducer stays (§5.2, A8, I1). §9 reads it from "+
+				"/markets/{ticker} every schedule_poll_s %v",
+				o.r.cfg.Ticker, scheduleWhy(age, known, o.p.FinalLead),
+				o.p.SchedulePoll),
+		})
+	}
+	return true
+}
+
+// scheduleAge is how long since a complete schedule read, if there has been one.
+func (o *owner) scheduleAge() (time.Duration, bool) {
+	if !o.scheduleEver {
+		return 0, false
+	}
+	return o.r.ex.Mono() - o.scheduleRead, true
+}
+
+// scheduleWhy distinguishes the two ways a schedule is unusable, because they
+// want different responses from an operator: one is an endpoint that has never
+// answered, the other is one that has stopped.
+func scheduleWhy(age time.Duration, known bool, bound time.Duration) string {
+	if !known {
+		return "no schedule read has ever completed"
+	}
+	return fmt.Sprintf("the last complete read was %v ago, past final_lead %v "+
+		"-- H-CLOSE-0 requires the schedule be sampled at least twice within "+
+		"the lead it enforces, so a reading older than the lead cannot enforce "+
+		"it whatever value it carries (HR-017)",
+		age.Truncate(time.Second), bound)
+}
+
+// earlyCloseDue is the operator's H-CLOSE-4 rule, and it is the one deviation
+// in this file from §16's numbers.
+//
+// §16's `close_lead` is 1h, cut from 4h by HR-011 to bound how long a resting
+// reducer faces a stale book. That trade is made against a close we can see
+// coming. `can_close_early` markets are the ones we cannot: they settle on
+// external information at a moment no schedule predicts, and 192 of the 200
+// active LIP programmes carry the flag -- so this is the ordinary case, not the
+// exception, and "prefer against selecting them" (H-CLOSE-4) does not scale to
+// a universe that is 96% early-closeable.
+//
+// The operator's decision is therefore to stop ADDING four hours out in those
+// markets rather than one. It is expressed as a market-scoped `Stop` and not as
+// a modified `close_lead`, and the difference matters in three ways:
+//
+//   - §5.2's response to a stop is REDUCING -- "adding side cancelled,
+//     confirmed absent; capped reducer rests" -- which is exactly the intent.
+//     `MarketInput.Stop` is explicit that a stop "sends the market to REDUCING,
+//     never to a state that cancels everything, which is the inversion the
+//     whole design turns on." The EXIT stays alive. Nothing here cancels it.
+//   - `close_lead` and `final_lead` are untouched, so SETTLING still begins at
+//     `close_time - close_lead` and H-CLOSE-3's final cancel still runs at
+//     `final_lead`. This composes with §9 rather than replacing it.
+//   - §16 stays the table the `run` row records verbatim. A per-deployment
+//     backoff in `cfg.Params` would be a spec deviation dressed as
+//     configuration, which `params_test.go` exists to refuse.
+//
+// It returns false when the close is unknown. That is not an oversight: an
+// unread schedule already produces `HasClose = false`, which §5.2 escalates on
+// its own, and manufacturing a stop from a number we do not have would silence
+// that escalation with an answer.
+func (o *owner) earlyCloseDue(untilClose time.Duration, hasClose bool) bool {
+	if !hasClose || !o.canCloseEarly || o.r.cfg.EarlyCloseLead <= 0 {
+		return false
+	}
+	return untilClose <= o.r.cfg.EarlyCloseLead
+}
+
 func (o *owner) noteReduce(tickers []string) {
 	for _, t := range tickers {
 		if t == o.r.cfg.Ticker {
-			// Sticky. The gate's reduce is a latch until the condition that set
-			// it clears, and §5.2's REDUCING is not a state a market leaves by
-			// the next frame arriving.
-			o.reduceSticky = true
+			o.reduceNoted = true
 		}
 	}
 }
@@ -554,9 +880,14 @@ func (o *owner) applyRead(read wsx.PortfolioRead) {
 	}
 }
 
-// clearListed drops unresolved creates the resting-order walk has since listed.
+// clearListed drops pending creates the resting-order walk has since listed.
+//
+// Listing the coid is the ONLY release. It is a positive fact -- the exchange
+// named the order -- and it is also the moment the quantity appears in
+// `Portfolio.LiveOrders`, so releasing it here is exactly what stops the same
+// order being counted in two places at once.
 func (o *owner) clearListed() {
-	if len(o.unresolved) == 0 {
+	if len(o.pending) == 0 {
 		return
 	}
 	listed := make(map[string]struct{})
@@ -565,15 +896,22 @@ func (o *owner) clearListed() {
 			listed[bound] = struct{}{}
 		}
 	}
-	for coid := range o.unresolved {
+	for coid := range o.pending {
 		if _, seen := listed[coid]; seen {
-			delete(o.unresolved, coid)
+			delete(o.pending, coid)
 		}
 	}
 }
 
 // evaluate is one pass of §5.2, §6.2 and §6.5 over the one market.
 func (o *owner) evaluate(now time.Duration) {
+	// The non-gate reduce requests are consumed by THIS evaluation and cleared
+	// on the way out, on every exit including the final-cancel one. Anything
+	// that must outlive a tick is held by the thing that owns it -- the gate for
+	// a disconnect or a book quarantine, `quote.NextMarket`'s own state for
+	// inventory and drift -- and never by a second copy here.
+	defer func() { o.reduceNoted = false }()
+
 	tick := o.r.gate.Tick(o.r.ex.Clock.Now())
 	o.r.anom.raiseAll(tick.Anomalies)
 	o.noteReduce(tick.Reduce)
@@ -583,22 +921,55 @@ func (o *owner) evaluate(now time.Duration) {
 
 	ticker := o.r.cfg.Ticker
 	q := o.r.pf.Q(ticker)
-	untilClose := time.Until(o.r.cfg.CloseTime)
+	untilClose, hasClose := o.untilClose()
 
 	next, trig := quote.NextMarket(quote.MarketInput{
-		State:    o.market,
-		Q:        q,
-		Global:   o.global,
-		Selected: o.global == quote.Running && !o.reduceSticky,
-		Stop:     o.reduceSticky || !o.r.gate.Connected(),
-		// ProgramEnded is H-CLOSE-1's `end_date`, which this binary has no
-		// endpoint for. False is the conservative value: it keeps the adding
-		// quote alive, and every OTHER rule that would switch it off -- the
-		// close lead, the inventory ladder, the gate -- is wired.
+		State:  o.market,
+		Q:      q,
+		Global: o.global,
+		// Selected is §10's decision and it is "the only way into QUOTING". The
+		// pilot's one market is selected by the operator, so the only question
+		// left here is whether this process may add at all -- which is the
+		// global state. `Stop` carries every reason the MARKET may not, and
+		// §5.2's IDLE -> QUOTING edge already requires `!Stop`, so folding a
+		// reduce condition into `Selected` as well would be the same rule
+		// applied twice and clearable in only one of the two places.
+		Selected: o.global == quote.Running,
+		// The gate owns the sticky reduce. `Gate.Reducing` is the latch and the
+		// gate is what clears it; `reduceNoted` carries only this evaluation's
+		// non-gate requests, principally H-POS-2's drift.
+		// The gate owns the sticky reduce; `reduceNoted` carries this
+		// evaluation's non-gate requests, principally H-POS-2's drift. The last
+		// term is the operator's H-CLOSE-4 backoff -- see `earlyCloseDue`.
+		Stop: o.reduceNoted || o.r.gate.Reducing(ticker) ||
+			!o.r.gate.Connected() || o.earlyCloseDue(untilClose, hasClose) ||
+			o.closeUnknown(hasClose),
+		// ProgramEnded is H-CLOSE-1 and is NOT wired. It is a literal false and
+		// not an owner field, deliberately: a field nothing ever writes reads
+		// as wired to everyone downstream, and this file argues everywhere else
+		// that an assertion resting on a constructor existing is a comment.
+		//
+		// What it needs is not `program.end_date` read once. The live universe
+		// on 2026-08-07 shows LIP programmes are short REWARD PERIODS inside a
+		// market's life -- one sampled programme ran 21:45Z to 22:00Z on a
+		// market closing over a day later -- so `end_date` passing is a gap
+		// between periods, not the end of the incentive. H-CLOSE-1's condition
+		// is "this ticker is in no active programme any more", which is a poll
+		// of `/incentive_programs?status=active` and a membership test, and
+		// `feed.Universe` cannot answer it (it returns ticker and target size
+		// and is hash-pinned).
+		//
+		// Left false because the cost is ECONOMIC and not safety. False keeps
+		// the adding quote alive, so the failure is quoting while unpaid --
+		// unremunerated risk on an S=1 canary. Every rule that bounds actual
+		// exposure is wired: the close lead, the operator's early-close
+		// backoff, the inventory ladder, the gate, and the capital caps. The
+		// opposite error would be worse: reading a between-periods gap as "the
+		// programme ended" stops quoting in a market that is still paying.
 		ProgramEnded:  false,
 		UntilClose:    untilClose,
-		HasClose:      true,
-		TradingClosed: false,
+		HasClose:      hasClose,
+		TradingClosed: o.tradingClosed,
 	}, o.p)
 	if next != o.market {
 		o.sd.mirrorMarket(ticker, o.market, next, trig)
@@ -609,7 +980,7 @@ func (o *owner) evaluate(now time.Duration) {
 		State:         o.market,
 		Q:             q,
 		Funded:        o.fundedReducer(q),
-		PastFinalLead: quote.PastFinalLead(untilClose, true, o.p),
+		PastFinalLead: quote.PastFinalLead(untilClose, hasClose, o.p),
 	}, o.p)
 
 	if sz.FinalCancel {
@@ -734,14 +1105,18 @@ func (o *owner) decideSide(now time.Duration, side quote.Side, role quote.Role,
 // rather than downgraded into a shape the queue would accept.
 func (o *owner) enqueueCancel(now time.Duration, side quote.Side, role quote.Role) {
 	if role == quote.RoleReducing {
-		o.r.anom.raise(risk.Anomaly{
-			Class: "REDUCER_CANCEL_REFUSED", Sev: risk.SEV2,
-			Ticker: o.r.cfg.Ticker,
-			Text: fmt.Sprintf("a standalone cancel was wanted for the %s "+
-				"reducing side; H-QUE-2 has no row for one, because cancelling "+
-				"the exit is not work this harness does on its own account. "+
-				"Nothing was queued", side),
-		})
+		if !o.reducerCancelPinged[side] {
+			o.reducerCancelPinged[side] = true
+			o.r.anom.raise(risk.Anomaly{
+				Class: "REDUCER_CANCEL_REFUSED", Sev: risk.SEV2,
+				Ticker: o.r.cfg.Ticker,
+				Text: fmt.Sprintf("a standalone cancel was wanted for the %s "+
+					"reducing side; H-QUE-2 has no row for one, because "+
+					"cancelling the exit is not work this harness does on its "+
+					"own account. Nothing was queued, and this is reported once "+
+					"per side rather than once per tick", side),
+			})
+		}
 		return
 	}
 	o.enqueue(now, quote.Intent{
@@ -816,11 +1191,15 @@ func (o *owner) pump(now time.Duration, writes chan<- writeRequest) {
 	case writes <- req:
 		o.inflight = &req
 	default:
-		// The dispatcher is busy. The intents stay queued and are re-evaluated
-		// next tick, which is what §6.6 wants: nothing here is a pre-built
-		// request that has to be honoured later. Nothing left the process, so
-		// the token comes back with the worker slot.
+		// The dispatcher did not take it. Nothing left the process, so the token
+		// comes back with the worker slot -- and the intents are RELEASED rather
+		// than left queued, because `Dequeue` has already advanced a dependent
+		// one to stage-first-sent and nothing but a confirmation moves it from
+		// there. §6.5 re-decides on the next tick.
 		o.capacity = releaseWrite(o.capacity, o.p, d.Grant, false)
+		for _, id := range d.IDs {
+			o.r.queue.Drop(id)
+		}
 	}
 }
 
@@ -967,7 +1346,7 @@ func (o *owner) targetSize(side quote.Side, role quote.Role) (num.Qty, num.Qty) 
 		State:         o.market,
 		Q:             q,
 		Funded:        o.fundedReducer(q),
-		PastFinalLead: quote.PastFinalLead(time.Until(o.r.cfg.CloseTime), true, o.p),
+		PastFinalLead: quote.PastFinalLead(o.untilCloseOrZero()),
 	}, o.p)
 
 	target, bound := sz.Add, quote.SizeA(q, o.p)
@@ -998,8 +1377,16 @@ func (o *owner) fundedReducer(q num.Qty) num.Qty {
 	if !held {
 		return 0
 	}
-	price, has := o.bestOn(reducing)
-	if !has {
+	// Priced at the BOOK's touch, not at our own resting price.
+	//
+	// `funded` bounds the aggregate the exit may carry, so the question it
+	// answers is "how many contracts can this capital buy at the price the exit
+	// would be placed at" -- and §6.5 places at the touch. Pricing it off our
+	// own resting order would size the exit against a price we are no longer
+	// quoting at the moment the touch has moved, which is exactly when the
+	// reducer is being resized.
+	var price int
+	{
 		book := o.r.book.Book(o.r.cfg.Ticker)
 		if book == nil {
 			return 0
@@ -1081,9 +1468,9 @@ func (o *owner) restingOn(side quote.Side) ([]quote.Resting, int, bool) {
 		o.inflight.Side == side && o.inflight.Op == quote.OpPlace {
 		byPrice[o.inflight.Order.PriceCents()] += o.inflight.Order.Count()
 	}
-	for _, u := range o.unresolved {
+	for _, u := range o.pending {
 		if u.side == side {
-			byPrice[u.cents] += u.maxLive
+			byPrice[u.cents] += u.qty
 		}
 	}
 
@@ -1175,6 +1562,36 @@ func (o *owner) applyWriteResult(res writeResult) {
 	// store outage spend the reducer's share of the budget on nothing at all.
 	o.capacity = releaseWrite(o.capacity, o.p, res.Req.Grant, res.Sent)
 
+	// A WRITE THAT DID NOT COMPLETE MUST RELEASE ITS INTENTS, and this is the
+	// least obvious rule in the file.
+	//
+	// `Queue.commit` advances a DEPENDENT intent's first leg to `StageFirstSent`
+	// at DEQUEUE -- "that one line is H-Q-9a: dispatch is not confirmation" --
+	// and leaves it in the queue. `Intent.Dispatchable()` is false at that stage,
+	// and `Conditions.stillWanted` deliberately never drops it ("a write cannot
+	// be un-sent"). So an intent whose write did not reach a terminal answer is
+	// not merely delayed: it occupies its (market, side) FOREVER, it can never be
+	// selected again, and `enqueue`'s duplicate check then refuses every
+	// replacement for that side. The market stops quoting and nothing says so.
+	//
+	// Dropping is safe precisely because it is not a retreat: `evaluate` re-runs
+	// §6.5 on the next tick from current conditions and re-enqueues if the
+	// decision still holds, which is what §6.6 means by holding intents rather
+	// than requests.
+	if res.Err != nil {
+		for _, id := range res.Req.IDs {
+			o.r.queue.Drop(id)
+		}
+		o.r.anom.raise(risk.Anomaly{
+			Class: "WRITE_FAILED", Sev: risk.SEV2, Ticker: res.Req.Market,
+			Text: fmt.Sprintf("the %s on %s/%s did not complete (%v); its "+
+				"intents are released so the side is not wedged at "+
+				"stage-first-sent, and §6.5 re-decides on the next tick",
+				res.Req.Op, res.Req.Market, res.Req.Side, res.Err),
+		})
+		return
+	}
+
 	if res.Req.Op == quote.OpCancel {
 		if res.Absent {
 			// H-ORD-4 and H-FAIL-3. `Absent` is the ONLY thing that may reach
@@ -1185,12 +1602,26 @@ func (o *owner) applyWriteResult(res writeResult) {
 			o.r.queue.ConfirmAbsent(res.Req.Market, res.Req.Side)
 			return
 		}
+		// Not verified absent. The intents are RELEASED for the reason above:
+		// a cancel-confirm-place whose cancel did not confirm sits at
+		// stage-first-sent, and only `ConfirmAbsent` moves it -- which is
+		// exactly what did not happen. Left in place it would hold this side
+		// against every future intent for the life of the process.
+		//
+		// The orders themselves stay in the risk model regardless. H-FAIL-3: a
+		// cancel we requested and did not see confirmed is a live, fillable
+		// order, and it keeps its quantity in every aggregate cap until the
+		// exchange says otherwise. Releasing the INTENT and keeping the ORDER
+		// are the two halves of the same reading.
+		for _, id := range res.Req.IDs {
+			o.r.queue.Drop(id)
+		}
 		o.r.anom.raise(risk.Anomaly{
 			Class: "CANCEL_UNVERIFIED", Sev: risk.SEV2, Ticker: res.Req.Market,
 			Text: fmt.Sprintf("the cancel of %d order(s) on %s/%s did not come "+
 				"back verified absent (%s); H-FAIL-3 keeps every one of them in "+
 				"the risk model and in every aggregate cap until the exchange "+
-				"confirms it gone, and the replacement leg stays gated",
+				"confirms it gone, and §6.5 re-decides the side on the next tick",
 				len(res.Req.Orders), res.Req.Market, res.Req.Side,
 				res.Sweep.Outcome),
 		})
@@ -1199,17 +1630,27 @@ func (o *owner) applyWriteResult(res writeResult) {
 
 	create := res.Create
 
-	// H-ORD-2 clause 6, applied BEFORE anything else reads the aggregate: an
-	// order whose existence is not resolved keeps its maximum possibly-live
-	// quantity in the risk model and in every cap. `MaxLive` is the requested
-	// count for anything that is not a definite rejection, so this is the whole
-	// of clause 6 in one assignment.
-	if !create.Outcome.Definite() && create.MaxLive > 0 {
-		o.unresolved[create.Coid] = unknownOrder{
-			side:    res.Req.Side,
-			cents:   res.Req.Order.PriceCents(),
-			maxLive: create.MaxLive,
-			at:      o.r.ex.Mono(),
+	// EVERY create that may have left quantity live enters the aggregate HERE,
+	// before anything else reads it, and it stays until a complete orders walk
+	// lists the coid back.
+	//
+	// Both outcomes, not just the unknown one. `CreateRejected` is the single
+	// case with nothing live -- `MaxLive` is zero only there -- so the test is
+	// on the quantity rather than on the outcome, and an acked order is carried
+	// for exactly the same reason an unknown one is: `Portfolio.ReplaceOrders`
+	// is wholesale from a complete walk (H-POS-4), so until the next one lands
+	// this order is in no aggregate the sizing can see.
+	//
+	// H-ORD-2 clause 6 is the unknown half: "an UNKNOWN order's maximum
+	// possibly-live quantity STAYS in the risk model and in every aggregate cap
+	// (H-Q-5b, H-CAP-7) until it is positively resolved."
+	if create.MaxLive > 0 {
+		o.pending[create.Coid] = pendingOrder{
+			side:  res.Req.Side,
+			cents: res.Req.Order.PriceCents(),
+			qty:   create.MaxLive,
+			at:    o.r.ex.Mono(),
+			acked: create.Outcome.Exists(),
 		}
 	}
 
@@ -1298,12 +1739,15 @@ func (o *owner) applyWriteResult(res writeResult) {
 // growing quiet about it does not resolve it.
 func (o *owner) escalateUnresolved() {
 	now := o.r.ex.Mono()
-	for coid, u := range o.unresolved {
-		if u.pinged || now-u.at < o.p.UnknownPing {
+	for coid, u := range o.pending {
+		// An ACKED order waiting for its first walk is not an anomaly, it is
+		// younger than one `position_poll_s`. Only an order whose existence was
+		// never established is worth waking an operator about.
+		if u.acked || u.pinged || now-u.at < o.p.UnknownPing {
 			continue
 		}
 		u.pinged = true
-		o.unresolved[coid] = u
+		o.pending[coid] = u
 		o.r.anom.raise(risk.Anomaly{
 			Class: "ORDER_UNKNOWN", Sev: risk.SEV2, Ticker: o.r.cfg.Ticker,
 			Text: fmt.Sprintf("coid %s has been unresolved for %v (past "+
@@ -1312,7 +1756,7 @@ func (o *owner) escalateUnresolved() {
 				"walk listing the coid resolves it -- absence is not evidence "+
 				"in either direction (H-ORD-2a)", coid,
 				(now - u.at).Truncate(time.Second), o.p.UnknownPing,
-				u.maxLive.Wire(), u.side),
+				u.qty.Wire(), u.side),
 		})
 	}
 }
@@ -1374,7 +1818,7 @@ func (o *owner) anyInventory() bool {
 // being long again."
 func (o *owner) anyLiveOrder() bool {
 	return len(o.r.pf.LiveOrders()) > 0 || o.inflight != nil ||
-		len(o.unresolved) > 0
+		len(o.pending) > 0
 }
 
 // truthKnown is whether all three portfolio reads are inside `truth_max_age_s`.

@@ -1644,6 +1644,77 @@ MUTATIONS = [
      ],
      'TestAdoptionPolicyReceivesEffectiveSelectionAndExclusionsAsDefensiveCopies'),
 
+    # -----------------------------------------------------------------------
+    # lip-3af -- the seams. Every component below was already individually
+    # guarded here; what was NOT guarded, because it did not exist, is the
+    # composition. `quote.Decide` had no caller outside its own tests,
+    # `wsx.Poller` was complete and nothing consumed its channel, and all of
+    # `harness/lifecycle` was reachable only from `lifecycle_test`. These
+    # mutations break the JOINS.
+    # -----------------------------------------------------------------------
+
+    # H-ORD-6's whole content is an ordering: the coid reservation is durable
+    # BEFORE the order is dispatched. This deletes the barrier while leaving
+    # every other line intact -- the reservation is still submitted, so the row
+    # still appears, and only the WAIT is gone. That is the realistic form of
+    # the defect: not someone deciding to skip the ledger, but someone deciding
+    # the await was slow.
+    # It must actually SEND. A mutation that merely broke the permit would fail
+    # closed -- `DispatchPermit.Order()` refuses a zero permit, so nothing would
+    # reach the exchange and a test asserting "no POST" would still pass, which
+    # is a mutation recorded as caught for a reason that has nothing to do with
+    # the rule. So this one ignores the await's failure AND takes the order from
+    # the request instead of from the permit, which is the exact property
+    # `records.go` states: "the eventual lip-3af dispatcher consumes permits and
+    # never a raw rest.CreateOrder".
+    ('M-3AF-NOPERMIT',
+     'dispatch the request\'s own order and ignore the reservation outcome, so '
+     'an order whose ownership never committed reaches the exchange and the '
+     'fill it produces is one H-ORD-9 must classify as foreign',
+     [
+         ('cmd/harness/dispatch.go',
+          '\tpermit, err := awaitPermit(ctx, rcpt, reserves)\n\tif err != nil {\n',
+          '\tpermit, err := awaitPermit(ctx, rcpt, reserves)\n\t_ = permit\n\tif false {\n'),
+         ('cmd/harness/dispatch.go',
+          '\tbody, err := permit.Order()\n\tif err != nil {\n',
+          '\tbody, err := req.Order, error(nil)\n\tif err != nil {\n'),
+     ],
+     'TestNoOrderIsSentWithoutACommittedPermit'),
+
+    # The binding's value is in WHEN it runs. Deferring it to the next poll is
+    # not a latency regression: between the ack and the committed binding every
+    # fill on our OWN order classifies UNRESOLVED, `risk.ApplyFills` defers it,
+    # `q_local` lags the account, and past 120s it escalates to SEV2
+    # FILL_UNCLASSIFIABLE per trade. `wsx.bindListedOrders` is the safety net
+    # and is one poll late by construction -- it cannot catch an order that
+    # filled and went terminal inside one poll interval.
+    ('M-3AF-LATEBIND',
+     'let the portfolio walk pick the binding up instead of submitting it on '
+     'the CreateResult, so our own fills defer for a poll and then escalate',
+     [
+         ('cmd/harness/dispatch.go',
+          '\tif create.OrderID != "" {\n\t\tif _, berr := r.store.BindOrder(create.Coid, create.OrderID,\n',
+          '\tif false && create.OrderID != "" {\n\t\tif _, berr := r.store.BindOrder(create.Coid, create.OrderID,\n'),
+     ],
+     'TestBindingIsSubmittedOnTheAckAndNotAtTheNextPoll'),
+
+    # `Queue.ConfirmAbsent`'s key is (market, side), but `SweepResult.Clean`
+    # only covers the order ids the sweep was ASKED about. `OtherOurs` is
+    # exactly the gap: another order of ours resting on that side, reported and
+    # deliberately not cancelled. Claiming absence from `Clean` alone unlocks a
+    # cancel-confirm-place's replacement while one of our orders is still live
+    # on that side, which is the aggregate overlap H-Q-5a forbids reached
+    # through the confirmation rather than through the sizing.
+    ('M-3AF-ABSENT',
+     'claim (market, side) absence from the requested orders alone, ignoring '
+     'another of ours the verifying read found still resting there',
+     [
+         ('cmd/harness/dispatch.go',
+          'res.Absent = sweep.Clean && !restsOn(sweep.OtherOurs, req.Side)',
+          'res.Absent = sweep.Clean'),
+     ],
+     'TestAbsenceIsClaimedOnlyFromACompleteRead'),
+
 ]
 
 

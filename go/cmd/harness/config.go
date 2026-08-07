@@ -55,33 +55,45 @@ type fileConfig struct {
 	// "canary" and sizes like the pilot is refused instead of quietly obeyed.
 	Rung *string `json:"rung"`
 
-	// CloseTime is the market's close, RFC 3339 with an explicit offset.
+	// EarlyCloseLead is how long before `close_time` this harness stops ADDING
+	// in a market the exchange reports as `can_close_early`. Hours.
 	//
-	// It is CONFIGURED rather than read, and that is a deliberate limitation
-	// with a specific cost, so it is recorded here rather than in a commit
-	// message. §9 needs `close_time − now` for three rules: `close_lead` takes
-	// REDUCING to SETTLING, `final_lead` is H-CLOSE-3's "cancel everything in
-	// that market and verify with a sweep -- nothing of ours rests into the
-	// close", and H-CLOSE-0 requires the schedule be sampled at least twice
-	// within the lead it enforces. `harness/rest` has no market endpoint: it
-	// reads positions, orders, fills and balance, and writes orders. There is no
-	// schedule read in this binary to make.
+	// # Why there is a second lead at all
 	//
-	// The alternative to configuring it is `quote.MarketInput.HasClose = false`,
-	// which §5.2 treats as "we cannot enforce a lead here" -- and the practical
-	// consequence of that is orders resting into settlement, which is the one
-	// close-handling failure that costs real money rather than reward. So the
-	// pilot profile's "one operator-chosen ticker" extends to its close: the
-	// operator names the market and names when it ends.
+	// §16's `close_lead` is 1h -- cut from 4h by HR-011 to bound the window in
+	// which a resting reducer faces a stale book. That number is chosen against
+	// a close we can SEE COMING. H-CLOSE-4's markets are the ones we cannot:
+	// they settle before `close_time` on external information -- a resolution
+	// source, an event outcome -- and no amount of polling predicts WHEN.
 	//
-	// **What this does NOT cover, stated rather than hidden.** H-CLOSE-4's
-	// `can_close_early` markets settle BEFORE `close_time`, and
-	// `quote.MarketInput.TradingClosed` is the flag for "the close observed,
-	// not merely computed". Nothing in this binary can observe it. The pilot
-	// therefore requires an operator-chosen ticker that is not
-	// `can_close_early` -- which is already the bead's own selection rule --
-	// and this field is arithmetic, not observation.
-	CloseTime *string `json:"close_time"`
+	// A survey of the live universe on 2026-08-07 is what makes this a real
+	// case rather than a hypothetical: 192 of the 200 active LIP programmes are
+	// `can_close_early`. Treating it as the exceptional market would leave the
+	// pilot with eight candidates, and treating an unpredictable close as
+	// though the arithmetic held would leave inventory to settle at whatever
+	// the resolution turned out to be.
+	//
+	// So the operator's rule: in those markets, stop adding EARLY -- four hours
+	// out rather than one -- and let the exit stay alive. It is expressed
+	// through §5.2's market-scoped stop, which is exactly "adding side
+	// cancelled and confirmed absent, capped reducer rests" (A8), and it
+	// composes with `close_lead` and `final_lead` rather than replacing either:
+	// SETTLING still begins at `close_time - close_lead`, and H-CLOSE-3's final
+	// cancel still runs at `final_lead`.
+	//
+	// # Why it is HERE and not in cfg.Params
+	//
+	// §16 is the table the `run` row records verbatim, and `params_test.go`
+	// asserts `cfg.Params` against a fixed map field-for-field -- "adding a knob
+	// here would be a spec deviation dressed as configuration". This is a
+	// deployment decision about which markets the pilot will hold overnight, so
+	// it belongs with the ticker and the rung.
+	//
+	// Absent means the default below. Zero DISABLES the early backoff, which is
+	// the spec's literal reading (H-CLOSE-4 accepts the risk and asks selection
+	// to prefer against these markets), and is therefore a value worth being
+	// able to express.
+	EarlyCloseLead *float64 `json:"early_close_lead_h"`
 
 	// --- sizing, in CONTRACTS (§6.2) --------------------------------------
 
@@ -126,11 +138,13 @@ type pathConfig struct {
 
 // config is the validated result: the §16 params plus this run's identity.
 type config struct {
-	Params    cfg.Params
-	Ticker    string
-	Rung      rung
-	CloseTime time.Time
-	Paths     paths
+	Params cfg.Params
+	Ticker string
+	Rung   rung
+	// EarlyCloseLead is the operator's H-CLOSE-4 backoff. See the field comment
+	// on `fileConfig`. Zero disables it.
+	EarlyCloseLead time.Duration
+	Paths          paths
 }
 
 type paths struct {
@@ -162,6 +176,11 @@ var rungs = map[string]rung{
 }
 
 func rungNames() []string { return []string{"canary", "pilot", "second", "scale"} }
+
+// defaultEarlyCloseLead is four hours: §16's `close_lead` as it stood before
+// HR-011 cut it to one, kept for exactly the markets HR-011's argument does not
+// reach -- the ones whose close is not predictable from the schedule at all.
+const defaultEarlyCloseLead = 4 * time.Hour
 
 // loadConfig reads the file, overlays it on §16's defaults and validates.
 //
@@ -265,41 +284,37 @@ func loadConfig(path string) (config, error) {
 	// order only decides which failure an operator is shown first -- and a
 	// mistyped path is the more basic error, the one that makes every other
 	// answer about this configuration provisional.
-	if fc.CloseTime == nil || *fc.CloseTime == "" {
-		return config{}, errors.New("config names no close_time. §9's close " +
-			"lead and H-CLOSE-3's final cancel are both `close_time - now`, " +
-			"and this binary has no schedule endpoint to read one from. " +
-			"Without it the harness cannot enforce a lead it does not know, " +
-			"and the failure mode is orders resting into settlement -- so the " +
-			"pilot's one operator-chosen ticker comes with an " +
-			"operator-supplied close, in RFC 3339 with an explicit offset " +
-			"(e.g. 2026-08-08T21:00:00Z)")
+	// The close itself is READ, not configured. `harness-spec.md` §9's source
+	// table names the endpoint outright -- `market.close_time` from
+	// `/markets/{ticker}` -- and `schedule_poll_s` (30s) is the cadence
+	// H-CLOSE-0 already validates `final_lead` against. An earlier revision of
+	// this file made it a required config field on the belief that no such read
+	// existed in this binary; that was true of the code and false of the
+	// design, and a safety-critical timestamp copied by hand is one that goes
+	// stale silently.
+	c.EarlyCloseLead = defaultEarlyCloseLead
+	if fc.EarlyCloseLead != nil {
+		c.EarlyCloseLead = time.Duration(*fc.EarlyCloseLead * float64(time.Hour))
+		if c.EarlyCloseLead < 0 {
+			return config{}, fmt.Errorf("early_close_lead_h is %v, which is "+
+				"negative; a lead is a duration BEFORE the close, and zero is "+
+				"already how the early backoff is turned off",
+				*fc.EarlyCloseLead)
+		}
 	}
-	// RFC 3339 and not a local-time layout: a close parsed in the host's zone
-	// is a close that moves when the host's zone does, and `until_close`
-	// silently gains or loses an hour at a daylight-saving boundary. An
-	// explicit offset is the only form with one meaning.
-	ct, err := time.Parse(time.RFC3339, *fc.CloseTime)
-	if err != nil {
-		return config{}, fmt.Errorf("close_time %q is not RFC 3339 with an "+
-			"explicit offset: %w", *fc.CloseTime, err)
+	// A backoff shorter than the ordinary lead is not a backoff. It would be
+	// reached AFTER `close_lead` had already taken the market to SETTLING and
+	// cancelled the adding side, so it could never fire -- a knob that reads as
+	// set and does nothing.
+	if c.EarlyCloseLead > 0 && c.EarlyCloseLead <= p.CloseLead {
+		return config{}, fmt.Errorf("early_close_lead_h is %v, at or inside "+
+			"§16's close_lead %v. The early backoff exists to stop adding "+
+			"SOONER than the ordinary lead in a market whose close cannot be "+
+			"predicted; at or below close_lead the market is already SETTLING "+
+			"with its adding side cancelled by the time this would fire, so "+
+			"the knob would read as set and do nothing",
+			c.EarlyCloseLead, p.CloseLead)
 	}
-	// H-CLOSE-0, checked as arithmetic here rather than discovered at the
-	// close: the schedule must be readable at least twice within the lead it
-	// enforces. `Params.Validate` already asserts the sampling relation between
-	// `schedule_poll_s` and `final_lead`; what it cannot see is a close so near
-	// that the lead has already elapsed, which is a configuration that starts a
-	// harness whose first act should be H-CLOSE-3's final cancel.
-	if until := time.Until(ct); until <= p.FinalLead {
-		return config{}, fmt.Errorf("close_time %s is %v away, at or inside "+
-			"final_lead %v. H-CLOSE-3 says nothing of ours rests into the "+
-			"close, so a harness started here would have nothing to do but "+
-			"cancel; and if the intent was to adopt and wind down an existing "+
-			"position, that is what a config naming the NEXT market's close "+
-			"cannot express either. Pick the market this run is actually for",
-			ct.Format(time.RFC3339), until.Truncate(time.Second), p.FinalLead)
-	}
-	c.CloseTime = ct
 	return c, nil
 }
 

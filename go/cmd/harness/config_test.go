@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,15 +23,13 @@ func writeConfig(t *testing.T, body string) string {
 	return p
 }
 
-// goodTail is everything a valid config needs beyond the ticker, the rung and
-// the sizing: an absolute, complete path block and a close far enough away that
-// H-CLOSE-3 is not already due. Tests that are not about either use it so
-// neither can be mistaken for the failure under test.
+// goodTail is the absolute, complete path block every valid config needs.
+// Tests that are not about paths use it so a path error cannot be mistaken for
+// the failure under test.
 func goodTail(t *testing.T) string {
 	t.Helper()
 	d := t.TempDir()
-	return `"close_time":"` + time.Now().Add(48*time.Hour).UTC().Format(time.RFC3339) + `",` +
-		`"paths":{` +
+	return `"paths":{` +
 		`"db":"` + filepath.Join(d, "harness.db") + `",` +
 		`"anomaly_log":"` + filepath.Join(d, "anomaly.jsonl") + `",` +
 		`"latch":"` + filepath.Join(d, "harness.halt") + `",` +
@@ -237,55 +236,85 @@ func TestUnsetKnobsKeepTheSpecDefault(t *testing.T) {
 	}
 }
 
-// TestCloseTimeIsRequiredAndMustBeUnambiguous.
+// TestEarlyCloseLeadDefaultsToTheLeadHR011Removed.
 //
-// §9's close lead and H-CLOSE-3's final cancel are both `close_time - now`, and
-// this binary has no schedule endpoint. An absent close is not a close far away
-// -- `quote.MarketInput.HasClose` says so in as many words -- and the failure it
-// produces is orders resting into settlement.
-func TestCloseTimeIsRequiredAndMustBeUnambiguous(t *testing.T) {
-	d := t.TempDir()
-	paths := `"paths":{` +
-		`"db":"` + filepath.Join(d, "harness.db") + `",` +
-		`"anomaly_log":"` + filepath.Join(d, "anomaly.jsonl") + `",` +
-		`"latch":"` + filepath.Join(d, "harness.halt") + `",` +
-		`"lock":"` + filepath.Join(d, "harness.lock") + `",` +
-		`"key":"` + filepath.Join(d, "kalshi.pem") + `",` +
-		`"env":"` + filepath.Join(d, "env") + `"}`
-	head := `{"ticker":"KXTEST-A","rung":"canary","s":1,`
-
-	if _, err := loadConfig(writeConfig(t, head+paths+`}`)); err == nil {
-		t.Fatal("a config naming no close_time was accepted; the harness " +
-			"cannot enforce a lead it does not know")
+// §16's `close_lead` was cut 4h -> 1h by HR-011 to bound how long a resting
+// reducer faces a stale book. That trade is made against a close we can see
+// coming; `can_close_early` markets are the ones we cannot, and 192 of the 200
+// active LIP programmes carry the flag. So the pre-HR-011 four hours survives as
+// the backoff for exactly those markets, and the default is what an operator who
+// writes no knob at all gets.
+func TestEarlyCloseLeadDefaultsToTheLeadHR011Removed(t *testing.T) {
+	p := writeConfig(t, `{"ticker":"KXTEST-A","rung":"canary","s":1,`+
+		goodTail(t)+`}`)
+	c, err := loadConfig(p)
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
 	}
-
-	// A local-time layout with no offset means a different instant depending on
-	// the host's zone, so `until_close` would gain or lose an hour at a
-	// daylight-saving boundary.
-	naive := head + `"close_time":"2026-08-09 21:00:00",` + paths + `}`
-	if _, err := loadConfig(writeConfig(t, naive)); err == nil {
-		t.Fatal("a close_time with no explicit offset was accepted")
+	if c.EarlyCloseLead != 4*time.Hour {
+		t.Fatalf("early_close_lead defaulted to %v, want 4h", c.EarlyCloseLead)
+	}
+	if c.EarlyCloseLead <= c.Params.CloseLead {
+		t.Fatalf("the early backoff (%v) is not ahead of §16's close_lead (%v), "+
+			"so it could never fire", c.EarlyCloseLead, c.Params.CloseLead)
 	}
 }
 
-// TestACloseAlreadyInsideFinalLeadIsRefused is H-CLOSE-0 as arithmetic rather
-// than as a surprise: a harness started here has nothing to do but run
-// H-CLOSE-3's final cancel, so the configuration is naming the wrong market.
-func TestACloseAlreadyInsideFinalLeadIsRefused(t *testing.T) {
-	near := time.Now().Add(20 * time.Second).UTC().Format(time.RFC3339)
-	d := t.TempDir()
-	body := `{"ticker":"KXTEST-A","rung":"canary","s":1,` +
-		`"close_time":"` + near + `",` +
-		`"paths":{` +
-		`"db":"` + filepath.Join(d, "harness.db") + `",` +
-		`"anomaly_log":"` + filepath.Join(d, "anomaly.jsonl") + `",` +
-		`"latch":"` + filepath.Join(d, "harness.halt") + `",` +
-		`"lock":"` + filepath.Join(d, "harness.lock") + `",` +
-		`"key":"` + filepath.Join(d, "kalshi.pem") + `",` +
-		`"env":"` + filepath.Join(d, "env") + `"}}`
+// TestEarlyCloseLeadInsideCloseLeadIsRefused.
+//
+// A backoff at or inside the ordinary lead is a knob that reads as set and does
+// nothing: by the time it would fire, `close_lead` has already taken the market
+// to SETTLING and cancelled the adding side. Refusing it is the difference
+// between a configuration that is wrong and one that is quietly inert.
+func TestEarlyCloseLeadInsideCloseLeadIsRefused(t *testing.T) {
+	def := cfg.Default()
+	for _, h := range []float64{
+		def.CloseLead.Hours(),     // exactly at close_lead
+		def.CloseLead.Hours() / 2, // inside it
+	} {
+		body := fmt.Sprintf(`{"ticker":"KXTEST-A","rung":"canary","s":1,`+
+			`"early_close_lead_h":%v,`+goodTail(t)+`}`, h)
+		if _, err := loadConfig(writeConfig(t, body)); err == nil {
+			t.Fatalf("early_close_lead_h=%v was accepted against close_lead %v",
+				h, def.CloseLead)
+		}
+	}
+}
 
-	if _, err := loadConfig(writeConfig(t, body)); err == nil {
-		t.Fatalf("a close %v away was accepted against final_lead %v",
-			20*time.Second, cfg.Default().FinalLead)
+// TestEarlyCloseBackoffCanBeTurnedOff. Zero is the spec's literal reading:
+// H-CLOSE-4 accepts the early-close risk and asks selection to prefer against
+// those markets rather than backing off in them. It is a real position, so it
+// has to be expressible.
+func TestEarlyCloseBackoffCanBeTurnedOff(t *testing.T) {
+	p := writeConfig(t, `{"ticker":"KXTEST-A","rung":"canary","s":1,`+
+		`"early_close_lead_h":0,`+goodTail(t)+`}`)
+	c, err := loadConfig(p)
+	if err != nil {
+		t.Fatalf("loadConfig refused a disabled early backoff: %v", err)
+	}
+	if c.EarlyCloseLead != 0 {
+		t.Fatalf("early_close_lead_h=0 stored %v", c.EarlyCloseLead)
+	}
+}
+
+// TestNoCloseTimeKnobExists is the deliberate ABSENCE.
+//
+// §9's source table names `/markets/{ticker}` as where `close_time` comes from,
+// and an earlier revision of this file made it a config field on the belief that
+// this binary had no such read. A hand-copied close is a safety-critical
+// timestamp that goes stale silently, so the key is refused outright rather than
+// accepted and ignored -- which, given `DisallowUnknownFields`, is what a config
+// carrying it now gets.
+func TestNoCloseTimeKnobExists(t *testing.T) {
+	body := `{"ticker":"KXTEST-A","rung":"canary","s":1,` +
+		`"close_time":"2026-08-09T21:00:00Z",` + goodTail(t) + `}`
+	_, err := loadConfig(writeConfig(t, body))
+	if err == nil {
+		t.Fatal("a config naming close_time was accepted; the schedule is READ " +
+			"from /markets/{ticker} at schedule_poll_s, and a file that also " +
+			"names it is a second source of truth for the same fact")
+	}
+	if !strings.Contains(err.Error(), "close_time") {
+		t.Fatalf("the error does not name the offending key: %v", err)
 	}
 }
