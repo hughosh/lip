@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"lip/harness/cfg"
 	"lip/harness/num"
@@ -21,12 +22,15 @@ func writeConfig(t *testing.T, body string) string {
 	return p
 }
 
-// goodPaths is an absolute, complete path block. Tests that are not about paths
-// use it so a path error cannot be mistaken for the failure under test.
-func goodPaths(t *testing.T) string {
+// goodTail is everything a valid config needs beyond the ticker, the rung and
+// the sizing: an absolute, complete path block and a close far enough away that
+// H-CLOSE-3 is not already due. Tests that are not about either use it so
+// neither can be mistaken for the failure under test.
+func goodTail(t *testing.T) string {
 	t.Helper()
 	d := t.TempDir()
-	return `"paths":{` +
+	return `"close_time":"` + time.Now().Add(48*time.Hour).UTC().Format(time.RFC3339) + `",` +
+		`"paths":{` +
 		`"db":"` + filepath.Join(d, "harness.db") + `",` +
 		`"anomaly_log":"` + filepath.Join(d, "anomaly.jsonl") + `",` +
 		`"latch":"` + filepath.Join(d, "harness.halt") + `",` +
@@ -53,7 +57,7 @@ func TestConfigSizesAreContractsAndDollarsNotRawQuanta(t *testing.T) {
 	p := writeConfig(t, `{
 		"ticker":"KXTEST-A","rung":"pilot",
 		"s":12,"s_max":24,"inv_soft":18,"inv_hard":36,"inv_kill":48,
-		"capital_max":100,"pnl_kill":-25,`+goodPaths(t)+`}`)
+		"capital_max":100,"pnl_kill":-25,`+goodTail(t)+`}`)
 
 	c, err := loadConfig(p)
 	if err != nil {
@@ -85,7 +89,7 @@ func TestConfigSizesAreContractsAndDollarsNotRawQuanta(t *testing.T) {
 func TestUnknownConfigKeyIsRefused(t *testing.T) {
 	p := writeConfig(t, `{
 		"ticker":"KXTEST-A","rung":"canary","s":1,
-		"inv_kil":48,`+goodPaths(t)+`}`)
+		"inv_kil":48,`+goodTail(t)+`}`)
 
 	_, err := loadConfig(p)
 	if err == nil {
@@ -107,7 +111,7 @@ func TestUnknownConfigKeyIsRefused(t *testing.T) {
 // is the party holding the money.
 func TestRungIsAssertedAgainstSizeRatherThanDerivingIt(t *testing.T) {
 	p := writeConfig(t, `{
-		"ticker":"KXTEST-A","rung":"canary","s":12,`+goodPaths(t)+`}`)
+		"ticker":"KXTEST-A","rung":"canary","s":12,`+goodTail(t)+`}`)
 
 	_, err := loadConfig(p)
 	if err == nil {
@@ -124,7 +128,7 @@ func TestRungIsAssertedAgainstSizeRatherThanDerivingIt(t *testing.T) {
 
 	// ...and the same size on the rung that permits it is fine.
 	ok := writeConfig(t, `{
-		"ticker":"KXTEST-A","rung":"pilot","s":12,`+goodPaths(t)+`}`)
+		"ticker":"KXTEST-A","rung":"pilot","s":12,`+goodTail(t)+`}`)
 	if _, err := loadConfig(ok); err != nil {
 		t.Fatalf("rung \"pilot\" refused S=12, which it permits: %v", err)
 	}
@@ -193,7 +197,7 @@ func TestEveryPathIsRequired(t *testing.T) {
 // binary -- selection is q1select.py -- so an absent ticker cannot be derived,
 // only guessed.
 func TestConfigWithoutTickerIsRefused(t *testing.T) {
-	p := writeConfig(t, `{"rung":"canary","s":1,`+goodPaths(t)+`}`)
+	p := writeConfig(t, `{"rung":"canary","s":1,`+goodTail(t)+`}`)
 	if _, err := loadConfig(p); err == nil {
 		t.Fatal("a config naming no ticker was accepted")
 	}
@@ -202,12 +206,12 @@ func TestConfigWithoutTickerIsRefused(t *testing.T) {
 // TestUnnamedRungIsRefused. Capital is a ladder rather than a decision, and a
 // run that does not say which step it is on has not made the decision.
 func TestUnnamedRungIsRefused(t *testing.T) {
-	p := writeConfig(t, `{"ticker":"KXTEST-A","s":1,`+goodPaths(t)+`}`)
+	p := writeConfig(t, `{"ticker":"KXTEST-A","s":1,`+goodTail(t)+`}`)
 	if _, err := loadConfig(p); err == nil {
 		t.Fatal("a config naming no rung was accepted")
 	}
 	bad := writeConfig(t, `{"ticker":"KXTEST-A","rung":"enormous","s":1,`+
-		goodPaths(t)+`}`)
+		goodTail(t)+`}`)
 	if _, err := loadConfig(bad); err == nil {
 		t.Fatal("an unknown rung was accepted")
 	}
@@ -217,7 +221,7 @@ func TestUnnamedRungIsRefused(t *testing.T) {
 // diff of it against an empty one is the whole config review.
 func TestUnsetKnobsKeepTheSpecDefault(t *testing.T) {
 	p := writeConfig(t, `{"ticker":"KXTEST-A","rung":"canary","s":1,`+
-		goodPaths(t)+`}`)
+		goodTail(t)+`}`)
 	c, err := loadConfig(p)
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
@@ -230,5 +234,58 @@ func TestUnsetKnobsKeepTheSpecDefault(t *testing.T) {
 	if c.Params.DrainTimeout != def.DrainTimeout {
 		t.Fatalf("an unset knob drifted: drain_timeout is %v, want %v",
 			c.Params.DrainTimeout, def.DrainTimeout)
+	}
+}
+
+// TestCloseTimeIsRequiredAndMustBeUnambiguous.
+//
+// §9's close lead and H-CLOSE-3's final cancel are both `close_time - now`, and
+// this binary has no schedule endpoint. An absent close is not a close far away
+// -- `quote.MarketInput.HasClose` says so in as many words -- and the failure it
+// produces is orders resting into settlement.
+func TestCloseTimeIsRequiredAndMustBeUnambiguous(t *testing.T) {
+	d := t.TempDir()
+	paths := `"paths":{` +
+		`"db":"` + filepath.Join(d, "harness.db") + `",` +
+		`"anomaly_log":"` + filepath.Join(d, "anomaly.jsonl") + `",` +
+		`"latch":"` + filepath.Join(d, "harness.halt") + `",` +
+		`"lock":"` + filepath.Join(d, "harness.lock") + `",` +
+		`"key":"` + filepath.Join(d, "kalshi.pem") + `",` +
+		`"env":"` + filepath.Join(d, "env") + `"}`
+	head := `{"ticker":"KXTEST-A","rung":"canary","s":1,`
+
+	if _, err := loadConfig(writeConfig(t, head+paths+`}`)); err == nil {
+		t.Fatal("a config naming no close_time was accepted; the harness " +
+			"cannot enforce a lead it does not know")
+	}
+
+	// A local-time layout with no offset means a different instant depending on
+	// the host's zone, so `until_close` would gain or lose an hour at a
+	// daylight-saving boundary.
+	naive := head + `"close_time":"2026-08-09 21:00:00",` + paths + `}`
+	if _, err := loadConfig(writeConfig(t, naive)); err == nil {
+		t.Fatal("a close_time with no explicit offset was accepted")
+	}
+}
+
+// TestACloseAlreadyInsideFinalLeadIsRefused is H-CLOSE-0 as arithmetic rather
+// than as a surprise: a harness started here has nothing to do but run
+// H-CLOSE-3's final cancel, so the configuration is naming the wrong market.
+func TestACloseAlreadyInsideFinalLeadIsRefused(t *testing.T) {
+	near := time.Now().Add(20 * time.Second).UTC().Format(time.RFC3339)
+	d := t.TempDir()
+	body := `{"ticker":"KXTEST-A","rung":"canary","s":1,` +
+		`"close_time":"` + near + `",` +
+		`"paths":{` +
+		`"db":"` + filepath.Join(d, "harness.db") + `",` +
+		`"anomaly_log":"` + filepath.Join(d, "anomaly.jsonl") + `",` +
+		`"latch":"` + filepath.Join(d, "harness.halt") + `",` +
+		`"lock":"` + filepath.Join(d, "harness.lock") + `",` +
+		`"key":"` + filepath.Join(d, "kalshi.pem") + `",` +
+		`"env":"` + filepath.Join(d, "env") + `"}}`
+
+	if _, err := loadConfig(writeConfig(t, body)); err == nil {
+		t.Fatalf("a close %v away was accepted against final_lead %v",
+			20*time.Second, cfg.Default().FinalLead)
 	}
 }
