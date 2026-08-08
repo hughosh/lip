@@ -198,6 +198,36 @@ func (s *shutdown) onSignal(sig os.Signal, in quote.GlobalInput) lifecycle.Signa
 	return eff
 }
 
+// confirmSignalDrain upgrades the unplanned drain a failed signal started, once
+// its stop has actually been made durable.
+//
+// The permit is minted by `lifecycle` and never here. `DrainPermit`'s fields are
+// private precisely so that "the thing that licenses an irreversible act must
+// not be constructible by the code that wants the act performed" -- and a
+// process exit is that act. This function can ask for one and can be refused.
+func (s *shutdown) confirmSignalDrain(cause lifecycle.StopCause) {
+	permit := s.r.sigs.Confirm(cause)
+	if !permit.Valid() {
+		s.r.anom.raise(risk.Anomaly{
+			Class: drainRefusedClass, Sev: risk.SEV1,
+			Text: fmt.Sprintf("the durable stop for %q is on disk, but no drain "+
+				"permit was issued for it, so this process has a signal it "+
+				"honoured and a drain that can never authorise an exit; it will "+
+				"wind down, reach flat and then idle rather than finish "+
+				"(H-HALT-3)", cause.Trigger),
+		})
+		return
+	}
+	if err := s.r.drain.BeginPlanned(permit, s.r.ex.Mono()); err != nil {
+		s.r.anom.raise(risk.Anomaly{
+			Class: drainRefusedClass, Sev: risk.SEV1,
+			Text: fmt.Sprintf("the drain tracker refused the permit re-issued "+
+				"for %s after its durable stop landed, so the wind-down cannot "+
+				"end: %v", permit.Trigger(), err),
+		})
+	}
+}
+
 // ---------------------------------------------------------------------------
 // 2. The drain
 // ---------------------------------------------------------------------------

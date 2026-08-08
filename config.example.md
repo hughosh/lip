@@ -105,6 +105,18 @@ The stops that DO still work: a taker fill (F14), `pos_drift_hard` (F13), a
 foreign fill, `insufficient_balance` (H-CAP-5), and the operator's own SIGINT
 or halt latch.
 
+Those five are also now DELIVERED fail-safe, which they were not before
+`lip-vxo` (2026-08-08). Until then, any of them could be lost silently: if the
+write to `paths.latch` failed, the harness dropped the stop and kept adding, and
+whether it ever tried again depended on whether the condition happened to fire a
+second time — which a taker fill and a signal do not. A cause that cannot be made
+durable is now held and rewritten on every 250 ms tick until it lands; adding
+stops immediately and stays stopped for the whole gap, while cancelling,
+reducing, polling and monitoring continue; and `WINDING_DOWN` is not published
+until the latch is on disk. **If you see a SEV1 `LATCH_WRITE_FAILED`, the harness
+has decided to stop and cannot record it — check that `paths.latch`'s directory
+is writable.** A SEV2 `LATCH_WRITE_RECOVERED` says the write later succeeded.
+
 This is recorded here rather than papered over because an operator reading this
 file would otherwise reasonably believe three kill conditions are protecting the
 canary that are not.

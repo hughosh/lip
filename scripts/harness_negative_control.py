@@ -578,9 +578,13 @@ MUTATIONS = [
      "os.Exit(0) on SIGTERM instead of draining "
      "-- H-HALT-3's rule deleted, and invisible to any in-process assertion",
      [
+         # Re-anchored by lip-vxo's amendment: `Handle`'s inline switch became
+         # `signalTrigger`, so that `Confirm` and `Handle` cannot disagree about
+         # which causes may authorise an exit. The mutation is unchanged in
+         # meaning -- exit on SIGTERM instead of draining.
          ("harness/lifecycle/drain.go",
-          "\tcase syscall.SIGTERM:\n\t\tname = \"sigterm\"\n",
-          "\tcase syscall.SIGTERM:\n\t\tos.Exit(0)\n\t\tname = \"sigterm\"\n"),
+          "\tcase syscall.SIGTERM:\n\t\treturn triggerSigterm\n",
+          "\tcase syscall.SIGTERM:\n\t\tos.Exit(0)\n\t\treturn triggerSigterm\n"),
      ],
      "TestSIGTERMWithInventoryOutlivesSignalAndDrainTimeout"),
 
@@ -1890,6 +1894,179 @@ MUTATIONS = [
           '\n\tcase wsx.EventDisconnectReduce:\n'),
      ],
      'TestASustainedOutageReachesTheGateAndTheDisconnectTokenReachesThePoller'),
+
+    # -----------------------------------------------------------------------
+    # lip-vxo -- the global stop's DELIVERY path.
+    #
+    # `lifecycle` computes two answers on every uncertain stop path,
+    # `BlockAdding` and `RetryLatch`, and both are documented as instructions
+    # rather than diagnostics. `cmd/harness` used to read NEITHER, at three
+    # separate seams. Every mutation below targets a CONSUMER: the producer was
+    # never wrong, which is why the existing catalogue stayed fully caught while
+    # the answers were being thrown away.
+    #
+    # There is deliberately no "publish WINDING_DOWN before it is durable"
+    # mutation here. That one is refused a layer down: `Advance` returns
+    # `Committed: false` for `Stop` with nothing latched, so a consumer that
+    # advanced anyway would publish nothing. lip-eyq made that structural and
+    # `lifecycle`'s own tests hold it; a mutation here would be inert by
+    # construction rather than by argument.
+
+    # The prohibition itself. BlockAdding is honoured in exactly one place --
+    # §5.2's own stop term -- so deleting the term is the whole defect: the
+    # harness has decided to stop, cannot record it, and adds anyway.
+    ('M-VXO-BLOCK',
+     'ignore BlockAdding, so a market whose §12 cause could not be made '
+     'durable keeps adding into the condition that decided to stop it',
+     [
+         ('cmd/harness/run.go',
+          '\t\tStop: o.stopHeld || o.reduceNoted || o.r.gate.Reducing(ticker) ||\n',
+          '\t\tStop: o.reduceNoted || o.r.gate.Reducing(ticker) ||\n'),
+     ],
+     'TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs'),
+
+    # The retry. Driving it from the owner tick is the point: all three callers
+    # of `requestStop` are event-driven -- a portfolio read, a gate tick and an
+    # ack that carried a fill -- so without this line the only thing that
+    # retries a lost stop is the original condition happening to recur, and a
+    # taker fill does not recur.
+    ('M-VXO-RETRY',
+     'never re-drive the held cause from the tick, so a global stop is retried '
+     'only if the trigger that produced it happens to fire again',
+     [
+         ('cmd/harness/run.go',
+          '\to.retryStop()\n\n\t// The non-gate reduce requests are consumed by THIS evaluation and cleared\n',
+          '\t// The non-gate reduce requests are consumed by THIS evaluation and cleared\n'),
+     ],
+     'TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs'),
+
+    # The hold. This is the original defect restored exactly: the cause is
+    # OBSERVED -- it is even stored -- and never marked held, so nothing blocks
+    # and nothing retries. A signal computed correctly and discarded at the
+    # seam, which is lip-0qj's lesson applied to the stop path.
+    ('M-VXO-HOLD',
+     'record the failed cause without holding it, so BlockAdding and '
+     'RetryLatch are stored as diagnostics and acted on by nothing',
+     [
+         ('cmd/harness/run.go',
+          '\tif o.stopHeld {\n\t\treturn\n\t}\n\to.stopCause, o.stopHeld = cause, true\n}\n',
+          '\to.stopCause = cause\n}\n'),
+     ],
+     'TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs'),
+
+    # First-writer-wins, at the consumer. `FileLatch.Ensure` refuses to
+    # overwrite a latch because "the first durable cause is the one the operator
+    # investigates, and a later, more mundane trigger -- a SIGTERM sent while
+    # winding down from a taker fill -- must not overwrite the reason the
+    # harness stopped". A hold that takes the LAST cause defeats that from
+    # above: nothing is on disk yet, so the retry simply writes the wrong one
+    # and the operator of §10.4 reads a symptom instead of the cause.
+    ('M-VXO-FIRST',
+     'let a later trigger displace the held cause, so the retry latches the '
+     'most recent symptom rather than the first cause',
+     [
+         ('cmd/harness/run.go',
+          '\t\tcause = o.stopCause\n',
+          '\t\to.stopCause = cause\n'),
+     ],
+     'TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs'),
+
+    # A missing `return`, which is the most plausible way to write this wrong.
+    # Falling through releases the hold it just took -- and raises the
+    # LATCH_WRITE_RECOVERED that says the stop is durable -- one line after
+    # discovering that it is not.
+    ('M-VXO-FALLTHROUGH',
+     'fall through after holding the cause, so the hold is released and '
+     'announced recovered on the same tick the write failed',
+     [
+         ('cmd/harness/run.go',
+          '\t\to.holdStop(cause)\n\t\treturn\n\t}\n',
+          '\t\to.holdStop(cause)\n\t}\n'),
+     ],
+     'TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs'),
+
+    # The signal seam. A SIGTERM is delivered ONCE, so there is no standing
+    # condition left to recur and this is the one trigger a dropped decision
+    # loses outright -- while `SignalController.Handle`'s own contract promises
+    # that on a failed write "the harness still stops adding and still drains".
+    ('M-VXO-SIGNAL',
+     'drop a SIGTERM whose latch write failed, so H-HALT-3 stops nothing and '
+     'the one trigger that cannot fire twice is lost outright',
+     [
+         ('cmd/harness/run.go',
+          '\t\to.holdStop(eff.Cause)\n\t\to.holdSignal(eff.Cause)\n',
+          ''),
+     ],
+     'TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs'),
+
+    # `rig.boot`, whose field comment says outright that its two answers "are
+    # answers the run loop must honour on its first tick, not diagnostics".
+    # Only `.Latched` and `.Anomalies` were ever read.
+    ('M-VXO-BOOT',
+     'ignore the bootstrap BlockAdding and RetryLatch, so a latch that could '
+     'not be read is never rewritten and the first tick honours neither',
+     [
+         ('cmd/harness/run.go',
+          '\tif r.boot.BlockAdding || r.boot.RetryLatch {\n',
+          '\tif false && (r.boot.BlockAdding || r.boot.RetryLatch) {\n'),
+     ],
+     'TestAnUnreadableLatchAtBootIsHonouredOnTheFirstTick'),
+
+    # The three lip-vxo amendments, from the codex review OF the implementation.
+
+    # `RetryLatch` during STARTING. `BlockAdding` is the benign half there --
+    # nothing places before an Adoption exists -- but a cause that is not
+    # retained is one the next walk must re-discover, and the next walk
+    # recomputes `since := now.Add(-backfill_h)` from a fresh clock. A fill near
+    # the edge of that window is simply not reported again, and the harness
+    # adopts a clean account next to a stop it had already decided to take.
+    ('M-VXO-STARTUPDROP',
+     'drop a startup cause whose latch write failed, so it survives only if the '
+     'moving backfill window still reports the fill that produced it',
+     [
+         ('harness/lifecycle/startup.go',
+          '\t\t\ts.pendingCause, s.pendingHeld = c, true\n',
+          '\t\t\ts.pendingHeld = false\n'),
+     ],
+     'TestAStartupCauseSurvivesAFailedWriteAndTheBackfillWindowMovingPast'),
+
+    # The same cause, retained but never retried: the walk goes first and the
+    # held cause is only ever written if some LATER walk rediscovers it.
+    ('M-VXO-STARTUPNORETRY',
+     'walk before retrying the retained startup cause, so the retry depends on '
+     'the same rediscovery it exists to make unnecessary',
+     [
+         ('harness/lifecycle/startup.go',
+          '\tif anoms, ok := s.retryPending(); !ok {\n\t\treturn s.latchBlocked(walkResult{anoms: anoms})\n\t}\n',
+          ''),
+     ],
+     'TestAStartupCauseSurvivesAFailedWriteAndTheBackfillWindowMovingPast'),
+
+    # H-HALT-3's exit authority. A signal whose write failed drains UNPLANNED,
+    # and an unplanned drain can never authorise an exit. Committing the same
+    # cause later makes the stop durable and leaves the drain unplanned forever,
+    # so the operator's SIGTERM stops the harness, winds it down, reaches flat
+    # and then idles rather than finishing.
+    ('M-VXO-NOPERMITREISSUE',
+     'never re-issue the drain permit once a signal stop becomes durable, so a '
+     'SIGTERM whose latch write failed once can never end the process',
+     [
+         ('cmd/harness/run.go',
+          '\t\to.holdSignal(eff.Cause)\n',
+          ''),
+     ],
+     'TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs'),
+
+    # The same authority, dropped at the release instead of at the signal.
+    ('M-VXO-NOCONFIRMDRAIN',
+     'hold the signal intent and never act on it, so the permit is retained as '
+     'a diagnostic and the wind-down still cannot end',
+     [
+         ('cmd/harness/run.go',
+          '\to.confirmSignalDrain()\n}\n',
+          '}\n'),
+     ],
+     'TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs'),
 
 ]
 

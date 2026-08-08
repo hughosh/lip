@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -718,6 +720,33 @@ type seamOptions struct {
 	// SkipRig builds the config and the fakes but not the rig, for the tests
 	// whose subject IS `newRig`.
 	SkipRig bool
+
+	// LatchDirMissing puts the halt latch inside a subdirectory that does not
+	// exist, and it is how a seam test makes a latch WRITE fail without a fake.
+	//
+	// There is no injection point for one: `newRig` builds a
+	// `*lifecycle.FileLatch` from `c.Paths.Latch` and hands it straight to
+	// `NewGlobalController`, and `rig.latch` is the concrete type rather than
+	// the `LatchStore` interface. That is not an oversight to route around --
+	// the whole argument for the controller reading the latch in its
+	// constructor is that no seam exists between deciding to halt and recording
+	// it -- so the test makes the REAL disk fail instead.
+	//
+	// The two calls answer differently and both answers are wanted. `Load` gets
+	// ENOENT on the file and reports NOT LATCHED with no error, which is the
+	// one clear reading, so the harness boots clean. `Ensure`'s `O_EXCL` create
+	// gets ENOENT on the DIRECTORY, which is not `os.IsExist`, so it returns
+	// not-durable with an error -- exactly the transient-disk condition
+	// `RetryLatch` exists for. `os.Mkdir` on `filepath.Dir(c.Paths.Latch)` is
+	// the recovery, and the next write succeeds.
+	LatchDirMissing bool
+
+	// LatchCorrupt writes bytes at the latch path that `decodeLatch` refuses,
+	// which is how a test makes the latch READ fail. `Load` reports
+	// present-but-uninterpretable, so `NewGlobalController` bootstraps LATCHED
+	// with `BlockAdding` and `RetryLatch` set -- the `rig.boot` case. It needs
+	// `Resume`, because `newRig` refuses to start latched without it.
+	LatchCorrupt bool
 }
 
 // seamHarness is one composed harness process plus everything outside it.
@@ -768,12 +797,27 @@ func newSeamHarness(t *testing.T, opt seamOptions) *seamHarness {
 	t.Helper()
 
 	c := newSeamConfig(t)
+	if opt.LatchDirMissing {
+		// `provision` creates the parents of the DB and the anomaly log and
+		// nothing else, so this directory stays absent until a test creates it.
+		c.Paths.Latch = filepath.Join(
+			filepath.Dir(c.Paths.Latch), "latch", "harness.halt")
+	}
 	// The store is PROVISIONED, never created by the run path. That is not
 	// fixture hygiene, it is the rule `requireExistingDB` enforces: an absent
 	// path and a mistyped one are the same thing to `hstore.Open`, and the
 	// ledger it creates for either recognises no order id at all.
 	if err := provision(c, io.Discard); err != nil {
 		t.Fatalf("provisioning the seam store: %v", err)
+	}
+
+	if opt.LatchCorrupt {
+		// A truncated write from a power cut, JSON that does not parse, the
+		// wrong version: `decodeLatch` refuses all of them and every one reports
+		// LATCHED with an error. This is the shortest of them.
+		if err := os.WriteFile(c.Paths.Latch, []byte("{"), 0o600); err != nil {
+			t.Fatalf("writing a corrupt halt latch: %v", err)
+		}
 	}
 
 	if opt.Latched {
@@ -1080,6 +1124,38 @@ func seamCancelsOn(q *quote.Queue, side quote.Side) []quote.Intent {
 		}
 	}
 	return out
+}
+
+// seamPlaces is every pending intent whose CURRENT leg is a placement, on either
+// side. It is the queue-level reading of "an adding write is on its way out":
+// `pump` dispatches what `Dequeue` hands it, so an empty answer here is a tick
+// that cannot have placed anything.
+func seamPlaces(q *quote.Queue) []quote.Intent {
+	var out []quote.Intent
+	for _, in := range q.Pending() {
+		if in.Op() == quote.OpPlace {
+			out = append(out, in)
+		}
+	}
+	return out
+}
+
+// seamLatchTrigger reads the trigger off the durable halt latch, or "" if there
+// is no latch at that path.
+func seamLatchTrigger(t *testing.T, path string) string {
+	t.Helper()
+	latch, err := lifecycle.NewFileLatch(path)
+	if err != nil {
+		t.Fatalf("NewFileLatch(%s): %v", path, err)
+	}
+	rec, present, err := latch.Load()
+	if err != nil {
+		t.Fatalf("loading the halt latch at %s: %v", path, err)
+	}
+	if !present {
+		return ""
+	}
+	return rec.Trigger
 }
 
 func seamContains(haystack []string, needle string) bool {
@@ -2922,4 +2998,413 @@ func TestASustainedOutageReachesTheGateAndTheDisconnectTokenReachesThePoller(
 		default:
 		}
 	})
+}
+
+// TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs is
+// `lip-vxo`: the two answers `lifecycle` computes on every uncertain stop path
+// and that `cmd/harness` used to read NEITHER of.
+//
+// `StopCommit.BlockAdding` is "I1's response to every uncertainty in this
+// file", and `StopCommit.RetryLatch` "asks the caller to commit again". Before
+// this test `requestStop` read neither: on `!Durable` it returned, and whether
+// the stop was ever tried again depended on whether the ORIGINAL condition
+// happened to recur. All three of its call sites are event-driven -- a
+// portfolio read, a gate tick and an ack that carried a fill -- and a taker
+// fill does not recur. So one transient EIO lost a global stop for the life of
+// the process, silently, with the harness still adding into the condition that
+// had already decided to stop it.
+//
+// This is a seam test and not a `lifecycle` unit test because `lifecycle` was
+// never wrong. Every mutation of the PRODUCER stays caught while the CONSUMER
+// throws the result away, which is the same shape as `lip-0qj`, and the only
+// place the two ends meet is here.
+func TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs(
+	t *testing.T) {
+	// q = +1, far under inv_soft, a book on both sides and a schedule read a day
+	// from the close: every ground for stopping EXCEPT the one under test is
+	// removed, so a market that stops has stopped because of the failed write.
+	const heldYes = 1
+
+	setup := func(t *testing.T) (*seamHarness, *owner) {
+		t.Helper()
+		h := newSeamHarness(t, seamOptions{LatchDirMissing: true})
+		o := h.ownerFor()
+		h.connectGate()
+		h.installBook([][]string{{"0.4000", "20.00"}},
+			[][]string{{"0.5500", "20.00"}})
+		h.installPosition(num.QtyFromFloat(heldYes))
+		h.installResting(
+			risk.LiveOrder{OrderID: "EX-ADD", Ticker: seamTicker,
+				Side: quote.SideYes, Price4: 4000,
+				Remaining: num.QtyFromFloat(12)},
+			risk.LiveOrder{OrderID: "EX-EXIT", Ticker: seamTicker,
+				Side: quote.SideNo, Price4: 5500,
+				Remaining: num.QtyFromFloat(1)},
+		)
+		o.closeAt = time.Now().Add(24 * time.Hour)
+		o.hasClose = true
+		o.scheduleEver = true
+
+		// The control. If this is not QUOTING then nothing below is
+		// attributable to the stop.
+		o.evaluate(0)
+		if o.market != quote.Quoting {
+			t.Fatalf("the market is %s before any stop was requested, want "+
+				"QUOTING; the rest of this test cannot attribute a stop to a "+
+				"failed latch write unless the market was running first",
+				o.market)
+		}
+		if o.global != quote.Running {
+			t.Fatalf("the global state is %s, want RUNNING", o.global)
+		}
+		h.takeRaised()
+		return h, o
+	}
+
+	t.Run("the gap blocks adding and leaves everything else running",
+		func(t *testing.T) {
+			h, o := setup(t)
+
+			o.requestStop("taker_fill", seamTicker)
+
+			// The write really did fail. Without this the test would pass on a
+			// harness that never had anything to recover from.
+			if got := seamLatchTrigger(t, h.cfg.Paths.Latch); got != "" {
+				t.Fatalf("the halt latch reads trigger %q, so the write "+
+					"SUCCEEDED and this test is asserting nothing", got)
+			}
+			if !o.stopHeld {
+				t.Fatal("the owner is not holding the cause after a failed " +
+					"latch write.\n\n" +
+					"StopCommit.BlockAdding and StopCommit.RetryLatch are the " +
+					"two answers lifecycle computes for exactly this case, " +
+					"and neither is a diagnostic. Dropping them here is a " +
+					"global stop that survives only if the condition that " +
+					"produced it happens to fire again -- and requestStop's " +
+					"three callers are all event-driven. A taker fill does " +
+					"not recur.")
+			}
+			if o.stopCause.Trigger != "taker_fill" {
+				t.Fatalf("the held cause is %q, want taker_fill",
+					o.stopCause.Trigger)
+			}
+
+			// H-HALT-4's order, from the other side: the latch reaches disk
+			// BEFORE the in-memory state changes, so a latch that never reached
+			// disk changes no state at all. Publishing here is the HR-009
+			// sequence with the harness having been TOLD the write failed --
+			// WINDING_DOWN in memory, nothing on disk, a panic and `launchd
+			// KeepAlive` erasing it completely.
+			if o.global != quote.Running {
+				t.Fatalf("the global state is %s after a stop that is NOT on "+
+					"disk, want RUNNING. A halt published without its latch "+
+					"is one a restart cannot see", o.global)
+			}
+
+			var failed bool
+			for _, a := range h.takeRaised() {
+				if a.Class == "LATCH_WRITE_FAILED" {
+					failed = true
+					if a.Sev != risk.SEV1 {
+						t.Fatalf("LATCH_WRITE_FAILED is %v, want SEV1", a.Sev)
+					}
+				}
+			}
+			if !failed {
+				t.Fatal("no LATCH_WRITE_FAILED anomaly reached the operator; " +
+					"it is their only notice that the harness has decided to " +
+					"stop and cannot record it")
+			}
+
+			// I1, which is the whole of BlockAdding's meaning: this stops
+			// ADDING and stops nothing else.
+			o.evaluate(0)
+
+			if o.market != quote.Reducing {
+				t.Fatalf("the market is %s while a §12 cause is held "+
+					"undurable, want REDUCING. BlockAdding is honoured in "+
+					"exactly one place -- §5.2's own stop term -- and a "+
+					"market still QUOTING is one adding into the condition "+
+					"that already decided to stop it", o.market)
+			}
+			if places := seamPlaces(h.rig.queue); len(places) != 0 {
+				t.Fatalf("%d placement intent(s) are queued during the gap; "+
+					"no adding write may leave this process while the cause "+
+					"that stopped it is not on disk", len(places))
+			}
+			adds := seamCancelsOn(h.rig.queue, quote.SideYes)
+			if len(adds) != 1 {
+				t.Fatalf("%d cancel intents were queued for the ADDING side, "+
+					"want 1; a stopped market's adding side is cancelled and "+
+					"confirmed absent, not merely left unrefreshed", len(adds))
+			}
+			if adds[0].Role != quote.RoleAdding {
+				t.Fatalf("the adding-side cancel is classified %s",
+					adds[0].Role)
+			}
+			if exits := seamCancelsOn(h.rig.queue, quote.SideNo); len(exits) != 0 {
+				t.Fatalf("%d cancel intent(s) were queued for the REDUCING "+
+					"side.\n\nI1: BlockAdding is deliberately the ONLY "+
+					"prohibition -- cancels, reducing quotes, position "+
+					"polling, reconciliation and monitoring all continue "+
+					"while it is set. A harness that stopped managing its "+
+					"inventory because it could not write a file has "+
+					"converted a storage failure into an unobserved position",
+					len(exits))
+			}
+			if got := o.atRisk(quote.SideNo); got != num.QtyFromFloat(heldYes) {
+				t.Fatalf("the exit's aggregate is %s, want %s: nothing here "+
+					"may retire it from the risk model", got.Wire(),
+					num.QtyFromFloat(heldYes).Wire())
+			}
+		})
+
+	t.Run("the tick retries it and publishes only once it is durable",
+		func(t *testing.T) {
+			h, o := setup(t)
+
+			o.requestStop("taker_fill", seamTicker)
+			o.evaluate(0)
+			if !o.stopHeld || o.global != quote.Running {
+				t.Fatalf("held=%v global=%s before the disk recovered",
+					o.stopHeld, o.global)
+			}
+			h.takeRaised()
+
+			// Several ticks with the disk still failing. The cause is held
+			// across every one of them, and adding stays off across every one
+			// of them -- the retry is the loop's obligation and is not paced
+			// by the trigger, which has not fired again and will not.
+			for i := 0; i < 3; i++ {
+				o.evaluate(0)
+				if !o.stopHeld {
+					t.Fatalf("the cause was dropped on retry %d", i+1)
+				}
+				if o.market != quote.Reducing {
+					t.Fatalf("the market is %s on retry %d, want REDUCING",
+						o.market, i+1)
+				}
+			}
+			if o.stopRetries < 3 {
+				t.Fatalf("the owner recorded %d retries across 4 ticks; "+
+					"RetryLatch asks for the write to be made again, and a "+
+					"count that does not advance is a hold nothing is "+
+					"driving", o.stopRetries)
+			}
+
+			// The disk recovers. Nothing else changes: no new trigger fires,
+			// no event arrives, and the only thing that happens is a tick.
+			if err := os.Mkdir(filepath.Dir(h.cfg.Paths.Latch), 0o755); err != nil {
+				t.Fatalf("recovering the latch directory: %v", err)
+			}
+			o.evaluate(0)
+
+			if got := seamLatchTrigger(t, h.cfg.Paths.Latch); got != "taker_fill" {
+				t.Fatalf("the halt latch reads trigger %q after the disk "+
+					"recovered, want taker_fill. Nothing re-triggered the "+
+					"stop, so the write can only have come from the retry",
+					got)
+			}
+			if o.stopHeld {
+				t.Fatal("the owner still holds a cause that is now durable")
+			}
+			if o.global != quote.WindingDown {
+				t.Fatalf("the global state is %s once the stop is durable, "+
+					"want WINDING_DOWN", o.global)
+			}
+			var recovered bool
+			for _, a := range h.takeRaised() {
+				if a.Class == "LATCH_WRITE_RECOVERED" {
+					recovered = true
+				}
+			}
+			if !recovered {
+				t.Fatal("no LATCH_WRITE_RECOVERED anomaly was raised; an " +
+					"operator told the harness could not record its halt " +
+					"needs telling that it since did, because only the " +
+					"second fact licenses the state now published")
+			}
+
+			// I1 held on both sides of the recovery.
+			if o.market != quote.Reducing {
+				t.Fatalf("the market is %s after the stop went durable, want "+
+					"REDUCING", o.market)
+			}
+			if got := o.atRisk(quote.SideNo); got != num.QtyFromFloat(heldYes) {
+				t.Fatalf("the exit's aggregate is %s, want %s", got.Wire(),
+					num.QtyFromFloat(heldYes).Wire())
+			}
+		})
+
+	t.Run("a second trigger does not displace the first cause",
+		func(t *testing.T) {
+			h, o := setup(t)
+
+			o.requestStop("taker_fill", seamTicker)
+			o.requestStop("insufficient_balance", seamTicker)
+			if o.stopCause.Trigger != "taker_fill" {
+				t.Fatalf("the held cause is %q after a second trigger, want "+
+					"taker_fill.\n\nFileLatch.Ensure is first-writer-wins for "+
+					"the reason it states: the first durable cause is the one "+
+					"the operator investigates, and a later, more mundane "+
+					"trigger must not overwrite the reason the harness "+
+					"stopped. A hold that takes the last cause instead makes "+
+					"the retry write the wrong one", o.stopCause.Trigger)
+			}
+
+			if err := os.Mkdir(filepath.Dir(h.cfg.Paths.Latch), 0o755); err != nil {
+				t.Fatalf("recovering the latch directory: %v", err)
+			}
+			o.evaluate(0)
+			if got := seamLatchTrigger(t, h.cfg.Paths.Latch); got != "taker_fill" {
+				t.Fatalf("the halt latch records trigger %q, want taker_fill",
+					got)
+			}
+		})
+
+	t.Run("a signal whose latch write failed is retried too",
+		func(t *testing.T) {
+			h, o := setup(t)
+
+			o.applySignal(syscall.SIGTERM)
+
+			if !o.stopHeld {
+				t.Fatal("the owner is not holding a cause after a SIGTERM " +
+					"whose latch write failed.\n\n" +
+					"This is the one trigger with no condition left to recur: " +
+					"a signal is delivered ONCE. SignalController.Handle's " +
+					"own contract says that on a failed write \"the harness " +
+					"still stops adding and still drains\", and dropping the " +
+					"decision here is what made that sentence false.")
+			}
+			if o.stopCause.Trigger != "sigterm" {
+				t.Fatalf("the held cause is %q, want sigterm; it comes from "+
+					"SignalEffects.Cause so that the caller does not derive a "+
+					"second os.Signal-to-trigger mapping of its own",
+					o.stopCause.Trigger)
+			}
+			if o.global != quote.Running {
+				t.Fatalf("the global state is %s after a SIGTERM that is not "+
+					"on disk, want RUNNING", o.global)
+			}
+
+			o.evaluate(0)
+			if o.market != quote.Reducing {
+				t.Fatalf("the market is %s after a SIGTERM whose latch write "+
+					"failed, want REDUCING (H-HALT-3 stops adding and keeps "+
+					"the exit alive)", o.market)
+			}
+
+			// The control for the assertion below. The drain has begun, but
+			// UNPLANNED: `Handle` issues a permit only on `Committed`, and this
+			// stop is not on disk. An unplanned drain "can never authorise an
+			// exit", which is the correct answer while the stop is unrecorded.
+			drained := lifecycle.DrainObservation{TruthKnown: true}
+			if h.rig.drain.Observe(drained, 0).ExitAuthorised {
+				t.Fatal("the drain authorised an exit while the SIGTERM's own " +
+					"stop was not on disk; exiting there hands launchd a clean " +
+					"directory to resume quoting from")
+			}
+
+			if err := os.Mkdir(filepath.Dir(h.cfg.Paths.Latch), 0o755); err != nil {
+				t.Fatalf("recovering the latch directory: %v", err)
+			}
+			o.evaluate(0)
+			if got := seamLatchTrigger(t, h.cfg.Paths.Latch); got != "sigterm" {
+				t.Fatalf("the halt latch reads trigger %q after the disk "+
+					"recovered, want sigterm; the signal will not be sent "+
+					"again and the retry is the only thing that can record it",
+					got)
+			}
+			if o.global != quote.WindingDown {
+				t.Fatalf("the global state is %s once the SIGTERM is durable, "+
+					"want WINDING_DOWN", o.global)
+			}
+
+			// The half a generic retry cannot deliver. H-HALT-3's two
+			// authorities are granted by different things: the signal stops
+			// adding, but only a DrainPermit may end the process, and `Handle`
+			// issued none because its write failed. Committing the same cause
+			// later makes the stop durable and leaves the drain UNPLANNED
+			// forever unless the permit is re-issued -- so the operator's
+			// SIGTERM would stop the harness, wind it down, reach flat, and
+			// then idle rather than finish.
+			if !h.rig.drain.Observe(drained, 0).ExitAuthorised {
+				t.Fatal("the drain still refuses to authorise an exit after " +
+					"the SIGTERM's stop became durable.\n\n" +
+					"BeginUnplanned can never authorise one and DrainTracker " +
+					"upgrades an unplanned drain only when handed a valid " +
+					"permit. If nothing mints one on recovery, H-HALT-3's " +
+					"\"exits only when every market is flat or closed\" is " +
+					"unreachable for exactly the signals whose latch write " +
+					"failed once.")
+			}
+		})
+}
+
+// TestAnUnreadableLatchAtBootIsHonouredOnTheFirstTick is `rig.boot`'s half of
+// `lip-vxo`.
+//
+// The field's own comment says it: "`BlockAdding` and `RetryLatch` are answers
+// the run loop must honour on its first tick, not diagnostics." Only `.Latched`
+// and `.Anomalies` were ever read, so the two answers reached the run loop and
+// stopped there.
+//
+// The condition is a latch that is PRESENT and cannot be interpreted -- a
+// truncated write from a power cut, a permission error, JSON that does not
+// parse. `NewGlobalController` bootstraps LATCHED and asks for the write to be
+// retried, and there is no cause to retry it with because nothing in this
+// process decided to stop. The owner synthesises one, and `Ensure`'s
+// first-writer-wins is what makes that safe: an existing record is not
+// overwritten, and the retry instead completes the parent-directory sync that
+// the failed read could never confirm had happened.
+func TestAnUnreadableLatchAtBootIsHonouredOnTheFirstTick(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{Resume: true, LatchCorrupt: true})
+
+	// The producer really did set them. Without this the test would pass on a
+	// build where the bootstrap had quietly stopped answering.
+	if !h.rig.boot.Latched {
+		t.Fatal("the bootstrap did not report LATCHED for a latch it could " +
+			"not interpret; exactly one condition is clear and it is the file " +
+			"not existing")
+	}
+	if !h.rig.boot.BlockAdding || !h.rig.boot.RetryLatch {
+		t.Fatalf("the bootstrap reported BlockAdding=%v RetryLatch=%v for an "+
+			"uninterpretable latch; this test asserts what the run loop does "+
+			"with them and there is nothing to do",
+			h.rig.boot.BlockAdding, h.rig.boot.RetryLatch)
+	}
+
+	o := h.ownerFor()
+
+	// Honoured at CONSTRUCTION, which is what "on its first tick" requires: the
+	// owner is built before `startup` runs and long before the first
+	// `evaluate`, so a hold taken any later is a hold taken after the window it
+	// exists for.
+	if !o.stopHeld {
+		t.Fatal("the owner does not hold a cause with rig.boot.BlockAdding " +
+			"and rig.boot.RetryLatch both set.\n\n" +
+			"The field's own comment calls these answers the run loop must " +
+			"honour on its first tick and not diagnostics, and reading only " +
+			".Latched and .Anomalies honours neither.")
+	}
+	if o.stopCause.Trigger != "latch_unreadable" {
+		t.Fatalf("the held cause is %q, want latch_unreadable",
+			o.stopCause.Trigger)
+	}
+
+	// The first tick makes it durable. `Ensure` sees the existing file, so the
+	// corrupt record is left exactly as it was -- the operator of §10.4 reads
+	// what the previous incarnation left, not what this one guessed -- and what
+	// the retry adds is the directory sync.
+	o.evaluate(0)
+
+	if o.stopHeld {
+		t.Fatal("the owner still holds the bootstrap's cause after a tick " +
+			"that could write it")
+	}
+	if o.global != quote.WindingDown {
+		t.Fatalf("the global state is %s on the first tick after booting on "+
+			"an unreadable latch, want WINDING_DOWN", o.global)
+	}
 }

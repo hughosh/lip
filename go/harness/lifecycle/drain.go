@@ -51,6 +51,15 @@ type SignalEffects struct {
 	// the disk.
 	Permit    DrainPermit
 	Anomalies []risk.Anomaly
+
+	// Cause is the durable cause this handler committed, or attempted to. It is
+	// populated on every RECOGNISED signal, including one whose latch write
+	// failed, and that case is the one it exists for: the caller retries with
+	// the cause the handler chose rather than deriving a second one. A second
+	// `os.Signal` -> trigger mapping in the caller is a second thing to get
+	// wrong, and a second timestamp would record the moment the disk recovered
+	// rather than the moment the operator sent the signal.
+	Cause StopCause
 }
 
 // SignalController turns a signal into a DURABLE stop. It does not register for
@@ -106,19 +115,15 @@ func (c *SignalController) Handle(sig os.Signal, in quote.GlobalInput,
 	wallMillis int64, mono time.Duration) SignalEffects {
 
 	var eff SignalEffects
-	name := ""
-	switch sig {
-	case syscall.SIGTERM:
-		name = "sigterm"
-	case syscall.SIGINT:
-		name = "sigint"
-	default:
+	name := signalTrigger(sig)
+	if name == "" {
 		// Not ours. Deliberately inert: a controller that stopped the harness on
 		// any signal would stop it on SIGWINCH.
 		return eff
 	}
 
 	eff.Recognised = true
+	eff.Cause = StopCause{Trigger: name, TsMillis: wallMillis}
 	in.Stop = true
 
 	// Commit first, advance second (lip-eyq §2). The signal's whole meaning is a
@@ -127,7 +132,7 @@ func (c *SignalController) Handle(sig os.Signal, in quote.GlobalInput,
 	// on the strength of `in.Stop` alone -- which Advance now refuses -- and the
 	// refusal is the right answer rather than a hurdle: an unlatched SIGTERM that
 	// published a halt is HR-009, erased by the next `launchd KeepAlive` restart.
-	commit := c.ctrl.CommitStop(StopCause{Trigger: name, TsMillis: wallMillis})
+	commit := c.ctrl.CommitStop(eff.Cause)
 	eff.Anomalies = append(eff.Anomalies, commit.Anomalies...)
 	eff.Decision = c.ctrl.Advance(in)
 	eff.Anomalies = append(eff.Anomalies, eff.Decision.Anomalies...)
@@ -145,6 +150,60 @@ func (c *SignalController) Handle(sig os.Signal, in quote.GlobalInput,
 		eff.Permit = DrainPermit{valid: true, trigger: name, tsMillis: wallMillis}
 	}
 	return eff
+}
+
+// triggerSigterm and triggerSigint are the §12 trigger names this controller
+// issues, named once so that `Handle` and `Confirm` cannot disagree about which
+// causes are entitled to authorise a process exit.
+const (
+	triggerSigterm = "sigterm"
+	triggerSigint  = "sigint"
+)
+
+func signalTrigger(sig os.Signal) string {
+	switch sig {
+	case syscall.SIGTERM:
+		return triggerSigterm
+	case syscall.SIGINT:
+		return triggerSigint
+	}
+	return ""
+}
+
+// Confirm re-issues the drain permit for a signal whose stop became durable
+// LATE -- after the write `Handle` attempted had failed and the caller retried
+// it until it succeeded.
+//
+// It exists because H-HALT-3's two halves are granted by different things.
+// `Handle` stops adding and starts the drain on the strength of the signal
+// itself, but the authority to END the process comes only from a permit, and
+// `Handle` issues one only on `Committed`. A signal whose latch write failed
+// therefore begins an UNPLANNED drain -- which escalates identically and "can
+// never authorise an exit" -- and nothing in the retry path could upgrade it.
+// The operator's SIGTERM would stop the harness adding, wind it down, reach
+// flat, and then idle forever, which is the one outcome H-HALT-3 promises will
+// not happen: "exits only when every market is flat or closed".
+//
+// Two guards, and both refuse an authority the caller is ASSERTING rather than
+// one this package produced:
+//
+//  1. The cause must be one this controller issues. Every OTHER §12 trigger
+//     drains unplanned on purpose -- §5.1's "DRAINED does not exit the process;
+//     it idles and keeps monitoring" -- so a taker fill must not be able to buy
+//     an exit by being retried through the same path.
+//  2. The latch must actually be set. A permit is an attestation that the stop
+//     is durable, and one issued before the write landed is the HR-009 sequence
+//     with a signature on it.
+func (c *SignalController) Confirm(cause StopCause) DrainPermit {
+	if cause.Trigger != triggerSigterm && cause.Trigger != triggerSigint {
+		return DrainPermit{}
+	}
+	if !c.ctrl.Latched() {
+		return DrainPermit{}
+	}
+	return DrainPermit{
+		valid: true, trigger: cause.Trigger, tsMillis: cause.TsMillis,
+	}
 }
 
 // DrainObservation is what the drain tracker is told each tick.

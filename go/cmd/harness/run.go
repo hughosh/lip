@@ -51,9 +51,9 @@ import (
 
 // ownerTick is the floor cadence for re-evaluation in a quiet market.
 //
-// It is `debounce_s`, deliberately. §6.5's two brakes are both "has this
+// It is `debounce_s`, deliberately. Â§6.5's two brakes are both "has this
 // condition held for `debounce_s`?", and a re-evaluation interval coarser than
-// the debounce makes the debounce longer than §16 says it is -- silently, and
+// the debounce makes the debounce longer than Â§16 says it is -- silently, and
 // only in the markets quiet enough that nothing else woke the loop. A busy
 // market wakes it far more often, on every delivered frame.
 const ownerTick = 250 * time.Millisecond
@@ -62,7 +62,7 @@ const ownerTick = 250 * time.Millisecond
 //
 // Both are small on purpose. A deep buffer in front of a single consumer does
 // not make it faster, it makes it LATE: the owner would work through a queue of
-// book states that are no longer true, and §6.5 would requote against a touch
+// book states that are no longer true, and Â§6.5 would requote against a touch
 // that has already moved. `wsx.Poller` already coalesces its own overruns for
 // exactly this reason -- "a queue of overdue polls against a slow endpoint is
 // how a five-second cadence becomes a five-minute backlog of answers about the
@@ -72,7 +72,7 @@ const (
 	readBuffer  = 2
 	// scheduleBuffer is one. A schedule read is a REPLACEMENT, not an event:
 	// the newest answer supersedes every older one completely, so a queue of
-	// them is a queue of answers about the past -- and §9's whole point is that
+	// them is a queue of answers about the past -- and Â§9's whole point is that
 	// the schedule moves.
 	scheduleBuffer = 1
 )
@@ -90,7 +90,66 @@ type owner struct {
 	global quote.GlobalState
 	market quote.MarketState
 
-	// --- §6.5's two clocks, per side ---------------------------------------
+	// --- the Â§12 cause that is not on disk yet -------------------------------
+	//
+	// `lifecycle` answers every uncertain stop path with two fields, and both
+	// are instructions to this loop rather than diagnostics: "BlockAdding is
+	// I1's response to every uncertainty in this file... cancels, reducing
+	// quotes, position polling, reconciliation and monitoring all continue while
+	// it is set", and "RetryLatch asks the caller to CommitStop again"
+	// (global.go:50-58, :82-89).
+	//
+	// Before lip-vxo neither was read anywhere in this package. `requestStop`
+	// returned on a failed write, and whether the stop was ever tried again
+	// depended on whether the ORIGINAL condition happened to recur -- and all
+	// three of its call sites are event-driven: a portfolio read (`applyRead`),
+	// a gate tick (`evaluate`) and an ack that carried a fill
+	// (`applyWriteResult`). A taker fill does not recur. So one transient EIO
+	// could lose a global stop for the life of the process, with the harness
+	// still adding and nothing saying so.
+
+	// stopCause is the FIRST Â§12 cause whose durable write has not succeeded,
+	// and stopHeld is whether one is held at all.
+	//
+	// The first cause is kept and later ones are discarded, matching
+	// `FileLatch.Ensure`'s first-writer-wins and for the reason it gives: "the
+	// first durable cause is the one the operator investigates, and a later,
+	// more mundane trigger -- a SIGTERM sent while winding down from a taker
+	// fill -- must not overwrite the reason the harness stopped".
+	//
+	// `BlockAdding` and `RetryLatch` are held as ONE condition and not two,
+	// because `lifecycle` produces them as one: every path that sets either sets
+	// both (global.go:173-174, :213, :239, :320-321). Splitting them here would
+	// admit a state this codebase never emits -- adding blocked with nothing to
+	// retry -- and that state is a wedge with no exit.
+	stopCause lifecycle.StopCause
+	stopHeld  bool
+	// stopPinged stops the retry raising its SEV1 four times a second into a
+	// 256-slot buffer. The first failure is raised in full; the retries are
+	// silent, and `releaseStop` says when it ended. Same argument as
+	// `reducerCancelPinged`: a standing condition is worth saying once.
+	stopPinged  bool
+	stopRetries uint64
+
+	// signalCause is a SIGTERM or SIGINT whose durable write failed, held
+	// SEPARATELY from `stopCause` and for a different reason.
+	//
+	// `stopCause` is what gets written; this is what gets a DRAIN PERMIT once
+	// something is written. The two cannot be one field: a taker fill may
+	// already be held when the signal arrives, and first-writer-wins would then
+	// discard the signal's cause -- correctly, because the taker fill is the
+	// reason the operator investigates, and incorrectly for the exit, because
+	// the operator still asked for the process to end.
+	//
+	// Without this, `SignalController.Handle` issues no permit on a failed write
+	// (drain.go), `onSignal` falls back to `BeginUnplanned` (shutdown.go), and
+	// `DrainTracker` upgrades an unplanned drain only when handed a valid permit
+	// -- which nothing in the retry path ever mints. H-HALT-3's SIGTERM would
+	// stop adding, wind down, reach flat and then idle forever.
+	signalCause lifecycle.StopCause
+	signalHeld  bool
+
+	// --- Â§6.5's two clocks, per side ---------------------------------------
 	//
 	// They are separate measurements and not one reused twice.
 	// `RequoteInput.StrandedFor` says why: "Debouncing the stranded brake
@@ -116,7 +175,7 @@ type owner struct {
 	capAt    time.Duration
 	// capCarry is the fractional token accrual `refillWrites` carries between
 	// calls. `write_rate` is 5/s and the owner ticks at 250 ms, so every single
-	// tick accrues 1.25 tokens: dropping the fraction would round the §16 write
+	// tick accrues 1.25 tokens: dropping the fraction would round the Â§16 write
 	// rate down to 4/s and nothing would say so.
 	capCarry float64
 	coidSeq  uint64
@@ -136,9 +195,9 @@ type owner struct {
 	// the list" is that proof wearing a different hat.
 	pending map[string]pendingOrder
 
-	// --- §9's schedule, as READ ---------------------------------------------
+	// --- Â§9's schedule, as READ ---------------------------------------------
 	//
-	// `harness-spec.md` §9 opens with a source table naming where each of these
+	// `harness-spec.md` Â§9 opens with a source table naming where each of these
 	// comes from: `market.close_time` from `/markets/{ticker}` ("trading stops;
 	// position settles") and `program.end_date` from
 	// `/incentive_programs?status=active` ("reward accrual stops"). It adds that
@@ -157,7 +216,7 @@ type owner struct {
 	// case rather than the exception -- 192 of 200 active LIP programmes on
 	// 2026-08-07. It selects the operator's early backoff, not a refusal.
 	canCloseEarly bool
-	// tradingClosed is the close OBSERVED. §5.2 is precise that this, and not
+	// tradingClosed is the close OBSERVED. Â§5.2 is precise that this, and not
 	// the arithmetic, is authoritative: a `can_close_early` market settles
 	// before `close_time` and no lead computed from `close_time` sees it coming.
 	tradingClosed bool
@@ -210,7 +269,7 @@ type owner struct {
 //
 // Leaving the acked case out is not a reporting gap, it is a size failure.
 // `restingOn` feeds `RequoteInput.HasOurs` and `OurSize`, so an acked order the
-// aggregate cannot see makes the side read EMPTY -- and §6.5's answer to an
+// aggregate cannot see makes the side read EMPTY -- and Â§6.5's answer to an
 // empty side is presence restoration, every tick, with no debounce (a presence
 // gap is revenue, so `Decide` deliberately does not wait). Measured on the
 // composed harness: one +8 position produced ten identical 8-contract exits in
@@ -236,7 +295,7 @@ type pendingOrder struct {
 }
 
 func newOwner(r *rig, sd *shutdown) *owner {
-	return &owner{
+	o := &owner{
 		r:        r,
 		sd:       sd,
 		p:        r.cfg.Params,
@@ -245,12 +304,34 @@ func newOwner(r *rig, sd *shutdown) *owner {
 		capacity: r.cap,
 		pending:  make(map[string]pendingOrder),
 	}
+
+	if r.boot.BlockAdding || r.boot.RetryLatch {
+		// `rig.boot`'s two answers, honoured from the first tick rather than
+		// held as diagnostics -- which is what the field's own comment asks for.
+		//
+		// The latch READ failed, so `NewGlobalController` bootstrapped LATCHED
+		// and asked for the write to be retried. There is no cause to retry it
+		// with, because nothing in this process decided to stop: this one is
+		// synthesised for exactly that, and it is not a fiction -- the harness
+		// really is halting, and it is halting because the latch could not be
+		// read.
+		//
+		// `Ensure` is first-writer-wins, so if a record IS on disk this retry
+		// does not overwrite the reason the previous incarnation stopped; it
+		// completes the parent-directory sync that the failed read could not
+		// confirm had ever happened. If nothing is on disk it writes one, and
+		// a halt this process is already in becomes a halt that survives it.
+		o.holdStop(lifecycle.StopCause{
+			Trigger: "latch_unreadable", TsMillis: r.ex.NowMs(),
+		})
+	}
+	return o
 }
 
-// serve is the process. It performs §7.5, installs the adoption, starts every
+// serve is the process. It performs Â§7.5, installs the adoption, starts every
 // other goroutine and then owns the loop until the context ends.
 //
-// Named `serve` rather than `run` because `rig.run` is §15's run handle -- the
+// Named `serve` rather than `run` because `rig.run` is Â§15's run handle -- the
 // licence every record beneath it requires -- and a method shadowing it would
 // make `r.run` mean two different things one keystroke apart.
 func (r *rig) serve(ctx context.Context) error {
@@ -326,7 +407,7 @@ func (r *rig) serve(ctx context.Context) error {
 	// exactly once, per record, from `Result.Err`.
 	go r.dispatchLoop(ctx, writes, sd.Permits(), results)
 
-	// §9's schedule poll. It is a SEPARATE goroutine for the same reason the
+	// Â§9's schedule poll. It is a SEPARATE goroutine for the same reason the
 	// portfolio poller is: it is a REST read that must keep answering while the
 	// socket is down, and it must not be able to park the owner. Its cadence is
 	// `schedule_poll_s`, which `cfg.Validate` has already asserted is at least
@@ -409,7 +490,29 @@ func (o *owner) applySignal(sig os.Signal) {
 		AnyInventory:  o.anyInventory(),
 		AnyLiveOrder:  o.anyLiveOrder(),
 	})
-	if !eff.Recognised || !eff.Decision.Committed {
+	if !eff.Recognised {
+		// Not ours. It stops nothing and blocks nothing -- a controller that
+		// acted on any signal would act on SIGWINCH.
+		return
+	}
+	if !eff.Decision.Committed {
+		// H-HALT-3's stop was decided and could not be made durable.
+		// `SignalController.Handle` commits before it advances, so an
+		// uncommitted decision here IS a failed latch write, and its
+		// `BlockAdding`/`RetryLatch` are the same two answers `commitStop`
+		// honours. Honouring them matters MORE here than anywhere else: a
+		// signal is delivered once. There is no standing condition left to
+		// recur, so a SIGTERM dropped at this line is a SIGTERM this process
+		// never acts on -- while `SignalController.Handle`'s own contract
+		// promises that on a failed write "the harness still stops adding and
+		// still drains". The drain has already begun (`onSignal`); this is the
+		// stopping-adding half, and the retry that makes it durable.
+		o.holdStop(eff.Cause)
+		o.holdSignal(eff.Cause)
+		// Already reported. `onSignal` raised this commit's own SEV1 through
+		// `eff.Anomalies`, and the first retry would otherwise raise the same
+		// failed write a second time.
+		o.stopPinged = true
 		return
 	}
 	o.global = eff.Decision.State
@@ -431,7 +534,7 @@ func (o *owner) offerDrain(observations chan<- lifecycle.DrainObservation) {
 	}
 }
 
-// startup is §7.5, retried indefinitely with backoff.
+// startup is Â§7.5, retried indefinitely with backoff.
 //
 // There is no bounded-attempt exit and the absence is the rule: "a bounded retry
 // that eventually stops is a process sitting next to inventory it decided not to
@@ -465,11 +568,11 @@ func (o *owner) startup(ctx context.Context) (lifecycle.Adoption, error) {
 	}
 }
 
-// install replaces the placeholder model with what §7.5 actually read.
+// install replaces the placeholder model with what Â§7.5 actually read.
 //
 // Everything here comes from the Adoption and nothing is derived a second time.
 // The portfolio is seeded from the exchange with every kept order installed; the
-// market states are the adoption's, so a held market starts REDUCING (§7.5 step
+// market states are the adoption's, so a held market starts REDUCING (Â§7.5 step
 // 6) rather than being re-derived from a `q` this function would have to guess
 // the provenance of.
 func (o *owner) install(a lifecycle.Adoption) {
@@ -603,7 +706,7 @@ func (o *owner) resnapshot(want bool) {
 	})
 }
 
-// scheduleLoop reads §9's schedule on `schedule_poll_s`, forever.
+// scheduleLoop reads Â§9's schedule on `schedule_poll_s`, forever.
 //
 // It polls IMMEDIATELY on entry and then on the interval. The first read is the
 // one that lets the market quote at all -- until it lands there is no close to
@@ -678,7 +781,7 @@ func (o *owner) applySchedule(res rest.ScheduleResult) {
 // untilClose is `close_time - now`, and whether we know it at all.
 //
 // The second result is `quote.MarketInput.HasClose` and it is not a
-// convenience. An unread schedule is NOT a close far away: §5.2 treats an
+// convenience. An unread schedule is NOT a close far away: Â§5.2 treats an
 // unknown close as a lead that cannot be enforced and escalates, whereas a
 // zero `time.Time` differenced against now is a close roughly two thousand
 // years in the past, which reads as "settle immediately".
@@ -692,7 +795,7 @@ func (o *owner) untilClose() (time.Duration, bool) {
 // scheduleStale is H-CLOSE-0 stated as an expiry on the reading itself.
 //
 // A close_time we read once and have not refreshed is not a fact about the
-// market, it is a fact about the market AS OF THEN -- and §9 is explicit that
+// market, it is a fact about the market AS OF THEN -- and Â§9 is explicit that
 // "neither is assumed static". HR-017 is that difference costing a close:
 //
 //	at schedule_poll_s = 300 with final_lead = 60s, a close_time that moves
@@ -722,13 +825,13 @@ func (o *owner) scheduleStale() bool {
 // `PastFinalLead(untilClose, hasClose, p)` returns false when `hasClose` is
 // false, which is the correct reading: a market whose close we have not read is
 // not past its final lead, it is a market whose lead cannot be enforced -- and
-// §5.2 escalates that separately rather than acting on it here.
+// Â§5.2 escalates that separately rather than acting on it here.
 func (o *owner) untilCloseOrZero() (time.Duration, bool, cfg.Params) {
 	u, has := o.untilClose()
 	return u, has, o.p
 }
 
-// closeUnknown stops the market while §9's schedule has not been read.
+// closeUnknown stops the market while Â§9's schedule has not been read.
 //
 // H-CLOSE-0 hands this case to the caller rather than resolving it: "a market
 // whose close_time we do not know is one we cannot enforce a lead on, and
@@ -736,7 +839,7 @@ func (o *owner) untilCloseOrZero() (time.Duration, bool, cfg.Params) {
 // function's to assume away." This is the caller, and stopping is what
 // escalating means here.
 //
-// It stops ADDING and nothing else -- §5.2's response to a market-scoped stop
+// It stops ADDING and nothing else -- Â§5.2's response to a market-scoped stop
 // is REDUCING, so the exit stays alive and the position stays managed. The
 // alternative, quoting on, means resting a new adding order into a market that
 // may close before the next poll, with no lead having been enforced and no
@@ -764,7 +867,7 @@ func (o *owner) closeUnknown(hasClose bool) bool {
 				"can be enforced from a schedule this process does not hold, "+
 				"and H-CLOSE-3's final cancel cannot run either, so the market "+
 				"is STOPPED: the adding side comes off and is confirmed absent, "+
-				"and the capped reducer stays (§5.2, A8, I1). §9 reads it from "+
+				"and the capped reducer stays (Â§5.2, A8, I1). Â§9 reads it from "+
 				"/markets/{ticker} every schedule_poll_s %v",
 				o.r.cfg.Ticker, scheduleWhy(age, known, o.p.FinalLead),
 				o.p.SchedulePoll),
@@ -796,9 +899,9 @@ func scheduleWhy(age time.Duration, known bool, bound time.Duration) string {
 }
 
 // earlyCloseDue is the operator's H-CLOSE-4 rule, and it is the one deviation
-// in this file from §16's numbers.
+// in this file from Â§16's numbers.
 //
-// §16's `close_lead` is 1h, cut from 4h by HR-011 to bound how long a resting
+// Â§16's `close_lead` is 1h, cut from 4h by HR-011 to bound how long a resting
 // reducer faces a stale book. That trade is made against a close we can see
 // coming. `can_close_early` markets are the ones we cannot: they settle on
 // external information at a moment no schedule predicts, and 192 of the 200
@@ -810,20 +913,20 @@ func scheduleWhy(age time.Duration, known bool, bound time.Duration) string {
 // markets rather than one. It is expressed as a market-scoped `Stop` and not as
 // a modified `close_lead`, and the difference matters in three ways:
 //
-//   - §5.2's response to a stop is REDUCING -- "adding side cancelled,
+//   - Â§5.2's response to a stop is REDUCING -- "adding side cancelled,
 //     confirmed absent; capped reducer rests" -- which is exactly the intent.
 //     `MarketInput.Stop` is explicit that a stop "sends the market to REDUCING,
 //     never to a state that cancels everything, which is the inversion the
 //     whole design turns on." The EXIT stays alive. Nothing here cancels it.
 //   - `close_lead` and `final_lead` are untouched, so SETTLING still begins at
 //     `close_time - close_lead` and H-CLOSE-3's final cancel still runs at
-//     `final_lead`. This composes with §9 rather than replacing it.
-//   - §16 stays the table the `run` row records verbatim. A per-deployment
+//     `final_lead`. This composes with Â§9 rather than replacing it.
+//   - Â§16 stays the table the `run` row records verbatim. A per-deployment
 //     backoff in `cfg.Params` would be a spec deviation dressed as
 //     configuration, which `params_test.go` exists to refuse.
 //
 // It returns false when the close is unknown. That is not an oversight: an
-// unread schedule already produces `HasClose = false`, which §5.2 escalates on
+// unread schedule already produces `HasClose = false`, which Â§5.2 escalates on
 // its own, and manufacturing a stop from a number we do not have would silence
 // that escalation with an answer.
 func (o *owner) earlyCloseDue(untilClose time.Duration, hasClose bool) bool {
@@ -903,8 +1006,15 @@ func (o *owner) clearListed() {
 	}
 }
 
-// evaluate is one pass of §5.2, §6.2 and §6.5 over the one market.
+// evaluate is one pass of Â§5.2, Â§6.2 and Â§6.5 over the one market.
 func (o *owner) evaluate(now time.Duration) {
+	// `RetryLatch`, honoured, and FIRST: a held cause that becomes durable on
+	// this tick publishes its WINDING_DOWN on this tick, and one that does not
+	// keeps `stopHeld` set for the `MarketInput.Stop` term below. Driving it
+	// from here rather than from the triggering event is the point -- every
+	// caller of `requestStop` is event-driven, and a taker fill does not recur.
+	o.retryStop()
+
 	// The non-gate reduce requests are consumed by THIS evaluation and cleared
 	// on the way out, on every exit including the final-cancel one. Anything
 	// that must outlive a tick is held by the thing that owns it -- the gate for
@@ -927,11 +1037,11 @@ func (o *owner) evaluate(now time.Duration) {
 		State:  o.market,
 		Q:      q,
 		Global: o.global,
-		// Selected is §10's decision and it is "the only way into QUOTING". The
+		// Selected is Â§10's decision and it is "the only way into QUOTING". The
 		// pilot's one market is selected by the operator, so the only question
 		// left here is whether this process may add at all -- which is the
 		// global state. `Stop` carries every reason the MARKET may not, and
-		// §5.2's IDLE -> QUOTING edge already requires `!Stop`, so folding a
+		// Â§5.2's IDLE -> QUOTING edge already requires `!Stop`, so folding a
 		// reduce condition into `Selected` as well would be the same rule
 		// applied twice and clearable in only one of the two places.
 		Selected: o.global == quote.Running,
@@ -941,7 +1051,22 @@ func (o *owner) evaluate(now time.Duration) {
 		// The gate owns the sticky reduce; `reduceNoted` carries this
 		// evaluation's non-gate requests, principally H-POS-2's drift. The last
 		// term is the operator's H-CLOSE-4 backoff -- see `earlyCloseDue`.
-		Stop: o.reduceNoted || o.r.gate.Reducing(ticker) ||
+		//
+		// The FIRST term is `BlockAdding`, honoured. A §12 cause that has
+		// been decided and could not be made durable stops adding HERE, which
+		// is the one place §5.2 stops it: REDUCING cancels the adding side and
+		// keeps the capped exit resting, and a flat market goes to IDLE, whose
+		// own guard is what keeps it from resuming. The global state is
+		// deliberately NOT moved with it -- publishing WINDING_DOWN on a stop
+		// that is not on disk is HR-009 -- so the market stops while the state
+		// waits for the latch.
+		//
+		// It goes through `Stop` and not through `Selected`, because §5.2's
+		// IDLE -> QUOTING edge already requires `!Stop`: expressing it in both
+		// would be one rule clearable in only one of the two places, and
+		// MTDeselected would label the A9 row an operator selection decision
+		// rather than a stop.
+		Stop: o.stopHeld || o.reduceNoted || o.r.gate.Reducing(ticker) ||
 			!o.r.gate.Connected() || o.earlyCloseDue(untilClose, hasClose) ||
 			o.closeUnknown(hasClose),
 		// ProgramEnded is H-CLOSE-1 and is NOT wired. It is a literal false and
@@ -1025,7 +1150,7 @@ func (o *owner) evaluate(now time.Duration) {
 	}
 }
 
-// decideSide runs §6.5 for one side and queues what it asks for.
+// decideSide runs Â§6.5 for one side and queues what it asks for.
 func (o *owner) decideSide(now time.Duration, side quote.Side, role quote.Role,
 	target num.Qty) {
 
@@ -1061,7 +1186,7 @@ func (o *owner) decideSide(now time.Duration, side quote.Side, role quote.Role,
 		// supply it deliberately rather than inherit a stale value.
 		Headroom: 0,
 		// H-Q-9 stays OFF for the pilot: cancel-confirm-place everywhere
-		// (pilot-plan §2.7, §7.1). This is the zero value and is written
+		// (pilot-plan Â§2.7, Â§7.1). This is the zero value and is written
 		// explicitly anyway, because the flag is the single line between the
 		// pilot's simple invariant and two of our orders live at once.
 		AllowPlaceThenCancel: false,
@@ -1101,7 +1226,7 @@ func (o *owner) decideSide(now time.Duration, side quote.Side, role quote.Role,
 // A standalone cancel is legal on the ADDING side only (H-QUE-2): a
 // reducing-side cancel removes the exit, so it is only ever the first leg of a
 // cancel-confirm-place. A caller asking to retire a reducing side outright is
-// asking for something §6.6 does not have a row for, so it is refused loudly
+// asking for something Â§6.6 does not have a row for, so it is refused loudly
 // rather than downgraded into a shape the queue would accept.
 func (o *owner) enqueueCancel(now time.Duration, side quote.Side, role quote.Role) {
 	if role == quote.RoleReducing {
@@ -1127,7 +1252,7 @@ func (o *owner) enqueueCancel(now time.Duration, side quote.Side, role quote.Rol
 
 // enqueue admits one intent, refusing duplicates of work already pending.
 //
-// §6.6's queue holds INTENTS re-evaluated at dequeue, not requests, so a second
+// Â§6.6's queue holds INTENTS re-evaluated at dequeue, not requests, so a second
 // intent for a side that already has one queued is not additional information --
 // it is the same decision taken again from the same state, and admitting it
 // would let a quiet market accumulate one entry per owner tick.
@@ -1169,7 +1294,7 @@ func (o *owner) pump(now time.Duration, writes chan<- writeRequest) {
 	if err != nil {
 		// The dispatch cannot be built, so the intents it would have discharged
 		// are dropped rather than left to be re-selected forever at a class that
-		// keeps rising. Dropping is §6.6's own answer to an intent whose
+		// keeps rising. Dropping is Â§6.6's own answer to an intent whose
 		// condition no longer holds, and "we cannot express this write" is a
 		// condition that will not hold on the next tick either.
 		for _, id := range d.IDs {
@@ -1195,7 +1320,7 @@ func (o *owner) pump(now time.Duration, writes chan<- writeRequest) {
 		// comes back with the worker slot -- and the intents are RELEASED rather
 		// than left queued, because `Dequeue` has already advanced a dependent
 		// one to stage-first-sent and nothing but a confirmation moves it from
-		// there. §6.5 re-decides on the next tick.
+		// there. Â§6.5 re-decides on the next tick.
 		o.capacity = releaseWrite(o.capacity, o.p, d.Grant, false)
 		for _, id := range d.IDs {
 			o.r.queue.Drop(id)
@@ -1203,7 +1328,7 @@ func (o *owner) pump(now time.Duration, writes chan<- writeRequest) {
 	}
 }
 
-// conditions is §6.6's re-evaluation, rebuilt at every dequeue and cached
+// conditions is Â§6.6's re-evaluation, rebuilt at every dequeue and cached
 // nowhere. A condition that was true 30 seconds ago is exactly what "not
 // pre-built requests" is guarding against.
 func (o *owner) conditions(now time.Duration) quote.Conditions {
@@ -1294,7 +1419,7 @@ const pilotMarketIdx = 0
 // targetPrice re-reads the touch at dispatch rather than carrying the price the
 // decision was taken at.
 //
-// §6.6 is explicit that the queue holds intents and not requests, and a price
+// Â§6.6 is explicit that the queue holds intents and not requests, and a price
 // captured at enqueue is the request half of exactly that. The book has moved by
 // the time a write is admitted through the rate limiter, and placing at the old
 // touch is how an order arrives already behind.
@@ -1363,7 +1488,7 @@ func (o *owner) targetSize(side quote.Side, role quote.Role) (num.Qty, num.Qty) 
 	return remainder, bound
 }
 
-// fundedReducer converts capital into the contract count §6.2's size_R caps
+// fundedReducer converts capital into the contract count Â§6.2's size_R caps
 // against.
 //
 // It sizes against `now` -- what can be funded without cancelling anything --
@@ -1381,7 +1506,7 @@ func (o *owner) fundedReducer(q num.Qty) num.Qty {
 	//
 	// `funded` bounds the aggregate the exit may carry, so the question it
 	// answers is "how many contracts can this capital buy at the price the exit
-	// would be placed at" -- and §6.5 places at the touch. Pricing it off our
+	// would be placed at" -- and Â§6.5 places at the touch. Pricing it off our
 	// own resting order would size the exit against a price we are no longer
 	// quoting at the moment the touch has moved, which is exactly when the
 	// reducer is being resized.
@@ -1405,7 +1530,7 @@ func (o *owner) fundedReducer(q num.Qty) num.Qty {
 	return risk.FundedContracts(now, num.Price4FromCents(price))
 }
 
-// exposures is the committed-collateral picture §10.2's caps are measured
+// exposures is the committed-collateral picture Â§10.2's caps are measured
 // against.
 //
 // Held positions are valued at SETTLEMENT ($1.00), for the reason `policy.go`
@@ -1504,7 +1629,7 @@ func (o *owner) atRisk(side quote.Side) num.Qty {
 	return total
 }
 
-// noteTouch advances §6.5's two clocks for one side.
+// noteTouch advances Â§6.5's two clocks for one side.
 func (o *owner) noteTouch(now time.Duration, side quote.Side, ext quote.External) {
 	i := int(side)
 
@@ -1558,7 +1683,7 @@ func (o *owner) applyWriteResult(res writeResult) {
 	o.r.anom.raiseAll(res.Anomalies)
 	// The worker slot always comes back; the TOKEN comes back only when nothing
 	// left the process. A write refused by H-STORE-3 or rebuilt by the owner
-	// spent no exchange write, and charging the §16 bucket for it would let a
+	// spent no exchange write, and charging the Â§16 bucket for it would let a
 	// store outage spend the reducer's share of the budget on nothing at all.
 	o.capacity = releaseWrite(o.capacity, o.p, res.Req.Grant, res.Sent)
 
@@ -1575,8 +1700,8 @@ func (o *owner) applyWriteResult(res writeResult) {
 	// replacement for that side. The market stops quoting and nothing says so.
 	//
 	// Dropping is safe precisely because it is not a retreat: `evaluate` re-runs
-	// §6.5 on the next tick from current conditions and re-enqueues if the
-	// decision still holds, which is what §6.6 means by holding intents rather
+	// Â§6.5 on the next tick from current conditions and re-enqueues if the
+	// decision still holds, which is what Â§6.6 means by holding intents rather
 	// than requests.
 	if res.Err != nil {
 		for _, id := range res.Req.IDs {
@@ -1586,7 +1711,7 @@ func (o *owner) applyWriteResult(res writeResult) {
 			Class: "WRITE_FAILED", Sev: risk.SEV2, Ticker: res.Req.Market,
 			Text: fmt.Sprintf("the %s on %s/%s did not complete (%v); its "+
 				"intents are released so the side is not wedged at "+
-				"stage-first-sent, and §6.5 re-decides on the next tick",
+				"stage-first-sent, and Â§6.5 re-decides on the next tick",
 				res.Req.Op, res.Req.Market, res.Req.Side, res.Err),
 		})
 		return
@@ -1621,7 +1746,7 @@ func (o *owner) applyWriteResult(res writeResult) {
 			Text: fmt.Sprintf("the cancel of %d order(s) on %s/%s did not come "+
 				"back verified absent (%s); H-FAIL-3 keeps every one of them in "+
 				"the risk model and in every aggregate cap until the exchange "+
-				"confirms it gone, and §6.5 re-decides the side on the next tick",
+				"confirms it gone, and Â§6.5 re-decides the side on the next tick",
 				len(res.Req.Orders), res.Req.Market, res.Req.Side,
 				res.Sweep.Outcome),
 		})
@@ -1663,7 +1788,7 @@ func (o *owner) applyWriteResult(res writeResult) {
 			o.r.queue.AckPlace(id)
 		}
 		if create.Filled > 0 {
-			// §8.2. The ack's own fill count moves `q` now rather than waiting
+			// Â§8.2. The ack's own fill count moves `q` now rather than waiting
 			// for the fills walk, and `ApplyAck` is what keeps the two from
 			// double-counting when the walk catches up.
 			fe := o.r.pf.ApplyAck(risk.AckFill{
@@ -1705,7 +1830,7 @@ func (o *owner) applyWriteResult(res writeResult) {
 	default:
 		// CreateUnknown. The intents are dropped for the same reason a rejection
 		// drops them -- the write happened -- but the order may exist, so it
-		// stays in `unresolved` above and keeps occupying the aggregate. §7.2's
+		// stays in `unresolved` above and keeps occupying the aggregate. Â§7.2's
 		// resolution is the next complete orders walk listing the coid.
 		for _, id := range res.Req.IDs {
 			o.r.queue.Drop(id)
@@ -1713,14 +1838,14 @@ func (o *owner) applyWriteResult(res writeResult) {
 	}
 
 	if create.ReconcileNow() {
-		// §7.2 clause 2. There is no way to force the poller off-cadence from
+		// Â§7.2 clause 2. There is no way to force the poller off-cadence from
 		// here -- it polls on its own timer and on a reconcile token, and a
 		// token is a connection generation rather than a request. Recorded so
 		// the delay is visible: the resolution is at most one `position_poll_s`
 		// away, and the quantity stays in every cap until it arrives.
 		o.r.anom.raise(risk.Anomaly{
 			Class: "RECONCILE_DEFERRED", Sev: risk.SEV2, Ticker: res.Req.Market,
-			Text: fmt.Sprintf("create %s ended %s and §7.2 asks for an "+
+			Text: fmt.Sprintf("create %s ended %s and Â§7.2 asks for an "+
 				"immediate reconciliation; this build waits for the next "+
 				"portfolio poll (at most %v), and the order's maximum "+
 				"possibly-live quantity stays in every aggregate cap until then",
@@ -1730,7 +1855,7 @@ func (o *owner) applyWriteResult(res writeResult) {
 	o.escalateUnresolved()
 }
 
-// escalateUnresolved is §7.2's `unknown_ping_s`.
+// escalateUnresolved is Â§7.2's `unknown_ping_s`.
 //
 // One anomaly per coid, not one per tick: an order stuck for an hour is one
 // condition an operator needs told about once, and repeating it every 250 ms is
@@ -1761,25 +1886,55 @@ func (o *owner) escalateUnresolved() {
 	}
 }
 
-// requestStop asks the coordinator for a durable global stop.
+// requestStop asks the coordinator for a durable global stop. It is the entry
+// point every Â§12 trigger in this file uses, and it never drops a cause.
+func (o *owner) requestStop(trigger, market string) {
+	o.commitStop(lifecycle.StopCause{
+		Trigger: trigger, Market: market, TsMillis: o.r.ex.NowMs(),
+	})
+}
+
+// commitStop is the ONE place a Â§12 cause is written to the durable latch, and
+// so it is the one place "what happens when the write fails" is implemented.
+// Both the event-driven triggers and the per-tick retry come through here.
 //
 // It goes through `CommitStop` and then `Advance`, in that order and never the
 // other way round: H-HALT-4 requires the latch reach disk BEFORE the in-memory
 // state changes, and the two calls were split precisely so that neither can be
 // induced to do the other's job by a malformed argument.
-func (o *owner) requestStop(trigger, market string) {
-	commit := o.r.ctrl.CommitStop(lifecycle.StopCause{
-		Trigger: trigger, Market: market, TsMillis: o.r.ex.NowMs(),
-	})
-	o.r.anom.raiseAll(commit.Anomalies)
-	if !commit.Durable {
-		// The stop is NOT published. Adding is blocked, cancels and reducing
-		// quotes continue (I1), and the next tick tries again -- a failed latch
-		// write is a transient disk condition far more often than a permanent
-		// one, and publishing a halt we failed to record is the HR-009 sequence
-		// with the harness having been told the write failed.
+func (o *owner) commitStop(cause lifecycle.StopCause) {
+	if o.stopHeld {
+		// A second, different trigger arriving while the first is still not on
+		// disk. The HELD cause is the one written; this one is discarded, and
+		// discarded silently, because the conditions that reach here are
+		// standing ones -- the gate's stop is sticky and re-requests on every
+		// tick -- and one anomaly per 250 ms is how the SEV1 that matters gets
+		// filtered out.
+		cause = o.stopCause
+	}
+
+	commit := o.r.ctrl.CommitStop(cause)
+	if !commit.Durable || commit.BlockAdding || commit.RetryLatch {
+		// I1's answers, HONOURED rather than observed. The disjunction is the
+		// conservative reading: any one of the three means this stop is not on
+		// disk, and nothing publishable comes of it.
+		//
+		// The stop is NOT published -- publishing a halt we failed to record is
+		// the HR-009 sequence with the harness having been TOLD the write
+		// failed. `BlockAdding` takes effect in `evaluate`, which is the one
+		// place Â§5.2 stops adding, and stops nothing else: the adding side is
+		// cancelled and confirmed absent, the capped reducer keeps resting, and
+		// the poller, the reconciliation and the monitor never paused.
+		// `RetryLatch` is why the cause is kept rather than returned from.
+		if !o.stopPinged {
+			o.stopPinged = true
+			o.r.anom.raiseAll(commit.Anomalies)
+		}
+		o.holdStop(cause)
 		return
 	}
+	o.r.anom.raiseAll(commit.Anomalies)
+	o.releaseStop()
 	o.advance(quote.GlobalInput{
 		TruthReadable: true,
 		Reconciled:    true,
@@ -1790,7 +1945,91 @@ func (o *owner) requestStop(trigger, market string) {
 	})
 }
 
-// advance is the ONE call per tick that can move the global state (§3.8).
+// holdStop retains a cause whose durable write did not succeed, so that retrying
+// it is this loop's OBLIGATION rather than a property of whether the condition
+// that produced it happens to recur.
+//
+// It is also reached from two places that never call `CommitStop` themselves:
+// `newOwner`, for the bootstrap's own unreadable latch, and `applySignal`, where
+// `SignalController.Handle` did the commit and a signal that arrived once has no
+// condition left to recur at all.
+func (o *owner) holdStop(cause lifecycle.StopCause) {
+	if o.stopHeld {
+		return
+	}
+	o.stopCause, o.stopHeld = cause, true
+}
+
+// holdSignal retains an operator signal whose stop is not durable yet, so the
+// exit authority it carries can be granted once something is. See `signalCause`.
+func (o *owner) holdSignal(cause lifecycle.StopCause) {
+	if o.signalHeld {
+		return
+	}
+	o.signalCause, o.signalHeld = cause, true
+}
+
+// releaseStop ends the hold, and tells the operator it ended.
+//
+// The SEV1 that opened it said the harness had decided to stop and could not
+// record it. Someone who was told that needs telling that the record now exists,
+// because the two facts have opposite operational meanings and only the second
+// one licenses the state that is about to be published.
+func (o *owner) releaseStop() {
+	if !o.stopHeld {
+		return
+	}
+	o.r.anom.raise(risk.Anomaly{
+		Class: "LATCH_WRITE_RECOVERED", Sev: risk.SEV2,
+		Ticker: o.stopCause.Market,
+		Text: fmt.Sprintf("a durable halt latch is now CONFIRMED after %d "+
+			"retried tick(s), so the global state it justifies may be "+
+			"published. The cause this process held was %q; the latch is "+
+			"first-writer-wins and `Ensure` guarantees only that a record -- "+
+			"this one OR AN EARLIER INCARNATION'S -- is on disk, so read the "+
+			"file for the authoritative reason rather than assuming it is this "+
+			"trigger. Adding was blocked for the whole gap and cancelling, "+
+			"reducing, polling, reconciling and monitoring never stopped (I1)",
+			o.stopRetries, o.stopCause.Trigger),
+	})
+	o.stopCause, o.stopHeld = lifecycle.StopCause{}, false
+	o.stopPinged, o.stopRetries = false, 0
+	o.confirmSignalDrain()
+}
+
+// confirmSignalDrain grants the exit authority a signal earned but could not be
+// given, now that a durable stop exists.
+//
+// It runs on the RELEASE and not on the signal, because the permit attests
+// durability and there was none to attest when the signal arrived. `BeginPlanned`
+// upgrades the unplanned drain `onSignal` already started rather than restarting
+// its escalation clock, which is what `DrainTracker.start` documents for an
+// operator who signals a harness already winding down from another cause.
+func (o *owner) confirmSignalDrain() {
+	if !o.signalHeld {
+		return
+	}
+	cause := o.signalCause
+	o.signalCause, o.signalHeld = lifecycle.StopCause{}, false
+	o.sd.confirmSignalDrain(cause)
+}
+
+// retryStop is `RetryLatch`, honoured: the held cause is written again on every
+// owner tick until it is durable.
+//
+// It is driven from `evaluate`, which runs on EVERY iteration of the run loop --
+// the 250 ms tick and every event alike -- and that is the whole point. A failed
+// latch write is a transient disk condition far more often than a permanent one,
+// and the cost of retrying is nothing.
+func (o *owner) retryStop() {
+	if !o.stopHeld {
+		return
+	}
+	o.stopRetries++
+	o.commitStop(o.stopCause)
+}
+
+// advance is the ONE call per tick that can move the global state (Â§3.8).
 func (o *owner) advance(in quote.GlobalInput) {
 	dec := o.r.ctrl.Advance(in)
 	o.r.anom.raiseAll(dec.Anomalies)

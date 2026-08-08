@@ -195,6 +195,24 @@ type Startup struct {
 	// missedCoid counts CONSECUTIVE complete unfiltered walks that did not
 	// mention each still-outstanding coid. See `resolveConfirmAttempts`.
 	missedCoid map[string]int
+
+	// pendingCause is the FIRST cause a walk discovered and could not make
+	// durable, retained ACROSS attempts and retried before the next walk.
+	//
+	// Retaining it is not belt-and-braces, and `BlockAdding` is the benign half
+	// here -- nothing places before an Adoption exists. `RetryLatch` is the half
+	// that bites. `commitCause` records a cause only AFTER a successful write,
+	// and a failed one sends the whole Step back to the caller to retry with a
+	// FRESH CLOCK -- so Step 3's `since := now.Add(-s.params.Backfill)`
+	// recomputes a moving boundary on every attempt. A fill discovered near the
+	// edge of `backfill_h` whose latch write failed can fall outside the window
+	// on the next attempt and never be discovered again, and the cause is then
+	// lost for exactly lip-vxo's reason: the retry was left to whether the
+	// condition happened to recur.
+	//
+	// The FIRST cause is kept, matching `FileLatch.Ensure`'s first-writer-wins.
+	pendingCause StopCause
+	pendingHeld  bool
 }
 
 // NewStartup requires every collaborator. A nil one fails construction.
@@ -315,6 +333,15 @@ type walkResult struct {
 //     having cancelled nothing. Anything else leaves it false, so an incomplete
 //     or latched attempt stays WINDING_DOWN rather than reporting a false drain.
 func (s *Startup) Step(ctx context.Context, now time.Time) Attempt {
+	// A cause an EARLIER attempt discovered and could not make durable is
+	// retried first, and no walk happens until it is on disk. The order is the
+	// rule: this walk would recompute `backfill_h` from a fresh clock, so a
+	// cause left to be re-discovered by it may have aged out of the window that
+	// discovered it. See `pendingCause`.
+	if anoms, ok := s.retryPending(); !ok {
+		return s.latchBlocked(walkResult{anoms: anoms})
+	}
+
 	res := s.walk(ctx, now)
 
 	switch {
@@ -444,6 +471,12 @@ func (s *Startup) advance(in quote.GlobalInput) GlobalDecision {
 func (s *Startup) commitCause(c StopCause) ([]risk.Anomaly, bool) {
 	sc := s.ctrl.CommitStop(c)
 	if !sc.Durable {
+		// `RetryLatch`, honoured across attempts rather than within one. See
+		// `pendingCause`: the next walk recomputes a moving backfill boundary,
+		// so a cause left to be re-discovered may not be discoverable.
+		if !s.pendingHeld {
+			s.pendingCause, s.pendingHeld = c, true
+		}
 		return sc.Anomalies, false
 	}
 	key := c.Trigger + "\x00" + c.Market
@@ -452,6 +485,26 @@ func (s *Startup) commitCause(c StopCause) ([]risk.Anomaly, bool) {
 		s.causes = append(s.causes, c)
 	}
 	return sc.Anomalies, true
+}
+
+// retryPending writes the held cause again, and reports whether a walk may
+// proceed. It is a no-op when nothing is held.
+//
+// The hold is cleared BEFORE the attempt so that `commitCause` treats this as an
+// ordinary commit: on success it records the cause in `causes` exactly as the
+// walk that discovered it would have, and on failure it holds the same cause
+// again. Nothing else re-derives it, which is the point -- the cause outlives
+// the walk that found it.
+//
+// A successful commit returns no anomalies (`StopCommit{Durable: true}` carries
+// none), so there is nothing to thread into the Attempt on that path.
+func (s *Startup) retryPending() ([]risk.Anomaly, bool) {
+	if !s.pendingHeld {
+		return nil, true
+	}
+	c := s.pendingCause
+	s.pendingHeld = false
+	return s.commitCause(c)
 }
 
 func (s *Startup) carriedCauses() []StopCause {
