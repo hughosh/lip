@@ -1840,7 +1840,88 @@ MUTATIONS = [
      ],
      'TestTheEarlyCloseBackoffStopsAddingOnlyInsideItsOwnWindow'),
 
+    # lip-0qj. Both of these are RELAYS -- `applyEvent` is the only thing that
+    # carries the supervisor's observation to the component that acts on it --
+    # and both fail SILENTLY, which is why they are worth a mutation each. The
+    # relay was wired by lip-3af and, until now, asserted by nothing: the
+    # existing disconnect mutations all target `wsx` itself (the gate that
+    # computes the effect, the supervisor that detects the threshold) and every
+    # one of them stays caught with `cmd/harness` throwing the result away.
+    ('M-3AF-NOREDUCERELAY',
+     'drop the F4 relay, so the supervisor detects a sustained outage and '
+     'nothing ever tells the gate: the socket is down for an hour and no '
+     'market reduces',
+     [
+         ('cmd/harness/run.go',
+          '\t\teff := o.r.gate.NoteDisconnectSustained(ev.Down, ev.At)\n',
+          '\t\teff := wsx.TickEffects{}\n'),
+     ],
+     'TestASustainedOutageReachesTheGateAndTheDisconnectTokenReachesThePoller'),
+
+    # A weaker version of the same defect, and the more plausible one to write
+    # by hand: the gate is told, so the STICKY flag is set and a later tick
+    # stops the market -- but this tick, the one that learned about the outage,
+    # quotes on. The gate's own `Reducing()` would hide it from any assertion
+    # that only reads the gate.
+    ('M-3AF-REDUCENOTTHISTICK',
+     'tell the gate about the sustained outage but not this evaluation, so the '
+     'market keeps quoting for the tick that learned about it',
+     [
+         ('cmd/harness/run.go',
+          '\t\teff := o.r.gate.NoteDisconnectSustained(ev.Down, ev.At)\n'
+          '\t\to.r.anom.raiseAll(eff.Anomalies)\n'
+          '\t\to.noteReduce(eff.Reduce)\n',
+          '\t\teff := o.r.gate.NoteDisconnectSustained(ev.Down, ev.At)\n'
+          '\t\to.r.anom.raiseAll(eff.Anomalies)\n'),
+     ],
+     'TestASustainedOutageReachesTheGateAndTheDisconnectTokenReachesThePoller'),
+
+    # The token half. `ApplyDisconnect` issues a token for the DISCONNECTED
+    # generation precisely so portfolio polling survives the outage; dropping
+    # it leaves REST issuing requests whose every answer is discarded as stale,
+    # which is the most expensive way to be blind.
+    ('M-3AF-NODISCTOKEN',
+     'never offer the disconnect generation token, so every portfolio read '
+     'taken during an outage is discarded as stale while REST keeps paying '
+     'for it',
+     [
+         ('cmd/harness/run.go',
+          '\t\to.offerToken(tokens, eff.Token)\n\n\tcase wsx.EventDisconnectReduce:\n',
+          '\n\tcase wsx.EventDisconnectReduce:\n'),
+     ],
+     'TestASustainedOutageReachesTheGateAndTheDisconnectTokenReachesThePoller'),
+
 ]
+
+
+# Files OUTSIDE `go/` that the Go tests read, and which the mutation sandbox
+# must therefore reproduce.
+#
+# This exists because of a false-green that very nearly shipped.
+# `TestTheShippedExampleConfigLoads` reads `../../../config.example.json` --
+# the operator-facing example, which lives at the repo root because that is
+# where an operator looks for it. The sandbox copied only `go/`, so in every
+# mutated tree that test failed for want of a file. `caught` is computed as
+# "the suite went red", so EVERY mutation then looked caught no matter what it
+# did, and a genuinely SURVIVING mutation would have been reported as caught.
+#
+# What surfaced it was the two INERT mutations: an inert mutation is correct to
+# survive, so a suite that is red for an unrelated reason flips it to NOT
+# INERT and the gate goes red. They are carried as arguments about code that
+# cannot matter; here they earned their keep a second way, as canaries for a
+# corrupted gate.
+ROOT_ARTIFACTS = ("config.example.json",)
+
+
+def copy_root_artifacts(sandbox: Path) -> None:
+    for name in ROOT_ARTIFACTS:
+        src = LIP / name
+        if not src.exists():
+            # Refuse rather than run a suite that will fail for the wrong
+            # reason and call the result evidence.
+            raise SystemExit(f"{name} is missing from {LIP}; the Go tests read "
+                             f"it and the mutation sandbox cannot reproduce it")
+        shutil.copy2(src, sandbox / name)
 
 
 def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
@@ -1889,6 +1970,7 @@ def main() -> int:
         with tempfile.TemporaryDirectory() as td:
             dst = Path(td) / "go"
             shutil.copytree(GO_SRC, dst)
+            copy_root_artifacts(Path(td))
             for rel, old, new in patches:
                 f = dst / rel
                 src = f.read_text()

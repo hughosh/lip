@@ -1,0 +1,20 @@
+{
+  "ticker": "REPLACE-ME-WITH-THE-SELECTED-TICKER",
+  "rung": "canary",
+  "s": 1,
+  "s_max": 1,
+  "inv_soft": 0.1,
+  "inv_hard": 0.25,
+  "inv_kill": 0.5,
+  "capital_max": 2,
+  "pnl_kill": -1,
+  "n_markets": 1,
+  "paths": {
+    "db": "/Users/hugh/.lip/canary/harness.db",
+    "anomaly_log": "/Users/hugh/.lip/canary/anomaly.jsonl",
+    "latch": "/Users/hugh/.lip/canary/harness.halt",
+    "lock": "/Users/hugh/.lip/canary/harness.lock",
+    "key": "/Users/hugh/.kalshi/kalshi.pem",
+    "env": "/Users/hugh/.kalshi/env"
+  }
+}

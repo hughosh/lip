@@ -2735,3 +2735,191 @@ func TestAnAckedOrderOccupiesTheAggregateBeforeAnyOrdersWalk(t *testing.T) {
 			"from the ack until a walk lists it", parsed.Side, at.Wire())
 	}
 }
+
+// TestASustainedOutageReachesTheGateAndTheDisconnectTokenReachesThePoller is
+// `lip-0qj`: the two effects `applyEvent` must RELAY, both of which fail
+// SILENTLY when they are forgotten.
+//
+// Neither is re-derived anywhere downstream, which is what makes them worth a
+// seam test rather than a unit test of either end:
+//
+//   - F4's threshold is detected in exactly one place, `wsx.Supervisor`, which
+//     emits `EventDisconnectReduce`. `Gate.Tick` deliberately does NOT re-detect
+//     it -- two clocks on one rule is how a market reduces twice or neither --
+//     so if `applyEvent` drops the event, the socket can be down for an hour and
+//     no market ever reduces. Nothing raises, nothing logs, and the harness goes
+//     on quoting into a book it cannot see.
+//   - `ApplyDisconnect` returns a token for the DISCONNECTED generation. If it
+//     is not offered, every portfolio read taken during the outage is discarded
+//     as stale, so position monitoring is blind for exactly the window in which
+//     the socket is not watching either -- while REST keeps issuing the requests.
+func TestASustainedOutageReachesTheGateAndTheDisconnectTokenReachesThePoller(
+	t *testing.T) {
+	// q = +1, far under inv_soft, a book on both sides and a schedule read a day
+	// from the close: every ground for stopping EXCEPT the one under test is
+	// removed, so a market that stops has stopped because of the outage.
+	const heldYes = 1
+
+	setup := func(t *testing.T) (*seamHarness, *owner) {
+		t.Helper()
+		h := newSeamHarness(t, seamOptions{})
+		o := h.ownerFor()
+		h.connectGate()
+		h.installBook([][]string{{"0.4000", "20.00"}},
+			[][]string{{"0.5500", "20.00"}})
+		h.installPosition(num.QtyFromFloat(heldYes))
+		h.installResting(
+			risk.LiveOrder{OrderID: "EX-ADD", Ticker: seamTicker,
+				Side: quote.SideYes, Price4: 4000,
+				Remaining: num.QtyFromFloat(12)},
+			risk.LiveOrder{OrderID: "EX-EXIT", Ticker: seamTicker,
+				Side: quote.SideNo, Price4: 5500,
+				Remaining: num.QtyFromFloat(1)},
+		)
+		o.closeAt = time.Now().Add(24 * time.Hour)
+		o.hasClose = true
+		o.scheduleEver = true
+		return h, o
+	}
+
+	t.Run("the sustained outage sends the market to REDUCING", func(t *testing.T) {
+		h, o := setup(t)
+
+		// The control. If this is not QUOTING then nothing below is
+		// attributable to the relay.
+		o.evaluate(0)
+		if o.market != quote.Quoting {
+			t.Fatalf("the market is %s before any outage, want QUOTING; the "+
+				"rest of this test cannot attribute a stop to the disconnect "+
+				"unless the market was running first", o.market)
+		}
+		if h.rig.gate.Reducing(seamTicker) {
+			t.Fatal("the gate reports the market REDUCING before any outage " +
+				"was relayed to it")
+		}
+		h.takeRaised()
+
+		// The gate is left CONNECTED deliberately. The supervisor only emits
+		// this event while the socket is down, so the realistic sequence would
+		// be a disconnect first -- but a disconnect ALSO makes the book
+		// non-actionable, and then a market that stopped adding would be
+		// evidence about H-FAIL-5's quarantine rather than about F4's
+		// threshold. Holding the connection is what isolates the relay.
+		tokens := make(chan wsx.ReconcileToken, 1)
+		o.applyEvent(wsx.Event{
+			Kind: wsx.EventDisconnectReduce,
+			At:   h.clk.Now(),
+			Down: h.cfg.Params.DisconnectReduce,
+		}, tokens)
+
+		// The gate's `reducing` is STICKY and this is the only thing in the
+		// process that sets it here, so it is the relay's own footprint: it is
+		// what keeps the market reducing after the socket comes back, because
+		// "a reconnect is evidence about the socket and not about the risk
+		// taken while it was down".
+		if !h.rig.gate.Reducing(seamTicker) {
+			t.Fatal("the gate does not report the market REDUCING after " +
+				"EventDisconnectReduce.\n\n" +
+				"F4 is detected in exactly one place -- the supervisor -- and " +
+				"Gate.Tick deliberately does not re-detect it. If applyEvent " +
+				"does not call Gate.NoteDisconnectSustained, the socket can " +
+				"be down for an hour and no market ever reduces.")
+		}
+		if !o.reduceNoted {
+			t.Fatal("the owner did not note the reduce for this evaluation; " +
+				"the gate's sticky flag would still stop the market on a " +
+				"LATER tick, but this tick would quote on")
+		}
+
+		// A SEV1 is the operator's only notice that the harness has stopped
+		// adding across the board.
+		var sustained bool
+		for _, a := range h.takeRaised() {
+			if a.Class == "WS_DISCONNECT_SUSTAINED" {
+				sustained = true
+				if a.Sev != risk.SEV1 {
+					t.Fatalf("WS_DISCONNECT_SUSTAINED is %v, want SEV1",
+						a.Sev)
+				}
+			}
+		}
+		if !sustained {
+			t.Fatal("no WS_DISCONNECT_SUSTAINED anomaly was raised; the " +
+				"gate returns it from NoteDisconnectSustained and applyEvent " +
+				"is what puts it in front of the operator")
+		}
+
+		o.evaluate(0)
+		if o.market != quote.Reducing {
+			t.Fatalf("the market is %s after a sustained outage, want "+
+				"REDUCING", o.market)
+		}
+
+		// §5.2's REDUCING row, A8: the adding side comes off and is confirmed
+		// absent.
+		adds := seamCancelsOn(h.rig.queue, quote.SideYes)
+		if len(adds) != 1 {
+			t.Fatalf("%d cancel intents were queued for the ADDING side, "+
+				"want 1", len(adds))
+		}
+		if adds[0].Role != quote.RoleAdding {
+			t.Fatalf("the adding-side cancel is classified %s", adds[0].Role)
+		}
+
+		// I1: every stop path stops ADDING risk and none of them stops
+		// reducing it. An outage is not a reason to strand the position.
+		if exits := seamCancelsOn(h.rig.queue, quote.SideNo); len(exits) != 0 {
+			t.Fatalf("%d cancel intent(s) were queued for the REDUCING side; "+
+				"cancelling the exit because the socket went down strands the "+
+				"position it was protecting", len(exits))
+		}
+		if got := o.atRisk(quote.SideNo); got != num.QtyFromFloat(heldYes) {
+			t.Fatalf("the exit's aggregate is %s, want %s", got.Wire(),
+				num.QtyFromFloat(heldYes).Wire())
+		}
+	})
+
+	t.Run("the disconnect token is offered to the poller", func(t *testing.T) {
+		h, o := setup(t)
+
+		tokens := make(chan wsx.ReconcileToken, 1)
+		o.applyEvent(wsx.Event{
+			Kind:  wsx.EventDisconnected,
+			At:    h.clk.Now(),
+			Clean: false,
+		}, tokens)
+
+		select {
+		case tok := <-tokens:
+			if !tok.Valid() {
+				t.Fatal("an INVALID token was offered on disconnect")
+			}
+		default:
+			t.Fatal("no reconciliation token was offered on disconnect.\n\n" +
+				"ApplyDisconnect returns a token for the disconnected " +
+				"generation and the poller's own contract says why it wants " +
+				"it: on disconnect it is the first reading of an account " +
+				"nobody is watching over the socket any more. Without the " +
+				"relay every read taken during the outage is discarded as " +
+				"stale and position monitoring is blind for the whole of it, " +
+				"while REST keeps issuing the requests.")
+		}
+
+		// A second disconnect on an already-disconnected gate returns zero
+		// effects, and `offerToken` must drop the invalid token rather than
+		// hand the poller a generation that does not exist.
+		o.applyEvent(wsx.Event{
+			Kind:  wsx.EventDisconnected,
+			At:    h.clk.Now(),
+			Clean: false,
+		}, tokens)
+		select {
+		case tok := <-tokens:
+			t.Fatalf("a token (valid=%v) was offered for a disconnect of an "+
+				"already-disconnected gate; ApplyDisconnect returns zero "+
+				"effects there and offerToken's validity guard is what stops "+
+				"the zero value being read as a generation", tok.Valid())
+		default:
+		}
+	})
+}

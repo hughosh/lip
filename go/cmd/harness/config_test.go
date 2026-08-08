@@ -318,3 +318,50 @@ func TestNoCloseTimeKnobExists(t *testing.T) {
 		t.Fatalf("the error does not name the offending key: %v", err)
 	}
 }
+
+// TestTheShippedExampleConfigLoads keeps `config.example.json` honest.
+//
+// The example exists because `-provision` cannot be invoked without a config,
+// and an operator's first act is to copy it. That makes it code: `fileConfig`
+// gains a required key, or a knob's units change, and the example silently
+// becomes a file that no longer loads -- discovered by the operator, at the
+// moment they were trying to start a trading process, with `DisallowUnknownFields`
+// giving them a parse error rather than an explanation.
+//
+// It is asserted here rather than reviewed, because nothing else in the tree
+// reads this file at all.
+func TestTheShippedExampleConfigLoads(t *testing.T) {
+	// `go test` runs in the package directory; the example is at the repo root.
+	const rel = "../../../config.example.json"
+	if _, err := os.Stat(rel); err != nil {
+		t.Fatalf("the example config is missing: %v.\n\nIt is the only thing "+
+			"an operator has to copy before -provision, and there is no "+
+			"default config anywhere in this binary", err)
+	}
+
+	c, err := loadConfig(rel)
+	if err != nil {
+		t.Fatalf("the shipped example config does not load: %v", err)
+	}
+
+	// The example must stay a CANARY. It is the file that gets copied, and a
+	// copied file that sizes like the pilot is how a $1 experiment becomes a
+	// $100 one without anybody deciding to raise the rung.
+	if c.Rung.name != "canary" {
+		t.Fatalf("the example config is rung %q, want canary", c.Rung.name)
+	}
+	if c.Params.S > num.QtyFromFloat(1) {
+		t.Fatalf("the example config sets S=%s; the file an operator copies "+
+			"first must be the smallest rung on the ladder", c.Params.S.Wire())
+	}
+
+	// And it must NOT name a real market. A shipped example carrying a live
+	// ticker is one `cp` away from quoting a market nobody selected for this
+	// run -- `q1select.py` chooses it, and the choice is per-run.
+	if !strings.Contains(c.Ticker, "REPLACE") {
+		t.Fatalf("the example config names ticker %q, which does not look "+
+			"like a placeholder; the ticker is chosen per run by q1select.py "+
+			"and shipping a real one invites it being traded by default",
+			c.Ticker)
+	}
+}
