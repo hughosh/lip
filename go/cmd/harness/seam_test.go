@@ -1953,8 +1953,13 @@ func TestASetLatchRefusesWithoutResumeAndWindsDownWithIt(t *testing.T) {
 			t.Fatalf("no snapshot was published")
 		}
 		s := h.snapshot()
-		if s.Global != quote.WindingDown {
-			t.Fatalf("the global state is %s, want WINDING_DOWN. A14 and "+
+		// A14 and H-HALT-4 admit EITHER halted state -- "a latch on disk
+		// implies WINDING_DOWN or DRAINED" -- and this account is flat with
+		// nothing resting, so since lip-xdq drove §5.1's own drain edge from
+		// the tick it settles in DRAINED. RUNNING is the failure this asserts
+		// against: it is the halt having self-cleared.
+		if s.Global.AddsRisk() {
+			t.Fatalf("the global state is %s, want a halted one. A14 and "+
 				"H-HALT-4: a latch on disk implies WINDING_DOWN or DRAINED, and "+
 				"`NextGlobal` checks it before every other rule in every state "+
 				"that is not already halted. RUNNING here is the halt having "+
@@ -2126,7 +2131,13 @@ func TestTheSnapshotSequenceAdvancesOnEveryTickIncludingHalted(t *testing.T) {
 	h.start()
 
 	h.awaitActionable()
-	if s := h.snapshot(); s.Global != quote.WindingDown {
+	// Halted, not one named state. This fixture resumes onto a set latch with a
+	// flat account and nothing resting, so once lip-xdq made §5.1's own
+	// WINDING_DOWN -> DRAINED edge reachable from the tick it settles in
+	// DRAINED rather than WINDING_DOWN. Both are halted, A14 admits both, and
+	// what this test needs is only that the harness quotes nothing -- which is
+	// exactly `AddsRisk`.
+	if s := h.snapshot(); s.Global.AddsRisk() {
 		t.Fatalf("the fixture is not halted (global %s), so this proves "+
 			"nothing about a harness that is deciding nothing", s.Global)
 	}
@@ -2146,9 +2157,13 @@ func TestTheSnapshotSequenceAdvancesOnEveryTickIncludingHalted(t *testing.T) {
 				"monitor's whole stall detector is that number moving",
 				last, s.Seq)
 		}
-		if s.Global != quote.WindingDown {
-			t.Fatalf("the global state left WINDING_DOWN (now %s); H-HALT-4 "+
-				"offers no path back without an operator", s.Global)
+		// The rule is that the halt does not SELF-CLEAR, and the only clearing
+		// is back to RUNNING. WINDING_DOWN -> DRAINED is §5.1 continuing
+		// forwards on a flat account, not a path back, and H-HALT-4 names both
+		// as halted.
+		if s.Global.AddsRisk() {
+			t.Fatalf("the global state left the halt (now %s); H-HALT-4 "+
+				"offers no path back to RUNNING without an operator", s.Global)
 		}
 		if len(s.Markets) != 1 || s.Markets[0].Ticker != seamTicker {
 			t.Fatalf("the snapshot describes %d market(s); A5 requires a "+
@@ -3403,8 +3418,166 @@ func TestAnUnreadableLatchAtBootIsHonouredOnTheFirstTick(t *testing.T) {
 		t.Fatal("the owner still holds the bootstrap's cause after a tick " +
 			"that could write it")
 	}
-	if o.global != quote.WindingDown {
+	// Halted on the first tick. It settles in DRAINED rather than WINDING_DOWN
+	// because this account is flat, has nothing resting, and its startup walks
+	// left truth fresh -- which is §5.1's drain rule exactly, now that lip-xdq
+	// drives that edge from the tick. A14 admits both; RUNNING is the failure.
+	if o.global.AddsRisk() {
 		t.Fatalf("the global state is %s on the first tick after booting on "+
-			"an unreadable latch, want WINDING_DOWN", o.global)
+			"an unreadable latch, want a halted one", o.global)
 	}
+}
+
+// seamGlobalEvents is every DURABLE A9 row for a §5.1 transition, in order.
+//
+// It reads what SURVIVED the writer rather than what was submitted, because the
+// operator of §10.4 reconstructing why the harness stopped reads the table and
+// not the call.
+func (h *seamHarness) seamGlobalEvents() []string {
+	h.t.Helper()
+	rows, err := h.rig.store.Reader().StateEvents()
+	if err != nil {
+		h.t.Fatalf("StateEvents: %v", err)
+	}
+	var out []string
+	for _, r := range rows {
+		if r.Scope == "global" {
+			out = append(out, fmt.Sprintf("%s->%s/%s", r.From, r.To, r.Trigger))
+		}
+	}
+	return out
+}
+
+// awaitGlobalEvent waits for a durable A9 global row matching `want`.
+func (h *seamHarness) awaitGlobalEvent(want string) {
+	h.t.Helper()
+	h.await("the durable A9 row "+want, func() bool {
+		return seamContains(h.seamGlobalEvents(), want)
+	})
+}
+
+// TestEveryGlobalTransitionRecordsItsOwnCause is lip-xdq: `advance` had exactly
+// ONE caller -- the stop funnel -- and passed no state, so §5.1 was half wired.
+//
+// Two consequences, and the operator of §10.4 reading `state_event` at 3am is
+// the one who paid for both:
+//
+//   - `GTStop` was unreachable. `CommitStop` sets the controller's cached latch
+//     and `Advance` injects it, so A14 -- "checked before every other rule" --
+//     fired ahead of the `RUNNING && Stop` rule on every commit-then-advance.
+//     A taker fill, `insufficient_balance` and a SIGTERM all wrote `halt_latch`,
+//     which is the trigger that means "this process inherited a halt from a
+//     previous incarnation". The two situations call for opposite responses and
+//     the column could not tell them apart.
+//   - The ordinary edges were never driven at all. §5.1 defines
+//     WINDING_DOWN -> DRAINED on all-flat and DRAINED -> WINDING_DOWN when
+//     inventory reappears, and nothing ever asked for either, so a harness that
+//     wound down and reduced to flat reported WINDING_DOWN forever and
+//     `GTInventory` was dead code in production.
+func TestEveryGlobalTransitionRecordsItsOwnCause(t *testing.T) {
+	t.Run("a live stop is global_stop, not halt_latch", func(t *testing.T) {
+		// Inventory is held deliberately: it keeps the harness in WINDING_DOWN
+		// so this sub-test observes the stop edge and nothing after it.
+		h := newSeamHarness(t, seamOptions{})
+		o := h.ownerFor()
+		h.connectGate()
+		h.installBook([][]string{{"0.4000", "20.00"}},
+			[][]string{{"0.5500", "20.00"}})
+		h.installPosition(num.QtyFromFloat(1))
+		o.closeAt = time.Now().Add(24 * time.Hour)
+		o.hasClose = true
+		o.scheduleEver = true
+
+		o.evaluate(0)
+		if o.global != quote.Running {
+			t.Fatalf("the fixture is %s before any stop, want RUNNING",
+				o.global)
+		}
+
+		o.requestStop("taker_fill", seamTicker)
+
+		if o.global != quote.WindingDown {
+			t.Fatalf("the global state is %s after a durable taker fill, "+
+				"want WINDING_DOWN", o.global)
+		}
+		h.awaitGlobalEvent("RUNNING->WINDING_DOWN/global_stop")
+
+		for _, ev := range h.seamGlobalEvents() {
+			if ev == "RUNNING->WINDING_DOWN/halt_latch" {
+				t.Fatal("the live taker fill was recorded as `halt_latch`.\n\n" +
+					"That is the trigger for a halt this process INHERITED. " +
+					"An operator reading it cannot tell a stop this " +
+					"incarnation took from a restart into a previous one's " +
+					"latch, and the two call for opposite responses.")
+			}
+		}
+	})
+
+	t.Run("a restart onto a latch is halt_latch, and then drains",
+		func(t *testing.T) {
+			// Flat, nothing resting: the account has nothing to wind down, so
+			// §5.1's own drain rule applies the moment it is asked.
+			h := newSeamHarness(t, seamOptions{Latched: true, Resume: true})
+			h.start()
+			h.awaitActionable()
+
+			h.awaitGlobalEvent("STARTING->WINDING_DOWN/halt_latch")
+			h.awaitGlobalEvent("WINDING_DOWN->DRAINED/drained")
+
+			if s := h.snapshot(); s.Global != quote.Drained {
+				t.Fatalf("the published global state is %s on a flat resumed "+
+					"harness, want DRAINED.\n\n"+
+					"§5.1 draws WINDING_DOWN -> DRAINED on all-flat and the "+
+					"machine implements it, but before lip-xdq nothing asked: "+
+					"`advance` was reachable only from the stop funnel, so a "+
+					"harness with nothing left to unwind reported WINDING_DOWN "+
+					"for the rest of its life and every §14 report repeated it",
+					s.Global)
+			}
+		})
+
+	t.Run("inventory reappearing under DRAINED returns to WINDING_DOWN",
+		func(t *testing.T) {
+			// Flat and unrested, so the stop drains on the very next tick.
+			h := newSeamHarness(t, seamOptions{})
+			o := h.ownerFor()
+			h.connectGate()
+			h.installBook([][]string{{"0.4000", "20.00"}},
+				[][]string{{"0.5500", "20.00"}})
+			o.closeAt = time.Now().Add(24 * time.Hour)
+			o.hasClose = true
+			o.scheduleEver = true
+
+			o.requestStop("taker_fill", seamTicker)
+			o.evaluate(0)
+
+			if o.global != quote.Drained {
+				t.Fatalf("the global state is %s after a stop on a flat, "+
+					"unrested account, want DRAINED", o.global)
+			}
+			h.awaitGlobalEvent("WINDING_DOWN->DRAINED/drained")
+
+			// A fill reported late, a position poll disagreeing, an adoption at
+			// restart. DRAINED rests no reducer, so a position discovered there
+			// is unmanaged until the state that keeps an exit alive is
+			// re-entered.
+			h.installPosition(num.QtyFromFloat(1))
+			o.evaluate(0)
+
+			if o.global != quote.WindingDown {
+				t.Fatalf("the global state is %s after inventory reappeared "+
+					"under DRAINED, want WINDING_DOWN.\n\n"+
+					"DRAINED rests no reducer. A position that turns up there "+
+					"and does not move the state is one nothing is quoting an "+
+					"exit for, and the harness reports itself drained while "+
+					"holding it", o.global)
+			}
+			h.awaitGlobalEvent("DRAINED->WINDING_DOWN/inventory_reappeared")
+
+			if o.market != quote.Reducing {
+				t.Fatalf("the market is %s with inventory under a halted "+
+					"global state, want REDUCING: the exit is what "+
+					"WINDING_DOWN exists to keep alive", o.market)
+			}
+		})
 }

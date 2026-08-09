@@ -795,8 +795,24 @@ func TestLatchOutranksEveryOtherRule(t *testing.T) {
 							"reconciled=%v stop=%v -> %s, want WINDING_DOWN "+
 							"(A14)", from, truth, recon, stop, got)
 					}
-					if trig != GTLatch {
-						t.Errorf("trigger = %s, want %s", trig, GTLatch)
+					// The STATE above is A14 and is what this regression is
+					// about. The trigger is a separate question, and it is the
+					// one lip-xdq answered: `CommitStop` sets the cached latch
+					// before `Advance` injects it, so a live §12 trigger always
+					// arrives here already latched. Reporting `halt_latch` for
+					// it told the operator this process had INHERITED a halt
+					// when it had just taken one.
+					//
+					// `Stop` is the discriminator. `Advance` refuses it with
+					// nothing latched, so a caller that sets it committed a
+					// cause in this process; a restart sets none.
+					want := GTLatch
+					if stop {
+						want = GTStop
+					}
+					if trig != want {
+						t.Errorf("%s latched, stop=%v -> trigger %s, want %s",
+							from, stop, trig, want)
 					}
 				}
 			}

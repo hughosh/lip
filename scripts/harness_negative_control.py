@@ -1934,9 +1934,11 @@ MUTATIONS = [
      'never re-drive the held cause from the tick, so a global stop is retried '
      'only if the trigger that produced it happens to fire again',
      [
+         # Re-anchored by lip-xdq, which inserted the ordinary global advance
+         # between this call and the comment the anchor used to reach.
          ('cmd/harness/run.go',
-          '\to.retryStop()\n\n\t// The non-gate reduce requests are consumed by THIS evaluation and cleared\n',
-          '\t// The non-gate reduce requests are consumed by THIS evaluation and cleared\n'),
+          '\to.retryStop()\n',
+          ''),
      ],
      'TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs'),
 
@@ -2067,6 +2069,68 @@ MUTATIONS = [
           '}\n'),
      ],
      'TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs'),
+
+    # -----------------------------------------------------------------------
+    # lip-xdq -- §5.1 was half wired: `advance` had ONE caller and passed no
+    # state, so `GTStop` was unreachable and the ordinary edges never fired.
+    # -----------------------------------------------------------------------
+
+    # The trigger. `CommitStop` sets the cached latch before `Advance` injects
+    # it, so A14 -- checked before every other rule -- fires ahead of the
+    # RUNNING+Stop rule on every commit-then-advance. Reporting `halt_latch`
+    # there tells the operator of §10.4 that this process INHERITED a halt from
+    # a previous incarnation when it had just taken one, and the two call for
+    # opposite responses.
+    ('M-XDQ-TRIGGER',
+     'report a live §12 stop as `halt_latch`, so a taker fill and a restart '
+     'into a previous incarnation\'s halt are indistinguishable in A9',
+     [
+         ('harness/quote/machine.go',
+          '\t\t\treturn WindingDown, GTStop\n\t\t}\n\t\treturn WindingDown, GTLatch\n',
+          '\t\t\treturn WindingDown, GTLatch\n\t\t}\n\t\treturn WindingDown, GTLatch\n'),
+     ],
+     'TestEveryGlobalTransitionRecordsItsOwnCause'),
+
+    # The ordinary edges. Without this call `advance` is reachable only from the
+    # stop funnel, so WINDING_DOWN -> DRAINED and DRAINED -> WINDING_DOWN are
+    # defined in the machine and asked for by nothing: a harness that wound down
+    # and reduced to flat reports WINDING_DOWN for the rest of its life.
+    ('M-XDQ-NOTICK',
+     'never evaluate the global machine on an ordinary tick, so DRAINED is '
+     'never published and inventory reappearing under it has no edge to take',
+     [
+         ('cmd/harness/run.go',
+          '\to.advance(o.globalFacts())\n',
+          ''),
+     ],
+     'TestEveryGlobalTransitionRecordsItsOwnCause'),
+
+    # The state. Left at the zero value the machine is told STARTING on every
+    # advance, so A14 forces WINDING_DOWN from whatever the process was actually
+    # in -- and the drain edge, which is defined only out of WINDING_DOWN, can
+    # never be reached from DRAINED or evaluated from the real state.
+    ('M-XDQ-NOSTATE',
+     'advance without the current state, so the machine adjudicates every tick '
+     'from STARTING and A14 overwrites whatever the process was really in',
+     [
+         ('cmd/harness/run.go',
+          '\treturn quote.GlobalInput{\n\t\tState:         o.global,\n',
+          '\treturn quote.GlobalInput{\n'),
+     ],
+     'TestEveryGlobalTransitionRecordsItsOwnCause'),
+
+    # The drain's own evidence. §5.1 requires the flags to be ANSWERS: a
+    # WINDING_DOWN harness that reports no inventory because nobody asked drains
+    # over a position it is still holding, and DRAINED rests no reducer.
+    ('M-XDQ-DRAINBLIND',
+     'tell the global machine there is never any inventory, so the drain '
+     'completes over a position and nothing re-enters WINDING_DOWN for it',
+     [
+         ('cmd/harness/run.go',
+          '\t\tAnyInventory:  o.anyInventory(),\n\t\tAnyLiveOrder:  o.anyLiveOrder(),\n\t}\n}\n',
+          '\t\tAnyInventory:  false,\n\t\tAnyLiveOrder:  o.anyLiveOrder(),\n\t}\n}\n'),
+     ],
+     'TestEveryGlobalTransitionRecordsItsOwnCause'),
 
 ]
 

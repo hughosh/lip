@@ -395,6 +395,31 @@ func NextGlobal(in GlobalInput) (GlobalState, GlobalTrigger) {
 	// the correction -- but WINDING_DOWN is the one that says so out loud, and
 	// it is the one with no path back to RUNNING without an operator (§10.4).
 	if in.Latched && in.State != WindingDown && in.State != Drained {
+		if in.Stop {
+			// The latch and the stop are the SAME event, and this is the only
+			// place that can tell them apart.
+			//
+			// `CommitStop` sets the controller's cached latch and `Advance`
+			// injects it, so by the time any §12 trigger reaches this function
+			// `Latched` is ALREADY true and the rule below fires first. That
+			// made `GTStop` unreachable through the only correct path -- commit
+			// then advance -- and every §12 trigger in the system wrote
+			// `halt_latch` into its A9 row: a taker fill, `insufficient_balance`
+			// and a SIGTERM were indistinguishable from a restart into a
+			// previous incarnation's halt, which is the one thing the operator
+			// of §10.4 is reading that column to tell apart (lip-xdq).
+			//
+			// `Stop` is the discriminator and it is a sound one: `Advance`
+			// refuses `Stop` with nothing latched, so a caller that sets it has
+			// committed a cause in THIS process. A restart reads the latch and
+			// sets no `Stop`, and still gets `GTLatch` below.
+			//
+			// A14 itself is untouched. The transition is forced to WINDING_DOWN
+			// from every unhalted state exactly as before; only the reported
+			// cause is refined, and only when the caller is asserting a
+			// contemporaneous stop.
+			return WindingDown, GTStop
+		}
 		return WindingDown, GTLatch
 	}
 
