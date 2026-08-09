@@ -213,6 +213,27 @@ type Startup struct {
 	// The FIRST cause is kept, matching `FileLatch.Ensure`'s first-writer-wins.
 	pendingCause StopCause
 	pendingHeld  bool
+
+	// baseline is the union of the trade ids of every fill every COMPLETE
+	// fills walk of this startup has seen, taken BEFORE `backfill_h` filtered
+	// any of them out. It is identity and nothing else.
+	//
+	// It is the boundary between "history" and "live", and it is drawn on
+	// IDENTITY AND PHASE rather than on a timestamp because no timestamp
+	// available here is sound. Step 3 asks for `backfill_h` of history while
+	// the live poll asks for all of it with a zero `since`; the filter is
+	// applied client-side after a complete walk, and a malformed `ts` bypasses
+	// it deliberately. So a trade the exchange stamped last week can be absent
+	// from the startup window and present in the first live walk, and an
+	// adoption-time cut-off would call it new.
+	//
+	// It accumulates across ATTEMPTS for the same reason `causes` does: a pass
+	// that cancelled something rewalks from a fresh read and discards its
+	// adoption, but a trade it saw is not un-seen by the discard, and every
+	// pass of this Step ran before the adoption that ends it. Anything observed
+	// here predates the licence to leave STARTING, which is exactly what makes
+	// it history.
+	baseline map[string]struct{}
 }
 
 // NewStartup requires every collaborator. A nil one fails construction.
@@ -273,6 +294,7 @@ func NewStartup(ctrl *GlobalController, src PortfolioSource, guard *ForeignGuard
 		state:      quote.Starting,
 		seen:       make(map[string]struct{}),
 		missedCoid: make(map[string]int),
+		baseline:   make(map[string]struct{}),
 	}, nil
 }
 
@@ -637,6 +659,15 @@ func (s *Startup) attempt(ctx context.Context, now time.Time) passResult {
 			"working the moment our fills exceed one page, so it rides on the "+
 			"complete walk and nothing else (%v)", fills.Outcome, fills.Err))
 	}
+	// The baseline is taken from the COMPLETE walk and from `AllTradeIDs`, so
+	// it spans the whole account history the exchange returned and not the
+	// `backfill_h` slice of it `fills.Fills` was cut down to. Recorded here,
+	// before anything below can fail this pass: a trade this process has
+	// already seen during STARTING is history whether or not this attempt goes
+	// on to produce an adoption.
+	for _, id := range fills.AllTradeIDs {
+		s.baseline[id] = struct{}{}
+	}
 
 	// --- Step 4: balance, whose error is RETAINED (§3.2) --------------------
 	bal, balErr := s.src.Balance(ctx)
@@ -732,7 +763,7 @@ func (s *Startup) attempt(ctx context.Context, now time.Time) passResult {
 	//
 	// `rest` accepts an absent `fee_cost`, and a fill we are never going to
 	// apply must not be able to fail the whole startup as a conversion error.
-	ownedConverted, err := convertStartupFills(fe.OwnedFills)
+	ownedConverted, err := ConvertFills(fe.OwnedFills)
 	if err != nil {
 		return passResult{anoms: anoms, latchFailed: latchFailed,
 			err: fmt.Errorf("a startup fill of ours did not convert: %w", err)}
@@ -912,9 +943,13 @@ func (s *Startup) attempt(ctx context.Context, now time.Time) passResult {
 	}
 
 	ad := &adoption{
-		portfolio:    portfolio,
-		balance:      balance,
-		ownFills:     fe.OwnedFills,
+		portfolio: portfolio,
+		balance:   balance,
+		ownFills:  fe.OwnedFills,
+		// FROZEN here, by copy. The accepted adoption carries the boundary its
+		// own startup drew, so a consumer cannot be handed a set that a later
+		// pass of a coordinator it does not know about went on to widen.
+		baseline:     freezeBaseline(s.baseline),
 		kept:         kept,
 		foreign:      fe.ForeignOrders,
 		managed:      managed,
@@ -937,6 +972,15 @@ func (s *Startup) attempt(ctx context.Context, now time.Time) passResult {
 		},
 	}
 	return passResult{ad: ad, anoms: anoms}
+}
+
+// freezeBaseline copies the accumulated identity set. See `Startup.baseline`.
+func freezeBaseline(in map[string]struct{}) map[string]struct{} {
+	out := make(map[string]struct{}, len(in))
+	for id := range in {
+		out[id] = struct{}{}
+	}
+	return out
 }
 
 // addingPermitted is §4's authority question, answered by the LIFECYCLE.
@@ -1159,15 +1203,20 @@ func sortedKeys(m map[string][]rest.Order) []string {
 	return out
 }
 
-// convertStartupFills is the edge conversion into `risk`'s units, and it runs
-// only over fills the ownership ledger has already claimed as ours.
+// ConvertFills is the edge conversion into `risk`'s units, and it runs only
+// over fills the ownership ledger has already claimed as ours.
 //
 // A missing `fee_cost` is a hard error rather than a zero, for the reason `wsx`
 // gives at the same boundary: maker fees are $0.00 (S2), so a non-zero fee is a
 // taker fill whatever `is_taker` claims. The two detectors of H-ORD-8 fail for
 // different reasons, and a fee we cannot read is one of the two witnesses going
 // silent -- at startup, over up to 24 hours of history we did not observe.
-func convertStartupFills(fills []rest.Fill) ([]risk.FillEvent, error) {
+//
+// Exported because the owner records `Adoption.OwnedFills()` as `our_fill` rows
+// with `backfilled = true`, and that is the same conversion this Step already
+// made -- writing a second copy of it in `cmd/harness` would put the fee
+// arithmetic that corroborates H-ORD-8 in two places that could drift.
+func ConvertFills(fills []rest.Fill) ([]risk.FillEvent, error) {
 	out := make([]risk.FillEvent, 0, len(fills))
 	for _, f := range fills {
 		if f.FeeCost == "" {

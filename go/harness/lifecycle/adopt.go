@@ -165,6 +165,20 @@ type Adoption interface {
 	Balance() num.Money
 	// OwnedFills is the `backfill_h` history that belongs to us (§7.5 step 3).
 	OwnedFills() []rest.Fill
+	// StartupTrades is the trade id of every fill this startup saw on the
+	// account, across every complete fills walk it made and BEFORE `backfill_h`
+	// filtered any of them out. Identity only.
+	//
+	// It is the boundary between the history this process INHERITED and the
+	// activity it CAUSED, and it is what a rung policy that reacts to a first
+	// live fill must consult before reacting. It is deliberately wider than
+	// `OwnedFills`: that is the `backfill_h` slice of the fills that are ours,
+	// while this is every trade the walk carried -- ours, foreign, and older
+	// than the window alike. A trade outside `backfill_h` never reaches the
+	// position model at startup, so `seenTrade` does not know it, and the first
+	// live poll -- which asks for all history with a zero `since` -- would
+	// otherwise present it as brand new on every single restart.
+	StartupTrades() map[string]struct{}
 	// Kept is every adopted `lipH-` order that survived H-ORD-5c.
 	Kept() []rest.Order
 	// Foreign is every resting order on the account that is not ours. Reported,
@@ -199,6 +213,7 @@ type adoption struct {
 	portfolio *risk.Portfolio
 	balance   num.Money
 	ownFills  []rest.Fill
+	baseline  map[string]struct{}
 	kept      []rest.Order
 	foreign   []rest.Order
 	managed   []string
@@ -225,6 +240,12 @@ func (a *adoption) Balance() num.Money         { return a.balance }
 
 func (a *adoption) OwnedFills() []rest.Fill {
 	return append([]rest.Fill(nil), a.ownFills...)
+}
+
+// StartupTrades copies, like every other accessor here and for the same
+// reason: a caller holding the boundary must not be able to move it.
+func (a *adoption) StartupTrades() map[string]struct{} {
+	return freezeBaseline(a.baseline)
 }
 
 func (a *adoption) Kept() []rest.Order { return append([]rest.Order(nil), a.kept...) }

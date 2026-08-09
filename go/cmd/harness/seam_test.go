@@ -179,6 +179,21 @@ type seamExchange struct {
 	// goroutine.
 	onCreate func(idx int, c seamCreate)
 
+	// ackFill is the `fill_count` a create acknowledgement reports, as a wire
+	// decimal. Empty means "0.00", which is the ordinary case.
+	//
+	// It is the only way to reach §8.2's ack path from a composed test: the
+	// exchange answers a marketable-but-post-only create by filling part of it
+	// inside the acknowledgement, and that quantity moves `q` before any fills
+	// walk has run.
+	ackFill string
+
+	// positionsBroken makes GET /portfolio/positions answer 500, which is how a
+	// test produces an INCOMPLETE positions walk without a second fake. The
+	// result does not `Replaces()`, so H-PAGE-1 makes the previous reading
+	// stale rather than empty and nothing at all is applied.
+	positionsBroken bool
+
 	// The §9 schedule this exchange reports. Zero values mean "a close far
 	// out, active, not early-closeable" -- see `schedulePage`.
 	closeAt       time.Time
@@ -296,6 +311,7 @@ func (f *seamExchange) create(req rest.Request) (rest.Response, error) {
 	f.creates = append(f.creates, c)
 	hook := f.onCreate
 	list := f.listCreated
+	filled := f.ackFill
 	f.mu.Unlock()
 
 	if hook != nil {
@@ -310,11 +326,29 @@ func (f *seamExchange) create(req rest.Request) (rest.Response, error) {
 	// The measured flat CreateOrderV2Response. Every field `parseAck` requires
 	// is present: a response missing one is UNKNOWN rather than ACKED, and would
 	// silently turn a placement test into a reconciliation test.
+	remaining := c.Count
+	if filled == "" {
+		filled = "0.00"
+	} else {
+		// The two counts are kept consistent, because they are on the wire
+		// together and an ack claiming a full remainder alongside a fill is a
+		// response no exchange sends.
+		req, errQ := num.ParseQty(c.Count)
+		got, errF := num.ParseQty(filled)
+		if errQ != nil || errF != nil {
+			return rest.Response{}, fmt.Errorf("seam ack counts %q/%q: %v/%v",
+				c.Count, filled, errQ, errF)
+		}
+		if got > req {
+			got = req
+		}
+		remaining = (req - got).Wire()
+	}
 	ack, err := json.Marshal(map[string]any{
 		"order_id":        c.OrderID,
 		"client_order_id": c.Coid,
-		"remaining_count": c.Count,
-		"fill_count":      "0.00",
+		"remaining_count": remaining,
+		"fill_count":      filled,
 		"ts_ms":           1,
 	})
 	if err != nil {
@@ -379,6 +413,10 @@ func seamRestingOrder(c seamCreate) map[string]any {
 
 func (f *seamExchange) positionsPage() (rest.Response, error) {
 	f.mu.Lock()
+	if f.positionsBroken {
+		f.mu.Unlock()
+		return rest.Response{Status: 500, Body: []byte(`{"error":"seam"}`)}, nil
+	}
 	items := make([]any, 0, len(f.positions))
 	for ticker, q := range f.positions {
 		items = append(items, map[string]any{"ticker": ticker, "position_fp": q})
@@ -451,6 +489,12 @@ func (f *seamExchange) allCreates() []seamCreate {
 	return append([]seamCreate(nil), f.creates...)
 }
 
+func (f *seamExchange) deletedIDs() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.deletes...)
+}
+
 func (f *seamExchange) deleteCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -479,6 +523,18 @@ func (f *seamExchange) addFill(fill map[string]any) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.fills = append(f.fills, fill)
+}
+
+func (f *seamExchange) setAckFill(count string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.ackFill = count
+}
+
+func (f *seamExchange) breakPositions(broken bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.positionsBroken = broken
 }
 
 // writerIDs is every goroutine that has issued a REST WRITE, with its count.
@@ -721,6 +777,15 @@ type seamOptions struct {
 	// whose subject IS `newRig`.
 	SkipRig bool
 
+	// Rung selects the capital ladder step. Empty is `pilot`, which is what
+	// every test written before the canary policy existed assumes.
+	//
+	// Choosing one also sizes the fixture to it. `loadConfig` refuses a config
+	// whose `S` exceeds the rung's maximum, so a canary harness running at the
+	// pilot's S=12 is one no operator could have deployed, and a policy test
+	// against a config that cannot exist proves nothing about the policy.
+	Rung string
+
 	// LatchDirMissing puts the halt latch inside a subdirectory that does not
 	// exist, and it is how a seam test makes a latch WRITE fail without a fake.
 	//
@@ -797,6 +862,16 @@ func newSeamHarness(t *testing.T, opt seamOptions) *seamHarness {
 	t.Helper()
 
 	c := newSeamConfig(t)
+	if opt.Rung != "" {
+		r, ok := rungs[opt.Rung]
+		if !ok {
+			t.Fatalf("no such rung %q", opt.Rung)
+		}
+		c.Rung = r
+		if c.Params.S > r.maxS {
+			c.Params.S = r.maxS
+		}
+	}
 	if opt.LatchDirMissing {
 		// `provision` creates the parents of the DB and the anomaly log and
 		// nothing else, so this directory stays absent until a test creates it.
@@ -1081,6 +1156,78 @@ func (h *seamHarness) installPosition(q num.Qty) {
 		h.cfg.Params)
 	if !eff.Applied {
 		h.t.Fatalf("the position was not installed: %+v", eff.Anomalies)
+	}
+}
+
+// installOwnedOrder makes an exchange order id OURS in the durable ownership
+// ledger, the way H-ORD-6's two commits would have.
+//
+// A test needs it before it can hand the fixture a fill on an order this
+// process did not place. H-ORD-9 classifies by the LEDGER and by nothing else,
+// so a fill on an order no row mentions is FOREIGN -- SEV1 and a durable global
+// stop -- and a test meaning to exercise an owned fill would silently be
+// exercising the foreign path instead.
+//
+// Both stages are made durable and the SECOND is awaited. A reservation without
+// its binding is exactly the unresolved set §7.5 refuses to conclude over, so
+// returning between the two would leave the next startup retrying forever.
+func (h *seamHarness) installOwnedOrder(orderID string, seq uint64) {
+	h.t.Helper()
+	coid, err := rest.Coid("SEAMPRIOR", 0, quote.SideYes, seq)
+	if err != nil {
+		h.t.Fatalf("building a coid: %v", err)
+	}
+	o, err := rest.NewCreateOrder(seamTicker, quote.SideYes, 40,
+		num.QtyFromFloat(1), num.QtyFromFloat(1), coid)
+	if err != nil {
+		h.t.Fatalf("building the reserved order: %v", err)
+	}
+	if _, err := h.rig.store.ReserveOrder(h.rig.run, o, quote.RoleAdding,
+		h.clk.wallMs()); err != nil {
+		h.t.Fatalf("reserving %s: %v", coid, err)
+	}
+	if _, err := h.rig.store.BindOrder(coid, orderID,
+		h.clk.wallMs()); err != nil {
+		h.t.Fatalf("binding %s -> %s: %v", coid, orderID, err)
+	}
+	h.await("the seeded ownership binding to commit", func() bool {
+		got, ok := h.rig.store.Ownership().Bound(orderID)
+		return ok && got == coid
+	})
+}
+
+// latchTrigger is the durable §12 cause on disk, or "" if the harness has not
+// stopped. It reads the LATCH rather than any in-memory field, because the
+// latch is what a restart and a §10.4 operator both see.
+//
+// It RETRIES a latch that is present and not yet readable, and that is not
+// leniency about a corrupt file. `FileLatch.Ensure` creates the path with
+// `O_EXCL` and then writes it, and `Load` refuses the zero-length file that
+// exists in between -- correctly, because "a zero-length file is what a crash
+// between create and write leaves behind". A test polling from its own
+// goroutine lands in that window often enough to matter, and a fixture that
+// failed there would be reporting the writer's crash-safety as a defect. A file
+// that never becomes readable still fails, after the same budget as every other
+// wait in this file.
+func (h *seamHarness) latchTrigger() string {
+	h.t.Helper()
+	latch, err := lifecycle.NewFileLatch(h.cfg.Paths.Latch)
+	if err != nil {
+		h.t.Fatalf("NewFileLatch(%s): %v", h.cfg.Paths.Latch, err)
+	}
+	deadline := time.Now().Add(seamBudget)
+	for {
+		rec, present, err := latch.Load()
+		switch {
+		case err == nil && !present:
+			return ""
+		case err == nil:
+			return rec.Trigger
+		case !time.Now().Before(deadline):
+			h.t.Fatalf("the halt latch at %s never became readable within %v: "+
+				"%v", h.cfg.Paths.Latch, seamBudget, err)
+		}
+		time.Sleep(time.Millisecond)
 	}
 }
 
@@ -3580,4 +3727,667 @@ func TestEveryGlobalTransitionRecordsItsOwnCause(t *testing.T) {
 					"WINDING_DOWN exists to keep alive", o.market)
 			}
 		})
+}
+
+// ---------------------------------------------------------------------------
+// 13. lip-2t6 -- the canary first-fill latch
+// ---------------------------------------------------------------------------
+
+// TestTheCanaryLatchesOnAnyPositionItDidNotStartWith is the ENTRY FALLBACK, and
+// the vector table is the arithmetic that makes this rule necessary at all.
+//
+// pilot-plan §7.9 bounds the canary by "the FIRST directional fill latches
+// WINDING_DOWN", and no assignment of §16's numbers delivers that. Fills are
+// fractional to the 0.01-contract quantum, F17 compares with a strict `>`, and
+// `inv_kill` must sit strictly above `inv_hard`, which must sit strictly above
+// `inv_soft`, which must be positive. So a fill of 0.01 breaches nothing, a
+// fill between `inv_hard` and `inv_kill` breaches only the market-scoped brake
+// -- which self-clears at flat and lets the harness resume adding -- and a fill
+// of exactly `inv_kill` does not breach F17 either, because the comparison is
+// strict.
+//
+// The position endpoint carries no trade identity, so this source is not proof
+// of ownership and is not treated as any: `q_local` exactly flat against a
+// nonzero exchange figure is the transition from no position to a position, and
+// that is the whole of what it claims.
+func TestTheCanaryLatchesOnAnyPositionItDidNotStartWith(t *testing.T) {
+	cases := []struct {
+		name  string
+		posFP string
+		cause string
+		why   string
+	}{
+		{
+			name: "one quantum", posFP: "0.01", cause: "canary_position_nonzero",
+			why: "0.01 is the smallest quantity that can exist and it breaches " +
+				"no §16 threshold at all; it is the case the whole rule is for",
+		},
+		{
+			name: "negative inventory", posFP: "-0.01",
+			cause: "canary_position_nonzero",
+			why: "q is signed and YES-positive, so a NO fill is a directional " +
+				"entry that arrives with the other sign. A rule written on the " +
+				"signed value rather than the magnitude ignores half the book",
+		},
+		{
+			name: "exactly inv_kill", posFP: "18.00", cause: "portfolio_read",
+			why: "F17 compares with a strict `>`, so exactly inv_kill would not " +
+				"breach it. This position DOES exceed pos_drift_hard, which is a " +
+				"stronger cause and takes the latch by first-writer-wins -- the " +
+				"canary offered its own and correctly lost",
+		},
+		{
+			name: "one quantum above inv_kill", posFP: "18.01",
+			cause: "portfolio_read",
+			why:   "as above, and the point is that the harness stops either way",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newSeamHarness(t, seamOptions{Rung: "canary"})
+			h.start()
+			h.awaitActionable()
+
+			// The control. Everything below is attributable to the position
+			// only if the harness was running and unlatched before it.
+			h.awaitTicks(2)
+			if s := h.snapshot(); s.Global != quote.Running {
+				t.Fatalf("the global state is %s on a flat canary before any "+
+					"position appeared, want RUNNING", s.Global)
+			}
+			if got := h.latchTrigger(); got != "" {
+				t.Fatalf("the halt latch already reads %q before the test did "+
+					"anything", got)
+			}
+
+			h.ex.setPosition(seamTicker, tc.posFP)
+			h.clk.Advance(h.cfg.Params.PositionPoll)
+
+			h.awaitGlobalEvent("RUNNING->WINDING_DOWN/global_stop")
+			h.await("the durable §12 cause to reach the latch", func() bool {
+				return h.latchTrigger() != ""
+			})
+			if got := h.latchTrigger(); got != tc.cause {
+				t.Fatalf("a canary that went from flat to %s contracts latched "+
+					"with cause %q, want %q.\n\n%s",
+					tc.posFP, got, tc.cause, tc.why)
+			}
+		})
+	}
+}
+
+// TestThePilotRungIgnoresThePositionTheCanaryStopsFor is the other half of the
+// same measurement, and it is what makes the test above mean something.
+//
+// The rule is a property of the RUNG. If the pilot stopped here too, the canary
+// assertions would be satisfied by any harness that stops on any position, and
+// nothing would be measuring the policy. 0.01 contracts is under `inv_soft`,
+// under `inv_hard`, under `inv_kill` and inside `pos_drift_tol`, so a pilot has
+// no ground to stop and must not.
+func TestThePilotRungIgnoresThePositionTheCanaryStopsFor(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{Rung: "pilot"})
+	h.start()
+	h.awaitActionable()
+
+	h.ex.setPosition(seamTicker, "0.01")
+	for i := 0; i < 3; i++ {
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(2)
+	}
+
+	if got := h.latchTrigger(); got != "" {
+		t.Fatalf("a PILOT harness latched with cause %q on 0.01 contracts.\n\n"+
+			"The first-fill bound belongs to the canary rung and to no other. "+
+			"A pilot that stops at the quantum has had its exposure ladder "+
+			"collapsed into one step, and the rung table exists to stop "+
+			"exactly that", got)
+	}
+	if s := h.snapshot(); s.Global != quote.Running {
+		t.Fatalf("the pilot's global state is %s after a 0.01 position, want "+
+			"RUNNING", s.Global)
+	}
+}
+
+// TestAnIncompletePositionWalkNeverLatchesTheCanary is H-PAGE-1 applied to the
+// entry fallback.
+//
+// "Stale, never empty" cuts both ways. An incomplete walk may not be read as
+// flat, and it may not be read as a position either: nothing about it is a
+// current-generation statement of what the account holds. The fallback fires on
+// `Applied`, which is `wsx`'s report that the walk REPLACED, and never on the
+// mere presence of a record.
+func TestAnIncompletePositionWalkNeverLatchesTheCanary(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{Rung: "canary"})
+	h.start()
+	h.awaitActionable()
+
+	// The exchange holds a position AND cannot answer for it. Both at once is
+	// the case that matters: the fact is true and the read that would establish
+	// it did not complete.
+	h.ex.breakPositions(true)
+	h.ex.setPosition(seamTicker, "0.01")
+	for i := 0; i < 3; i++ {
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(2)
+	}
+
+	if got := h.latchTrigger(); got != "" {
+		t.Fatalf("the canary latched with cause %q from a positions walk that "+
+			"did not complete.\n\n"+
+			"An incomplete walk applies nothing -- not q, not the drift streak, "+
+			"not a record -- so there is no `q_local` transition to observe and "+
+			"any latch here was taken from a reading that does not exist", got)
+	}
+
+	// And it is not that the fallback is dead: the same position, read
+	// completely, is the thing it exists to catch.
+	h.ex.breakPositions(false)
+	h.clk.Advance(h.cfg.Params.PositionPoll)
+	h.awaitGlobalEvent("RUNNING->WINDING_DOWN/global_stop")
+	h.await("the durable §12 cause to reach the latch", func() bool {
+		return h.latchTrigger() != ""
+	})
+	if got := h.latchTrigger(); got != "canary_position_nonzero" {
+		t.Fatalf("the completed walk latched with cause %q, want "+
+			"canary_position_nonzero; the previous assertion is only worth "+
+			"anything if this one fires", got)
+	}
+}
+
+// TestTheCanaryLatchesOnAnAcknowledgementThatCarriedAFill is §8.2's source.
+//
+// The acknowledgement's own fill count moves `q` before any fills walk runs, so
+// a rule that watched only the walk would be up to one `position_poll_s` late
+// on the one event it exists to react to.
+//
+// There is no baseline test on this source and none would mean anything: this
+// is an acknowledgement of a create THIS process made, and `serve` starts the
+// dispatcher only after `install` has returned. Every ack is live by
+// construction.
+func TestTheCanaryLatchesOnAnAcknowledgementThatCarriedAFill(t *testing.T) {
+	// Seeded with inventory so the harness has an exit to place; the ack that
+	// comes back carries a partial fill of a single quantum.
+	h := newSeamHarness(t, seamOptions{
+		Rung:      "canary",
+		Positions: map[string]string{seamTicker: "1.00"},
+	})
+	h.ex.setAckFill("0.01")
+	h.start()
+
+	h.await("the first order to reach the exchange",
+		func() bool { return h.ex.createCount() >= 1 })
+	h.await("the durable §12 cause to reach the latch", func() bool {
+		return h.latchTrigger() != ""
+	})
+
+	if got := h.latchTrigger(); got != "canary_ack_fill" {
+		t.Fatalf("an acknowledgement carrying 0.01 contracts latched with "+
+			"cause %q, want canary_ack_fill.\n\n"+
+			"§8.2 applies the ack's own count immediately. A canary that waits "+
+			"for the fills walk to corroborate it is one that may place "+
+			"another order first", got)
+	}
+	h.awaitGlobalEvent("RUNNING->WINDING_DOWN/global_stop")
+}
+
+// TestTheCanaryLatchesOnANewlyClassifiedOwnedFill is the fills-walk source, and
+// the duplicate-report vector rides on the same fixture.
+//
+// The fills endpoint re-offers the whole walk on every poll. That is what
+// `seenTrade` is for, and it is also why a rule written on "a fill is present"
+// rather than "a fill is NEW" would re-decide the same stop every five seconds
+// -- which is invisible while the first cause holds, and becomes a cause that
+// overwrites the reason the harness stopped the moment anything else changes.
+func TestTheCanaryLatchesOnANewlyClassifiedOwnedFill(t *testing.T) {
+	const tradeID = "SEAM-CANARY-1"
+
+	h := newSeamHarness(t, seamOptions{
+		Rung:      "canary",
+		Positions: map[string]string{seamTicker: "1.00"},
+	})
+	h.start()
+
+	h.await("the exit to reach the exchange",
+		func() bool { return h.ex.createCount() >= 1 })
+	first, ok := h.ex.createAt(0)
+	if !ok {
+		t.Fatalf("no create was recorded")
+	}
+	// The fill can only classify as OURS once the binding is durable, and this
+	// fixture never lists the order, so the inline binding of the dispatch path
+	// is the only thing that can produce it.
+	h.await("the dispatch-path binding to commit", func() bool {
+		coid, bound := h.rig.store.Ownership().Bound(first.OrderID)
+		return bound && coid == first.Coid
+	})
+
+	h.ex.addFill(map[string]any{
+		"fill_id":           "SEAM-CANARY-FILL-1",
+		"trade_id":          tradeID,
+		"order_id":          first.OrderID,
+		"ticker":            seamTicker,
+		"side":              "no",
+		"yes_price_dollars": "0.4500",
+		"no_price_dollars":  "0.5500",
+		"count":             "0.01",
+		"is_taker":          false,
+		"fee_cost":          "0.0000",
+		"ts":                fmt.Sprintf("%d", h.clk.wallMs()),
+	})
+	// The exchange's position ALREADY contains the fill: 0.01 contracts of a NO
+	// bid against a +1.00 YES position leaves +0.99. Keeping the two walks
+	// consistent is what stops this becoming a drift test.
+	h.ex.setPosition(seamTicker, "0.99")
+
+	h.clk.Advance(h.cfg.Params.PositionPoll)
+	h.awaitGlobalEvent("RUNNING->WINDING_DOWN/global_stop")
+	h.await("the durable §12 cause to reach the latch", func() bool {
+		return h.latchTrigger() != ""
+	})
+
+	if got := h.latchTrigger(); got != "canary_owned_fill" {
+		t.Fatalf("a newly classified owned fill of 0.01 contracts latched with "+
+			"cause %q, want canary_owned_fill", got)
+	}
+
+	// The duplicate vector, and what it does and does not establish.
+	//
+	// The fills endpoint re-offers the whole walk on every poll, so this same
+	// fill arrives three more times below. What is asserted here is what the
+	// COMPOSED seam can observe: the cause on disk does not change and the A9
+	// table does not grow. It is deliberately NOT a proof that the owner stops
+	// re-deciding -- `commitStop` is first-writer-wins and `advance` is a no-op
+	// once WINDING_DOWN, so a canary block that fired every poll would satisfy
+	// everything below. The rule that makes the re-offer a non-event is
+	// `seenTrade`, and it is pinned where it lives, in `risk`'s own dedup test.
+	before := len(h.seamGlobalEvents())
+	for i := 0; i < 3; i++ {
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(2)
+	}
+	if got := h.latchTrigger(); got != "canary_owned_fill" {
+		t.Fatalf("the latch cause became %q after the same fill was re-offered "+
+			"three more times, want canary_owned_fill; first-writer-wins is "+
+			"what keeps the reason the operator investigates", got)
+	}
+	stops := 0
+	for _, ev := range h.seamGlobalEvents() {
+		if ev == "RUNNING->WINDING_DOWN/global_stop" {
+			stops++
+		}
+	}
+	if stops != 1 {
+		t.Fatalf("%d RUNNING->WINDING_DOWN rows are on disk after one fill was "+
+			"reported four times, want 1. §15's A9 table is how §10.4 "+
+			"reconstructs what happened, and a transition recorded once per "+
+			"poll is a table that describes a flapping harness that never "+
+			"flapped", stops)
+	}
+	if after := len(h.seamGlobalEvents()); after != before {
+		t.Fatalf("the A9 table grew from %d rows to %d while nothing but the "+
+			"same duplicate fill arrived", before, after)
+	}
+}
+
+// TestStartupHistoryIsNeverALiveCanaryFill is the rule that decides whether
+// this harness can be restarted at all.
+//
+// The trap is specific and it is not hypothetical. §7.5 reads only `backfill_h`
+// of history; the live poll reads ALL of it with a zero `since`. The filter is
+// client-side, applied after a complete walk, so a fill older than the window
+// is dropped from what startup classifies and seeds -- which means `seenTrade`
+// has never heard of it -- and the very first live poll then presents it as a
+// brand new owned fill. A canary that reacted to that would latch on every
+// single restart, for a trade that happened last week.
+//
+// The boundary is therefore IDENTITY AND PHASE: the union of trade ids from
+// every complete fills walk of §7.5, taken BEFORE the filter, frozen into the
+// adoption. A timestamp cannot do this job -- `parseTsMillis` returns 0 for a
+// stamp it cannot read and a 0 deliberately bypasses the filter, so an
+// adoption-time cut-off is not even a total order over the records.
+func TestStartupHistoryIsNeverALiveCanaryFill(t *testing.T) {
+	const tradeID = "SEAM-OLD-1"
+	const adoptedID = "SEAM-ADOPTED-1"
+	const orderID = "EX-SEAM-OLD"
+
+	h := newSeamHarness(t, seamOptions{Rung: "canary"})
+	h.installOwnedOrder(orderID, 1)
+
+	// Older than `backfill_h` (24h), so §7.5's filtered walk never sees it and
+	// the live walk always does. That gap is the whole scenario.
+	old := h.clk.wallMs() - int64(25*time.Hour/time.Millisecond)
+	h.ex.addFill(map[string]any{
+		"fill_id":           "SEAM-OLD-FILL-1",
+		"trade_id":          tradeID,
+		"order_id":          orderID,
+		"ticker":            seamTicker,
+		"side":              "yes",
+		"yes_price_dollars": "0.4000",
+		"no_price_dollars":  "0.6000",
+		"count":             "0.01",
+		"is_taker":          false,
+		"fee_cost":          "0.0000",
+		"ts":                fmt.Sprintf("%d", old),
+	})
+	// And one INSIDE the window, which §7.5 does classify and seed. It is the
+	// same history by a different route, and it is the one `Adoption.OwnedFills`
+	// carries.
+	h.ex.addFill(map[string]any{
+		"fill_id":           "SEAM-ADOPTED-FILL-1",
+		"trade_id":          adoptedID,
+		"order_id":          orderID,
+		"ticker":            seamTicker,
+		"side":              "yes",
+		"yes_price_dollars": "0.4000",
+		"no_price_dollars":  "0.6000",
+		"count":             "0.01",
+		"is_taker":          false,
+		"fee_cost":          "0.0000",
+		"ts":                fmt.Sprintf("%d", h.clk.wallMs()-1000),
+	})
+
+	h.start()
+	h.awaitActionable()
+
+	// The fill really did reach the owned-fill path. Without this the test
+	// would pass on a harness that classified it foreign, deferred it, or never
+	// read it at all -- three ways of not latching that prove nothing.
+	h.await("the historical fill to be classified as ours and recorded",
+		func() bool {
+			_, found, err := h.rig.store.Reader().Fill(tradeID)
+			return err == nil && found
+		})
+
+	// The adoption's own owned history reaches `our_fill`, flagged as what it
+	// is. Nothing else will ever write these rows: `risk.Seed` marks their
+	// trade ids seen, so the first live walk deduplicates them away and the
+	// only other caller of `RecordFill` never sees them. Before this the table
+	// began at the first fill the incarnation happened to watch land -- and
+	// H-ORD-6 makes it the join against `rig.db`.
+	h.await("the adopted fill to reach our_fill", func() bool {
+		_, found, err := h.rig.store.Reader().Fill(adoptedID)
+		return err == nil && found
+	})
+	row, _, err := h.rig.store.Reader().Fill(adoptedID)
+	if err != nil {
+		t.Fatalf("reading our_fill for the adopted fill: %v", err)
+	}
+	if !row.Backfilled {
+		t.Fatalf("the adopted fill %s is recorded with backfilled = false.\n\n"+
+			"It was INFERRED from a walk over the past, not observed happening. "+
+			"An analysis that cannot tell the two apart reads every restart as "+
+			"a burst of trading", adoptedID)
+	}
+
+	for i := 0; i < 3; i++ {
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(2)
+	}
+
+	if got := h.latchTrigger(); got != "" {
+		t.Fatalf("the canary latched with cause %q on a fill that was already "+
+			"on the account when it started.\n\n"+
+			"§7.5 saw this trade id in its complete fills walk and only the "+
+			"`backfill_h` filter kept it out of what was seeded. Reacting to "+
+			"it makes every restart of a canary that has ever traded latch "+
+			"immediately, and the operator has no way to tell that from a real "+
+			"first fill", got)
+	}
+	if s := h.snapshot(); s.Global != quote.Running {
+		t.Fatalf("the global state is %s after adopting an account with old "+
+			"history on it, want RUNNING", s.Global)
+	}
+}
+
+// TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown is the whole of
+// pilot-plan §7.9 in one run: the chain from a 0.01-contract fill to a process
+// that will not add again, and will not add again after a restart either.
+//
+// It is written end to end because every link in it was independently true
+// before and the composition still was not. `lip-vxo` is the standing example:
+// `BlockAdding` and `RetryLatch` were produced correctly, tested at the
+// producer, and read by nobody -- so a stop that could not be written was a stop
+// that never happened. The links here are the durable cause, §5.1's transition,
+// §5.2's response to it, the cancel that must be CONFIRMED rather than merely
+// requested, the exit that must survive all of it, and H-HALT-4's latch
+// outliving the process.
+func TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown(t *testing.T) {
+	const tradeID = "SEAM-E2E-1"
+
+	// ListCreated so an acknowledged order joins the resting book, which is what
+	// makes "cancelled and confirmed absent" an observable fact about the
+	// exchange rather than an assertion about our own intent queue.
+	h := newSeamHarness(t, seamOptions{Rung: "canary", ListCreated: true})
+	h.start()
+	h.awaitActionable()
+
+	// A flat canary quotes both sides at S=1. The YES bid is the one that fills.
+	h.await("both quotes to reach the exchange",
+		func() bool { return h.ex.createCount() >= 2 })
+	adding, ok := h.ex.createAt(0)
+	if !ok {
+		t.Fatalf("no create was recorded")
+	}
+	if adding.WireSide != string(rest.Bid) {
+		t.Fatalf("the first create is a %s, want a yes bid; this test needs to "+
+			"know which order it is filling", adding.WireSide)
+	}
+	h.await("the dispatch-path binding to commit", func() bool {
+		coid, bound := h.rig.store.Ownership().Bound(adding.OrderID)
+		return bound && coid == adding.Coid
+	})
+	quotesBefore := h.ex.createCount()
+
+	// ONE QUANTUM. Below `inv_soft`, below `inv_hard`, below `inv_kill`, and
+	// inside `pos_drift_tol`: nothing in §16 has anything to say about it.
+	h.ex.addFill(map[string]any{
+		"fill_id":           "SEAM-E2E-FILL-1",
+		"trade_id":          tradeID,
+		"order_id":          adding.OrderID,
+		"ticker":            seamTicker,
+		"side":              "yes",
+		"yes_price_dollars": "0.4000",
+		"no_price_dollars":  "0.6000",
+		"count":             "0.01",
+		"is_taker":          false,
+		"fee_cost":          "0.0000",
+		"ts":                fmt.Sprintf("%d", h.clk.wallMs()),
+	})
+	h.ex.setPosition(seamTicker, "0.01")
+	h.clk.Advance(h.cfg.Params.PositionPoll)
+
+	// 1. The cause is DURABLE, and 2. §5.1 moved -- in that order, which is
+	// H-HALT-4: the latch reaches disk before the in-memory state changes.
+	h.awaitGlobalEvent("RUNNING->WINDING_DOWN/global_stop")
+	h.await("the durable §12 cause to reach the latch", func() bool {
+		return h.latchTrigger() != ""
+	})
+	if got := h.latchTrigger(); got != "canary_owned_fill" {
+		t.Fatalf("the latch reads %q, want canary_owned_fill", got)
+	}
+
+	// 3. §5.2's response: the adding side is cancelled and CONFIRMED absent,
+	// and the exit is not.
+	h.await("the adding side to be cancelled", func() bool {
+		return seamContains(h.ex.deletedIDs(), adding.OrderID)
+	})
+	h.await("the adding side to be confirmed absent from the book",
+		func() bool { return h.ex.restingCount() == 1 })
+
+	for i := 0; i < 3; i++ {
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(3)
+	}
+
+	// 4. The exit REMAINS. I1 in one sentence: every stop path stops adding
+	// risk and none of them stops reducing it. A harness that cancelled its own
+	// exit on the way down would be holding the position it stopped to shed.
+	if n := h.ex.restingCount(); n != 1 {
+		t.Fatalf("%d order(s) rest while the canary holds 0.01 contracts under "+
+			"WINDING_DOWN, want exactly 1 -- the capped reducer.\n\n"+
+			"§5.2's stop sends the market to REDUCING: adding side cancelled "+
+			"and confirmed absent, capped reducer resting. It never cancels "+
+			"everything, which is the inversion the whole design turns on", n)
+	}
+	if m, _ := h.market(); m.State != quote.Reducing {
+		t.Fatalf("the market is %s while holding inventory under WINDING_DOWN, "+
+			"want REDUCING", m.State)
+	}
+	if got := h.ex.createCount(); got != quotesBefore {
+		t.Fatalf("%d order(s) have been placed, up from %d before the fill; a "+
+			"latched harness may cancel and may keep an exit alive, and may "+
+			"place nothing new", got, quotesBefore)
+	}
+
+	// 5. Flat. The reducer's work is done and there is nothing left to manage.
+	h.ex.setPosition(seamTicker, "0.00")
+	for i := 0; i < 4; i++ {
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(4)
+	}
+	h.await("the account to go quiet", func() bool {
+		return h.ex.restingCount() == 0
+	})
+
+	// 6. And NO new adding order, which is the assertion the whole bead exists
+	// for. §5.2's stop is not a pause: reaching flat does not license the
+	// harness to start again, because the latch is still on disk.
+	if got := h.ex.createCount(); got != quotesBefore {
+		c, _ := h.ex.createAt(quotesBefore)
+		t.Fatalf("%d order(s) have been placed, up from %d: the canary reached "+
+			"flat and quoted again (first new coid %q).\n\n"+
+			"This is the market-scoped brake's failure mode and the reason "+
+			"§7.9 needs a GLOBAL latch: `inv_hard` self-clears at flat, so a "+
+			"harness bounded only by it reduces to zero and resumes adding, "+
+			"forever, one quantum at a time", got, quotesBefore, c.Coid)
+	}
+	if m, _ := h.market(); m.State != quote.Idle {
+		t.Fatalf("the market is %s at flat under a halted global state, want "+
+			"IDLE", m.State)
+	}
+	if s := h.snapshot(); s.Global.AddsRisk() {
+		t.Fatalf("the global state is %s, want a halted one", s.Global)
+	}
+
+	// 7. It survives the process. H-HALT-4 makes the latch outlive the
+	// incarnation that wrote it and §10.4 makes clearing it an operator action,
+	// so the next start is a refusal and not a fresh RUNNING harness.
+	h.stopServe()
+	if err := h.rig.close(context.Background()); err != nil {
+		t.Fatalf("the canary would not stop cleanly: %v", err)
+	}
+	if got := seamLatchTrigger(t, h.cfg.Paths.Latch); got != "canary_owned_fill" {
+		t.Fatalf("the halt latch reads %q after the process ended, want "+
+			"canary_owned_fill", got)
+	}
+	again, err := seamNewRig(t, h.ctx, h.cfg, false, h.xch)
+	if err == nil {
+		if cerr := again.close(context.Background()); cerr != nil {
+			t.Logf("closing the unexpectedly-constructed rig: %v", cerr)
+		}
+		t.Fatalf("a harness restarted onto the canary's own latch without " +
+			"-resume.\n\nThat is HR-009 with the canary's name on it: the " +
+			"first fill halts the harness, an unrelated crash kills the " +
+			"process, `launchd KeepAlive` restarts it, and the bound the " +
+			"whole rung is built on has cleared itself")
+	}
+	if !strings.Contains(err.Error(), "-resume") {
+		t.Fatalf("the refusal does not tell the operator what to pass: %v", err)
+	}
+}
+
+// TestStartupSeededInventoryNeverInvokesTheCanary is the other half of the
+// history rule, on the source that has no identity to check.
+//
+// A canary restarted while holding a position is the ordinary case after its
+// first fill: WINDING_DOWN keeps an exit alive, the process is bounced, and the
+// next incarnation adopts inventory it did not create. The entry fallback fires
+// on a TRANSITION -- `q_local` exactly flat against a nonzero exchange figure --
+// and adoption seeds `q_local` from the exchange, so on every poll after it the
+// two agree and there is no transition to see. A rule written on "the exchange
+// reports a position" instead would latch every restart of a canary that holds
+// anything, which is precisely the restart the operator needs to work.
+func TestStartupSeededInventoryNeverInvokesTheCanary(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{
+		Rung:      "canary",
+		Positions: map[string]string{seamTicker: "1.00"},
+	})
+	h.start()
+	h.awaitActionable()
+
+	for i := 0; i < 4; i++ {
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(3)
+	}
+
+	if got := h.latchTrigger(); got != "" {
+		t.Fatalf("the canary latched with cause %q on inventory it adopted at "+
+			"startup.\n\n"+
+			"§7.5 seeds q from the exchange, so this position was never a "+
+			"transition from flat -- it was the state the process came up in. "+
+			"A canary that stops for it cannot be restarted while holding "+
+			"anything, which is every restart after its first fill", got)
+	}
+	if s := h.snapshot(); s.Global != quote.Running {
+		t.Fatalf("the global state is %s after adopting a position, want "+
+			"RUNNING", s.Global)
+	}
+}
+
+// TestATakerFillOnTheCanaryKeepsTheStrongerCause is the first-writer-wins
+// ordering, measured rather than asserted about.
+//
+// A taker fill on the canary is truthfully described by both causes, and the
+// operator of §10.4 reading the latch at 3am needs the one that says H-Q-3 has
+// been violated -- a post_only that did not take effect, a marketable price, an
+// API change -- and not the one that says the canary did what canaries do.
+// `commitStop` keeps the FIRST cause, so this is decided entirely by the order
+// of two blocks in `applyRead`.
+func TestATakerFillOnTheCanaryKeepsTheStrongerCause(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{
+		Rung:      "canary",
+		Positions: map[string]string{seamTicker: "1.00"},
+	})
+	h.start()
+
+	h.await("the exit to reach the exchange",
+		func() bool { return h.ex.createCount() >= 1 })
+	first, ok := h.ex.createAt(0)
+	if !ok {
+		t.Fatalf("no create was recorded")
+	}
+	h.await("the dispatch-path binding to commit", func() bool {
+		coid, bound := h.rig.store.Ownership().Bound(first.OrderID)
+		return bound && coid == first.Coid
+	})
+
+	h.ex.addFill(map[string]any{
+		"fill_id":           "SEAM-TAKER-FILL-1",
+		"trade_id":          "SEAM-TAKER-1",
+		"order_id":          first.OrderID,
+		"ticker":            seamTicker,
+		"side":              "no",
+		"yes_price_dollars": "0.4500",
+		"no_price_dollars":  "0.5500",
+		"count":             "0.01",
+		"is_taker":          true,
+		"fee_cost":          "0.0100",
+		"ts":                fmt.Sprintf("%d", h.clk.wallMs()),
+	})
+	h.ex.setPosition(seamTicker, "0.99")
+
+	h.clk.Advance(h.cfg.Params.PositionPoll)
+	h.await("the durable §12 cause to reach the latch", func() bool {
+		return h.latchTrigger() != ""
+	})
+
+	if got := h.latchTrigger(); got != "portfolio_read" {
+		t.Fatalf("a TAKER fill on the canary latched with cause %q, want "+
+			"portfolio_read.\n\n"+
+			"H-ORD-8 is the cheapest detector for the most expensive bug in "+
+			"the system. Both causes are true of this event and only one of "+
+			"them is worth being woken for, so the stronger one must reach "+
+			"`requestStop` first -- first-writer-wins does the rest", got)
+	}
 }

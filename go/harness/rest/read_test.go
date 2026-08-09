@@ -416,6 +416,25 @@ func TestFillsTimeFilterIsAppliedAfterTheCompleteWalk(t *testing.T) {
 	if len(r.Fills) != 1 || r.Fills[0].TradeID != "t2" {
 		t.Fatalf("want only the fill at or after `since`, got %+v", r.Fills)
 	}
+
+	// The IDENTITIES of the excluded records survive the filter, and that is
+	// what makes a sound history boundary possible at all. §7.5 asks for
+	// `backfill_h`; the live poll asks for everything with a zero `since`. A
+	// consumer holding only the filtered slice cannot tell "this trade is new"
+	// from "this trade is older than the window startup happened to ask for",
+	// and on a rung that stops at its first live fill those two answers are a
+	// working harness and one that latches on every restart.
+	want := []string{"t2", "t1"}
+	if len(r.AllTradeIDs) != len(want) {
+		t.Fatalf("AllTradeIDs is %v, want %v: it is taken from the complete "+
+			"walk BEFORE the time filter", r.AllTradeIDs, want)
+	}
+	for i, id := range want {
+		if r.AllTradeIDs[i] != id {
+			t.Fatalf("AllTradeIDs is %v, want %v in walk order",
+				r.AllTradeIDs, want)
+		}
+	}
 }
 
 func TestBalanceIsCents(t *testing.T) {

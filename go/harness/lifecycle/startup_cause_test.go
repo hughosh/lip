@@ -36,7 +36,7 @@ func TestStartupCommitsKnownTakerEvidenceBeforeFeeConversion(t *testing.T) {
 	latch := &recordingLatch{}
 	src := okSource()
 	// Ours, flagged taker, and deliberately unconvertible: `rest` accepts an
-	// absent fee_cost, and `convertStartupFills` makes it a hard error because
+	// absent fee_cost, and `ConvertFills` makes it a hard error because
 	// S2's corroborator cannot be evaluated without it.
 	src.fills = rest.FillsResult{Walk: completeWalk(), Fills: []rest.Fill{{
 		FillID: "f-1", TradeID: "t-1", OrderID: "ord-1", Ticker: "M",

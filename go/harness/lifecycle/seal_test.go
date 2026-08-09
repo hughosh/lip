@@ -83,7 +83,7 @@ func TestLifecycleSurfaceCannotClearLatchOrForgeCompleteAdoption(t *testing.T) {
 	}
 
 	// The unexported marker is what makes it unimplementable outside this
-	// package. Without it, an external type with eleven matching methods
+	// package. Without it, an external type with twelve matching methods
 	// satisfies the interface and H-ORD-5's four walks are optional again.
 	marker := false
 	for i := 0; i < ad.NumMethod(); i++ {
@@ -94,7 +94,7 @@ func TestLifecycleSurfaceCannotClearLatchOrForgeCompleteAdoption(t *testing.T) {
 	if !marker {
 		t.Fatal("the Adoption interface has no unexported method, so any " +
 			"package can implement it; the licence to leave STARTING would be " +
-			"eleven method stubs away from anyone who wanted one")
+			"twelve method stubs away from anyone who wanted one")
 	}
 
 	// Its exported surface is read-only accessors, pinned by name. Anything not
@@ -103,6 +103,11 @@ func TestLifecycleSurfaceCannotClearLatchOrForgeCompleteAdoption(t *testing.T) {
 		"Portfolio": true, "Balance": true, "OwnedFills": true, "Kept": true,
 		"Foreign": true, "Managed": true, "Excluded": true, "States": true,
 		"Summary": true, "Causes": true, "Anomalies": true,
+		// `StartupTrades` is the identity baseline of §7.5's fills walks. It
+		// reads like the others -- it copies on the way out, and no path widens
+		// it once the adoption exists -- so it belongs on this list rather than
+		// being an exception to it.
+		"StartupTrades": true,
 	}
 	for i := 0; i < ad.NumMethod(); i++ {
 		m := ad.Method(i)

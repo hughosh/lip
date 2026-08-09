@@ -421,6 +421,23 @@ type Fill struct {
 type FillsResult struct {
 	Walk
 	Fills []Fill
+	// AllTradeIDs is the trade id of every record the WALK returned, in walk
+	// order and BEFORE the `since` filter below removed any of them.
+	//
+	// Identity only, and deliberately nothing else: it exists so a caller can
+	// answer "was this trade already on the account when we looked?" without
+	// being handed a fill it is not entitled to apply. §7.5 reads only
+	// `backfill_h` of history while the live poll reads all of it with a zero
+	// `since`, so a trade older than the window is invisible to startup and
+	// arrives at the first live poll looking brand new. An adoption-time
+	// TIMESTAMP cannot separate those cases either -- the filter is client-side
+	// (see below), and `parseTsMillis` deliberately returns 0 for a malformed
+	// stamp, which BYPASSES the filter entirely.
+	//
+	// It is populated only on a walk that `Replaces()`. A partial walk's
+	// identities are not a baseline; treating them as one would mark a trade
+	// history on the strength of a read that did not complete.
+	AllTradeIDs []string
 }
 
 // Takers returns any fill with `is_taker` true.
@@ -459,6 +476,7 @@ func (c *Client) Fills(ctx context.Context, ticker string, since time.Time) Fill
 	}
 	recs := w.Records("fills")
 	out := make([]Fill, 0, len(recs))
+	ids := make([]string, 0, len(recs))
 	for i, raw := range recs {
 		f, err := decodeFill(raw)
 		if err != nil {
@@ -466,13 +484,17 @@ func (c *Client) Fills(ctx context.Context, ticker string, since time.Time) Fill
 				Anomalies: w.Anomalies,
 				Err:       fmt.Errorf("fills record %d: %w", i, err)}}
 		}
+		// Recorded BEFORE the filter, and for every record the walk carried.
+		// `decodeFill` has already refused a fill without a trade id, so this
+		// is total over what the walk returned.
+		ids = append(ids, f.TradeID)
 		if !since.IsZero() && f.TsMillis != 0 &&
 			f.TsMillis < since.UnixMilli() {
 			continue
 		}
 		out = append(out, f)
 	}
-	return FillsResult{Walk: w, Fills: out}
+	return FillsResult{Walk: w, Fills: out, AllTradeIDs: ids}
 }
 
 func decodeFill(raw json.RawMessage) (Fill, error) {

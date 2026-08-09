@@ -160,10 +160,30 @@ type rung struct {
 	name  string
 	maxS  num.Qty
 	human string
+	// stopOnFirstOwnedFill is pilot-plan §7.9's bound on the canary: the FIRST
+	// directional entry after adoption latches WINDING_DOWN, whatever its size.
+	//
+	// It is a property of the RUNG and not a knob, because no assignment of
+	// §16's numbers delivers it. Fills are fractional down to the 0.01-contract
+	// quantum (num.QtyScale = 100), F17 compares with a strict `>`, and
+	// `inv_kill` must sit strictly above `inv_hard` which must sit strictly
+	// above `inv_soft` which must be positive. So there is no ordering in which
+	// every 0.01 fill breaches `inv_kill`, and a fill between `inv_hard` and
+	// `inv_kill` breaches only the MARKET-scoped brake, which self-clears at
+	// flat (quote/machine.go) and lets the harness resume adding.
+	//
+	// It lives on the compiled table rather than in `fileConfig` for the reason
+	// the table exists at all: the `"rung"` string is what a config uses to name
+	// its exposure, and a separate boolean would let a file call itself canary
+	// while disabling the one bound that word promises. §16 is the recorded
+	// parameter table and this is not one of its knobs -- `params_test.go`
+	// asserts that set field-for-field.
+	stopOnFirstOwnedFill bool
 }
 
 var rungs = map[string]rung{
 	"canary": {name: "canary", maxS: num.QtyFromFloat(1),
+		stopOnFirstOwnedFill: true,
 		human: "1 market, S=1, ~$1: does the order path work at all -- fills, " +
 			"attribution, is_taker=false, verified cancel, restart adoption"},
 	"pilot": {name: "pilot", maxS: num.QtyFromFloat(12),

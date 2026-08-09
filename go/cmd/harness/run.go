@@ -185,6 +185,15 @@ type owner struct {
 	// count, and this field is what makes it observable from here.
 	inflight *writeRequest
 
+	// startupTrades is the trade id of every fill §7.5 saw on the account,
+	// frozen out of the Adoption that licensed this process to leave STARTING.
+	//
+	// It is the HISTORY half of the canary rule's boundary, and it is read-only
+	// from installation onwards. Nothing adds to it: a trade that turns up after
+	// the adoption is by definition not one the adoption saw, and letting the
+	// live path widen the set would make every fill its own excuse.
+	startupTrades map[string]struct{}
+
 	// pending is every create this process has made that the orders walk has
 	// not listed back yet -- unknown AND acked alike. See `pendingOrder`.
 	//
@@ -581,6 +590,13 @@ func (o *owner) install(a lifecycle.Adoption) {
 	if st, ok := a.States()[o.r.cfg.Ticker]; ok {
 		o.market = st
 	}
+	// The history/live boundary, taken from the adoption that licensed this
+	// process to leave STARTING. Installed BEFORE anything below can raise, and
+	// long before the first poll: `serve` starts no reader until `install`
+	// returns, so there is no window in which a live fill could be classified
+	// against an empty baseline.
+	o.startupTrades = a.StartupTrades()
+	o.recordBackfilled(a.OwnedFills())
 	o.r.anom.raiseAll(a.Anomalies())
 
 	sum := a.Summary()
@@ -593,6 +609,56 @@ func (o *owner) install(a lifecycle.Adoption) {
 			sum.ForeignFills, sum.Balance, sum.Managed, sum.Excluded,
 			sum.Reducing, o.global, o.r.cfg.Ticker, o.market),
 	})
+}
+
+// recordBackfilled writes §7.5's owned history as `our_fill` rows with
+// `backfilled = true`.
+//
+// Nothing else ever will. `risk.Seed` marks every one of these trade ids seen
+// in the position model, so the first live fills walk deduplicates them away
+// and they never appear in `PortfolioEffects.OwnedFill` -- which is the only
+// other thing that calls `RecordFill`. Before this, an adoption's whole owned
+// history was read, classified, seeded, used to decide REDUCING, and then
+// dropped: `our_fill` began at the first fill this incarnation happened to
+// watch land, and H-ORD-6 makes that table the join against `rig.db`.
+//
+// `backfilled` is the column that keeps the two honest. These rows are what we
+// INFERRED from a walk over the past, not what we observed happening, and an
+// analysis that cannot tell them apart is one that reads a restart as a burst
+// of trading.
+func (o *owner) recordBackfilled(fills []rest.Fill) {
+	if len(fills) == 0 {
+		return
+	}
+	events, err := lifecycle.ConvertFills(fills)
+	if err != nil {
+		// Unreachable by construction: §7.5 converted this same slice and
+		// refused to produce an Adoption when it could not. Written anyway
+		// because the alternative to reaching it is a silent `_ = err` on the
+		// one table that joins our fills to the public tape.
+		o.r.anom.raise(risk.Anomaly{
+			Class: "FILL_NOT_RECORDED", Sev: risk.SEV1, Ticker: o.r.cfg.Ticker,
+			Text: fmt.Sprintf("the adoption's %d owned fill(s) did not convert "+
+				"(%v), so none of the history this process inherited reaches "+
+				"our_fill; H-ORD-6 makes trade_id the join against rig.db and "+
+				"a backfilled fill that is not recorded is one no later "+
+				"analysis can find", len(fills), err),
+		})
+		return
+	}
+	for _, f := range events {
+		if _, err := o.r.store.RecordFill(o.r.run, f, o.r.ex.NowMs(),
+			true); err != nil {
+
+			o.r.anom.raise(risk.Anomaly{
+				Class: "FILL_NOT_RECORDED", Sev: risk.SEV1, Ticker: f.Ticker,
+				Text: fmt.Sprintf("the adopted fill %s on order %s could not be "+
+					"submitted to the store (%v); it is history we read at "+
+					"startup and nothing polls for it again, so this row is "+
+					"lost rather than late", f.TradeID, f.OrderID, err),
+			})
+		}
+	}
 }
 
 // applyEvent folds one websocket event into the gate and the book.
@@ -973,6 +1039,37 @@ func (o *owner) applyRead(read wsx.PortfolioRead) {
 	if eff.Stop {
 		o.requestStop("portfolio_read", "")
 	}
+
+	// §7.9's canary bound, and it comes AFTER `eff.Stop` on purpose. A taker
+	// fill, a foreign fill and a hard position drift all arrive on this same
+	// cycle's effects and all of them are stronger reasons to be stopped than
+	// "the canary traded"; `commitStop` is first-writer-wins, so the order of
+	// these two blocks is what decides which reason the latch carries.
+	for _, f := range eff.OwnedFill {
+		if o.liveOwnedFill(f) {
+			o.canaryStop("canary_owned_fill", f.Ticker)
+		}
+	}
+	// The ENTRY FALLBACK. A position record is not proof of ownership -- the
+	// positions endpoint carries no trade identity at all -- so it is here to
+	// catch an entry whose fill record we never saw, and nothing else.
+	//
+	// `QLocal` is the model's figure BEFORE this walk overwrote it, so exactly
+	// flat against a nonzero exchange figure is the transition from no position
+	// to a position. Only from a COMPLETE walk: H-PAGE-1 makes an incomplete one
+	// stale rather than empty, and `Applied` is `wsx`'s report that this one
+	// replaced. A record only appears at all when the walk applied, but the test
+	// is written against the flag rather than the presence, because "there are
+	// records so the walk must have completed" is an inference and this is a
+	// safety rule.
+	if eff.Applied[wsx.TruthPositions] {
+		for _, rec := range eff.Records {
+			if rec.QLocal == 0 && rec.QExch != 0 {
+				o.canaryStop("canary_position_nonzero", rec.Ticker)
+			}
+		}
+	}
+
 	if eff.Applied[wsx.TruthOrders] {
 		// A complete orders walk is the ONLY thing that resolves an unknown
 		// create, and it resolves it positively: the coid is listed, so the
@@ -1828,6 +1925,23 @@ func (o *owner) applyWriteResult(res writeResult) {
 			if fe.Stop {
 				o.requestStop("ack_fill", res.Req.Market)
 			}
+			// §7.9. No baseline test is needed on this source and none would
+			// mean anything: this is an acknowledgement of a create THIS
+			// process made, and `serve` starts the dispatcher only after
+			// `install` returns, so there is no acknowledgement here that is
+			// not live.
+			//
+			// It sits below `fe.Stop` for consistency with the other call
+			// site, but the ordering buys less here and the difference is
+			// worth stating rather than implying: `risk.AckFill` carries no
+			// `is_taker` and no fee, so `ApplyAck` can only stop on an order
+			// identity or direction conflict. An ack that filled and is LATER
+			// reported as a taker by the authoritative walk cannot rewrite
+			// this cause -- first-writer-wins keeps `canary_ack_fill`. That is
+			// the correct trade on this rung, where the two causes reach the
+			// same operator action, and it would not be on a rung where they
+			// did not.
+			o.canaryStop("canary_ack_fill", res.Req.Market)
 		}
 		if !res.Bound && create.OrderID != "" {
 			// The binding is `dispatch.go`'s to submit, inline, on the
@@ -1913,6 +2027,58 @@ func (o *owner) escalateUnresolved() {
 				u.qty.Wire(), u.side),
 		})
 	}
+}
+
+// canaryStop is pilot-plan §7.9's bound on the S=1 rung: the first directional
+// entry after adoption latches WINDING_DOWN, at any size.
+//
+// The rung DECISION lives here and the classification lives in `harness/risk`,
+// which is the split those packages already state. `risk.Portfolio` promises
+// purity and leaves "the decision to act on any effect" to its caller; it
+// already performs the trade-id deduplication and the ownership classification
+// this rule consumes, and `wsx.PortfolioEffects` carries owned fills and
+// position records with no policy attached. A rung is a fact about this
+// deployment, and the owner is where deployment facts are known.
+//
+// Every caller must offer any STRONGER cause for the same event first.
+// `commitStop` is first-writer-wins and the §10.4 operator reads the latch to
+// learn WHY the harness stopped: a taker fill on the canary is truthfully
+// described by both causes, and only one of them is worth being woken for.
+//
+// Today that means the stops `applyRead` already funnels through
+// `requestStop("portfolio_read", "")` -- taker, foreign, an unavailable
+// ownership ledger, an unconvertible fill, and hard position drift -- which is
+// why the canary block sits below it. F17 is NOT among them and this comment
+// does not claim it is: `inv_kill` is parsed and bounds-checked and has no
+// production reader at all (`lip-lqw`). When that detector lands it must be
+// wired ahead of this call for the same reason the others are.
+func (o *owner) canaryStop(trigger, market string) {
+	if !o.r.cfg.Rung.stopOnFirstOwnedFill {
+		return
+	}
+	o.requestStop(trigger, market)
+}
+
+// liveOwnedFill answers whether an owned fill is one this incarnation CAUSED
+// rather than one it INHERITED, on identity and phase and never on a clock.
+//
+// A trade id absent from the startup baseline is live even if the exchange
+// stamps it old, and that direction is deliberate. `rest.Fills` filters
+// client-side after a complete walk, `parseTsMillis` returns 0 for a stamp it
+// cannot read and a 0 bypasses the filter, and the live poll asks for all
+// history while §7.5 asked for `backfill_h`. So a timestamp cannot separate a
+// delayed report of our own fill from a record of last week's, and the
+// conservative reading of a fill we cannot place is that we just took it.
+//
+// The size test is `Count > 0` and not a threshold. That is the whole point of
+// the rule: fills are fractional to the 0.01-contract quantum, and any positive
+// quantity is a directional entry the canary exists to stop after.
+func (o *owner) liveOwnedFill(f risk.FillEvent) bool {
+	if f.Count <= 0 {
+		return false
+	}
+	_, history := o.startupTrades[f.TradeID]
+	return !history
 }
 
 // requestStop asks the coordinator for a durable global stop. It is the entry

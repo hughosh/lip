@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -397,9 +398,9 @@ func TestStartupSeedsExchangePositionWithoutReplayingHistoricalFills(t *testing.
 	// are delivered again on the very next steady-state cycle -- in `risk.Live`
 	// mode, where a newly observed fill is news and moves q. Seeding having
 	// recorded their trade ids is the only thing between that and q = 6.
-	again, err := convertStartupFills(src.fills.Fills)
+	again, err := ConvertFills(src.fills.Fills)
 	if err != nil {
-		t.Fatalf("convertStartupFills: %v", err)
+		t.Fatalf("ConvertFills: %v", err)
 	}
 	at.Adoption.Portfolio().ApplyFills(again, ownsAll("o1"), risk.Live, startupNow.UnixMilli())
 	if got := at.Adoption.Portfolio().Q("HELD"); got != want {
@@ -602,4 +603,94 @@ func (p *perOrderPolicyMutating) DecideAdopted(ctx context.Context, o rest.Order
 	f.Positions["M"] = num.QtyFromFloat(999)
 	f.Positions["INVENTED"] = num.QtyFromFloat(7)
 	return AdoptionKeep, nil
+}
+
+// TestTheStartupBaselineIsPreFilterAndSpansEveryAttempt pins the two properties
+// a rung policy that stops at its first LIVE fill depends on, and it exists
+// because getting either wrong is silent.
+//
+// PRE-FILTER. Step 3 asks for `backfill_h` of history, `rest.Fills` walks the
+// account in full and applies that window client-side, and the live poll asks
+// for everything with a zero `since`. So a trade older than the window is
+// dropped from what startup seeds -- `seenTrade` never hears of it -- and the
+// first live walk offers it as brand new. A baseline built from the FILTERED
+// slice would not contain it, and the harness would react to last week's trade
+// on every restart.
+//
+// ACROSS ATTEMPTS. §7.5 retries, and a pass that cancels anything discards its
+// adoption and rewalks. Every one of those passes ran before the licence to
+// leave STARTING existed, so everything they saw is history -- and a baseline
+// reset per attempt would forget the fills that the attempt which happened to
+// fail was the only one to see.
+func TestTheStartupBaselineIsPreFilterAndSpansEveryAttempt(t *testing.T) {
+	src := okSource()
+	// The first pass sees `t-old` and `t-window`, but only `t-window` survives
+	// the backfill filter -- exactly what `rest.Fills` produces for a trade
+	// older than the window.
+	src.fills = rest.FillsResult{
+		Walk:        completeWalk(),
+		Fills:       []rest.Fill{makerFill("t-window", "o1", "HELD")},
+		AllTradeIDs: []string{"t-old", "t-window"},
+	}
+	// ...and it fails after the fills walk. The balance error is retained
+	// rather than returned, so classification still runs, and the pass ends
+	// without an adoption.
+	src.balErr = errors.New("balance unavailable")
+
+	s := newStartup(t, &recordingLatch{}, src, ownsAll("o1"), keepAll(),
+		newSweeper(true))
+	first := s.Step(context.Background(), startupNow)
+	if first.Adoption != nil {
+		t.Fatalf("the first pass produced an adoption despite a failed balance " +
+			"read; this test needs a pass whose evidence is kept and whose " +
+			"result is discarded")
+	}
+
+	// The second pass sees a different account: the old trades are gone from
+	// what the endpoint returns, and a new one has appeared.
+	src.balErr = nil
+	src.fills = rest.FillsResult{
+		Walk:        completeWalk(),
+		Fills:       []rest.Fill{makerFill("t-later", "o1", "HELD")},
+		AllTradeIDs: []string{"t-later"},
+	}
+	second := s.Step(context.Background(), startupNow)
+	if second.Err != nil {
+		t.Fatalf("the second pass: %v", second.Err)
+	}
+
+	got := second.Adoption.StartupTrades()
+	for _, id := range []string{"t-old", "t-window", "t-later"} {
+		if _, ok := got[id]; !ok {
+			t.Fatalf("the startup baseline is %v and does not contain %q.\n\n"+
+				"It must be the union of every complete fills walk this startup "+
+				"made, taken before `backfill_h` filtered any record out. A "+
+				"trade this process saw while STARTING is history whether or "+
+				"not the attempt that saw it went on to produce an adoption, "+
+				"and whether or not the window it asked for reached back far "+
+				"enough to seed it", keysOf(got), id)
+		}
+	}
+	if len(got) != 3 {
+		t.Fatalf("the startup baseline is %v, want exactly the three trade ids "+
+			"the two walks carried", keysOf(got))
+	}
+
+	// And it is FROZEN. A caller holding the boundary must not be able to move
+	// it, for the same reason every other accessor on this interface copies.
+	delete(got, "t-old")
+	if _, ok := second.Adoption.StartupTrades()["t-old"]; !ok {
+		t.Fatal("deleting from the returned map changed the adoption's own " +
+			"baseline; the boundary between inherited history and live " +
+			"activity is not something a consumer may edit")
+	}
+}
+
+func keysOf(m map[string]struct{}) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

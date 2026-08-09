@@ -94,18 +94,36 @@ instructed to refute it.
   fund its reducer starts without complaint. Tracked as `lip-lpf`.
 
 **What this means for the canary.** pilot-plan §7.9 bounds it by "the first
-directional fill latches `WINDING_DOWN`". That latch is one of the three above.
-What still bites at these values is `inv_hard`, which takes the market to
-REDUCING — but REDUCING is market-scoped and it is left at exactly flat, going
-IDLE and then QUOTING again. So on a normal maker fill this configuration
-reduces to zero and then **resumes adding by itself**, with nothing written to
-the halt latch, no SEV1 raised, and no trace surviving a restart.
+directional fill latches `WINDING_DOWN`", and as of `lip-2t6` (2026-08-09) it
+does — but NOT through any of the three knobs above, and no setting of them
+would have delivered it. Fills are fractional to the 0.01-contract quantum, F17
+compares with a strict `>`, and `inv_kill` must sit strictly above `inv_hard`,
+which must sit strictly above `inv_soft`, which must be positive; so there is no
+ordering in which every 0.01 fill breaches `inv_kill`. What bites below it is
+`inv_hard`, which takes the market to REDUCING — and REDUCING is market-scoped
+and clears at exactly flat, going IDLE and then QUOTING again. A canary bounded
+only by these numbers reduces to zero and **resumes adding by itself**, one
+quantum at a time, forever.
 
-The stops that DO still work: a taker fill (F14), `pos_drift_hard` (F13), a
-foreign fill, `insufficient_balance` (H-CAP-5), and the operator's own SIGINT
-or halt latch.
+So the bound is a property of the RUNG rather than a knob. Selecting
+`"rung": "canary"` is what turns it on; there is deliberately no config key for
+it, because a file that could call itself canary while disabling its principal
+exposure bound is a file that lies. After the adoption completes, the first
+positive quantity from any of three sources latches a durable global
+`WINDING_DOWN`: a create acknowledgement carrying a fill (`canary_ack_fill`), a
+newly classified owned fill (`canary_owned_fill`), or a complete position walk
+that first shows inventory where the model had none (`canary_position_nonzero`).
+History does not count — the trade ids §7.5 saw are frozen into the adoption, so
+restarting a canary that has already traded does not re-latch on its own past —
+and a stronger cause arriving on the same event keeps the latch, so a fill that
+is ALSO a taker fill latches as `portfolio_read` (the fills walk's own stop) and
+not as `canary_owned_fill`. Nothing here changes the pilot or any later rung.
 
-Those five are also now DELIVERED fail-safe, which they were not before
+The stops that DO still work: the canary's own first-fill latch, a taker fill
+(F14), `pos_drift_hard` (F13), a foreign fill, `insufficient_balance` (H-CAP-5),
+and the operator's own SIGINT or halt latch.
+
+Those are also now DELIVERED fail-safe, which they were not before
 `lip-vxo` (2026-08-08). Until then, any of them could be lost silently: if the
 write to `paths.latch` failed, the harness dropped the stop and kept adding, and
 whether it ever tried again depended on whether the condition happened to fire a

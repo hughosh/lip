@@ -834,8 +834,8 @@ MUTATIONS = [
      "fill with an unreadable fee becomes a generic retry and never latches",
      [
          ("harness/lifecycle/startup.go",
-          "\townedConverted, err := convertStartupFills(fe.OwnedFills)\n",
-          "\townedConverted, err := convertStartupFills(fills.Fills)\n"),
+          "\townedConverted, err := ConvertFills(fe.OwnedFills)\n",
+          "\townedConverted, err := ConvertFills(fills.Fills)\n"),
      ],
      "TestForeignFillWithUnusableFeeStillLatches"),
 
@@ -2131,6 +2131,227 @@ MUTATIONS = [
           '\t\tAnyInventory:  false,\n\t\tAnyLiveOrder:  o.anyLiveOrder(),\n\t}\n}\n'),
      ],
      'TestEveryGlobalTransitionRecordsItsOwnCause'),
+
+    # -----------------------------------------------------------------------
+    # lip-2t6 -- the canary first-fill latch (pilot-plan §7.9)
+    #
+    # The rule these defend: on the canary rung ONLY, the first directional
+    # entry after adoption latches a durable global WINDING_DOWN, at any size
+    # down to the 0.01-contract quantum. No assignment of §16's numbers
+    # delivers that -- F17 compares with a strict `>` and inv_kill must sit
+    # strictly above inv_hard, which is market-scoped and self-clears at flat.
+    # -----------------------------------------------------------------------
+
+    # The policy itself. Without the flag the canary is a pilot with a smaller
+    # S, which is exactly the configuration the bead exists to say is not
+    # enough.
+    ('M-2T6-RUNGOFF',
+     'take the first-fill bound off the canary rung, leaving it bounded only '
+     'by §16 numbers that provably cannot bound it',
+     [
+         ('cmd/harness/config.go',
+          '\t\tstopOnFirstOwnedFill: true,\n',
+          ''),
+     ],
+     'TestTheCanaryLatchesOnAnyPositionItDidNotStartWith'),
+
+    # The other direction: a rule that fires on every rung collapses the whole
+    # capital ladder into one step, and the pilot stops at the quantum.
+    ('M-2T6-EVERYRUNG',
+     'apply the canary first-fill latch on every rung, so the pilot stops at '
+     'the 0.01 quantum and the ladder has one step',
+     [
+         ('cmd/harness/run.go',
+          '\tif !o.r.cfg.Rung.stopOnFirstOwnedFill {\n\t\treturn\n\t}\n',
+          ''),
+     ],
+     'TestThePilotRungIgnoresThePositionTheCanaryStopsFor'),
+
+    # §8.2's source. The ack's own count moves q before any fills walk runs, so
+    # dropping it leaves the canary up to one position_poll_s late on the one
+    # event it exists for -- and it may place another order inside that window.
+    ('M-2T6-NOACK',
+     'ignore a create acknowledgement that came back carrying a fill, so the '
+     'canary waits for the fills walk to corroborate its own first trade',
+     [
+         ('cmd/harness/run.go',
+          '\t\t\to.canaryStop("canary_ack_fill", res.Req.Market)\n',
+          ''),
+     ],
+     'TestTheCanaryLatchesOnAnAcknowledgementThatCarriedAFill'),
+
+    # The fills-walk source: the only one carrying trade identity, and the one
+    # the rule is actually written about.
+    ('M-2T6-NOOWNEDFILL',
+     'ignore a newly classified owned fill, leaving the canary bounded only by '
+     'the ack path and the position fallback',
+     [
+         ('cmd/harness/run.go',
+          '\tfor _, f := range eff.OwnedFill {\n\t\tif o.liveOwnedFill(f) {\n'
+          '\t\t\to.canaryStop("canary_owned_fill", f.Ticker)\n\t\t}\n\t}\n',
+          ''),
+     ],
+     'TestTheCanaryLatchesOnANewlyClassifiedOwnedFill'),
+
+    # The entry fallback. It is what catches an entry whose fill record we
+    # never saw -- a fill dropped from a walk, a binding that never committed,
+    # an exchange that reports the position and not the trade.
+    ('M-2T6-NOPOSITION',
+     'drop the position entry fallback, so an entry whose fill record never '
+     'arrived leaves the canary running',
+     [
+         ('cmd/harness/run.go',
+          '\tif eff.Applied[wsx.TruthPositions] {\n\t\tfor _, rec := range eff.Records {\n'
+          '\t\t\tif rec.QLocal == 0 && rec.QExch != 0 {\n'
+          '\t\t\t\to.canaryStop("canary_position_nonzero", rec.Ticker)\n'
+          '\t\t\t}\n\t\t}\n\t}\n',
+          ''),
+     ],
+     'TestTheCanaryLatchesOnAnyPositionItDidNotStartWith'),
+
+    # The fallback fires on a TRANSITION and not on a reading. Adoption seeds
+    # q_local from the exchange, so without the flat test every restart of a
+    # canary that holds anything latches immediately -- which is every restart
+    # after its first fill, and the position it stopped for is one it was
+    # already managing.
+    ('M-2T6-POSANY',
+     'latch on any nonzero position rather than on the transition from flat, '
+     'so a canary restarted while holding inventory stops on its own adoption',
+     [
+         ('cmd/harness/run.go',
+          '\t\t\tif rec.QLocal == 0 && rec.QExch != 0 {\n',
+          '\t\t\tif rec.QExch != 0 {\n'),
+     ],
+     'TestStartupSeededInventoryNeverInvokesTheCanary'),
+
+    # H-PAGE-1 on the fallback. This one is INERT, and it is carried because
+    # the argument for why is the reason the guard is written the way it is.
+    #
+    # `wsx.applyPositions` appends to `eff.Records` and sets
+    # `eff.Applied[TruthPositions]` in the same branch, and returns before both
+    # when the walk did not replace -- so `len(Records) > 0` already implies
+    # `Applied`, and dropping the test changes no behaviour this codebase can
+    # produce. The guard earns its place by not RESTING on that: "there are
+    # records, so the walk must have completed" is an inference about another
+    # package's internals, and this is a safety rule. `wsx` is free to report a
+    # record from a read it did not apply -- a partial credit, a diagnostic
+    # row -- and the day it does, the version with the test still refuses and
+    # the version without it latches the canary from a reading H-PAGE-1 says is
+    # stale rather than empty.
+    #
+    # What DOES ratchet the behaviour is
+    # `TestAnIncompletePositionWalkNeverLatchesTheCanary`, which breaks the
+    # positions endpoint outright and then repairs it: the first half fails if
+    # anything latches from a walk that did not complete, and the second half
+    # fails if the fallback has been made dead.
+    ('M-2T6-POSINCOMPLETE',
+     'read position records without checking that the walk replaced',
+     [
+         ('cmd/harness/run.go',
+          '\tif eff.Applied[wsx.TruthPositions] {\n\t\tfor _, rec := range eff.Records {\n',
+          '\tif true {\n\t\tfor _, rec := range eff.Records {\n'),
+     ],
+     'inert'),
+
+    # First-writer-wins. Both causes are true of a taker fill on the canary and
+    # only one of them says H-Q-3 has been violated. Moving the canary block
+    # above the stop funnel writes the mundane one.
+    ('M-2T6-CANARYFIRST',
+     'offer the canary cause before the portfolio read\'s own stop, so a taker '
+     'or foreign fill latches as `canary_owned_fill`',
+     [
+         ('cmd/harness/run.go',
+          '\tif eff.Stop {\n\t\to.requestStop("portfolio_read", "")\n\t}\n',
+          ''),
+         ('cmd/harness/run.go',
+          '\tif eff.Applied[wsx.TruthOrders] {\n',
+          '\tif eff.Stop {\n\t\to.requestStop("portfolio_read", "")\n\t}\n'
+          '\tif eff.Applied[wsx.TruthOrders] {\n'),
+     ],
+     'TestATakerFillOnTheCanaryKeepsTheStrongerCause'),
+
+    # The history boundary, defeated outright.
+    ('M-2T6-NOBASELINE',
+     'treat every owned fill as live, so a canary that has ever traded latches '
+     'on its own history at every restart',
+     [
+         ('cmd/harness/run.go',
+          '\t_, history := o.startupTrades[f.TradeID]\n\treturn !history\n',
+          '\treturn true\n'),
+     ],
+     'TestStartupHistoryIsNeverALiveCanaryFill'),
+
+    # The boundary, defeated subtly, and this is the one no timestamp can fix.
+    # §7.5 asks for backfill_h; the live poll asks for all history with a zero
+    # `since`; the filter is client-side after a complete walk. A baseline
+    # built from the FILTERED slice omits every trade older than the window,
+    # and the first live walk then offers those as brand new.
+    ('M-2T6-BASELINEPOSTFILTER',
+     'build the startup baseline from the backfill_h slice instead of the '
+     'complete walk, so any trade older than the window reads as live',
+     [
+         ('harness/lifecycle/startup.go',
+          '\tfor _, id := range fills.AllTradeIDs {\n\t\ts.baseline[id] = struct{}{}\n\t}\n',
+          '\tfor _, f := range fills.Fills {\n\t\ts.baseline[f.TradeID] = struct{}{}\n\t}\n'),
+     ],
+     'TestStartupHistoryIsNeverALiveCanaryFill'),
+
+    # And the accumulation. §7.5 retries, and a pass that cancels anything
+    # discards its adoption and rewalks -- but every one of those passes ran
+    # before the licence to leave STARTING existed.
+    ('M-2T6-BASELINEPERATTEMPT',
+     'reset the startup baseline on every attempt, so a trade only the '
+     'discarded pass saw is forgotten and reads as live',
+     [
+         ('harness/lifecycle/startup.go',
+          '\tfor _, id := range fills.AllTradeIDs {\n',
+          '\ts.baseline = make(map[string]struct{})\n'
+          '\tfor _, id := range fills.AllTradeIDs {\n'),
+     ],
+     'TestTheStartupBaselineIsPreFilterAndSpansEveryAttempt'),
+
+    # The identity carrier itself. Populated from the filtered slice it is a
+    # second copy of `Fills` wearing the name of the complete walk.
+    ('M-2T6-ALLIDSFILTERED',
+     'record the pre-filter trade ids only for the records that survived the '
+     'filter, which is the filtered slice under another name',
+     [
+         ('harness/rest/read.go',
+          '\t\tids = append(ids, f.TradeID)\n\t\tif !since.IsZero() && f.TsMillis != 0 &&\n'
+          '\t\t\tf.TsMillis < since.UnixMilli() {\n\t\t\tcontinue\n\t\t}\n',
+          '\t\tif !since.IsZero() && f.TsMillis != 0 &&\n'
+          '\t\t\tf.TsMillis < since.UnixMilli() {\n\t\t\tcontinue\n\t\t}\n'
+          '\t\tids = append(ids, f.TradeID)\n'),
+     ],
+     'TestFillsTimeFilterIsAppliedAfterTheCompleteWalk'),
+
+    # §7.5's owned history is the ONLY thing that will ever write these rows:
+    # `risk.Seed` marks their trade ids seen, so the first live walk
+    # deduplicates them away and the other caller of RecordFill never sees
+    # them. H-ORD-6 makes our_fill the join against rig.db.
+    ('M-2T6-NOBACKFILL',
+     'drop the adoption\'s owned history instead of recording it, so our_fill '
+     'begins at whichever fill this incarnation happened to watch land',
+     [
+         ('cmd/harness/run.go',
+          '\to.recordBackfilled(a.OwnedFills())\n',
+          ''),
+     ],
+     'TestStartupHistoryIsNeverALiveCanaryFill'),
+
+    # And the flag. These rows were INFERRED from a walk over the past, not
+    # observed happening, and an analysis that cannot tell them apart reads
+    # every restart as a burst of trading.
+    ('M-2T6-BACKFILLFLAG',
+     'record the adoption\'s history as though this process watched it happen',
+     [
+         ('cmd/harness/run.go',
+          '\t\tif _, err := o.r.store.RecordFill(o.r.run, f, o.r.ex.NowMs(),\n'
+          '\t\t\ttrue); err != nil {\n',
+          '\t\tif _, err := o.r.store.RecordFill(o.r.run, f, o.r.ex.NowMs(),\n'
+          '\t\t\tfalse); err != nil {\n'),
+     ],
+     'TestStartupHistoryIsNeverALiveCanaryFill'),
 
 ]
 
