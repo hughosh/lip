@@ -11,6 +11,7 @@ import (
 
 	"lip/harness/cfg"
 	"lip/harness/num"
+	"lip/harness/risk"
 )
 
 // The pilot config file, and why it is not just `cfg.Params` as JSON.
@@ -285,6 +286,38 @@ func loadConfig(path string) (config, error) {
 	if err := p.Validate(); err != nil {
 		return config{}, fmt.Errorf("config %s is not a valid §16 parameter "+
 			"set: %w", path, err)
+	}
+
+	// H-CAP-8, and it is a SECOND validation rather than part of the first
+	// because `Validate()` disclaims it in its own doc comment: the rule needs
+	// a price bound and the capital model, which live in `harness/risk`.
+	//
+	// # Why the loader and not the run arm
+	//
+	// `CheckFundable` is a pure function of the FILE -- S, n_markets and
+	// capital_max, against a reserve the file cannot even set. Nothing from the
+	// invocation enters it, so it belongs with the file's own validation.
+	// `checkRung` is the mirror image and stays in the run arm for the opposite
+	// reason: it asserts the file against a flag, and a flag is the one input
+	// this function does not have.
+	//
+	// The placement also decides `-deploy` and `-provision`, both of which run
+	// through here before the switch in `main`. That is the point rather than a
+	// side effect: an unfundable config written into a plist is a start that
+	// fails FOREVER under `KeepAlive`, throttled by launchd and watched by
+	// nothing -- the exact failure lip-3yo removed for the rung, and it would
+	// otherwise have been left open here. Refusing before `provision` is the
+	// same argument one step earlier: no durable store for a configuration that
+	// can never legally start.
+	//
+	// §16 sets `capital_reserve` at 0.25 and `fileConfig` has no field for it,
+	// so only the first of `CheckFundable`'s two checks can fire on this path:
+	// passing it means `n · S ≤ 0.7576 · capital_max`, which already satisfies
+	// the round-trip bound. The second check is reachable only by a caller that
+	// can drive the reserve, and `capital_test.go` is that caller.
+	if err := risk.CheckFundable(p); err != nil {
+		return config{}, fmt.Errorf("config %s cannot fund its own reducer: %w",
+			path, err)
 	}
 
 	c := config{Params: p}

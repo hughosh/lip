@@ -448,3 +448,142 @@ func TestLiveOKPathIsRequiredAbsoluteAndDedicated(t *testing.T) {
 		}
 	})
 }
+
+// TestLoadConfigRefusesAConfigurationItCannotFund is H-CAP-8 reaching the
+// startup path (lip-lpf).
+//
+// `risk.CheckFundable` implemented the rule and was tested against it, and for
+// the whole life of the tree its only callers were in `capital_test.go`. The
+// spec is specific about both the moment and the action -- "REJECTED AT
+// STARTUP ... checked as arithmetic, not discovered at fill time", and "the
+// harness REFUSES TO START rather than discovering it while holding inventory"
+// -- so a rule with no production caller was not a partial implementation of
+// it. It was none of it.
+//
+// The fixture is the case that made the gap visible: rung `scale` permits S up
+// to 100 contracts, and with §16's $100 capital_max and 25% reserve a single
+// market at S=100 costs
+//
+//	1 market · 100 contracts · $0.99 = $99.00
+//
+// against $75 deployable. Every check the tree had before this one accepts it.
+//
+// What the operator got instead of a refusal was a start, and then a reducer
+// silently sized to ZERO at the first fill (`quote/skew.go`: "an unfundable
+// reducer is not sized") -- or an `insufficient_balance` reject, which H-CAP-5
+// escalates to a global WINDING_DOWN while inventory is already held. Both are
+// the "discovered at fill time" behaviour the rule exists to replace.
+func TestLoadConfigRefusesAConfigurationItCannotFund(t *testing.T) {
+	p := writeConfig(t, `{
+		"ticker":"KXTEST-A","rung":"scale",
+		"s":100,"s_max":100,"inv_soft":18,"inv_hard":36,"inv_kill":48,
+		"capital_max":100,"pnl_kill":-25,"n_markets":1,`+goodTail(t)+`}`)
+
+	_, err := loadConfig(p)
+	if err == nil {
+		t.Fatal("a config whose worst permitted simultaneous fill set costs " +
+			"$99.00 against $75.00 deployable was loaded without complaint. " +
+			"H-CAP-8 requires the harness to refuse to start on it, and the " +
+			"shortfall would instead surface as a reducer sized to zero at " +
+			"the first fill")
+	}
+	if !strings.Contains(err.Error(), "H-CAP-8") {
+		t.Fatalf("the refusal does not name the rule it enforces: %v", err)
+	}
+
+	// The other half of the claim, and the reason this is a SECOND check
+	// rather than a line inside `Validate()`: the very same parameters are a
+	// valid §16 set. `Validate` checks relations between knobs and there is no
+	// relation here to violate -- S is positive, S_max is not below it, the
+	// inventory ladder increases, capital_max is positive. The configuration is
+	// internally consistent and unfundable at the same time, which is exactly
+	// the state `params.go`'s doc comment says it is not in the business of
+	// detecting.
+	consistent := cfg.Default()
+	consistent.NMarkets = 1
+	consistent.S = num.QtyFromFloat(100)
+	consistent.SMax = num.QtyFromFloat(100)
+	consistent.CapitalMax = num.MoneyFromDollars(100)
+	if err := consistent.Validate(); err != nil {
+		t.Fatalf("the fixture was supposed to be a valid §16 set that is "+
+			"merely unfundable, but Validate() rejects it: %v. The test no "+
+			"longer proves the fundability check is load-bearing", err)
+	}
+}
+
+// TestLoadConfigAcceptsTheSection103Configuration is the other direction, and
+// it is not a formality.
+//
+// H-CAP-8 is a refusal, and a refusal wired in too broadly takes the pilot with
+// it: §10.3's opening configuration is 6 markets at S=12 against $100, which
+// costs
+//
+//	6 markets · 12 contracts · $0.99 = $71.28
+//
+// against $75.00 deployable -- inside the bound, by $3.72. That margin is the
+// whole of the headroom the shipped parameters were derived to have (lip-afr),
+// so a fundability check that rejected here would be rejecting the
+// configuration the spec recommends, which is the HR-005 shape this rule was
+// rewritten to escape.
+func TestLoadConfigAcceptsTheSection103Configuration(t *testing.T) {
+	p := writeConfig(t, `{
+		"ticker":"KXTEST-A","rung":"pilot",
+		"s":12,"s_max":24,"inv_soft":18,"inv_hard":36,"inv_kill":48,
+		"capital_max":100,"pnl_kill":-25,`+goodTail(t)+`}`)
+
+	c, err := loadConfig(p)
+	if err != nil {
+		t.Fatalf("§10.3's own opening configuration was refused as "+
+			"unfundable: %v. 6 · 12 · $0.99 = $71.28 against $75.00 "+
+			"deployable, so the spec would be recommending a configuration "+
+			"the harness forbids", err)
+	}
+	// n_markets is absent from the file above, so this also pins that the
+	// check runs on the OVERLAID parameters and not on the file's own fields:
+	// the 6 it divides by comes from §16's default.
+	if c.Params.NMarkets != 6 {
+		t.Fatalf("n_markets = %d, want §16's default of 6", c.Params.NMarkets)
+	}
+}
+
+// TestTheFundabilityBoundIsSection103sDerivation pins the edge rather than the
+// two sides of it.
+//
+// §10.3 derives S = 12 as the largest quote that fits, and the derivation is
+// the reason the number is 12 and not a round 10 or 15. A check that refuses
+// far-out configurations while accepting one contract too many would pass both
+// tests above and still leave the bound in the wrong place, so the assertion
+// that matters is at S = 12 against S = 13:
+//
+//	6 · 12 · $0.99 = $71.28  <=  $75.00   accepted
+//	6 · 13 · $0.99 = $77.22   >  $75.00   refused
+//
+// Both figures are written out here as literals. Deriving them by calling
+// `CheckFundable` would make this test agree with the implementation by
+// construction and prove nothing about where the bound actually is.
+func TestTheFundabilityBoundIsSection103sDerivation(t *testing.T) {
+	// `scale` for both halves: it permits S up to 100, so the rung gate is
+	// silent and the ONLY difference between the two configs is S.
+	body := func(t *testing.T, s int) string {
+		return `{"ticker":"KXTEST-A","rung":"scale",` +
+			`"s":` + fmt.Sprint(s) + `,"s_max":24,` +
+			`"inv_soft":18,"inv_hard":36,"inv_kill":48,` +
+			`"capital_max":100,"pnl_kill":-25,"n_markets":6,` +
+			goodTail(t) + `}`
+	}
+
+	if _, err := loadConfig(writeConfig(t, body(t, 12))); err != nil {
+		t.Fatalf("S=12 was refused: %v. $71.28 is inside $75.00 deployable, "+
+			"and S=12 is the size §10.3 derived as the largest that fits", err)
+	}
+
+	_, err := loadConfig(writeConfig(t, body(t, 13)))
+	if err == nil {
+		t.Fatal("S=13 was accepted. 6 · 13 · $0.99 = $77.22 against $75.00 " +
+			"deployable, so the bound is not where §10.3 put it and S=12 is " +
+			"no longer the largest quote that fits")
+	}
+	if !strings.Contains(err.Error(), "H-CAP-8") {
+		t.Fatalf("the refusal does not name the rule it enforces: %v", err)
+	}
+}

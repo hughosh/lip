@@ -2746,6 +2746,69 @@ MUTATIONS = [
      ],
      'TestPilotDeployCarriesTheConfigAndRungInStableOrder'),
 
+    # --- lip-lpf: H-CAP-8 reaches the startup path -------------------------
+    #
+    # `risk.CheckFundable` was written, tested against §10.3's whole parameter
+    # space, and called by nothing outside its own test file. These four are
+    # the ways the caller can be present and still not be a gate -- three of
+    # them leave the call site looking exactly right in a diff.
+
+    ('M-LPF-IGNORED',
+     'call the fundability check at startup and discard its verdict, which is '
+     'the defect this unit closed wearing the clothes of the fix: `grep '
+     'CheckFundable` now finds a production caller, and an unfundable '
+     'configuration still starts and still discovers the shortfall at the '
+     'first fill',
+     [
+         ('cmd/harness/config.go',
+          '\tif err := risk.CheckFundable(p); err != nil {\n'
+          '\t\treturn config{}, fmt.Errorf("config %s cannot fund its own reducer: %w",\n'
+          '\t\t\tpath, err)\n\t}\n',
+          '\trisk.CheckFundable(p)\n'),
+     ],
+     'TestLoadConfigRefusesAConfigurationItCannotFund'),
+
+    ('M-LPF-DEFAULTNOTFILE',
+     'check §16\'s defaults for fundability instead of the configuration that '
+     'was actually loaded, so the gate passes on a config it never read -- '
+     'and passes forever, because `cfg.Default()` is fundable by construction '
+     '(`TestDefaultIsFundable`)',
+     [
+         ('cmd/harness/config.go',
+          'risk.CheckFundable(p)',
+          'risk.CheckFundable(cfg.Default())'),
+     ],
+     'TestLoadConfigRefusesAConfigurationItCannotFund'),
+
+    ('M-LPF-INVERT',
+     'refuse exactly the fundable configurations and admit the rest, which is '
+     'the one weakening that cannot hide behind a passing pilot: §10.3\'s own '
+     'opening configuration stops loading',
+     [
+         ('cmd/harness/config.go',
+          'if err := risk.CheckFundable(p); err != nil {',
+          'if err := risk.CheckFundable(p); err == nil {'),
+     ],
+     'TestLoadConfigAcceptsTheSection103Configuration'),
+
+    ('M-LPF-NORESERVE',
+     'measure the worst permitted fill set against the WHOLE of capital_max '
+     'rather than the deployable part, dropping H-CAP-3\'s reserve from '
+     'H-CAP-8\'s arithmetic. The bound moves from $75 to $100 at §16\'s '
+     'defaults, S=13 becomes fundable, and the reserve that exists to absorb '
+     'the residual this check does not cover is spent before the first fill',
+     [
+         # Anchored on the two lines TOGETHER: the `deployable` assignment is
+         # textually identical to the one in `ReducingBudget` above it, and a
+         # bare anchor would be ambiguous (`apply_patches` refuses it).
+         ('harness/risk/capital.go',
+          '\tdeployable := num.Money(float64(p.CapitalMax) * (1 - p.CapitalReserve))\n'
+          '\n\tif worstFills > deployable {',
+          '\tdeployable := num.Money(float64(p.CapitalMax))\n'
+          '\n\tif worstFills > deployable {'),
+     ],
+     'TestTheFundabilityBoundIsSection103sDerivation'),
+
 ]
 
 
