@@ -57,7 +57,10 @@ func drained(t *testing.T, s *Store) {
 // exist, or a binding does, and the fills on that order become permanently
 // unclassifiable.
 //
-// `M-HS-ONERUN` disables the guard.
+// `M-HS-ONERUN` disables the guard's action and `M-HS-CLAIMRUNNING` its
+// predicate. Both let a second `Run` through, and both are caught by the same
+// observation, because a guard that does not stop the second writer is the one
+// defect however it is spelled.
 func TestOnlyOneWriterRunCanOwnTheFIFO(t *testing.T) {
 	s, c, _ := gatedStore(t)
 	h := begin(t, s, "runa", 1_700_000_000_000)
@@ -77,11 +80,43 @@ func TestOnlyOneWriterRunCanOwnTheFIFO(t *testing.T) {
 	rec("w-a", 1_700_000_010_000)
 	go s.Run(ctx)
 	<-c.entered
-	// A SECOND writer, while the first demonstrably holds the head.
-	go s.Run(ctx)
+	// A SECOND writer, while the first demonstrably holds the head. Its return
+	// is the observable: the guard's whole job is to make this call come back
+	// without touching the FIFO.
+	secondRun := make(chan struct{})
+	go func() { s.Run(ctx); close(secondRun) }()
 
 	rec("w-b", 1_700_000_011_000)
 	rec("w-c", 1_700_000_012_000)
+
+	// The rule, stated as the only fact the guard controls: the second `Run`
+	// RETURNED. Refusing a claim and acting on that refusal are different
+	// facts, and only the second one is the guard -- `claimWriter` stays
+	// correct when the guard is deleted, so asking it here proves nothing and
+	// the assertion that read as the rule's proof was inert against the
+	// mutation written to break the rule (`lip-ke1`).
+	//
+	// Both outcomes are reached WITHOUT waiting: the first writer is parked
+	// inside the backend gate and has not popped, so a second writer that got
+	// through `beginHead` takes the SAME head and blocks in that gate too,
+	// announcing itself on `entered`. Whichever of the two arrives is decisive
+	// on the first scheduling, which is what makes the catch deterministic
+	// rather than a 1.5%-per-run race on who reaches `popLocked` first. The
+	// deadline is a backstop for a wedge, not a poll.
+	select {
+	case <-secondRun:
+	case <-c.entered:
+		// Deliberately NOT unblocked before failing. Releasing the gate now
+		// would set both writers on one shared `submission` at once, and the
+		// report would be a data race on `rowDone` rather than this statement.
+		t.Fatal("a second Run reached the head instead of returning: two " +
+			"writers now hold the SAME submission, each will write it and " +
+			"each will popLocked, and the record queued behind it is " +
+			"discarded without being written and without an error anywhere")
+	case <-time.After(30 * time.Second):
+		t.Fatal("the second Run neither returned nor reached the head")
+	}
+
 	c.unblock()
 	drained(t, s)
 
@@ -98,15 +133,10 @@ func TestOnlyOneWriterRunCanOwnTheFIFO(t *testing.T) {
 		}
 	}
 
-	// The direct statement of the rule: while one writer owns the FIFO, a
-	// second cannot claim it.
-	if !s.claimWriter() {
-		// A writer is running, so the claim is correctly refused. Stop that
-		// writer and confirm the guard is what refused it.
-		cancel()
-		return
-	}
-	t.Fatal("a second writer claimed the FIFO while the first was running")
+	// The three records are durable BECAUSE only one writer ever owned the
+	// head. This loop is the harm the rule prevents, kept as the statement of
+	// consequence; the select above is what catches the rule being broken.
+	cancel()
 }
 
 // TestStoppedWriterRevokesOutstandingAddingPermits is the other half of writer

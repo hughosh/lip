@@ -1081,6 +1081,22 @@ MUTATIONS = [
      ],
      'TestOnlyOneWriterRunCanOwnTheFIFO'),
 
+    # The guard has two halves and M-HS-ONERUN only mutates one of them. Deleting
+    # the `s.running` term leaves `Run`'s `if !s.claimWriter()` textually intact
+    # while a second writer walks straight through it, which is the same defect
+    # reached from the other side. It is carried because the assertion that
+    # catches it must observe the second `Run` RETURNING; the older assertion
+    # here interrogated `claimWriter` directly, and an interrogation of a
+    # predicate cannot see a caller that ignores it (`lip-ke1`).
+    ('M-HS-CLAIMRUNNING',
+     'drop the running term from the single-writer claim, so a second Run claims the FIFO while the first still owns it',
+     [
+         ('harness/hstore/writer.go',
+          '\tif s.running || s.writerGone || s.closed {\n',
+          '\tif s.writerGone || s.closed {\n'),
+     ],
+     'TestOnlyOneWriterRunCanOwnTheFIFO'),
+
     ('M-HS-RUNSTOP',
      'a writer that has exited leaves adding enabled, so an outstanding permit dispatches an order nothing can record',
      [
