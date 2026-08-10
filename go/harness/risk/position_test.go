@@ -687,7 +687,7 @@ func TestSeededPortfolioAdoptsWithoutManufacturingDrift(t *testing.T) {
 		"FLAT": 0,
 	}
 
-	seeded := NewSeededPortfolio(exch)
+	seeded := NewSeededPortfolio(exch, nil)
 
 	if got := seeded.Q("BIG"); got != exch["BIG"] {
 		t.Fatalf("q(BIG) = %s, want %s", got.Wire(), exch["BIG"].Wire())
@@ -737,7 +737,8 @@ func TestSeededPortfolioAdoptsWithoutManufacturingDrift(t *testing.T) {
 // historical fills that produced it still have their identities recorded by
 // `Seed` mode without moving `q` a second time.
 func TestSeededPortfolioLeavesHistoricalFillsToSeedMode(t *testing.T) {
-	seeded := NewSeededPortfolio(map[string]num.Qty{"M": num.QtyFromFloat(2)})
+	seeded := NewSeededPortfolio(map[string]num.Qty{"M": num.QtyFromFloat(2)},
+		nil)
 
 	fills := []FillEvent{
 		{TradeID: "t1", OrderID: "o1", Ticker: "M", Side: quote.SideYes,
@@ -767,5 +768,250 @@ func TestSeededPortfolioLeavesHistoricalFillsToSeedMode(t *testing.T) {
 	}
 	if len(again.Owned) != 0 {
 		t.Fatalf("redelivered fills were counted as news: %d", len(again.Owned))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// lip-da6 — the startup baseline
+// ---------------------------------------------------------------------------
+
+// baselineOf is the startup trade-id baseline in the form the constructor takes.
+func baselineOf(ids ...string) map[string]struct{} {
+	m := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		m[id] = struct{}{}
+	}
+	return m
+}
+
+// TestOutOfWindowOwnedFillIsSeededNotReplayed is `lip-da6`, and it is a test
+// about two endpoints that disagree about what "history" means.
+//
+// §7.5 step 3 reads fills with `since = now - backfill_h`. The live poller reads
+// them with a ZERO `since`. So a fill older than the window is invisible to
+// startup -- never classified, never seeded, never in `seenTrade` -- and brand
+// new to the first live poll, which replays it onto a `q` the positions walk had
+// already seeded with its effect. `q_local` becomes history-plus-position while
+// `q_exch` is the position, and one poll's disagreement equals the replayed
+// quantity.
+//
+// Above `pos_drift_hard` that is a SEV1 `POSITION_DRIFT` and a durable global
+// `WINDING_DOWN` with cause `portfolio_read`: the harness stopping itself over a
+// discrepancy it manufactured by restarting. The sizes here are codex's
+// reproducer -- an owned fill of 5.01 with the exchange position also 5.01,
+// which is `pos_drift_hard` plus one quantum -- and the same case one quantum
+// BELOW the threshold, where nothing is raised and `q` is silently wrong for a
+// poll until the next positions walk overwrites it back.
+//
+// Both are the same defect and only the first one is loud. That is why the
+// assertion is on `q` itself and not on the anomaly.
+func TestOutOfWindowOwnedFillIsSeededNotReplayed(t *testing.T) {
+	prm := cfg.Default()
+
+	for _, tc := range []struct {
+		name string
+		size num.Qty
+	}{
+		{"above pos_drift_hard", prm.PosDriftHard + num.QtyFromFloat(0.01)},
+		{"below pos_drift_hard", prm.PosDriftHard - num.QtyFromFloat(0.01)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// The exchange reports the position this fill already produced.
+			seeded := NewSeededPortfolio(map[string]num.Qty{"M": tc.size},
+				baselineOf("t-old"))
+
+			eff := seeded.ApplyFills([]FillEvent{{
+				TradeID: "t-old", OrderID: "o1", Ticker: "M",
+				Side: quote.SideYes, Price4: 5000, Count: tc.size,
+			}}, owns("o1"), Live, pollMs)
+
+			if got := seeded.Q("M"); got != tc.size {
+				t.Fatalf("q = %s after a live walk redelivered inherited "+
+					"history, want %s unchanged: the positions walk already "+
+					"accounted for this fill and applying it counts it twice",
+					got.Wire(), tc.size.Wire())
+			}
+			if len(eff.Owned) != 0 {
+				t.Fatalf("an inherited fill was reported as live: %d in Owned. "+
+					"H-ORD-6 is first-observer-wins, so the row it writes with "+
+					"backfilled=false is mislabelled permanently", len(eff.Owned))
+			}
+			if len(eff.OwnedBackfilled) != 1 {
+				t.Fatalf("owned backfilled = %d, want 1: the fill is still "+
+					"ours and still has to reach our_fill, with the other "+
+					"label", len(eff.OwnedBackfilled))
+			}
+			if eff.Stop {
+				t.Fatalf("an inherited fill requested a global stop: %v",
+					anomalyClasses(eff.Anomalies))
+			}
+
+			// The positions poll that would have reported the manufactured
+			// drift. It agrees, because nothing was replayed.
+			pe := seeded.ReplacePositions(map[string]num.Qty{"M": tc.size},
+				true, prm)
+			if hasClass(pe.Anomalies, "POSITION_DRIFT") {
+				t.Fatalf("a restart manufactured POSITION_DRIFT out of its own "+
+					"history: %v", anomalyClasses(pe.Anomalies))
+			}
+			if pe.Stop {
+				t.Fatal("the positions poll requested a global stop against a " +
+					"position the exchange and the model agree about")
+			}
+			for _, r := range pe.Records {
+				if r.Ticker == "M" && !r.Agreed {
+					t.Fatalf("position_poll records a disagreement of %s on a "+
+						"market neither side moved", r.Delta.Wire())
+				}
+			}
+		})
+	}
+}
+
+// TestOutOfWindowTakerFillStillRaisesHORD8 is the half that must NOT be
+// suppressed.
+//
+// Seeding a baseline fill's arithmetic is not the same as ignoring it, and the
+// difference is the whole argument for classifying baseline ids rather than
+// marking them seen. A taker fill in our history is a fact about the harness
+// whenever it happened -- H-Q-3 was violated by a post_only that did not take
+// effect, a marketable price, or an API change -- and it is exactly as true for
+// a fill older than `backfill_h` as for one inside it.
+//
+// `M-R-BASELINESILENT` marks the baseline seen instead, which is candidate A on
+// the bead: smaller, and it loses this.
+func TestOutOfWindowTakerFillStillRaisesHORD8(t *testing.T) {
+	seeded := NewSeededPortfolio(map[string]num.Qty{"M": contracts(3)},
+		baselineOf("t-old"))
+
+	eff := seeded.ApplyFills([]FillEvent{{
+		TradeID: "t-old", OrderID: "o1", Ticker: "M", Side: quote.SideYes,
+		Price4: 5000, Count: contracts(3), IsTaker: true,
+	}}, owns("o1"), Live, pollMs)
+
+	if !hasClass(eff.Anomalies, "TAKER_FILL") {
+		t.Fatalf("H-ORD-8 was suppressed for an inherited fill: %v",
+			anomalyClasses(eff.Anomalies))
+	}
+	if sev := sevOf(t, eff.Anomalies, "TAKER_FILL"); sev != SEV1 {
+		t.Fatalf("TAKER_FILL sev = %v, want SEV1", sev)
+	}
+	if !eff.Stop {
+		t.Fatal("a taker fill in our own history did not request a global stop")
+	}
+	if got := seeded.Q("M"); got != contracts(3) {
+		t.Fatalf("q = %s, want 3.00: classification is not application",
+			got.Wire())
+	}
+	if len(eff.OwnedBackfilled) != 1 {
+		t.Fatalf("owned backfilled = %d, want 1", len(eff.OwnedBackfilled))
+	}
+}
+
+// TestBaselineForeignFillStillStopsGlobally pins the in-window foreign fill
+// across a restart, which the bead asks to be ASSERTED rather than inherited.
+//
+// The baseline is every trade the startup walks carried -- ours, foreign, and
+// older than the window alike -- so a foreign fill is in it too. Foreign fills
+// never reach §7.5's `ApplyFills`, which is handed only the owned subset, so
+// they are not in `seenTrade` and the first live walk classifies them fresh.
+//
+// Nothing here is softened. A baseline foreign fill still raises SEV1
+// `FOREIGN_FILL` and still requests the global stop: someone other than this
+// harness is trading the account, and that is not less true because it happened
+// before we restarted. Suppressing it would be the F2 catastrophe reached by a
+// bookkeeping change. It never moves `q` in the first place, so there is no
+// arithmetic to seed.
+func TestBaselineForeignFillStillStopsGlobally(t *testing.T) {
+	seeded := NewSeededPortfolio(map[string]num.Qty{"M": contracts(2)},
+		baselineOf("t-foreign"))
+
+	eff := seeded.ApplyFills([]FillEvent{{
+		TradeID: "t-foreign", OrderID: "not-ours", Ticker: "M",
+		Side: quote.SideYes, Price4: 5000, Count: contracts(1),
+	}}, owns("o1"), Live, pollMs)
+
+	if !hasClass(eff.Anomalies, "FOREIGN_FILL") {
+		t.Fatalf("baseline membership suppressed FOREIGN_FILL: %v",
+			anomalyClasses(eff.Anomalies))
+	}
+	if sev := sevOf(t, eff.Anomalies, "FOREIGN_FILL"); sev != SEV1 {
+		t.Fatalf("FOREIGN_FILL sev = %v, want SEV1", sev)
+	}
+	if !eff.Stop {
+		t.Fatal("a foreign fill on the account did not request a global stop")
+	}
+	if len(eff.Foreign) != 1 {
+		t.Fatalf("foreign = %d, want 1", len(eff.Foreign))
+	}
+	if len(eff.Owned)+len(eff.OwnedBackfilled) != 0 {
+		t.Fatalf("a disclaimed fill was reported as ours: owned=%d backfilled=%d",
+			len(eff.Owned), len(eff.OwnedBackfilled))
+	}
+	if got := seeded.Q("M"); got != contracts(2) {
+		t.Fatalf("q = %s, want 2.00: a foreign fill is not ours to book",
+			got.Wire())
+	}
+}
+
+// TestBaselineDedupAndLiveFillsAreDistinguished is the two ends of the boundary.
+//
+// A walk that repeats a baseline trade id within itself must produce ONE effect,
+// not one per copy -- the batch dedup runs before the baseline is consulted, and
+// a baseline fill reported twice would be written to `our_fill` twice.
+//
+// And the boundary has to cut BOTH ways: a fill absent from the baseline is live
+// however old the exchange stamps it, because no timestamp available to us is
+// sound (`rest.Fills` filters client-side after a complete walk, an unreadable
+// `ts` bypasses the filter, and the live poll asks for all history). It moves
+// `q`, it is reported as `Owned`, and §7.9's canary is entitled to latch on it.
+//
+// The live fill here is on the SAME order as the inherited one, which is the
+// case the seed arithmetic exists for: a partially filled order that spans the
+// restart moves `q` by the remainder alone and never by the whole.
+func TestBaselineDedupAndLiveFillsAreDistinguished(t *testing.T) {
+	seeded := NewSeededPortfolio(map[string]num.Qty{"M": contracts(1)},
+		baselineOf("t-old"))
+
+	inherited := FillEvent{
+		TradeID: "t-old", OrderID: "o1", Ticker: "M", Side: quote.SideYes,
+		Price4: 5000, Count: contracts(1),
+	}
+	live := FillEvent{
+		TradeID: "t-new", OrderID: "o1", Ticker: "M", Side: quote.SideYes,
+		Price4: 5000, Count: contracts(2),
+	}
+
+	// The baseline fill twice in one walk, plus a fill that is genuinely news.
+	eff := seeded.ApplyFills([]FillEvent{inherited, inherited, live},
+		owns("o1"), Live, pollMs)
+
+	if len(eff.OwnedBackfilled) != 1 {
+		t.Fatalf("owned backfilled = %d, want 1: a duplicated trade id in one "+
+			"walk is one fill", len(eff.OwnedBackfilled))
+	}
+	if len(eff.Owned) != 1 || eff.Owned[0].TradeID != "t-new" {
+		t.Fatalf("owned = %v, want exactly the fill absent from the baseline",
+			eff.Owned)
+	}
+	// 1.00 seeded from the positions walk, plus the 2.00 remainder of the live
+	// fill on the same order -- and NOT the inherited 1.00 a second time.
+	if got := seeded.Q("M"); got != contracts(3) {
+		t.Fatalf("q = %s, want 3.00", got.Wire())
+	}
+	if eff.Stop {
+		t.Fatalf("unexpected stop: %v", anomalyClasses(eff.Anomalies))
+	}
+
+	// Redelivery: the endpoint is walked in full forever, and the second offer
+	// of both is news of neither.
+	again := seeded.ApplyFills([]FillEvent{inherited, live}, owns("o1"),
+		Live, pollMs)
+	if len(again.Owned)+len(again.OwnedBackfilled) != 0 {
+		t.Fatalf("redelivered fills were counted again: owned=%d backfilled=%d",
+			len(again.Owned), len(again.OwnedBackfilled))
+	}
+	if got := seeded.Q("M"); got != contracts(3) {
+		t.Fatalf("q = %s after redelivery, want 3.00", got.Wire())
 	}
 }

@@ -4099,6 +4099,33 @@ func TestStartupHistoryIsNeverALiveCanaryFill(t *testing.T) {
 			return err == nil && found
 		})
 
+	// `lip-da6`. It reached `our_fill` by the LIVE route, because no other route
+	// exists for a fill outside `backfill_h`: §7.5 never asked for it, so
+	// `recordBackfilled` never wrote it, and this poll is genuinely its first
+	// observation. H-ORD-6's first-observer-wins therefore makes the label
+	// written here the label the row keeps forever, and the label is a claim
+	// about provenance -- history we INFERRED from a walk over the past, not
+	// trading we watched happen.
+	//
+	// Suppressing the canary was never enough on its own. `liveOwnedFill` runs
+	// in `applyRead` AFTER `wsx.ApplyPortfolio` has applied the fill and after
+	// `RecordFill` has been submitted, so before this the row was written
+	// `backfilled = false` and an analysis joining `our_fill` against `rig.db`
+	// read every restart as a burst of trading.
+	oldRow, _, err := h.rig.store.Reader().Fill(tradeID)
+	if err != nil {
+		t.Fatalf("reading our_fill for the out-of-window fill: %v", err)
+	}
+	if !oldRow.Backfilled {
+		t.Fatalf("the out-of-window fill %s is recorded with "+
+			"backfilled = false.\n\n"+
+			"It was already on the account when this process started -- §7.5's "+
+			"complete walk carried its trade id and only the backfill_h filter "+
+			"kept it out of what was seeded. The live walk asks with a zero "+
+			"`since`, so this is the first and only time it is ever written, "+
+			"and H-ORD-6 makes that first write permanent", tradeID)
+	}
+
 	// The adoption's own owned history reaches `our_fill`, flagged as what it
 	// is. Nothing else will ever write these rows: `risk.Seed` marks their
 	// trade ids seen, so the first live walk deduplicates them away and the

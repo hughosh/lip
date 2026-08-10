@@ -614,13 +614,21 @@ func (o *owner) install(a lifecycle.Adoption) {
 // recordBackfilled writes §7.5's owned history as `our_fill` rows with
 // `backfilled = true`.
 //
-// Nothing else ever will. `risk.Seed` marks every one of these trade ids seen
-// in the position model, so the first live fills walk deduplicates them away
-// and they never appear in `PortfolioEffects.OwnedFill` -- which is the only
-// other thing that calls `RecordFill`. Before this, an adoption's whole owned
-// history was read, classified, seeded, used to decide REDUCING, and then
-// dropped: `our_fill` began at the first fill this incarnation happened to
-// watch land, and H-ORD-6 makes that table the join against `rig.db`.
+// Nothing else ever will, for the fills INSIDE `backfill_h`. `risk.Seed` marks
+// every one of these trade ids seen in the position model, so the first live
+// fills walk deduplicates them away and they never reach `applyRead`. Before
+// this, an adoption's whole owned history was read, classified, seeded, used to
+// decide REDUCING, and then dropped: `our_fill` began at the first fill this
+// incarnation happened to watch land, and H-ORD-6 makes that table the join
+// against `rig.db`.
+//
+// The history OUTSIDE the window is the other half and it is not this function's
+// (`lip-da6`). §7.5 never asked for those fills, so they are not in the slice
+// passed here; only the live walk's zero `since` ever reports them, and
+// `applyRead` writes them from `PortfolioEffects.BackfilledFill` with the same
+// `true`. Three call sites write `our_fill` and each owns a disjoint set of
+// trade ids: this one the in-window history, `BackfilledFill` the out-of-window
+// history, and `OwnedFill` what this incarnation actually traded.
 //
 // `backfilled` is the column that keeps the two honest. These rows are what we
 // INFERRED from a walk over the past, not what we observed happening, and an
@@ -1036,6 +1044,26 @@ func (o *owner) applyRead(read wsx.PortfolioRead) {
 			})
 		}
 	}
+	// The same rows, with the opposite provenance. These are fills that were
+	// already on the account when this process started but sit OUTSIDE
+	// `backfill_h`, so §7.5's walk never asked for them and `recordBackfilled`
+	// never wrote them -- this poll is genuinely their first observation, and
+	// H-ORD-6's first-observer-wins makes whatever label it writes the row's
+	// label forever. `true` is that label: they are history we INFERRED from a
+	// walk over the past, not trading we watched happen, and an analysis joining
+	// `our_fill` against `rig.db` that cannot tell them apart reads every
+	// restart as a burst of activity (`lip-da6`).
+	for _, f := range eff.BackfilledFill {
+		if _, err := o.r.store.RecordFill(o.r.run, f, o.r.ex.NowMs(), true); err != nil {
+			o.r.anom.raise(risk.Anomaly{
+				Class: "FILL_NOT_RECORDED", Sev: risk.SEV1, Ticker: f.Ticker,
+				Text: fmt.Sprintf("the inherited fill %s on order %s could not "+
+					"be submitted to the store (%v); it is history older than "+
+					"backfill_h that only the live walk ever reports, so this "+
+					"row is lost rather than late", f.TradeID, f.OrderID, err),
+			})
+		}
+	}
 	if eff.Stop {
 		o.requestStop("portfolio_read", "")
 	}
@@ -1045,7 +1073,18 @@ func (o *owner) applyRead(read wsx.PortfolioRead) {
 	// cycle's effects and all of them are stronger reasons to be stopped than
 	// "the canary traded"; `commitStop` is first-writer-wins, so the order of
 	// these two blocks is what decides which reason the latch carries.
-	for _, f := range eff.OwnedFill {
+	//
+	// BOTH slices are offered, and inherited history is filtered out by the
+	// RULE rather than before it. `lip-da6` routes a baseline trade id into
+	// `BackfilledFill`, so passing only `OwnedFill` would already be correct --
+	// and it would make this decision depend entirely on that routing being
+	// right, with nothing here able to disagree. `liveOwnedFill` reaches its
+	// answer from the trade id, which is the fact §7.9 is actually about; a
+	// fill the canary never sees is a fill the canary cannot be wrong about,
+	// and `M-2T6-NOBASELINE` proves the rule is still doing the work.
+	for _, f := range append(append([]risk.FillEvent{}, eff.OwnedFill...),
+		eff.BackfilledFill...) {
+
 		if o.liveOwnedFill(f) {
 			o.canaryStop("canary_owned_fill", f.Ticker)
 		}

@@ -686,6 +686,74 @@ func TestTheStartupBaselineIsPreFilterAndSpansEveryAttempt(t *testing.T) {
 	}
 }
 
+// TestTheAdoptedPortfolioCarriesTheBaseline is `lip-da6`, and it is the wiring
+// the previous test's boundary is useless without.
+//
+// `StartupTrades()` being correct buys nothing on its own. The portfolio the
+// adoption hands to the live poller is the thing that decides whether a fill
+// older than `backfill_h` moves `q`, and if the baseline is not installed at the
+// moment that portfolio is seeded then the FIRST live poll -- which asks with a
+// zero `since` and so sees everything -- replays the whole of the account's
+// out-of-window history onto a position the exchange had already reported.
+//
+// The assertion is deliberately made through the returned portfolio rather than
+// by inspecting a field: it is exactly what `cmd/harness` does with it at
+// `run.go`'s `install`, and a baseline that is correct everywhere except in the
+// object that gets used is the defect this test exists to catch.
+// `M-L-NOBASELINE` seeds without it.
+func TestTheAdoptedPortfolioCarriesTheBaseline(t *testing.T) {
+	src := okSource()
+	// The exchange reports the position `t-old` already produced, and reports
+	// the trade only in the PRE-FILTER identity list -- which is what
+	// `rest.Fills` returns for a fill older than the window.
+	src.positions = rest.PositionsResult{
+		Walk: completeWalk(), ByTicker: map[string]num.Qty{"M": num.QtyFromFloat(6)},
+	}
+	src.fills = rest.FillsResult{
+		Walk:        completeWalk(),
+		Fills:       nil,
+		AllTradeIDs: []string{"t-old"},
+	}
+
+	s := newStartup(t, &recordingLatch{}, src, ownsAll("o1"), keepAll(),
+		newSweeper(true), "M")
+	at := s.Step(context.Background(), startupNow)
+	if at.Err != nil {
+		t.Fatalf("Step: %v", at.Err)
+	}
+
+	pf := at.Adoption.Portfolio()
+	if got := pf.Q("M"); got != num.QtyFromFloat(6) {
+		t.Fatalf("seeded q = %s, want 6.00", got.Wire())
+	}
+
+	// The first live poll, asking with a zero `since`, offers the fill the
+	// startup window never asked for.
+	eff := pf.ApplyFills([]risk.FillEvent{{
+		TradeID: "t-old", OrderID: "o1", Ticker: "M", Side: quote.SideYes,
+		Price4: 5000, Count: num.QtyFromFloat(6),
+	}}, ownsAll("o1"), risk.Live, startupNow.UnixMilli())
+
+	if got := pf.Q("M"); got != num.QtyFromFloat(6) {
+		t.Fatalf("q = %s after the first live poll, want 6.00 unchanged.\n\n"+
+			"The adopted portfolio was seeded without the startup baseline, so "+
+			"a fill older than backfill_h -- invisible to §7.5 and brand new to "+
+			"a live walk that asks for all history -- was replayed on top of "+
+			"the position the exchange had already reported. q_local is now "+
+			"history-plus-position while q_exch is the position, and above "+
+			"pos_drift_hard that is a SEV1 POSITION_DRIFT and a durable "+
+			"WINDING_DOWN the harness manufactured by restarting", got.Wire())
+	}
+	if len(eff.Owned) != 0 {
+		t.Fatalf("inherited history was reported as live: %d owned fill(s), "+
+			"which H-ORD-6 makes a permanently mislabelled our_fill row",
+			len(eff.Owned))
+	}
+	if len(eff.OwnedBackfilled) != 1 {
+		t.Fatalf("owned backfilled = %d, want 1", len(eff.OwnedBackfilled))
+	}
+}
+
 func keysOf(m map[string]struct{}) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {

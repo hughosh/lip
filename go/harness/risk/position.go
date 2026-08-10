@@ -199,6 +199,29 @@ type Portfolio struct {
 	// deferralEscalated is the trade_ids the SEV2 has already been raised for,
 	// so a fill stuck for an hour produces one anomaly and not one per poll.
 	deferralEscalated map[string]struct{}
+	// baseline is every trade id that was already on the account when this
+	// process started, taken BEFORE `backfill_h` filtered any of them out. It is
+	// identity only, and it is NOT `seenTrade`.
+	//
+	// The two sets answer different questions and that difference is the whole
+	// mechanism here. `seenTrade` means "already applied, do not look at this
+	// again". `baseline` means "the exchange had already accounted for this when
+	// it told us the position, so classify it and do not move q". A baseline
+	// fill still goes through the ownership lookup, still raises FOREIGN_FILL if
+	// the ledger disclaims it, and still trips H-ORD-8 if it is a taker fill --
+	// only the arithmetic is suppressed. Marking these seen instead would be
+	// smaller and would silence all three.
+	//
+	// It is needed because §7.5 step 3 reads fills with `since = now -
+	// backfill_h` while the live poller reads with a ZERO `since`. A fill older
+	// than the window is therefore invisible to the startup walk -- never
+	// classified, never seeded, never in `seenTrade` -- and brand new to the
+	// first live poll, which would replay it onto a q the positions walk had
+	// already seeded with its effect. One poll's disagreement then equals the
+	// replayed quantity, and above `pos_drift_hard` that is a SEV1
+	// POSITION_DRIFT and a durable WINDING_DOWN the harness manufactured out of
+	// its own restart (`lip-da6`).
+	baseline map[string]struct{}
 	// resting is the last complete order walk, by order id.
 	resting map[string]LiveOrder
 	// driftStreak counts consecutive polls whose disagreement exceeded
@@ -214,6 +237,7 @@ func NewPortfolio() *Portfolio {
 		seenTrade:         make(map[string]struct{}),
 		deferredAt:        make(map[string]int64),
 		deferralEscalated: make(map[string]struct{}),
+		baseline:          make(map[string]struct{}),
 		resting:           make(map[string]LiveOrder),
 		driftStreak:       make(map[string]int),
 	}
@@ -240,12 +264,29 @@ func NewPortfolio() *Portfolio {
 //
 // Flat entries are dropped rather than stored as zero, so `Positions()` and the
 // managed-set union see the same markets a steady-state poll would.
-func NewSeededPortfolio(positions map[string]num.Qty) *Portfolio {
+//
+// `baseline` is every trade id the startup's fills walks carried, BEFORE
+// `backfill_h` filtered any out. It is a CONSTRUCTOR ARGUMENT and not a setter
+// on purpose: the seeded portfolio is the one the live poller inherits, a
+// baseline installed late is a baseline the first poll ran without, and a
+// portfolio built from a positions walk without one replays its own history the
+// moment the live poll asks with a zero `since`. Making it impossible to forget
+// is worth one parameter. A nil or empty baseline is legitimate and means
+// exactly what it says: this account had no history to inherit.
+func NewSeededPortfolio(positions map[string]num.Qty,
+	baseline map[string]struct{}) *Portfolio {
+
 	p := NewPortfolio()
 	for t, q := range positions {
 		if q != 0 {
 			p.q[t] = q
 		}
+	}
+	// Copied, like every other identity set here: the caller's map is its own,
+	// and a startup that kept walking would otherwise widen this one underneath
+	// a poll already classifying against it.
+	for id := range baseline {
+		p.baseline[id] = struct{}{}
 	}
 	return p
 }
@@ -290,6 +331,23 @@ type FillEffects struct {
 	// cash flows. A taker fill of ours appears here as well: it happened, and
 	// the record of it is the evidence.
 	Owned []FillEvent
+	// OwnedBackfilled is the owned subset whose trade ids were already on the
+	// account when this process started -- history the positions walk has
+	// already accounted for, arriving at a live poll that asks with a zero
+	// `since`.
+	//
+	// Classified exactly like `Owned`: the ownership lookup ran over it,
+	// FOREIGN_FILL was available to it, and H-ORD-8's taker check ran over it.
+	// Only the arithmetic differs -- these did not move q, because the exchange
+	// had already counted them once.
+	//
+	// A SEPARATE field rather than a flag on `Owned`, because the two have
+	// opposite provenance and every consumer acts on that: `hstore` writes these
+	// with `backfilled = true`, and §7.9's canary must not latch on a fill this
+	// incarnation did not cause. A cash-flow reader (`lip-gp8`) wanting the
+	// account's realised pnl wants both; one wanting THIS run's trading wants
+	// `Owned` alone. Merged into one slice, neither question can be answered.
+	OwnedBackfilled []FillEvent
 	// Foreign is the subset the ledger CONCLUSIVELY disclaims: not bound, and
 	// no reservation outstanding that could still become it.
 	Foreign []FillEvent
@@ -371,6 +429,14 @@ const unclassifiedFillEscalateMs = 120_000
 // when a fill has been unresolved for too long. Reading the clock here would put
 // a real timer inside the position model, and the deferral deadline would then
 // be the one deadline in this package a test cannot drive.
+//
+// In `Live` mode a fill whose trade id is in the BASELINE is classified like any
+// other and applied like a seed, and reported in `OwnedBackfilled` rather than
+// `Owned`. That is not an optimisation and not deduplication: a fill older than
+// `backfill_h` never reached the startup walk, so `seenTrade` has never heard of
+// it, and the live poller's zero `since` presents it as brand new on every
+// restart. Applying it would replay history onto a position the exchange had
+// already reported (`lip-da6`).
 func (p *Portfolio) ApplyFills(fills []FillEvent, own OwnershipLookup,
 	mode ReconcileMode, nowMs int64) FillEffects {
 
@@ -508,7 +574,21 @@ func (p *Portfolio) ApplyFills(fills []FillEvent, own OwnershipLookup,
 			continue
 		}
 
-		eff.Owned = append(eff.Owned, f)
+		// H-ORD-6's window is identity, not time. A trade id already on the
+		// account when this process started is HISTORY however new the live
+		// walk's zero `since` makes it look, and the positions walk has already
+		// told us where it left the position -- so it is classified like any
+		// other fill and applied like a seed. The two halves fail separately and
+		// both are anchored: `M-R-BASELINEREPLAY` keeps the label right and
+		// replays the quantity onto q, `M-R-BASELINELIVE` keeps q right and
+		// reports it as live -- `backfilled = false` on a row H-ORD-6's
+		// first-observer-wins makes permanent (`lip-da6`).
+		_, inherited := p.baseline[f.TradeID]
+		if mode == Live && inherited {
+			eff.OwnedBackfilled = append(eff.OwnedBackfilled, f)
+		} else {
+			eff.Owned = append(eff.Owned, f)
+		}
 
 		st, ok := p.order(f.OrderID, f.Ticker, f.Side, &eff)
 		if !ok {
@@ -516,11 +596,18 @@ func (p *Portfolio) ApplyFills(fills []FillEvent, own OwnershipLookup,
 			continue
 		}
 		st.fillCum += f.Count
-		if mode == Seed {
+		if mode == Seed || inherited {
 			// Record the identity, keep the counters consistent, and leave q
 			// alone: the exchange has already told us the position these fills
 			// produced. Advancing `applied` in lockstep is what stops a LIVE
 			// fill on the same order later re-applying the historical quantity.
+			//
+			// `inherited` reaches here only in Live mode -- a Seed walk is
+			// already seed-like whatever the baseline says -- and it is the same
+			// arithmetic for the same reason. The order matters on a partially
+			// filled order that spans the restart: `fillCum` counts the
+			// inherited fill, `applied` follows it, and the live remainder on
+			// that same order then moves q by the remainder alone.
 			if st.fillCum > st.applied {
 				st.applied = st.fillCum
 			}

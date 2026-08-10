@@ -599,7 +599,12 @@ MUTATIONS = [
           # tuple this used to build. The anchor audit could not catch that --
           # it validates that `old` still matches, and this `old` did.
           "\treturn passResult{ad: &adoption{\n"
-          "\t\tportfolio: risk.NewSeededPortfolio(pos.ByTicker),\n"
+          # AGAIN at lip-da6, the same way: `NewSeededPortfolio` took a second
+          # argument and this call did not follow, so the mutation stopped
+          # compiling -- and a DID-NOT-BUILD does not count as caught. Twice is
+          # a pattern. A `new` that names a production symbol is a second copy
+          # of that symbol's signature, and the cheap audit never reads `new`.
+          "\t\tportfolio: risk.NewSeededPortfolio(pos.ByTicker, s.baseline),\n"
           "\t\tstates:    map[string]quote.MarketState{},\n"
           "\t}, anoms: anoms}\n\n"
           "\t// --- Step 2: resting orders, UNFILTERED --------------------------------\n"),
@@ -1258,6 +1263,83 @@ MUTATIONS = [
     # unrepresentable and a fill arriving in it was classified FOREIGN -- a
     # SEV1, a global stop and a durable operator-only WINDING_DOWN latch,
     # produced by our own order.
+
+    # ---- lip-da6: the startup baseline -----------------------------------
+    #
+    # §7.5 step 3 reads fills with `since = now - backfill_h`; the live poller
+    # reads them with a ZERO `since`. A fill older than the window is therefore
+    # invisible to startup -- never classified, never seeded, never in
+    # `seenTrade` -- and brand new to the first live poll. The baseline is the
+    # pre-filter trade-id union that closes the gap, and it has FOUR independent
+    # halves: q must not move, the row must be labelled backfilled, safety
+    # classification must still run, and the thing has to be installed at all.
+    # Each fails on its own, so each is anchored on its own.
+
+    ('M-R-BASELINEREPLAY',
+     'apply an inherited fill to q in Live mode, so a restart replays the '
+     'account history that is older than backfill_h onto the position the '
+     'exchange had already reported -- one poll then disagrees by the replayed '
+     'quantity, and above pos_drift_hard that is a SEV1 POSITION_DRIFT and a '
+     'durable WINDING_DOWN the harness manufactured by starting up',
+     [
+         ('harness/risk/position.go',
+          '\t\tif mode == Seed || inherited {\n',
+          '\t\tif mode == Seed {\n'),
+     ],
+     'TestOutOfWindowOwnedFillIsSeededNotReplayed'),
+
+    ('M-R-BASELINELIVE',
+     'report an inherited fill as live, so q stays right and the our_fill row '
+     'is written backfilled=false -- H-ORD-6 is first-observer-wins and no '
+     'other walk will ever write this row, so an analysis joining our_fill '
+     'against rig.db reads every restart as a burst of trading',
+     [
+         ('harness/risk/position.go',
+          '\t\tif mode == Live && inherited {\n'
+          '\t\t\teff.OwnedBackfilled = append(eff.OwnedBackfilled, f)\n'
+          '\t\t} else {\n'
+          '\t\t\teff.Owned = append(eff.Owned, f)\n'
+          '\t\t}\n',
+          '\t\teff.Owned = append(eff.Owned, f)\n'),
+     ],
+     'TestOutOfWindowOwnedFillIsSeededNotReplayed'),
+
+    ('M-R-BASELINESILENT',
+     'skip inherited fills entirely instead of classifying them -- candidate A '
+     'on lip-da6, which keeps q right and silently drops H-ORD-8: a taker fill '
+     'in our own history is a fact about the harness whenever it happened, and '
+     'this is the version of the fix that loses it',
+     [
+         ('harness/risk/position.go',
+          '\t\tif _, seen := p.seenTrade[f.TradeID]; seen {\n\t\t\tcontinue\n\t\t}\n',
+          '\t\tif _, seen := p.seenTrade[f.TradeID]; seen {\n\t\t\tcontinue\n\t\t}\n'
+          '\t\tif _, base := p.baseline[f.TradeID]; base {\n\t\t\tcontinue\n\t\t}\n'),
+     ],
+     'TestOutOfWindowTakerFillStillRaisesHORD8'),
+
+    ('M-L-NOBASELINE',
+     'seed the adopted portfolio without the startup baseline, so the boundary '
+     'between inherited history and live activity is computed correctly and '
+     'then handed to nobody -- the first live poll replays the whole of the '
+     'account history older than backfill_h',
+     [
+         ('harness/lifecycle/startup.go',
+          '\tportfolio := risk.NewSeededPortfolio(pos.ByTicker, s.baseline)\n',
+          '\tportfolio := risk.NewSeededPortfolio(pos.ByTicker, nil)\n'),
+     ],
+     'TestTheAdoptedPortfolioCarriesTheBaseline'),
+
+    ('M-OWN-BACKFILLLABEL',
+     'record an inherited fill as live in our_fill, mislabelling the one row '
+     'that only the live walk ever writes for history outside backfill_h',
+     [
+         ('cmd/harness/run.go',
+          '\tfor _, f := range eff.BackfilledFill {\n'
+          '\t\tif _, err := o.r.store.RecordFill(o.r.run, f, o.r.ex.NowMs(), true); err != nil {\n',
+          '\tfor _, f := range eff.BackfilledFill {\n'
+          '\t\tif _, err := o.r.store.RecordFill(o.r.run, f, o.r.ex.NowMs(), false); err != nil {\n'),
+     ],
+     'TestStartupHistoryIsNeverALiveCanaryFill'),
 
     ('M-HS-OWNNULLSKIP',
      'load only BOUND owned_order rows at Open, so a reservation that was '
@@ -2202,8 +2284,11 @@ MUTATIONS = [
      'ignore a newly classified owned fill, leaving the canary bounded only by '
      'the ack path and the position fallback',
      [
+         # Re-anchored at lip-da6: the loop now offers `BackfilledFill` to the
+         # same rule, so the range clause it deletes is the concatenation.
          ('cmd/harness/run.go',
-          '\tfor _, f := range eff.OwnedFill {\n\t\tif o.liveOwnedFill(f) {\n'
+          '\tfor _, f := range append(append([]risk.FillEvent{}, eff.OwnedFill...),\n'
+          '\t\teff.BackfilledFill...) {\n\n\t\tif o.liveOwnedFill(f) {\n'
           '\t\t\to.canaryStop("canary_owned_fill", f.Ticker)\n\t\t}\n\t}\n',
           ''),
      ],

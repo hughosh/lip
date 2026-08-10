@@ -769,7 +769,13 @@ func (s *Startup) attempt(ctx context.Context, now time.Time) passResult {
 			err: fmt.Errorf("a startup fill of ours did not convert: %w", err)}
 	}
 
-	portfolio := risk.NewSeededPortfolio(pos.ByTicker)
+	// The baseline goes in with the positions, not afterwards. `s.baseline` is
+	// every trade this startup's complete walks carried BEFORE `backfill_h`
+	// filtered any out, and it is what stops the first live poll -- which asks
+	// with a zero `since` -- replaying a fill older than the window onto the very
+	// position walk that already accounted for it. `M-L-NOBASELINE` seeds without
+	// it (`lip-da6`).
+	portfolio := risk.NewSeededPortfolio(pos.ByTicker, s.baseline)
 	fx := portfolio.ApplyFills(ownedConverted, s.guard.own, risk.Seed,
 		now.UnixMilli())
 	anoms = append(anoms, fx.Anomalies...)

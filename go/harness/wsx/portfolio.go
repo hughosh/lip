@@ -207,6 +207,16 @@ type PortfolioEffects struct {
 
 	Records   []risk.PollRecord
 	OwnedFill []risk.FillEvent
+	// BackfilledFill is the owned fills this poll saw for the first time that
+	// were nevertheless ALREADY on the account when the process started -- the
+	// history older than `backfill_h` that the startup walk never asked for and
+	// the live walk's zero `since` returns forever.
+	//
+	// Kept apart from `OwnedFill` all the way to the store, because the two
+	// differ in exactly what H-ORD-6 makes permanent: these are written with
+	// `backfilled = true`, and first-observer-wins means the label this poll
+	// writes is the label the row keeps.
+	BackfilledFill []risk.FillEvent
 	// DeferredFill is the fills the ownership ledger could not conclude about.
 	// They were not applied and not marked seen, and the next poll offers them
 	// again. Reported and not swallowed: a cycle whose fills all deferred looks
@@ -390,6 +400,7 @@ func applyFills(g *Gate, pf *risk.Portfolio, own risk.OwnershipLookup,
 		}
 		fe := pf.ApplyFills(events, own, mode, read.fillsAt.WallMs)
 		eff.OwnedFill = append(eff.OwnedFill, fe.Owned...)
+		eff.BackfilledFill = append(eff.BackfilledFill, fe.OwnedBackfilled...)
 		eff.DeferredFill = append(eff.DeferredFill, fe.Deferred...)
 		eff.merge(fe.Anomalies)
 		eff.Stop = eff.Stop || fe.Stop
