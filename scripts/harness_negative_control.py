@@ -2476,17 +2476,6 @@ MUTATIONS = [
 ROOT_ARTIFACTS = ("config.example.json",)
 
 
-def copy_root_artifacts(sandbox: Path) -> None:
-    for name in ROOT_ARTIFACTS:
-        src = LIP / name
-        if not src.exists():
-            # Refuse rather than run a suite that will fail for the wrong
-            # reason and call the result evidence.
-            raise SystemExit(f"{name} is missing from {LIP}; the Go tests read "
-                             f"it and the mutation sandbox cannot reproduce it")
-        shutil.copy2(src, sandbox / name)
-
-
 def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
     p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
     return p.returncode, p.stdout + p.stderr
@@ -2496,11 +2485,127 @@ def failed_tests(output: str) -> list[str]:
     return sorted(set(re.findall(r"^--- FAIL: (\S+)", output, re.M)))
 
 
+# ---------------------------------------------------------------------------
+# The preflight (lip-xl7)
+# ---------------------------------------------------------------------------
+#
+# A mutation's `new` text is a SECOND COPY of whatever production signature it
+# names, living in a Python string no compiler reads. The cheap anchor audit
+# validates that `old` still matches -- and `old` keeps matching perfectly well
+# while `new` goes stale -- so a signature change turns a mutation into a
+# DID-NOT-BUILD, which does not count as caught, and the gate goes RED after
+# ~105 minutes for a reason a 5-second check should have surfaced.
+#
+# That is not hypothetical: it happened to M11 twice, at lip-eyq and again at
+# lip-da6, costing roughly 210 minutes between them.
+#
+# The functions below exist as separate, parameterised units so a test can drive
+# them against a throwaway Go module rather than this repository. That is the
+# whole reason they take `go_src`/`lip` instead of reading the globals: the
+# defect being guarded against is one only a real compiler can see, so the test
+# has to compile something, and it must not need `lip/go` to do it.
+
+
+class AnchorError(Exception):
+    """An `old` anchor did not appear exactly once in its file."""
+
+
+def select_mutations(only: set[str], mutations=None) -> list:
+    """The selected mutations, or a raised SystemExit for an unknown id.
+
+    An `--only` value that matches nothing selects ZERO mutations, and a run of
+    zero mutations trivially "passes" -- the same false green this script exists
+    to detect, reachable by a typo.
+    """
+    muts = MUTATIONS if mutations is None else mutations
+    known = {m[0].upper() for m in muts}
+    unknown = only - known
+    if unknown:
+        raise SystemExit(f"unknown mutation id(s): {sorted(unknown)}\n"
+                         f"known: {sorted(known)}")
+    return [m for m in muts if not only or m[0].upper() in only]
+
+
+def apply_patches(dst: Path, patches) -> None:
+    """Apply one mutation's edits to a tree, refusing an ambiguous anchor."""
+    for rel, old, new in patches:
+        f = dst / rel
+        src = f.read_text()
+        n = src.count(old)
+        if n != 1:
+            raise AnchorError(f"anchor appears {n}x in {rel}, need exactly 1")
+        f.write_text(src.replace(old, new))
+
+
+def make_sandbox(td: Path, go_src: Path, lip: Path, artifacts=None) -> Path:
+    """A pristine copy of the Go tree plus the root files its tests read."""
+    dst = td / "go"
+    shutil.copytree(go_src, dst)
+    for name in (ROOT_ARTIFACTS if artifacts is None else artifacts):
+        src = lip / name
+        if not src.exists():
+            raise SystemExit(f"{name} is missing from {lip}; the Go tests read "
+                             f"it and the mutation sandbox cannot reproduce it")
+        shutil.copy2(src, td / name)
+    return dst
+
+
+def build_mutation(patches, go_src: Path, lip: Path,
+                   artifacts=None) -> tuple[bool, str]:
+    """Apply one mutation to its own sandbox and compile it."""
+    with tempfile.TemporaryDirectory() as td:
+        try:
+            dst = make_sandbox(Path(td), go_src, lip, artifacts)
+            apply_patches(dst, patches)
+        except AnchorError as e:
+            return False, str(e)
+        code, out = run([GO_BIN, "build", "./..."], dst)
+        return code == 0, out.strip()
+
+
+def preflight(selected, go_src: Path = None, lip: Path = None,
+              artifacts=None) -> list[tuple[str, str]]:
+    """Compile the pristine tree and every selected mutation.
+
+    Returns one `(id, output)` pair per mutation that does not build, EMPTY when
+    all of them do. Every failure is collected rather than returned on the first
+    one: the operator fixing a stale replacement wants the whole list, because
+    one signature change routinely rots several at once.
+
+    The pristine build is included under the id `<baseline>` so that "the tree
+    itself does not compile" is reported here rather than as N mutation
+    failures that all share one cause.
+    """
+    go_src = GO_SRC if go_src is None else go_src
+    lip = LIP if lip is None else lip
+
+    bad: list[tuple[str, str]] = []
+    code, out = run([GO_BIN, "build", "./..."], go_src)
+    if code != 0:
+        return [("<baseline>", out.strip())]
+
+    for mid, _name, patches, _expected in selected:
+        ok, out = build_mutation(patches, go_src, lip, artifacts)
+        if not ok:
+            bad.append((mid, out))
+            print(f"!! {mid}: replacement does not compile")
+        else:
+            print(f"ok {mid}: replacement compiles")
+    return bad
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=str(LIP / "notes" /
                                          "harness-negative-control.md"))
     ap.add_argument("--only", default="")
+    # --build-only stops after the preflight. There is deliberately NO flag that
+    # goes the other way: nothing may skip the preflight and proceed to the
+    # tests, because the whole point is that a stale replacement is discovered
+    # in seconds rather than at minute 95 of a round.
+    ap.add_argument("--build-only", action="store_true",
+                    help="compile every selected mutation and stop; writes no "
+                         "report and runs no Go test")
     a = ap.parse_args()
     only = {x.strip().upper() for x in a.only.split(",") if x.strip()}
 
@@ -2509,13 +2614,38 @@ def main() -> int:
     # script exists to detect, reachable by a typo. Reject it rather than
     # reporting success for having checked nothing (H-PAGE-1a's lesson:
     # "absence is not evidence" reappearing as a spelling mistake).
-    known = {m[0].upper() for m in MUTATIONS}
-    if only:
-        unknown = only - known
-        if unknown:
-            print(f"unknown mutation id(s): {sorted(unknown)}\n"
-                  f"known: {sorted(known)}", file=sys.stderr)
-            return 2
+    try:
+        selected = select_mutations(only)
+    except SystemExit as e:
+        print(str(e), file=sys.stderr)
+        return 2
+
+    # THE PREFLIGHT (lip-xl7). Every selected replacement must COMPILE before
+    # any test runs. `old` matching is not evidence that `new` still does, and a
+    # DID-NOT-BUILD does not count as caught -- so without this the run spends
+    # ~105 minutes to report a defect in the catalogue rather than in the tree.
+    bad_build = preflight(selected)
+    if bad_build:
+        print(f"\n{len(bad_build)} selected mutation(s) do not compile. A "
+              f"mutation that does not build cannot be caught, so this is a "
+              f"defect in the CATALOGUE and no test below would mean anything:",
+              file=sys.stderr)
+        for mid, out in bad_build:
+            head = "\n".join(out.splitlines()[:3])
+            print(f"  {mid}:\n    " + head.replace("\n", "\n    "),
+                  file=sys.stderr)
+        print("\nA `new` that names a production symbol is a second copy of "
+              "that symbol's signature. Update the replacement, then re-run.",
+              file=sys.stderr)
+        return 1
+    print(f"preflight: {len(selected)} selected mutation(s) compile")
+
+    if a.build_only:
+        # Deliberately writes NO report, canonical or partial. A build preflight
+        # is not evidence about catching anything, and a file that says
+        # "negative control" must never be produced by a run that executed no
+        # test.
+        return 0
 
     # Baseline: the pristine tree must be green, or nothing below means
     # anything. A mutation "caught" by an already-red suite is not evidence.
@@ -2527,23 +2657,19 @@ def main() -> int:
     print("baseline: green")
 
     rows = []
-    for mid, name, patches, expected in MUTATIONS:
-        if only and mid.upper() not in only:
-            continue
+    for mid, name, patches, expected in selected:
         with tempfile.TemporaryDirectory() as td:
-            dst = Path(td) / "go"
-            shutil.copytree(GO_SRC, dst)
-            copy_root_artifacts(Path(td))
-            for rel, old, new in patches:
-                f = dst / rel
-                src = f.read_text()
-                n = src.count(old)
-                if n != 1:
-                    print(f"{mid}: anchor appears {n}x in {rel}, need exactly 1",
-                          file=sys.stderr)
-                    return 1
-                f.write_text(src.replace(old, new))
+            dst = make_sandbox(Path(td), GO_SRC, LIP)
+            try:
+                apply_patches(dst, patches)
+            except AnchorError as e:
+                print(f"{mid}: {e}", file=sys.stderr)
+                return 1
 
+            # Kept as a DEFENSIVE RECHECK even though the preflight already
+            # compiled this exact mutation. The preflight is the early warning;
+            # this is the guarantee that the tree these tests run against is the
+            # tree that built.
             build, bout = run([GO_BIN, "build", "./..."], dst)
             if build != 0:
                 rows.append((mid, name, expected, "DID NOT BUILD",

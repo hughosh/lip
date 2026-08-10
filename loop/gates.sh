@@ -59,13 +59,28 @@ cd .. || exit 99
 #    a read-only Go tree. This is what stops an agent faking progress.
 run "check.py"   "$PY" scripts/check.py
 
+# 3b. The gate on the CATALOGUE (lip-xl7). A mutation's replacement text is a
+#     second copy of whatever production signature it names, and nothing else
+#     reads it: the cheap anchor audit validates `old`, which goes on matching
+#     while `new` goes stale. The result is a DID-NOT-BUILD, which does not
+#     count as caught, discovered at minute 95 of a ~105-minute round. It cost
+#     two rounds before this existed.
+run "catalogue-tests" "$PY" -m unittest scripts.test_harness_negative_control
+
 # 4. The gate on the gate (§17 V5). Slow -- it rebuilds a mutated copy of the
 #    tree per mutation -- so it is skippable for inner iterations but NOT for
 #    advancing a unit. A mutation that stops being caught is a silent loss of
 #    verification, and it is the only check here that can detect one.
 if [ $QUICK -eq 0 ]; then
+    # Normal mode runs its OWN preflight before the first test, so the whole
+    # catalogue is known to compile before ~105 minutes are committed to it.
     run "negative-control" "$PY" scripts/harness_negative_control.py
 else
+    # A quick pass still compiles every mutation. That is the cheap half of the
+    # negative control -- it cannot say a mutation is still CAUGHT, but it can
+    # say the catalogue is still executable, which is the failure that wastes a
+    # full round.
+    run "mutation-preflight" "$PY" scripts/harness_negative_control.py --build-only
     results+=("SKIP  negative-control (--quick; unit may not advance)")
 fi
 
