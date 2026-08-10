@@ -69,6 +69,19 @@ type agentOptions struct {
 	Dir string
 	// Force replaces an installed plist. Off by default -- see installPlist.
 	Force bool
+	// Live appends `-live` to the deployed argv (H-VER-1).
+	//
+	// Off by default, so `-deploy` installs a READ-ONLY job. That default is
+	// the point: a deployed job is the one invocation nobody watches start, and
+	// the plist outlives the session that wrote it. Arming it has to be a
+	// separate sentence the operator typed.
+	//
+	// It is NEVER inferred from the sentinel existing. The sentinel is a
+	// runtime key that an operator creates and removes freely; deriving the
+	// deployed argv from whatever happened to be on disk at install time would
+	// silently bake today's state into a job that starts for months.
+	// `M-ES6-DEPLOYARM` arms every deployed job.
+	Live bool
 }
 
 // installAgent renders the H-DEP-2/H-DEP-3 plist and installs it.
@@ -123,7 +136,7 @@ func installAgent(c config, configPath string, opts agentOptions,
 	plan := lifecycle.LaunchdPlan{
 		Label:      agentLabel,
 		Executable: exe,
-		Args:       []string{"-config", configPath},
+		Args:       agentArgs(configPath, opts.Live),
 		WorkingDir: logDir,
 		StdoutPath: filepath.Join(logDir, "harness.out"),
 		StderrPath: filepath.Join(logDir, "harness.err"),
@@ -341,6 +354,20 @@ func writeInstallReport(out io.Writer, path string,
 			"not be printed: %w", path, err)
 	}
 	return nil
+}
+
+// agentArgs is the deployed argv after the executable.
+//
+// `-config <absolute path>`, then AT MOST ONE `-live`. Built here rather than
+// inline so the arming decision is a single expression a test can drive both
+// ways, and so that "exactly once" is a property of the function rather than of
+// wherever the slice happened to be assembled.
+func agentArgs(configPath string, live bool) []string {
+	argv := []string{"-config", configPath}
+	if live {
+		argv = append(argv, "-live")
+	}
+	return argv
 }
 
 // confidence: high

@@ -483,7 +483,22 @@ func newRig(ctx context.Context, c config, resume bool, ex exchange) (*rig, erro
 	// The exchange client. One `*rest.Client`, shared: it is stateless over the
 	// `Doer`, and the single-writer property is a property of the DISPATCHER
 	// goroutine (D3), not of the client object.
-	r.api = rest.NewClient(ex.Doer)
+	//
+	// THE GUARD GOES UNDER IT, not beside it (H-VER-1). Wrapping `ex.Doer` here
+	// means startup's adoption sweep, the reducer, the dispatcher and anything
+	// added later all reach the exchange through the same arming check, because
+	// they all reach it through this one client. A guard installed at `Create`,
+	// in `main`, or in the dispatcher would leave the other three able to write
+	// -- and the startup sweep CANCELS orders, so "the dispatcher is guarded"
+	// would still be a process that writes on boot.
+	//
+	// `M-ES6-NOGUARD` removes the wrapper and keeps everything else.
+	arm := rest.WriteArm{Live: c.Live, LiveOKPath: c.Paths.LiveOK}
+	guarded, err := rest.NewWriteGuard(ex.Doer, arm)
+	if err != nil {
+		return nil, err
+	}
+	r.api = rest.NewClient(guarded)
 
 	tickers := []string{c.Ticker}
 

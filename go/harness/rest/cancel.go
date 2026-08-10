@@ -3,6 +3,7 @@ package rest
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"lip/harness/num"
@@ -64,6 +65,15 @@ type CancelResult struct {
 	// ReducedBy is what THIS delete removed. It is not a fill report.
 	ReducedBy num.Qty
 	Err       error
+	// Sent reports that the DELETE actually reached the transport (H-VER-1).
+	//
+	// It exists because a guarded refusal and a lost answer are opposite facts
+	// that both arrive as `Outcome != CancelAccepted` with a non-nil `Err`. A
+	// refusal consumed no write capacity and cannot have cancelled anything; an
+	// ambiguous transport error may have cancelled the order. The dispatcher
+	// refunds its capacity token on the first and not the second, and it is
+	// this field that tells them apart.
+	Sent bool
 }
 
 // Cancel issues one DELETE.
@@ -85,11 +95,22 @@ func (c *Client) Cancel(ctx context.Context, orderID string) CancelResult {
 		Path:   "/portfolio/events/orders/" + orderID,
 	})
 	if err != nil {
+		var refused *WriteRefused
+		if errors.As(err, &refused) {
+			// H-VER-1. Nothing was transmitted, so this cancel provably did
+			// not happen -- but the ORDER is untouched and still resting. It
+			// stays live in the risk model, which is the same conclusion as an
+			// ambiguous cancel and reached for the opposite reason: there, we
+			// do not know; here, we know nothing was sent.
+			res.Outcome, res.Sent, res.Err = CancelUnknown, false, err
+			return res
+		}
 		// No answer. The order may still be resting, so it stays live in the
 		// risk model until the sweep says otherwise.
-		res.Outcome, res.Err = CancelUnknown, err
+		res.Outcome, res.Sent, res.Err = CancelUnknown, true, err
 		return res
 	}
+	res.Sent = true
 	res.Status = resp.Status
 
 	switch {

@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"database/sql"
+	"errors"
+	"flag"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -40,6 +43,7 @@ func newProvisionConfig(t *testing.T) config {
 			Lock:       filepath.Join(d, "harness.lock"),
 			Key:        filepath.Join(d, "kalshi.pem"),
 			Env:        filepath.Join(d, "env"),
+			LiveOK:     filepath.Join(d, "live_ok"),
 		},
 	}
 }
@@ -263,5 +267,64 @@ func TestProvisionSatisfiesTheRefusalTheRunPathMakes(t *testing.T) {
 	}
 	if err := store.Close(); err != nil {
 		t.Fatalf("close: %v", err)
+	}
+}
+
+// TestProvisionNeverCreatesLiveOK keeps setting the harness up and letting it
+// trade separate acts (H-VER-1).
+//
+// `provision` creates everything else the process needs: the store, the anomaly
+// journal, their directories. If it created the arming sentinel too, then a
+// machine that had been set up would be a machine that was armed, and the second
+// key would be present for every future invocation on it -- which is the whole
+// failure the sentinel exists to prevent, arriving through the one command an
+// operator runs without thinking about writes at all.
+func TestProvisionNeverCreatesLiveOK(t *testing.T) {
+	c := newProvisionConfig(t)
+	var out bytes.Buffer
+	if err := provision(c, &out); err != nil {
+		t.Fatalf("provision: %v", err)
+	}
+
+	// The store really was created, so this is not passing by doing nothing.
+	if _, err := os.Stat(c.Paths.DB); err != nil {
+		t.Fatalf("provision did not create the store: %v", err)
+	}
+	if _, err := os.Stat(c.Paths.LiveOK); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("provision created (or found) the live_ok sentinel at %s. "+
+			"Provisioning is how a machine is prepared; arming is a separate "+
+			"sentence a human types afterwards, having looked at what was "+
+			"prepared", c.Paths.LiveOK)
+	}
+}
+
+// TestProvisionWithLiveRefusesBeforeCreatingArtifacts is the same rule enforced
+// at the command line, and it refuses EARLY on purpose.
+//
+// `-provision -live` reads as "set it up and let it trade". The refusal happens
+// before the config is even loaded, so a mistaken invocation leaves no database,
+// no journal, and no directories behind -- the operator retries the correct
+// command against a clean machine rather than against the debris of the wrong
+// one.
+func TestProvisionWithLiveRefusesBeforeCreatingArtifacts(t *testing.T) {
+	c := newProvisionConfig(t)
+	d := t.TempDir()
+	cfgPath := filepath.Join(d, "config.json")
+	if err := os.WriteFile(cfgPath, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	fs := flag.NewFlagSet("harness", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	err := run(fs, cfgPath, "", "", true, false, false, true)
+
+	var ref *refusal
+	if !errors.As(err, &ref) {
+		t.Fatalf("-provision -live returned %v, want a refusal: launchd's "+
+			"KeepAlive retries a failure forever, and this is a statement that "+
+			"the invocation should not run at all", err)
+	}
+	if _, statErr := os.Stat(c.Paths.DB); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatal("the refused -provision -live left a database behind")
 	}
 }

@@ -35,7 +35,8 @@ func goodTail(t *testing.T) string {
 		`"latch":"` + filepath.Join(d, "harness.halt") + `",` +
 		`"lock":"` + filepath.Join(d, "harness.lock") + `",` +
 		`"key":"` + filepath.Join(d, "kalshi.pem") + `",` +
-		`"env":"` + filepath.Join(d, "env") + `"}`
+		`"env":"` + filepath.Join(d, "env") + `",` +
+		`"live_ok":"` + filepath.Join(d, "live_ok") + `"}`
 }
 
 // TestConfigSizesAreContractsAndDollarsNotRawQuanta is the whole reason this
@@ -146,7 +147,8 @@ func TestRelativePathsAreRefused(t *testing.T) {
 		"latch":"harness.halt",
 		"lock":"`+filepath.Join(d, "l.lock")+`",
 		"key":"`+filepath.Join(d, "k.pem")+`",
-		"env":"`+filepath.Join(d, "env")+`"}}`)
+		"env":"`+filepath.Join(d, "env")+`",
+		"live_ok":"`+filepath.Join(d, "live_ok")+`"}}`)
 
 	_, err := loadConfig(p)
 	if err == nil {
@@ -162,7 +164,7 @@ func TestRelativePathsAreRefused(t *testing.T) {
 // where its own durable state lives can be pointed at an empty copy.
 func TestEveryPathIsRequired(t *testing.T) {
 	for _, missing := range []string{
-		"db", "anomaly_log", "latch", "lock", "key", "env",
+		"db", "anomaly_log", "latch", "lock", "key", "env", "live_ok",
 	} {
 		d := t.TempDir()
 		all := map[string]string{
@@ -172,6 +174,7 @@ func TestEveryPathIsRequired(t *testing.T) {
 			"lock":        filepath.Join(d, "l.lock"),
 			"key":         filepath.Join(d, "k.pem"),
 			"env":         filepath.Join(d, "env"),
+			"live_ok":     filepath.Join(d, "live_ok"),
 		}
 		delete(all, missing)
 		var b strings.Builder
@@ -364,4 +367,84 @@ func TestTheShippedExampleConfigLoads(t *testing.T) {
 			"and shipping a real one invites it being traded by default",
 			c.Ticker)
 	}
+}
+
+// TestLiveOKPathIsRequiredAbsoluteAndDedicated is H-VER-1's second key stated as
+// what would silently destroy it.
+//
+// The sentinel's whole value is that it exists for NO other reason. Aliased onto
+// a path the harness needs anyway, it stops being a key: provisioning the store
+// would arm the machine, and so would having credentials on it. A relative path
+// is the same failure by another route -- it resolves against the working
+// directory, so the same config arms under a shell and disarms under launchd.
+func TestLiveOKPathIsRequiredAbsoluteAndDedicated(t *testing.T) {
+	base := func(d string) map[string]string {
+		return map[string]string{
+			"db":          filepath.Join(d, "harness.db"),
+			"anomaly_log": filepath.Join(d, "a.jsonl"),
+			"latch":       filepath.Join(d, "h.halt"),
+			"lock":        filepath.Join(d, "l.lock"),
+			"key":         filepath.Join(d, "k.pem"),
+			"env":         filepath.Join(d, "env"),
+			"live_ok":     filepath.Join(d, "live_ok"),
+		}
+	}
+	write := func(t *testing.T, d string, m map[string]string) string {
+		t.Helper()
+		var b strings.Builder
+		b.WriteString(`{"ticker":"KXTEST-A","rung":"canary","s":1,"paths":{`)
+		first := true
+		for k, v := range m {
+			if !first {
+				b.WriteString(",")
+			}
+			first = false
+			b.WriteString(`"` + k + `":"` + v + `"`)
+		}
+		b.WriteString("}}")
+		p := filepath.Join(d, "config.json")
+		if err := os.WriteFile(p, []byte(b.String()), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+
+	t.Run("relative", func(t *testing.T) {
+		d := t.TempDir()
+		m := base(d)
+		m["live_ok"] = "live_ok"
+		if _, err := loadConfig(write(t, d, m)); err == nil {
+			t.Fatal("a relative live_ok was accepted; the same config would " +
+				"arm under a shell and disarm under launchd")
+		}
+	})
+
+	for _, alias := range []string{"db", "latch", "key", "env"} {
+		t.Run("aliased onto "+alias, func(t *testing.T) {
+			d := t.TempDir()
+			m := base(d)
+			m["live_ok"] = m[alias]
+			_, err := loadConfig(write(t, d, m))
+			if err == nil {
+				t.Fatalf("live_ok was accepted while pointing at paths.%s. "+
+					"That file exists because the harness needs it, so the "+
+					"second key would be present the moment the harness was "+
+					"usable at all", alias)
+			}
+			if !strings.Contains(err.Error(), "live_ok") {
+				t.Fatalf("the error does not name live_ok: %v", err)
+			}
+		})
+	}
+
+	t.Run("aliased onto the config file", func(t *testing.T) {
+		d := t.TempDir()
+		m := base(d)
+		m["live_ok"] = filepath.Join(d, "config.json")
+		if _, err := loadConfig(write(t, d, m)); err == nil {
+			t.Fatal("live_ok was accepted while pointing at the config file " +
+				"itself, which is the one path guaranteed to exist whenever " +
+				"the binary runs")
+		}
+	})
 }

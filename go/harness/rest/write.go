@@ -3,6 +3,7 @@ package rest
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"lip/harness/cfg"
@@ -173,6 +174,40 @@ func (c *Client) Create(ctx context.Context, body CreateOrder, p cfg.Params) Cre
 			Body:   payload,
 		})
 		if err != nil {
+			var refused *WriteRefused
+			if errors.As(err, &refused) {
+				// H-VER-1. The guard stopped this BEFORE the transport, so the
+				// attempt did not happen at all -- undo the increment, or a
+				// read-only rehearsal reports network attempts it never made.
+				res.Attempts--
+
+				// `res.Attempts` now counts the attempts that REALLY reached
+				// the transport, and it is the discriminator rather than
+				// `Outcome`: `CreateUnknown` is the deliberate zero value, so
+				// testing the outcome alone would treat the very first refusal
+				// as "an earlier attempt was ambiguous" and preserve an UNKNOWN
+				// for an order that was never sent even once.
+				if res.Attempts > 0 && res.Outcome == CreateUnknown {
+					// AN EARLIER ATTEMPT WAS AMBIGUOUS AND THIS RETRY WAS
+					// REFUSED. The order may be resting on the exchange right
+					// now: the sentinel was removed between the two attempts,
+					// and disarming cannot retroactively un-send what was
+					// already sent. Preserve `UNKNOWN`, the requested
+					// `MaxLive`, and `ReconcileNow()` -- the reconciliation is
+					// the only thing that will find it.
+					//
+					// Overwriting this with `Rejected` is the dangerous
+					// simplification: it would drop a possibly-live order out
+					// of every aggregate cap at the exact moment an operator
+					// was reaching for the off switch.
+					res.Err = err
+					return res
+				}
+				// Nothing was ever transmitted under this coid.
+				res.Outcome, res.Status, res.Attempts, res.MaxLive, res.Err =
+					CreateRejected, 0, 0, 0, err
+				return res
+			}
 			if !WasSent(err) {
 				// The request provably never left the process, so no order can
 				// exist. This is a definite "no", and withholding it would not

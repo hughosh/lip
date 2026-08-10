@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"lip/harness/cfg"
@@ -557,4 +559,133 @@ func TestCreateUsesTheV2Endpoint(t *testing.T) {
 	}}
 	NewClient(d).Create(context.Background(),
 		testOrder(t, "lipH-run1-000-yes-00000011"), cfg.Default())
+}
+
+// TestWriteRefusalNeverBecomesUnknownCreate is H-VER-1 meeting H-ORD-2, and it
+// is the reason `WriteRefused` is a type rather than a message.
+//
+// A guarded refusal and a dropped response both arrive as a non-nil error from
+// `Doer.Do`, and they are opposite facts. A dropped response means an order may
+// be resting; a refusal means the bytes never left this process. Reading the
+// refusal as ambiguous would make a read-only rehearsal manufacture an UNKNOWN
+// create per tick -- and an unresolved create keeps its FULL SIZE in every
+// aggregate cap (H-ORD-2 clause 6), so the process that provably cannot trade
+// would exhaust the pilot's capital budget with orders that never existed.
+func TestWriteRefusalNeverBecomesUnknownCreate(t *testing.T) {
+	inner := &scriptedDoer{t: t, handle: func(int, Request) (Response, error) {
+		t.Fatal("a refused create reached the transport")
+		return Response{}, nil
+	}}
+	g, err := NewWriteGuard(inner, WriteArm{}) // zero value: read-only
+	if err != nil {
+		t.Fatalf("NewWriteGuard: %v", err)
+	}
+
+	res := NewClient(g).Create(context.Background(),
+		testOrder(t, "lipH-run1-000-yes-00000001"), cfg.Default())
+
+	if res.Outcome != CreateRejected {
+		t.Fatalf("outcome is %s, want rejected: a refusal is the most definite "+
+			"'no' available -- there was no request, not a request whose "+
+			"answer was lost", res.Outcome)
+	}
+	if res.Attempts != 0 {
+		t.Fatalf("attempts = %d, want 0: nothing was transmitted, and a "+
+			"read-only rehearsal must not report network attempts it never "+
+			"made", res.Attempts)
+	}
+	if res.MaxLive != 0 {
+		t.Fatalf("max live = %s, want 0: no order can be resting from a "+
+			"request that was never sent, and this figure is what the "+
+			"aggregate caps consume", res.MaxLive.Wire())
+	}
+	if res.ReconcileNow() {
+		t.Fatal("a refused create asked for immediate reconciliation; there " +
+			"is nothing on the exchange to reconcile against")
+	}
+	var refused *WriteRefused
+	if !errors.As(res.Err, &refused) {
+		t.Fatalf("err is %v, want a WriteRefused the caller can distinguish "+
+			"from an exchange 4xx", res.Err)
+	}
+	// AND the general classifier agrees. `Create` reaches its answer from its
+	// own `errors.As` above -- it has to, because only that branch can preserve
+	// an earlier ambiguous attempt -- so `WasSent` is not what produced the
+	// result checked here. That is exactly why it is asserted separately:
+	// `Cancel`, the dispatcher and every future caller classify through
+	// `WasSent`, and the moment the two disagree this same refusal means
+	// "rejected" on one path and "possibly resting" on another.
+	//
+	// `M-ES6-UNKNOWN` removes the recognition from `WasSent` alone, which
+	// leaves `Create` correct and everything else wrong.
+	if WasSent(res.Err) {
+		t.Fatal("WasSent reports a guarded refusal as sent. There was no " +
+			"request at all -- not a request whose answer was lost -- and a " +
+			"caller that took the ambiguous branch would hold a full-size " +
+			"UNKNOWN in every aggregate cap for an order that never existed")
+	}
+	if len(inner.Calls()) != 0 {
+		t.Fatalf("%d requests reached the transport", len(inner.Calls()))
+	}
+}
+
+// TestDisarmingAfterAmbiguousCreatePreservesUnknown is the case where the two
+// rules collide, and safety belongs to H-ORD-2.
+//
+// The sequence is one an operator will really produce: a create goes out, the
+// answer is lost, and while the retry is pending they `rm live_ok` because
+// something looks wrong. The retry is then refused -- but the FIRST attempt may
+// have landed an order that is resting right now.
+//
+// Disarming cannot un-send what was already sent. The result must stay UNKNOWN,
+// keep its requested size in the caps, and still demand reconciliation, because
+// reconciliation is the only thing that will find that order. Collapsing it to
+// `Rejected` -- the tidy-looking answer -- would drop a live order out of the
+// risk model at the exact moment the operator was reaching for the off switch.
+func TestDisarmingAfterAmbiguousCreatePreservesUnknown(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "live_ok")
+	if err := os.WriteFile(path, []byte("armed\n"), 0o600); err != nil {
+		t.Fatalf("sentinel: %v", err)
+	}
+
+	inner := &scriptedDoer{t: t, handle: func(n int, _ Request) (Response, error) {
+		if n != 0 {
+			t.Fatalf("the transport was reached %d times; the retry should "+
+				"have been refused by the guard", n+1)
+		}
+		// The answer is lost -- and the operator disarms before the retry.
+		if err := os.Remove(path); err != nil {
+			t.Fatalf("removing the sentinel: %v", err)
+		}
+		return Response{}, errors.New("connection reset after the request left")
+	}}
+	g, err := NewWriteGuard(inner, WriteArm{Live: true, LiveOKPath: path})
+	if err != nil {
+		t.Fatalf("NewWriteGuard: %v", err)
+	}
+
+	order := testOrder(t, "lipH-run1-000-yes-00000002")
+	res := NewClient(g).Create(context.Background(), order, cfg.Default())
+
+	if res.Outcome != CreateUnknown {
+		t.Fatalf("outcome is %s, want unknown. The first attempt reached the "+
+			"exchange and its answer was lost, so an order may be resting; "+
+			"refusing the RETRY says nothing about what the first attempt did",
+			res.Outcome)
+	}
+	if res.MaxLive != order.Count() {
+		t.Fatalf("max live = %s, want %s: a possibly-live order holds its full "+
+			"requested size in every aggregate cap until reconciliation "+
+			"resolves it", res.MaxLive.Wire(), order.Count().Wire())
+	}
+	if !res.ReconcileNow() {
+		t.Fatal("no immediate reconciliation was requested for a create that " +
+			"may be resting; the reconciling read is the only thing that will " +
+			"ever find it")
+	}
+	if len(inner.Calls()) != 1 {
+		t.Fatalf("%d requests reached the transport, want exactly 1",
+			len(inner.Calls()))
+	}
 }

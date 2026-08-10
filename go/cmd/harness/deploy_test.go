@@ -310,3 +310,78 @@ func TestInstallRefusesARelativeConfigPath(t *testing.T) {
 		t.Fatal("a relative config path was accepted into a launchd argv")
 	}
 }
+
+// TestReadOnlyDeployNeverCarriesLive is the default that matters most (H-VER-1).
+//
+// A deployed job is the one invocation nobody watches start. The plist outlives
+// the session that wrote it, `KeepAlive` restarts it forever, and the argv in it
+// is what runs at 3am after a reboot. So `-deploy` alone installs a READ-ONLY
+// job, and arming a deployed job has to be a separate sentence the operator
+// typed.
+//
+// It is never inferred from the sentinel being present at install time.
+// `M-ES6-DEPLOYARM` arms every deployed job, which is the shape this would take
+// if someone decided the flag was redundant with the file.
+func TestReadOnlyDeployNeverCarriesLive(t *testing.T) {
+	c, configPath, dir := newDeployFixture(t)
+
+	// The sentinel EXISTS while the deploy runs. A job armed by inference would
+	// pass a test that forgot this line.
+	if err := os.WriteFile(c.Paths.LiveOK, []byte("armed\n"), 0o600); err != nil {
+		t.Fatalf("sentinel: %v", err)
+	}
+
+	var out bytes.Buffer
+	if err := installAgent(c, configPath, agentOptions{Dir: dir}, &out); err != nil {
+		t.Fatalf("installAgent: %v", err)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, agentLabel+".plist"))
+	if err != nil {
+		t.Fatalf("reading the installed plist: %v", err)
+	}
+	for _, a := range programArguments(t, string(body)) {
+		if a == "-live" {
+			t.Fatal("a plain -deploy installed a job carrying -live. The " +
+				"sentinel happened to exist when the plist was written, and " +
+				"that is a runtime key an operator creates and removes " +
+				"freely -- baking it into an argv that starts for months is " +
+				"exactly the inference H-VER-1 forbids")
+		}
+	}
+}
+
+// TestExplicitLiveDeployCarriesLiveExactlyOnce is the other half: when the
+// operator does say so, the flag appears, and it appears ONCE.
+//
+// Once matters because `flag` accepts a repeated boolean silently, so a
+// duplicate would never be reported -- and an argv that accumulated a `-live`
+// per deploy would be a plist nobody could read confidently.
+func TestExplicitLiveDeployCarriesLiveExactlyOnce(t *testing.T) {
+	c, configPath, dir := newDeployFixture(t)
+
+	var out bytes.Buffer
+	if err := installAgent(c, configPath,
+		agentOptions{Dir: dir, Live: true}, &out); err != nil {
+		t.Fatalf("installAgent: %v", err)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, agentLabel+".plist"))
+	if err != nil {
+		t.Fatalf("reading the installed plist: %v", err)
+	}
+
+	args := programArguments(t, string(body))
+	n := 0
+	for _, a := range args {
+		if a == "-live" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("the deployed argv carries %d -live flags, want exactly 1: %v",
+			n, args)
+	}
+	// And it still says which config, in the same stable order.
+	if len(args) < 2 || args[len(args)-3] != "-config" {
+		t.Fatalf("the argv is not `-config <path> -live`: %v", args)
+	}
+}

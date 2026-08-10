@@ -776,6 +776,10 @@ type seamOptions struct {
 	// SkipRig builds the config and the fakes but not the rig, for the tests
 	// whose subject IS `newRig`.
 	SkipRig bool
+	// ReadOnly disarms BOTH of H-VER-1's keys: no `-live`, and no `live_ok`
+	// sentinel on disk. The harness then reaches every decision it normally
+	// reaches and cannot transmit a single non-GET.
+	ReadOnly bool
 
 	// Rung selects the capital ladder step. Empty is `pilot`, which is what
 	// every test written before the canary policy existed assumes.
@@ -854,7 +858,21 @@ func newSeamConfig(t *testing.T) config {
 			Lock:       filepath.Join(d, "harness.lock"),
 			Key:        filepath.Join(d, "kalshi.pem"),
 			Env:        filepath.Join(d, "env"),
+			LiveOK:     filepath.Join(d, "live_ok"),
 		},
+		// ARMED BY DEFAULT, and only here (H-VER-1).
+		//
+		// Every seam test written before this bead is about what the harness
+		// DOES when it trades -- the exit lands at the touch, the binding is
+		// submitted inline, the canary latches on its first fill -- and a
+		// read-only rig would make all of them assert nothing while still
+		// passing, which is precisely the false green this repository exists
+		// to refuse. So the seam arms both keys and the read-only tests turn
+		// them off explicitly.
+		//
+		// The sentinel file itself is created in `newSeamHarness`, because a
+		// config is a set of paths and this one has to exist on disk.
+		Live: true,
 	}
 }
 
@@ -862,6 +880,14 @@ func newSeamHarness(t *testing.T, opt seamOptions) *seamHarness {
 	t.Helper()
 
 	c := newSeamConfig(t)
+	if opt.ReadOnly {
+		// The disarmed rehearsal. Both keys off: no `-live`, and the sentinel
+		// is never created. `TestReadOnlyRunRecordsWouldWriteWithoutSendingNonGET`
+		// is the test this exists for.
+		c.Live = false
+	} else if err := os.WriteFile(c.Paths.LiveOK, []byte("armed\n"), 0o600); err != nil {
+		t.Fatalf("writing the live_ok sentinel: %v", err)
+	}
 	if opt.Rung != "" {
 		r, ok := rungs[opt.Rung]
 		if !ok {
@@ -4417,4 +4443,115 @@ func TestATakerFillOnTheCanaryKeepsTheStrongerCause(t *testing.T) {
 			"them is worth being woken for, so the stronger one must reach "+
 			"`requestStop` first -- first-writer-wins does the rest", got)
 	}
+}
+
+// TestReadOnlyRunRecordsWouldWriteWithoutSendingNonGET is H-VER-1 as a property
+// of the whole composed process, and it is the test the bead exists for.
+//
+// A rehearsal is only worth running if it exercises everything except the write.
+// So the assertions are in two directions at once, and both are load-bearing:
+//
+//   - The harness REACHES the decision. It adopts the position, publishes a
+//     REDUCING market at an actionable touch, wants to rest an exit, takes a
+//     durable reservation for it, and abandons that reservation when the write
+//     is refused. That is the five-table evidence of a would-write, and it is
+//     recorded with no sixth table -- an `owned_order` row that is neither bound
+//     nor outstanding is exactly what "we would have placed this" looks like.
+//   - NOTHING non-GET reaches the transport. Not one POST, not one DELETE, and
+//     the read walks keep going, so this is a complete observer that cannot act.
+//
+// A test that asserted only the second half would pass on a harness that
+// crashed at startup.
+func TestReadOnlyRunRecordsWouldWriteWithoutSendingNonGET(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{
+		ReadOnly:  true,
+		Positions: map[string]string{seamTicker: "8.00"},
+	})
+	h.start()
+	h.awaitActionable()
+
+	m, ok := h.market()
+	if !ok {
+		t.Fatal("no snapshot was published; a read-only harness must still " +
+			"reach every truth a live one does")
+	}
+	if m.State != quote.Reducing {
+		t.Fatalf("the market is %s, want REDUCING. The point of this test is "+
+			"that §6.2 WANTED to rest an exit and structurally could not",
+			m.State)
+	}
+
+	// Several ticks, so this is not a claim about one instant.
+	for i := 0; i < 3; i++ {
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(2)
+	}
+
+	h.ex.mu.Lock()
+	creates, deletes, walks := len(h.ex.creates), len(h.ex.deletes), h.ex.ordersWalks
+	h.ex.mu.Unlock()
+
+	if creates != 0 || deletes != 0 {
+		t.Fatalf("a read-only run transmitted %d create(s) and %d delete(s). "+
+			"Neither key was present, so this process was structurally "+
+			"incapable of it -- and every rehearsal, qualification run and "+
+			"dry run this repository plans is worth exactly as much as that "+
+			"guarantee", creates, deletes)
+	}
+	if walks == 0 {
+		t.Fatal("no orders walk was served, so the harness was not reading " +
+			"either; a process that neither reads nor writes rehearses nothing")
+	}
+
+	// The would-write, on disk. `Abandoned` is the terminal a refused create
+	// leaves behind: the reservation was taken durably BEFORE the write was
+	// attempted (H-ORD-6's barrier) and then closed out when it was refused.
+	rows, err := h.rig.store.Reader().OwnedOrders()
+	if err != nil {
+		t.Fatalf("reading owned_order: %v", err)
+	}
+	abandoned := 0
+	for _, r := range rows {
+		if r.Abandoned {
+			abandoned++
+		}
+		if r.Bound {
+			t.Fatalf("coid %s is BOUND in a read-only run: an order id can "+
+				"only come from an exchange that answered a create", r.Coid)
+		}
+	}
+	if abandoned == 0 {
+		t.Fatalf("no abandoned reservation is recorded across %d owned_order "+
+			"row(s). The refusal has to leave the same durable trail as any "+
+			"other unplaced order, or a rehearsal proves the harness declined "+
+			"to trade and not that it decided to and was stopped", len(rows))
+	}
+}
+
+// TestLiveComposedRunReachesRawDoerWithBothWriteKeys is the control.
+//
+// Every assertion in the read-only test above is about an ABSENCE, and an
+// absence is the easiest thing in the world to produce by accident -- a harness
+// that failed to start, a fixture that seeded no position, a book that never
+// qualified. This is the same composition with both keys present, and it must
+// reach the transport. Without it, the pair above could be passing because
+// nothing works.
+func TestLiveComposedRunReachesRawDoerWithBothWriteKeys(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{
+		Positions: map[string]string{seamTicker: "8.00"},
+	})
+	if !h.cfg.Live {
+		t.Fatal("the seam harness is not armed, so this control asserts nothing")
+	}
+	if _, err := os.Stat(h.cfg.Paths.LiveOK); err != nil {
+		t.Fatalf("the live_ok sentinel is absent: %v", err)
+	}
+
+	h.start()
+	h.awaitActionable()
+	h.await("a write to reach the raw transport", func() bool {
+		h.ex.mu.Lock()
+		defer h.ex.mu.Unlock()
+		return len(h.ex.creates) > 0 || len(h.ex.deletes) > 0
+	})
 }

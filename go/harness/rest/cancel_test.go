@@ -397,3 +397,64 @@ func TestSweepIgnoresForeignOrders(t *testing.T) {
 		t.Fatalf("only our own order may be cancelled, deleted: %v", deleted)
 	}
 }
+
+// TestRefusedCancelIsNotCountedAsSent is why `CancelResult` grew a `Sent` field.
+//
+// A guarded refusal and a lost answer both arrive as `CancelUnknown` with a
+// non-nil `Err`, and they lead to the same conclusion about the ORDER -- it is
+// still resting -- for opposite reasons. There, we do not know; here, we know
+// nothing was transmitted.
+//
+// The difference matters to the dispatcher rather than to the risk model. A
+// refusal consumed no write capacity, so its token is refunded; an ambiguous
+// cancel really did use one. Without `Sent` the two are indistinguishable, and
+// a read-only rehearsal would burn its whole write budget on requests it never
+// made.
+func TestRefusedCancelIsNotCountedAsSent(t *testing.T) {
+	t.Run("refused", func(t *testing.T) {
+		inner := &scriptedDoer{t: t, handle: func(int, Request) (Response, error) {
+			t.Fatal("a refused cancel reached the transport")
+			return Response{}, nil
+		}}
+		g, err := NewWriteGuard(inner, WriteArm{}) // read-only
+		if err != nil {
+			t.Fatalf("NewWriteGuard: %v", err)
+		}
+
+		res := NewClient(g).Cancel(context.Background(), "EX-1")
+
+		if res.Sent {
+			t.Fatal("a refused cancel reports Sent; the dispatcher would not " +
+				"refund its capacity token for a request that never happened")
+		}
+		if res.Outcome != CancelUnknown {
+			t.Fatalf("outcome is %s, want unknown: the order is untouched and "+
+				"still resting, so it must stay live in the risk model",
+				res.Outcome)
+		}
+		var refused *WriteRefused
+		if !errors.As(res.Err, &refused) {
+			t.Fatalf("err is %v, want WriteRefused", res.Err)
+		}
+		if len(inner.Calls()) != 0 {
+			t.Fatalf("%d requests reached the transport", len(inner.Calls()))
+		}
+	})
+
+	t.Run("ambiguous is sent", func(t *testing.T) {
+		// The contrast that gives the assertion above its meaning: an error
+		// AFTER the request left must still read as sent.
+		inner := &scriptedDoer{t: t, handle: func(int, Request) (Response, error) {
+			return Response{}, errors.New("connection reset")
+		}}
+		res := NewClient(inner).Cancel(context.Background(), "EX-1")
+
+		if !res.Sent {
+			t.Fatal("an ambiguous cancel reports Sent=false; its capacity " +
+				"token would be refunded for a DELETE that may have executed")
+		}
+		if res.Outcome != CancelUnknown {
+			t.Fatalf("outcome is %s, want unknown", res.Outcome)
+		}
+	})
+}

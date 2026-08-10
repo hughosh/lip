@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -1871,6 +1872,21 @@ func (o *owner) applyWriteResult(res writeResult) {
 	if res.Err != nil {
 		for _, id := range res.Req.IDs {
 			o.r.queue.Drop(id)
+		}
+		// H-VER-1. A guarded refusal releases the intents exactly as above --
+		// the side must not wedge at stage-first-sent whatever stopped the
+		// write -- but it raises NOTHING. `WRITE_FAILED` is a report that the
+		// EXCHANGE did not complete something, and a read-only rehearsal did
+		// not ask it to: this process is doing precisely what it was started to
+		// do. Raising here would fill the anomaly journal with a SEV2 per tick
+		// for the whole of a qualification run, which is how a real fault
+		// arriving in the middle of one becomes invisible.
+		//
+		// §6.5 re-decides on the next tick and is refused again, forever, which
+		// is the correct behaviour for a process that may not trade.
+		var refused *rest.WriteRefused
+		if errors.As(res.Err, &refused) {
+			return
 		}
 		o.r.anom.raise(risk.Anomaly{
 			Class: "WRITE_FAILED", Sev: risk.SEV2, Ticker: res.Req.Market,

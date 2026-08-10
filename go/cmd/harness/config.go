@@ -134,6 +134,15 @@ type pathConfig struct {
 	// process can reach is a property of the config, visible in a diff.
 	Key *string `json:"key"`
 	Env *string `json:"env"`
+	// LiveOK is H-VER-1's second key: the sentinel whose PRESENCE, together
+	// with an explicit `-live`, is what permits a write.
+	//
+	// The PATH is configuration; the FILE is not, and nothing in this binary
+	// ever creates it. `-provision` deliberately does not, because a
+	// provisioning step that armed the machine would make "set it up" and "let
+	// it trade" the same act. The operator creates it by hand, and removes it
+	// to disarm the next write.
+	LiveOK *string `json:"live_ok"`
 }
 
 // config is the validated result: the §16 params plus this run's identity.
@@ -145,10 +154,23 @@ type config struct {
 	// on `fileConfig`. Zero disables it.
 	EarlyCloseLead time.Duration
 	Paths          paths
+	// Live is H-VER-1's first key, and it comes from the INVOCATION rather than
+	// from the file -- `fileConfig` has no corresponding field and
+	// `DisallowUnknownFields` means a config that tried to set one is refused.
+	//
+	// Its zero value is read-only, which is what makes every caller that has
+	// not been updated safe by default: a test that builds a `config` literal,
+	// a future subcommand, and this struct's own zero value all produce a
+	// process that cannot place an order.
+	Live bool
 }
 
 type paths struct {
 	DB, AnomalyLog, Latch, Lock, Key, Env string
+	// LiveOK is the write-arming sentinel (H-VER-1). Its path is required and
+	// validated; its existence is checked freshly at every write and never
+	// here, so an operator can arm and disarm without touching the config.
+	LiveOK string
 }
 
 // rung is the capital ladder of pilot-plan §1.
@@ -296,7 +318,7 @@ func loadConfig(path string) (config, error) {
 			r.name, r.maxS.Wire(), p.S.Wire(), r.human)
 	}
 
-	if c.Paths, err = resolvePaths(fc.Paths); err != nil {
+	if c.Paths, err = resolvePaths(fc.Paths, path); err != nil {
 		return config{}, err
 	}
 
@@ -344,7 +366,7 @@ func loadConfig(path string) (config, error) {
 // the working directory the supervisor happened to use, and one of these is the
 // durable halt latch. H-HALT-4 survives a restart only if the restarted process
 // looks in the same place.
-func resolvePaths(pc pathConfig) (paths, error) {
+func resolvePaths(pc pathConfig, configPath string) (paths, error) {
 	need := []struct {
 		name string
 		v    *string
@@ -356,10 +378,11 @@ func resolvePaths(pc pathConfig) (paths, error) {
 		{"lock", pc.Lock, "the single-instance lock"},
 		{"key", pc.Key, "the RSA private key used to sign every request"},
 		{"env", pc.Env, "the file holding KALSHI_API_KEY_ID"},
+		{"live_ok", pc.LiveOK, "the write-arming sentinel (H-VER-1)"},
 	}
 	var out paths
 	dst := []*string{&out.DB, &out.AnomalyLog, &out.Latch, &out.Lock,
-		&out.Key, &out.Env}
+		&out.Key, &out.Env, &out.LiveOK}
 
 	for i, n := range need {
 		if n.v == nil || *n.v == "" {
@@ -375,6 +398,34 @@ func resolvePaths(pc pathConfig) (paths, error) {
 				"directory", n.name, *n.v)
 		}
 		*dst[i] = filepath.Clean(*n.v)
+	}
+
+	// The sentinel must be its OWN file (H-VER-1). Every other path here is
+	// something the harness creates or requires in order to run at all, so a
+	// `live_ok` aliased onto one of them would exist for reasons that have
+	// nothing to do with arming: provisioning the store would arm the machine,
+	// and so would having credentials. The config file itself is included
+	// because it is the one path guaranteed to exist whenever the binary runs.
+	//
+	// Compared AFTER cleaning, so `/a/b` and `/a/./b` do not slip past.
+	others := []struct{ name, path string }{
+		{"db", out.DB}, {"anomaly_log", out.AnomalyLog}, {"latch", out.Latch},
+		{"lock", out.Lock}, {"key", out.Key}, {"env", out.Env},
+	}
+	if configPath != "" {
+		if abs, err := filepath.Abs(configPath); err == nil {
+			others = append(others, struct{ name, path string }{
+				"the config file", filepath.Clean(abs)})
+		}
+	}
+	for _, o := range others {
+		if o.path == out.LiveOK {
+			return paths{}, fmt.Errorf("paths.live_ok is %q, which is also "+
+				"%s. The write-arming sentinel must be a file that exists for "+
+				"NO other reason: sharing it means the harness arms itself the "+
+				"moment it is provisioned or given credentials, and H-VER-1's "+
+				"second key stops being a key at all", out.LiveOK, o.name)
+		}
 	}
 	return out, nil
 }

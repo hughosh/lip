@@ -1264,6 +1264,100 @@ MUTATIONS = [
     # SEV1, a global stop and a durable operator-only WINDING_DOWN latch,
     # produced by our own order.
 
+    # ---- lip-es6: H-VER-1, structural write arming -------------------------
+    #
+    # REACHABILITY, which every one of these needs stated because the guard sits
+    # on a path that only runs when the harness decides to act. Under §10.3 and
+    # the pilot rung (S=12), ordinary owner evaluation produces creates and
+    # cancels every tick: the exit rests at the touch, the adoption sweep
+    # cancels stale orders, and H-CLOSE-3's final cancel fires near close. So
+    # each mutation below is reached by the normal loop rather than by an
+    # exceptional path.
+    #
+    # The first four permit those writes during an unarmed rehearsal or after an
+    # operator has disarmed a running process. The fifth corrupts live-order
+    # truth during that same reachable decision. The sixth arms a supposedly
+    # read-only KeepAlive job whenever the sentinel happens to exist at install
+    # time.
+
+    ('M-ES6-FLAG',
+     'drop the -live half of the write guard, so a process nobody armed places '
+     'real orders the moment the sentinel happens to exist on the host',
+     [
+         ('harness/rest/guard.go',
+          '\tif !g.arm.Live {\n',
+          '\tif false {\n'),
+     ],
+     'TestWriteGuardTruthTable'),
+
+    ('M-ES6-SENTINEL',
+     'consult the live_ok sentinel and ignore the answer, so -live alone arms '
+     'the process and the operator loses the key they can revoke without '
+     'stopping it',
+     [
+         ('harness/rest/guard.go',
+          '\tif err := g.sentinelErr(); err != nil {\n',
+          '\tif err := g.sentinelErr(); err != nil && false {\n'),
+     ],
+     'TestWriteGuardTruthTable'),
+
+    ('M-ES6-RECHECK',
+     'cache the sentinel check in the constructor, so removing live_ok no '
+     'longer disarms a RUNNING process and the only way to stop the next write '
+     'is to kill it -- which is exactly what an operator cannot do calmly while '
+     'an unexpected order is resting',
+     [
+         ('harness/rest/guard.go',
+          'type WriteGuard struct {\n\tnext Doer\n\tarm  WriteArm\n}\n',
+          'type WriteGuard struct {\n\tnext      Doer\n\tarm       WriteArm\n'
+          '\tcachedErr error\n}\n'),
+         ('harness/rest/guard.go',
+          '\treturn &WriteGuard{next: next, arm: arm}, nil\n',
+          '\tg := &WriteGuard{next: next, arm: arm}\n'
+          '\tg.cachedErr = checkSentinel(arm.LiveOKPath)\n\treturn g, nil\n'),
+         ('harness/rest/guard.go',
+          'func (g *WriteGuard) sentinelErr() error { return checkSentinel(g.arm.LiveOKPath) }\n',
+          'func (g *WriteGuard) sentinelErr() error { return g.cachedErr }\n'),
+     ],
+     'TestRemovingLiveOKDisarmsTheNextWrite'),
+
+    ('M-ES6-NOGUARD',
+     'build the REST client straight over the raw transport, so the guard '
+     'exists, is tested, and is on no path the harness actually uses -- the '
+     'shape H-CAP-8 already has once in this tree',
+     [
+         ('cmd/harness/runtime.go',
+          '\tarm := rest.WriteArm{Live: c.Live, LiveOKPath: c.Paths.LiveOK}\n'
+          '\tguarded, err := rest.NewWriteGuard(ex.Doer, arm)\n'
+          '\tif err != nil {\n\t\treturn nil, err\n\t}\n'
+          '\tr.api = rest.NewClient(guarded)\n',
+          '\tr.api = rest.NewClient(ex.Doer)\n'),
+     ],
+     'TestReadOnlyRunRecordsWouldWriteWithoutSendingNonGET'),
+
+    ('M-ES6-UNKNOWN',
+     'read a guarded refusal as AMBIGUOUS, so a read-only rehearsal '
+     'manufactures an UNKNOWN create per tick -- and an unresolved create holds '
+     'its full size in every aggregate cap, so the process that provably cannot '
+     'trade exhausts the pilot capital budget with orders that never existed',
+     [
+         ('harness/rest/client.go',
+          '\tvar wr *WriteRefused\n\treturn !errors.As(err, &wr)\n',
+          '\treturn true\n'),
+     ],
+     'TestWriteRefusalNeverBecomesUnknownCreate'),
+
+    ('M-ES6-DEPLOYARM',
+     'append -live to every deployed argv, so `-deploy` installs an ARMED '
+     'KeepAlive job -- the one invocation nobody watches start, restarted '
+     'forever, from a plist that outlives the session that wrote it',
+     [
+         ('cmd/harness/deploy.go',
+          '\tif live {\n\t\targv = append(argv, "-live")\n\t}\n',
+          '\tif live || !live {\n\t\targv = append(argv, "-live")\n\t}\n'),
+     ],
+     'TestReadOnlyDeployNeverCarriesLive'),
+
     # ---- lip-da6: the startup baseline -----------------------------------
     #
     # §7.5 step 3 reads fills with `since = now - backfill_h`; the live poller

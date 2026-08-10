@@ -83,12 +83,20 @@ func main() {
 		"then exit. Prints the launchctl lines; does not run them")
 	force := fs.Bool("force", false, "with -deploy, overwrite an installed plist")
 
+	// H-VER-1's FIRST key. A flag and never a JSON field: a config that armed
+	// itself would arm every process that read it, including one an operator
+	// started to look at a book. The second key is the `live_ok` sentinel, and
+	// both are required before any non-GET request leaves this process.
+	live := fs.Bool("live", false, "permit writes to the exchange. Requires "+
+		"the paths.live_ok sentinel to exist as well; without both keys this "+
+		"process is structurally read-only and cannot place an order")
+
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		os.Exit(exitRefused)
 	}
 
 	if err := run(fs, *configPath, *resume, *rung, *doProvision, *doDeploy,
-		*force); err != nil {
+		*force, *live); err != nil {
 
 		fmt.Fprintf(os.Stderr, "harness: %v\n", err)
 		var ref *refusal
@@ -116,7 +124,7 @@ func refuse(format string, a ...any) error {
 }
 
 func run(fs *flag.FlagSet, configPath, resume, rung string,
-	doProvision, doDeploy, force bool) error {
+	doProvision, doDeploy, force, live bool) error {
 
 	if configPath == "" {
 		fs.Usage()
@@ -134,6 +142,20 @@ func run(fs *flag.FlagSet, configPath, resume, rung string,
 			"one at a time and look at the output of each")
 	}
 
+	// Refused BEFORE the config is read, and so before `-provision` could
+	// create anything. Provisioning is the act of making a durable store; the
+	// two flags together read as "set it up and let it trade", which is exactly
+	// the conflation H-VER-1 exists to prevent. Nothing in this binary ever
+	// creates `live_ok`.
+	if doProvision && live {
+		return refuse("-provision and -live cannot be given together. " +
+			"Provisioning creates the ownership ledger; arming permits orders. " +
+			"A single command that did both would make setting the harness up " +
+			"and letting it trade the same act, and the whole point of the " +
+			"live_ok sentinel is that a human creates it deliberately, after " +
+			"looking at what was provisioned")
+	}
+
 	c, err := loadConfig(configPath)
 	if err != nil {
 		return &refusal{err: err}
@@ -147,7 +169,8 @@ func run(fs *flag.FlagSet, configPath, resume, rung string,
 		if err != nil {
 			return err
 		}
-		return installAgent(c, abs, agentOptions{Force: force}, os.Stdout)
+		return installAgent(c, abs, agentOptions{Force: force, Live: live},
+			os.Stdout)
 	}
 
 	// The ladder gate. `config.go` has already asserted the config's own rung
@@ -158,6 +181,12 @@ func run(fs *flag.FlagSet, configPath, resume, rung string,
 	if err := checkRung(c, rung); err != nil {
 		return err
 	}
+
+	// The first key, carried from the command line into the process. The second
+	// is the `live_ok` sentinel, and it is deliberately NOT checked here: it is
+	// stat-ed freshly at every write, so removing the file disarms the next one
+	// without needing to find and stop this process.
+	c.Live = live
 
 	// A plain background context, and NO signal wired into it.
 	//

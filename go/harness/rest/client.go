@@ -87,9 +87,21 @@ func (e *NotSent) Unwrap() error { return e.Err }
 
 // WasSent reports whether a Doer error leaves the request's outcome ambiguous.
 // True means "we do not know what happened" — H-ORD-2's `UNKNOWN`.
+//
+// `WriteRefused` joins `NotSent` here (H-VER-1). A guarded refusal happens
+// BEFORE the wrapped Doer is called, so it is the strongest possible "no": there
+// was no request, not a request whose answer we lost. Reading it as ambiguous
+// would make a read-only rehearsal manufacture `UNKNOWN` orders, and an
+// unresolved create keeps its full size in every aggregate cap (H-ORD-2 clause
+// 6) — so the process that is provably not trading would exhaust the pilot's
+// capital budget with orders that never existed.
 func WasSent(err error) bool {
 	var ns *NotSent
-	return !errors.As(err, &ns)
+	if errors.As(err, &ns) {
+		return false
+	}
+	var wr *WriteRefused
+	return !errors.As(err, &wr)
 }
 
 // ---------------------------------------------------------------------------
