@@ -203,12 +203,20 @@ func run(fs *flag.FlagSet, configPath, resume, rung string,
 	// SIGKILL. There is no third.
 	ctx := context.Background()
 
-	ex, err := productionExchange(ctx, c)
+	// The process anomaly sink, and it is created HERE rather than inside
+	// `newRig` because F6's DNS fallback can fire before the rig exists: the
+	// active-programme walk is the first request the process makes, and it goes
+	// through the cached dialer. One sink, passed to both, is what puts that
+	// fallback in the same queue and the same durable journal as everything the
+	// rig raises afterwards.
+	anom := newAnomalySink()
+
+	ex, err := productionExchange(ctx, c, anom)
 	if err != nil {
 		return err
 	}
 
-	r, err := newRig(ctx, c, resume != "", ex)
+	r, err := newRig(ctx, c, resume != "", ex, anom)
 	if err != nil {
 		// Every refusal `newRig` makes is structural: the lock is held, the
 		// latch is set, the store does not exist. None of them is retryable by

@@ -2,11 +2,29 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
+	"lip/feed"
+	"lip/harness/cfg"
+	"lip/harness/lifecycle"
+	"lip/harness/netx"
+	"lip/harness/num"
+	"lip/harness/quote"
+	"lip/harness/rest"
+	"lip/harness/risk"
+	"lip/harness/wsx"
+	"math/big"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -17,13 +35,7 @@ import (
 	"testing"
 	"time"
 
-	"lip/harness/cfg"
-	"lip/harness/lifecycle"
-	"lip/harness/num"
-	"lip/harness/quote"
-	"lip/harness/rest"
-	"lip/harness/risk"
-	"lip/harness/wsx"
+	"github.com/coder/websocket"
 )
 
 // These tests drive the COMPOSITION ROOT, and nothing smaller.
@@ -823,11 +835,12 @@ type seamHarness struct {
 	t   *testing.T
 	ctx context.Context
 
-	cfg config
-	ex  *seamExchange
-	ws  *seamDialer
-	clk *seamClock
-	xch exchange
+	cfg  config
+	ex   *seamExchange
+	ws   *seamDialer
+	clk  *seamClock
+	xch  exchange
+	anom *anomalySink
 
 	rig *rig
 
@@ -972,7 +985,11 @@ func newSeamHarness(t *testing.T, opt seamOptions) *seamHarness {
 		return h
 	}
 
-	r, err := newRig(h.ctx, c, opt.Resume, h.xch)
+	// The sink the composition root now owns. In production it is created
+	// before `productionExchange` so F6's DNS fallback can reach it before the
+	// rig exists; here there is no dialer, so it exists only to be passed.
+	h.anom = newAnomalySink()
+	r, err := newRig(h.ctx, c, opt.Resume, h.xch, h.anom)
 	if err != nil {
 		t.Fatalf("newRig: %v", err)
 	}
@@ -1364,6 +1381,10 @@ func seamNewRig(t *testing.T, ctx context.Context, c config, resume bool,
 	ex exchange) (*rig, error) {
 
 	t.Helper()
+	// A FRESH sink per call, because every caller of this helper is testing a
+	// SECOND process against a rig that is already running, and the refusal it
+	// expects happens before anything drains either queue.
+	anom := newAnomalySink()
 	defer func() {
 		if p := recover(); p != nil {
 			t.Fatalf("newRig PANICKED instead of returning its refusal: %v\n\n"+
@@ -1386,7 +1407,7 @@ func seamNewRig(t *testing.T, ctx context.Context, c config, resume bool,
 				"`r != nil`", p)
 		}
 	}()
-	return newRig(ctx, c, resume, ex)
+	return newRig(ctx, c, resume, ex, anom)
 }
 
 // ---------------------------------------------------------------------------
@@ -4553,5 +4574,753 @@ func TestLiveComposedRunReachesRawDoerWithBothWriteKeys(t *testing.T) {
 		h.ex.mu.Lock()
 		defer h.ex.mu.Unlock()
 		return len(h.ex.creates) > 0 || len(h.ex.deletes) > 0
+	})
+}
+
+// ---------------------------------------------------------------------------
+// F6 -- the composed network layer, end to end
+// ---------------------------------------------------------------------------
+
+// F6 -- the composed network layer, end to end.
+//
+// Every other test in this package substitutes at `exchange`, so nothing in the
+// tree has ever exercised the production wiring underneath it: the two
+// transports, the shared resolver cache, and the fallback's route into the
+// process anomaly sink. These four tests are the only ones that do, and they do
+// it WITHOUT a live endpoint -- a scripted resolver, an injected dial, and two
+// local TLS servers standing in for the exchange's two hostnames.
+//
+// The scripted resolver answers with TEST-NET-1 addresses (RFC 5737, "for use
+// in documentation, and never routed"). They are never dialled: the injected
+// dial maps each one to a loopback listener. That is what makes it possible to
+// give the two hostnames DIFFERENT servers while both keep port 443, and it
+// makes every assertion about which cached address was used exact.
+
+const (
+	// The two hostnames the harness actually resolves, and the TEST-NET-1
+	// address each one is scripted to answer with.
+	f6RESTHost = "api.elections.kalshi.com"
+	f6WSHost   = "external-api-ws.kalshi.com"
+	f6RESTAddr = "192.0.2.1"
+	f6WSAddr   = "192.0.2.2"
+
+	// f6Ticker is on the SECOND page of the programs walk, deliberately.
+	// `feed.Universe` read one page of 200 and never sent a cursor, so a market
+	// past the first page was invisible to it -- and invisible reads as "not in
+	// the active programme", which is a refusal to start on a market that pays.
+	f6Ticker = "KXF6-26AUG10-T2"
+	f6Target = 250.5
+)
+
+// ---------------------------------------------------------------------------
+// The fixture
+// ---------------------------------------------------------------------------
+
+// f6Fixture is a scripted resolver, an injected dial, and the two local servers
+// they lead to.
+type f6Fixture struct {
+	t *testing.T
+
+	mu      sync.Mutex
+	wedged  bool
+	lookups map[string]int
+	dialed  []string
+	route   map[string]string
+
+	restHosts, restSNI []string
+	wsHosts, wsSNI     []string
+	programPages       int
+	balances           int
+	handshakes         int
+
+	now time.Time
+
+	pool *x509.CertPool
+}
+
+// LookupHost is the `netx.Resolver` seam. Wedging it is the whole point: it is
+// what `getaddrinfo` does on this machine roughly every 2.5 hours.
+func (f *f6Fixture) LookupHost(_ context.Context, host string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lookups[host]++
+	if f.wedged {
+		return nil, fmt.Errorf("scripted resolver is wedged for %s", host)
+	}
+	switch host {
+	case f6RESTHost:
+		return []string{f6RESTAddr}, nil
+	case f6WSHost:
+		return []string{f6WSAddr}, nil
+	}
+	return nil, fmt.Errorf("no scripted answer for %s", host)
+}
+
+// dial is the `netx.DialFunc` seam. It records the address the cache CHOSE --
+// which is the thing under test -- and then routes it to a loopback listener.
+func (f *f6Fixture) dial(ctx context.Context, network, address string) (net.Conn, error) {
+	f.mu.Lock()
+	f.dialed = append(f.dialed, address)
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		f.mu.Unlock()
+		return nil, err
+	}
+	real, ok := f.route[host]
+	f.mu.Unlock()
+	if !ok {
+		return nil, fmt.Errorf("nothing is listening for %s", address)
+	}
+	var d net.Dialer
+	return d.DialContext(ctx, network, real)
+}
+
+func (f *f6Fixture) clock() time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.now
+}
+
+func (f *f6Fixture) advance(d time.Duration) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.now = f.now.Add(d)
+}
+
+func (f *f6Fixture) wedge() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.wedged = true
+}
+
+// f6Snapshot is everything the fixture observed, taken under the lock so a test
+// asserts against one consistent reading. It is a separate type because the
+// fixture holds a mutex and a `*testing.T`, neither of which may be copied.
+type f6Snapshot struct {
+	lookups            map[string]int
+	dialed             []string
+	restHosts, restSNI []string
+	wsHosts, wsSNI     []string
+	programPages       int
+	balances           int
+	handshakes         int
+}
+
+func (f *f6Fixture) snapshot() f6Snapshot {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f6Snapshot{
+		lookups: map[string]int{
+			f6RESTHost: f.lookups[f6RESTHost],
+			f6WSHost:   f.lookups[f6WSHost],
+		},
+		dialed:       append([]string(nil), f.dialed...),
+		restHosts:    append([]string(nil), f.restHosts...),
+		restSNI:      append([]string(nil), f.restSNI...),
+		wsHosts:      append([]string(nil), f.wsHosts...),
+		wsSNI:        append([]string(nil), f.wsSNI...),
+		programPages: f.programPages,
+		balances:     f.balances,
+		handshakes:   f.handshakes,
+	}
+}
+
+// newF6Fixture generates a CA and one leaf covering BOTH exchange hostnames,
+// starts a TLS REST server and a TLS websocket server, and points the scripted
+// resolver at them.
+//
+// A real CA and a real leaf, because certificate verification stays ON. That is
+// what makes `TestF6FallbackPreservesHostAndSNIOnRESTAndWebSocket` an assertion
+// rather than a formality: if the numeric fallback address reached SNI, the
+// handshake would fail against a certificate that names hostnames.
+func newF6Fixture(t *testing.T) *f6Fixture {
+	t.Helper()
+
+	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	caTmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "f6 test ca"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		IsCA:                  true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+	}
+	caDER, err := x509.CreateCertificate(rand.Reader, caTmpl, caTmpl, &caKey.PublicKey, caKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	caCert, err := x509.ParseCertificate(caDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	leafKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leafTmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject:      pkix.Name{CommonName: f6RESTHost},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		// NAMES ONLY. No IPAddresses entry, so a handshake that carried the
+		// numeric fallback address as its server name cannot verify -- which is
+		// exactly what `M-7ZT-IPHOST` produces.
+		DNSNames: []string{f6RESTHost, f6WSHost},
+	}
+	leafDER, err := x509.CreateCertificate(rand.Reader, leafTmpl, caCert, &leafKey.PublicKey, caKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf := tls.Certificate{
+		Certificate: [][]byte{leafDER, caDER},
+		PrivateKey:  leafKey,
+	}
+	pool := x509.NewCertPool()
+	pool.AddCert(caCert)
+
+	f := &f6Fixture{
+		t:       t,
+		lookups: map[string]int{},
+		route:   map[string]string{},
+		// A fixed instant, because the one-hour floor is stepped over
+		// explicitly and a wall clock cannot be.
+		now:  time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC),
+		pool: pool,
+	}
+
+	restSrv := httptest.NewUnstartedServer(http.HandlerFunc(f.serveREST))
+	restSrv.TLS = &tls.Config{Certificates: []tls.Certificate{leaf}}
+	restSrv.StartTLS()
+	t.Cleanup(restSrv.Close)
+
+	wsSrv := httptest.NewUnstartedServer(http.HandlerFunc(f.serveWS))
+	wsSrv.TLS = &tls.Config{Certificates: []tls.Certificate{leaf}}
+	wsSrv.StartTLS()
+	t.Cleanup(wsSrv.Close)
+
+	f.route[f6RESTAddr] = restSrv.Listener.Addr().String()
+	f.route[f6WSAddr] = wsSrv.Listener.Addr().String()
+	return f
+}
+
+// serveREST answers the two endpoints `exchangeOver` and the poll loop need.
+func (f *f6Fixture) serveREST(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	f.restHosts = append(f.restHosts, r.Host)
+	if r.TLS != nil {
+		f.restSNI = append(f.restSNI, r.TLS.ServerName)
+	}
+	f.mu.Unlock()
+
+	switch r.URL.Path {
+	case rest.APIPrefix + rest.EpPrograms.Path:
+		f.servePrograms(w, r)
+	case rest.APIPrefix + "/portfolio/balance":
+		f.mu.Lock()
+		f.balances++
+		f.mu.Unlock()
+		writeJSON(w, map[string]any{"balance": 123456})
+	default:
+		http.Error(w, "unscripted path "+r.URL.Path, http.StatusNotFound)
+	}
+}
+
+// servePrograms is a TWO-page walk with the ticker under test on page two.
+func (f *f6Fixture) servePrograms(w http.ResponseWriter, r *http.Request) {
+	if got := r.URL.Query().Get("status"); got != "active" {
+		http.Error(w, "status filter was "+got, http.StatusBadRequest)
+		return
+	}
+	f.mu.Lock()
+	f.programPages++
+	f.mu.Unlock()
+
+	switch r.URL.Query().Get("cursor") {
+	case "":
+		writeJSON(w, map[string]any{
+			"next_cursor": "F6PAGE2",
+			"incentive_programs": []any{
+				map[string]any{"market_ticker": "KXF6-26AUG10-T1",
+					"target_size_fp": "1000.00"},
+			},
+		})
+	case "F6PAGE2":
+		writeJSON(w, map[string]any{
+			"next_cursor": "",
+			"incentive_programs": []any{
+				map[string]any{"market_ticker": f6Ticker,
+					"target_size_fp": "250.50"},
+			},
+		})
+	default:
+		http.Error(w, "unknown cursor", http.StatusBadRequest)
+	}
+}
+
+func (f *f6Fixture) serveWS(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	f.handshakes++
+	f.wsHosts = append(f.wsHosts, r.Host)
+	if r.TLS != nil {
+		f.wsSNI = append(f.wsSNI, r.TLS.ServerName)
+	}
+	f.mu.Unlock()
+
+	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		CompressionMode: websocket.CompressionContextTakeover,
+	})
+	if err != nil {
+		return
+	}
+	defer c.CloseNow()
+	// A read loop, and not a wait on the request context. `coder/websocket`
+	// answers the peer's close frame from inside its READ path, so a server
+	// that never reads leaves every graceful `Close` to time out.
+	for {
+		if _, _, err := c.Read(r.Context()); err != nil {
+			return
+		}
+	}
+}
+
+func writeJSON(w http.ResponseWriter, body map[string]any) {
+	raw, err := json.Marshal(body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if _, err := w.Write(raw); err != nil {
+		return
+	}
+}
+
+// f6Compose builds the production network layer over the fixture, exactly as
+// `productionExchange` builds it over the system's.
+//
+// The two transports are the ones production made; the test only installs the
+// CA on them. `InsecureSkipVerify` is never set, so every handshake below is a
+// real verification against the leaf's DNS names.
+func f6Compose(t *testing.T, f *f6Fixture) (*anomalySink, *f6Net) {
+	t.Helper()
+	anom := newAnomalySink()
+	nt, err := newF6Net(anom, f, f.dial, f.clock)
+	if err != nil {
+		t.Fatalf("newF6Net: %v", err)
+	}
+	for _, tr := range []*http.Transport{nt.rest, nt.ws} {
+		tr.TLSClientConfig = &tls.Config{RootCAs: f.pool}
+		// The fixture's dial is the only route to the servers; a proxy read out
+		// of the developer's environment would bypass it.
+		tr.Proxy = nil
+	}
+	return anom, nt
+}
+
+// f6NoDefaultTransport makes `net/http`'s default transport refuse.
+//
+// `M-7ZT-RESTBYPASS` and `M-7ZT-WSBYPASS` both build production on that default
+// transport, which resolves through the real system stack and dials the real
+// exchange. Refusing it here means those mutations fail against a local error
+// rather than against Kalshi: the gate must never send a request to the account
+// this harness trades on, mutated or not.
+func f6NoDefaultTransport(t *testing.T) {
+	t.Helper()
+	prev := http.DefaultTransport
+	http.DefaultTransport = f6RefusingTransport{}
+	t.Cleanup(func() { http.DefaultTransport = prev })
+}
+
+type f6RefusingTransport struct{}
+
+func (f6RefusingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	return nil, fmt.Errorf("F6: %s was issued on net/http's DEFAULT transport, "+
+		"which is not the one carrying the resolver cache. Production must "+
+		"build both the REST Doer and the websocket Dialer on a transport over "+
+		"`netx.CachedDialer`", r.URL.Host)
+}
+
+// f6Signer is a real `feed.Signer` over a freshly generated key. Real, because
+// the handshake headers are what the local websocket server receives, and a
+// fake signer would prove the plumbing and nothing about the request.
+func f6Signer(t *testing.T) *feed.Signer {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	keyPath := filepath.Join(dir, "kalshi.pem")
+	if err := os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{
+		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key),
+	}), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	envPath := filepath.Join(dir, "env")
+	if err := os.WriteFile(envPath,
+		[]byte("KALSHI_API_KEY_ID=f6-test-key\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := feed.NewSignerFrom(keyPath, envPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+// f6WSHeaders is the signed handshake header set the production dialer sends.
+func f6WSHeaders(t *testing.T, s *feed.Signer) http.Header {
+	t.Helper()
+	m, err := s.WSHeaders(time.Now().UnixMilli())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := http.Header{}
+	for k, v := range m {
+		h.Set(k, v)
+	}
+	return h
+}
+
+func f6Config(t *testing.T) config {
+	c := newSeamConfig(t)
+	c.Ticker = f6Ticker
+	return c
+}
+
+// dialsTo counts how many dials went to one sentinel address, on port 443.
+func (f f6Snapshot) dialsTo(addr string) int {
+	want := net.JoinHostPort(addr, "443")
+	n := 0
+	for _, d := range f.dialed {
+		if d == want {
+			n++
+		}
+	}
+	return n
+}
+
+// f6Drain empties the sink without submitting, the way `takeRaised` does for a
+// rig. This one takes the sink directly because F6 raises before a rig exists.
+func f6Drain(s *anomalySink) []risk.Anomaly {
+	var out []risk.Anomaly
+	for {
+		select {
+		case a := <-s.ch:
+			out = append(out, a)
+		default:
+			return out
+		}
+	}
+}
+
+// The REST half of the production wiring: the active-programme walk that
+// replaced `feed.Universe`, and an ordinary portfolio read, both over the
+// transport carrying the resolver cache.
+//
+// The Target Size assertion is the load-bearing one. It comes off the SECOND
+// page, so it is simultaneously the proof that the walk is complete and the
+// proof that it happened over this transport -- `M-7ZT-RESTBYPASS` cannot
+// satisfy it, because the default transport has no route to the fixture at all.
+func TestProductionRESTUsesF6DialerForActiveProgramsAndPortfolio(t *testing.T) {
+	f6NoDefaultTransport(t)
+	f := newF6Fixture(t)
+	anom, nt := f6Compose(t, f)
+	ctx := context.Background()
+
+	ex, err := exchangeOver(ctx, f6Config(t), f6Signer(t), nt)
+	if err != nil {
+		t.Fatalf("exchangeOver could not build the production exchange over the "+
+			"F6 transports: %v", err)
+	}
+	if ex.Target != f6Target {
+		t.Fatalf("Target Size = %v, want %v. It is read from page TWO of the "+
+			"programs walk, so a wrong or missing value means either the walk "+
+			"stopped at page one -- `feed.Universe`'s defect -- or it did not "+
+			"traverse the cached transport", ex.Target, f6Target)
+	}
+
+	// The portfolio half. Same Doer, same transport, same cache.
+	if _, err := rest.NewClient(ex.Doer).Balance(ctx); err != nil {
+		t.Fatalf("a portfolio read over the F6 transport failed: %v", err)
+	}
+
+	got := f.snapshot()
+	if got.programPages != 2 {
+		t.Fatalf("the programs endpoint served %d pages, want 2: the walk must "+
+			"be COMPLETE, and a single-page read is what makes a market past "+
+			"the first page look absent from the incentive programme",
+			got.programPages)
+	}
+	if got.balances != 1 {
+		t.Fatalf("the local exchange served %d balance requests, want 1",
+			got.balances)
+	}
+	if n := got.dialsTo(f6RESTAddr); n == 0 || n != len(got.dialed) {
+		t.Fatalf("dialled %v; every REST dial must go to the cached address %s "+
+			"and nothing else may be dialled at all", got.dialed, f6RESTAddr)
+	}
+	if got.lookups[f6RESTHost] != 1 {
+		t.Fatalf("the resolver was consulted %d times for %s, want 1. Inside "+
+			"the one-hour floor the cached answer is used WITHOUT asking, which "+
+			"is the cheapest possible way of surviving a resolver that wedges "+
+			"mid-run", got.lookups[f6RESTHost], f6RESTHost)
+	}
+	if raised := f6Drain(anom); len(raised) != 0 {
+		t.Fatalf("a healthy resolver raised %d anomalies: %+v. A fallback alert "+
+			"on the happy path is an operator who learns to ignore it", len(raised), raised)
+	}
+}
+
+// The websocket half. It is a SEPARATE transport over the SAME cache, and this
+// test is the only thing in the tree that says so.
+func TestProductionWebSocketUsesF6Dialer(t *testing.T) {
+	f6NoDefaultTransport(t)
+	f := newF6Fixture(t)
+	_, nt := f6Compose(t, f)
+	signer := f6Signer(t)
+	ctx := context.Background()
+
+	ex, err := exchangeOver(ctx, f6Config(t), signer, nt)
+	if err != nil {
+		t.Fatalf("exchangeOver: %v", err)
+	}
+
+	// Two dials, because F6's websocket case is a RECONNECT: the wedge takes
+	// the socket down, and the reconnect is the thing that has to survive it.
+	for i := 0; i < 2; i++ {
+		sock, err := ex.Dialer.Dial(ctx, wsx.WSURL, f6WSHeaders(t, signer))
+		if err != nil {
+			t.Fatalf("websocket dial %d over the F6 transport failed: %v.\n\n"+
+				"The production Dialer must be built with "+
+				"`wsx.NewLiveDialerWithTransport` over the transport carrying "+
+				"`netx.CachedDialer`; on net/http's default transport the "+
+				"handshake resolves through the system stack that wedges",
+				i+1, err)
+		}
+		if err := sock.Close(); err != nil {
+			t.Fatalf("closing socket %d: %v", i+1, err)
+		}
+	}
+
+	got := f.snapshot()
+	if got.handshakes != 2 {
+		t.Fatalf("the local websocket server completed %d handshakes, want 2",
+			got.handshakes)
+	}
+	if n := got.dialsTo(f6WSAddr); n != 2 {
+		t.Fatalf("%d of the dials %v went to the cached websocket address %s, "+
+			"want 2", n, got.dialed, f6WSAddr)
+	}
+	if got.lookups[f6WSHost] != 1 {
+		t.Fatalf("the resolver was consulted %d times for %s, want 1: the "+
+			"reconnect is inside the one-hour floor and must not ask again",
+			got.lookups[f6WSHost], f6WSHost)
+	}
+	// ONE cache, holding both hostnames. The REST host was resolved by the
+	// programs walk above and the websocket dials did not disturb it.
+	if got.lookups[f6RESTHost] != 1 {
+		t.Fatalf("%s was resolved %d times, want 1; the two transports must "+
+			"share one `netx.CachedDialer`, not hold one each",
+			f6RESTHost, got.lookups[f6RESTHost])
+	}
+	// H-FAIL-2: distinct transports. REST is how a cancel still reaches the
+	// exchange when the feed is gone, and a connection-pool fault shared with
+	// the feed takes out the escape route along with it.
+	if nt.rest == nt.ws {
+		t.Fatal("the REST and websocket transports are the same *http.Transport")
+	}
+}
+
+// The SNI clause, which is the whole subtlety of §F6 and the reason this is a
+// dialer rather than a URL rewrite.
+//
+// The fallback substitutes the TCP destination and NOTHING else, so `Host` and
+// the TLS server name are still derived from the URL. The leaf certificate here
+// carries DNS names and no IP address, and verification is left ON -- so a
+// numeric address reaching either one does not merely look wrong, it fails to
+// connect. That is `M-7ZT-IPHOST`.
+func TestF6FallbackPreservesHostAndSNIOnRESTAndWebSocket(t *testing.T) {
+	f6NoDefaultTransport(t)
+	f := newF6Fixture(t)
+	anom, nt := f6Compose(t, f)
+	signer := f6Signer(t)
+	ctx := context.Background()
+
+	// (1) SEED both hostnames. §F6 falls back only after a prior SUCCESSFUL
+	// resolution: with nothing cached there is nothing to fall back to, and
+	// inventing an address would be a connection to somewhere never verified.
+	ex, err := exchangeOver(ctx, f6Config(t), signer, nt)
+	if err != nil {
+		t.Fatalf("seeding the cache through the programs walk: %v", err)
+	}
+	seed, err := ex.Dialer.Dial(ctx, wsx.WSURL, f6WSHeaders(t, signer))
+	if err != nil {
+		t.Fatalf("seeding the cache through the websocket handshake: %v", err)
+	}
+	if err := seed.Close(); err != nil {
+		t.Fatalf("closing the seeding socket: %v", err)
+	}
+	// A pooled connection would carry the next request without dialling at all.
+	// The wedge this models arrives with the socket already gone.
+	nt.rest.CloseIdleConnections()
+	base := f.snapshot()
+
+	// (2) THE WEDGE, past the floor so the resolver is consulted and fails.
+	f.wedge()
+	f.advance(netx.FloorTTL + time.Second)
+
+	if _, err := rest.NewClient(ex.Doer).Balance(ctx); err != nil {
+		t.Fatalf("the REST fallback did not connect: %v.\n\n"+
+			"If this is a certificate error naming an IP address, the numeric "+
+			"fallback address has reached the TLS server name. §F6 requires "+
+			"SNI PRESERVED: substitute the TCP destination and nothing else",
+			err)
+	}
+	sock, err := ex.Dialer.Dial(ctx, wsx.WSURL, f6WSHeaders(t, signer))
+	if err != nil {
+		t.Fatalf("the websocket fallback did not connect: %v", err)
+	}
+	if err := sock.Close(); err != nil {
+		t.Fatalf("closing the fallback socket: %v", err)
+	}
+
+	got := f.snapshot()
+
+	// (3) EXACTLY ONE of each, so nothing below is asserted about a retry.
+	if n := got.balances - base.balances; n != 1 {
+		t.Fatalf("the fallback produced %d REST requests, want exactly 1", n)
+	}
+	if n := got.handshakes - base.handshakes; n != 1 {
+		t.Fatalf("the fallback produced %d handshakes, want exactly 1", n)
+	}
+
+	// (4) The hostname survived, in the header AND in SNI, on both.
+	for _, c := range []struct {
+		what      string
+		host, sni []string
+		want      string
+	}{
+		{"REST", got.restHosts, got.restSNI, f6RESTHost},
+		{"the websocket", got.wsHosts, got.wsSNI, f6WSHost},
+	} {
+		gotHost := c.host[len(c.host)-1]
+		gotSNI := c.sni[len(c.sni)-1]
+		if gotHost != c.want {
+			t.Fatalf("%s sent Host %q on the fallback, want %q", c.what, gotHost, c.want)
+		}
+		if gotSNI != c.want {
+			t.Fatalf("%s sent SNI %q on the fallback, want %q. The certificate "+
+				"is issued for hostnames and for no IP address, exactly as the "+
+				"exchange's is", c.what, gotSNI, c.want)
+		}
+	}
+
+	// (5) And it was a real verification, not a waived one. A fallback that
+	// worked by disabling certificate checking would satisfy every assertion
+	// above and would be a signed session against whatever answered.
+	for _, tr := range []*http.Transport{nt.rest, nt.ws} {
+		if tr.TLSClientConfig.InsecureSkipVerify {
+			t.Fatal("certificate verification is disabled on a production " +
+				"transport")
+		}
+	}
+
+	// (6) It really was the FALLBACK and not a lucky cache hit.
+	raised := f6Drain(anom)
+	if len(raised) != 2 {
+		t.Fatalf("%d fallback anomalies were raised, want 2 (one REST, one "+
+			"websocket): %+v", len(raised), raised)
+	}
+	for _, a := range raised {
+		if a.Class != "DNS_FALLBACK" {
+			t.Fatalf("fallback raised %s, want DNS_FALLBACK", a.Class)
+		}
+	}
+	if n := got.dialsTo(f6RESTAddr) - base.dialsTo(f6RESTAddr); n != 1 {
+		t.Fatalf("%d REST dials went to the last-known-good address, want 1", n)
+	}
+	if n := got.dialsTo(f6WSAddr) - base.dialsTo(f6WSAddr); n != 1 {
+		t.Fatalf("%d websocket dials went to the last-known-good address, want 1", n)
+	}
+}
+
+// §F6's SEV2, on the process sink and in the durable journal.
+//
+// The alert is the only reason the operator ever learns the wedge happened: the
+// fallback's whole job is to make the harness keep working, so a fallback that
+// worked and said nothing is indistinguishable from a machine that was fine.
+// That is `M-7ZT-NOALERT`.
+func TestF6FallbackQueuesSEV2ThroughTheProcessSink(t *testing.T) {
+	f6NoDefaultTransport(t)
+	f := newF6Fixture(t)
+	anom, nt := f6Compose(t, f)
+	ctx := context.Background()
+
+	ex, err := exchangeOver(ctx, f6Config(t), f6Signer(t), nt)
+	if err != nil {
+		t.Fatalf("seeding the cache: %v", err)
+	}
+	nt.rest.CloseIdleConnections()
+	f.wedge()
+	f.advance(netx.FloorTTL + time.Second)
+	if _, err := rest.NewClient(ex.Doer).Balance(ctx); err != nil {
+		t.Fatalf("the fallback did not connect: %v", err)
+	}
+
+	// (1) The COMPOSED production callback reached the process sink.
+	raised := f6Drain(anom)
+	if len(raised) != 1 {
+		t.Fatalf("the fallback raised %d anomalies on the process sink, want 1: "+
+			"%+v.\n\nThe sink is created in `main.go` before "+
+			"`productionExchange` and passed to the DNS reporter and to "+
+			"`newRig`. A fallback that raises nowhere is the 2.5-hour wedge "+
+			"going unnoticed for exactly as long as it did before this existed",
+			len(raised), raised)
+	}
+	a := raised[0]
+	if a.Class != "DNS_FALLBACK" || a.Sev != risk.SEV2 {
+		t.Fatalf("the fallback raised %s/%v, want DNS_FALLBACK/SEV2", a.Class, a.Sev)
+	}
+	if a.Ticker != "" {
+		t.Fatalf("the fallback is scoped to market %q; a wedged resolver is a "+
+			"property of the HOST, and attributing it to whichever market "+
+			"happened to be quoting makes it read as market-specific",
+			a.Ticker)
+	}
+	if !strings.Contains(a.Text, f6RESTHost) {
+		t.Fatalf("the anomaly does not name the host: %q", a.Text)
+	}
+	if !strings.Contains(a.Text, f6RESTAddr) {
+		t.Fatalf("the anomaly does not name the cached destination it dialled: "+
+			"%q. 'Is this the 2.5-hour wedge or has my network gone away' is "+
+			"answered by the address and the lookup error and by nothing else",
+			a.Text)
+	}
+
+	// (2) And that sink is the EXISTING durable path, not a second one. The
+	// process's own submitter drains it into the §13.1 anomaly journal.
+	h := newSeamHarness(t, seamOptions{})
+	dnsFallbackReporter(h.anom)(netx.Fallback{
+		Host:      f6RESTHost,
+		Address:   net.JoinHostPort(f6RESTAddr, "443"),
+		LookupErr: fmt.Errorf("scripted resolver is wedged"),
+		Connected: true,
+	})
+	newShutdown(h.rig).handleAnomalies()
+	h.await("the DNS fallback to reach the durable anomaly journal", func() bool {
+		for _, class := range h.anomalyClasses() {
+			if class == "DNS_FALLBACK" {
+				return true
+			}
+		}
+		return false
 	})
 }

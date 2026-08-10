@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"lip/core"
 	"lip/harness/num"
 	"lip/harness/quote"
 	"lip/harness/risk"
@@ -589,6 +590,88 @@ func parseTsMillis(s string) int64 {
 		return v * 1000
 	}
 	return v
+}
+
+// ---------------------------------------------------------------------------
+// The active LIP universe
+// ---------------------------------------------------------------------------
+
+// ProgramsResult is the active incentive programme set, ticker to Target Size.
+type ProgramsResult struct {
+	Walk
+	// ByTarget is the Target Size of every active programme, keyed by
+	// `market_ticker`. EMPTY unless the walk `Replaces()`, like every other
+	// result in this package.
+	ByTarget map[string]float64
+}
+
+// Programs reads the active incentive programmes as a COMPLETE cursor walk.
+//
+// It duplicates something `feed.Universe` already does, and the duplication is
+// deliberate on two counts.
+//
+// The first is F6. `feed.Universe` builds its own `http.Transport` over a bare
+// `net.Dialer`, so it resolves through the system stack that wedges -- and it
+// is the FIRST network call the process makes, before the lock, the store or
+// the socket. A wedge at startup therefore refuses the whole process at the one
+// point where the cache has nothing to fall back to anyway; but a wedge on a
+// LATER call through the same path is one this walk survives and that one
+// cannot. `go/feed` is hash-pinned, so the fix cannot be applied there.
+//
+// The second is H-PAGE-1. `feed.Universe` sends `limit=200` and reads ONE page:
+// it never sends a cursor and never looks at `next_cursor`, so its answer is
+// silently truncated the moment the active set exceeds a page. That is exactly
+// the defect `Walk` exists to refuse, and a Target Size read from a truncated
+// universe does not produce a wrong number -- it produces "not listed", which
+// this harness treats as a refusal to start on a market that is in fact paying.
+//
+// `status=active` is the same filter `feed.Universe` sends. It is a server-side
+// filter on a field this walk never reads, so it cannot be re-derived here.
+func (c *Client) Programs(ctx context.Context) ProgramsResult {
+	filters := url.Values{}
+	filters.Set("status", "active")
+
+	w := c.Walk(ctx, EpPrograms, filters)
+	if !w.Replaces() {
+		return ProgramsResult{Walk: w}
+	}
+	recs := w.Records("incentive_programs")
+	byTarget := make(map[string]float64, len(recs))
+	for i, raw := range recs {
+		var rec map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &rec); err != nil {
+			return ProgramsResult{Walk: Walk{Outcome: WalkFailed, Pages: w.Pages,
+				Err: fmt.Errorf("incentive_programs record %d: %w", i, err)}}
+		}
+		ticker := scalar(rec["market_ticker"])
+		if ticker == "" {
+			return ProgramsResult{Walk: Walk{Outcome: WalkFailed, Pages: w.Pages,
+				Err: fmt.Errorf("incentive_programs record %d has no "+
+					"market_ticker", i)}}
+		}
+		val := scalar(rec["target_size_fp"])
+		if val == "" {
+			return ProgramsResult{Walk: Walk{Outcome: WalkFailed, Pages: w.Pages,
+				Err: fmt.Errorf("%s: no target_size_fp field; the Target Size is "+
+					"`Qualifies()`'s threshold and there is no defensible "+
+					"default for it", ticker)}}
+		}
+		// `core.ParseSize` and not `strconv.ParseFloat`, because this number is
+		// compared with `>=` against an accumulated size in `core.Book`, and
+		// `feed.Universe` parsed it with `core.ParseSize` too. Two parsers that
+		// round differently would put the qualifying threshold one ulp away from
+		// where the differentially-tested decoder believes it is.
+		t, err := core.ParseSize(val)
+		if err != nil {
+			return ProgramsResult{Walk: Walk{Outcome: WalkFailed, Pages: w.Pages,
+				Err: fmt.Errorf("%s target_size_fp: %w", ticker, err)}}
+		}
+		// A repeated ticker takes the LAST programme's target, which is what
+		// `feed.Universe` does. Diverging here would make the two disagree about
+		// a market on a day when the exchange lists it twice.
+		byTarget[ticker] = t
+	}
+	return ProgramsResult{Walk: w, ByTarget: byTarget}
 }
 
 // ---------------------------------------------------------------------------

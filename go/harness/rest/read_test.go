@@ -464,6 +464,75 @@ func TestBalanceMissingFieldIsAnError(t *testing.T) {
 
 // scalar must treat a JSON number and a JSON string alike, and must treat null
 // as absent rather than as a zero.
+// `feed.Universe` sends `limit=200`, reads one page, and never looks at
+// `next_cursor`. Its answer is therefore silently truncated the moment the
+// active set exceeds a page -- and a Target Size read from a truncated universe
+// does not come back wrong, it comes back ABSENT, which this harness treats as
+// "not in the active programme" and refuses to start on.
+//
+// So the thing to assert is that a ticker on page TWO is found.
+func TestProgramsWalksEveryPageAndParsesTargetSize(t *testing.T) {
+	d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+		if req.Query.Get("status") != "active" {
+			t.Fatalf("page %d dropped the status=active filter: %v", n+1, req.Query)
+		}
+		switch n {
+		case 0:
+			if req.Query.Get("cursor") != "" {
+				t.Fatalf("the first page must not carry a cursor: %v", req.Query)
+			}
+			return jsonPage(EpPrograms, "PAGE2", map[string][]any{
+				"incentive_programs": {
+					map[string]any{"market_ticker": "T1", "target_size_fp": "1000.00"},
+				},
+			}), nil
+		case 1:
+			// Clause 1: the cursor is used exactly as received.
+			if got := req.Query.Get("cursor"); got != "PAGE2" {
+				t.Fatalf("page 2 sent cursor %q, want %q", got, "PAGE2")
+			}
+			return jsonPage(EpPrograms, "", map[string][]any{
+				"incentive_programs": {
+					map[string]any{"market_ticker": "T2", "target_size_fp": "250.50"},
+				},
+			}), nil
+		}
+		t.Fatalf("unexpected page %d", n+1)
+		return Response{}, nil
+	}}
+	r := NewClient(d).Programs(context.Background())
+	if !r.Replaces() {
+		t.Fatalf("want a complete walk: %v", r.Err)
+	}
+	if got := r.ByTarget["T1"]; got != 1000 {
+		t.Fatalf("T1 target = %v, want 1000", got)
+	}
+	if got, ok := r.ByTarget["T2"]; !ok || got != 250.5 {
+		t.Fatalf("T2 target = %v (present=%v), want 250.50; a market on the "+
+			"second page is exactly what a single-page read loses, and losing it "+
+			"reads as 'not in the active programme'", got, ok)
+	}
+}
+
+// A programme with no `target_size_fp` cannot be defaulted. Zero makes
+// `Qualifies()` true for every interval, and any positive guess makes it true
+// or false for reasons the exchange did not state.
+func TestProgramWithoutATargetSizeIsRefused(t *testing.T) {
+	d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+		return jsonPage(EpPrograms, "", map[string][]any{
+			"incentive_programs": {map[string]any{"market_ticker": "T1"}},
+		}), nil
+	}}
+	r := NewClient(d).Programs(context.Background())
+	if r.Replaces() {
+		t.Fatal("a programme with no target_size_fp must not produce a usable " +
+			"universe")
+	}
+	if _, ok := r.ByTarget["T1"]; ok {
+		t.Fatal("no target may be reported at all")
+	}
+}
+
 func TestScalarHandlesBothWireShapes(t *testing.T) {
 	cases := map[string]string{
 		`"1.00"`: "1.00", `1.00`: "1.00", `1`: "1", `null`: "", `""`: "",

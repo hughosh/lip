@@ -266,11 +266,38 @@ type HTTPDoer struct {
 	Now func() time.Time
 }
 
-// NewHTTPDoer builds the live transport against the real exchange.
+// NewHTTPDoer builds the live transport against the real exchange, on Go's
+// default transport. Production does NOT use this -- see
+// `NewHTTPDoerWithTransport` -- but component tests do, and a default that
+// works is what keeps them from having to compose a resolver.
 func NewHTTPDoer(signer *feed.Signer, timeout time.Duration) *HTTPDoer {
+	return newHTTPDoer(signer, timeout, nil)
+}
+
+// NewHTTPDoerWithTransport is the production constructor (F6).
+//
+// The transport carries `netx.CachedDialer`, so every REST call resolves
+// through the one-hour last-known-good cache and survives the system resolver
+// wedging. It is a SEPARATE `http.Transport` from the websocket's even though
+// both share one dialer: H-FAIL-2 requires the two to be distinct transports,
+// because a connection-pool fault that took out one must not take out the
+// other -- REST is how cancels still reach the exchange when the feed is gone.
+//
+// `M-7ZT-RESTBYPASS` builds production REST on the default transport, which
+// leaves F6 implemented, tested, and on no path the harness uses.
+func NewHTTPDoerWithTransport(signer *feed.Signer, timeout time.Duration,
+	rt http.RoundTripper) *HTTPDoer {
+
+	return newHTTPDoer(signer, timeout, rt)
+}
+
+func newHTTPDoer(signer *feed.Signer, timeout time.Duration,
+	rt http.RoundTripper) *HTTPDoer {
+
 	return &HTTPDoer{
 		Client: &http.Client{
-			Timeout: timeout,
+			Transport: rt,
+			Timeout:   timeout,
 			// Redirects are NOT followed. `net/http` follows them by default,
 			// and for a write that is a duplicate-order hazard: a 307 or 308
 			// preserves the method and the body, so a redirected create is a

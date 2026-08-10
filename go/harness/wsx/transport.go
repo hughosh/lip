@@ -109,7 +109,7 @@ func (t *systemTimer) Stop() bool                 { return t.t.Stop() }
 func (t *systemTimer) Reset(d time.Duration) bool { return t.t.Reset(d) }
 
 // liveDialer is the production Dialer over github.com/coder/websocket.
-type liveDialer struct{}
+type liveDialer struct{ transport http.RoundTripper }
 
 // NewLiveDialer returns the production Dialer.
 //
@@ -129,8 +129,24 @@ type liveDialer struct{}
 //     completing against an unsigned host, and then a book we trade on.
 func NewLiveDialer() Dialer { return liveDialer{} }
 
-func (liveDialer) Dial(ctx context.Context, url string, h http.Header) (Socket, error) {
+// NewLiveDialerWithTransport is the production constructor (F6).
+//
+// The transport carries `netx.CachedDialer`, so the handshake resolves through
+// the one-hour last-known-good cache and a reconnect survives the system
+// resolver wedging -- which is when a reconnect is most likely to be needed,
+// because a wedge takes the socket down in the first place.
+//
+// It is a DISTINCT `http.Transport` from the REST one even though both share a
+// dialer. H-FAIL-2 requires two transports: REST is how cancels still reach the
+// exchange when the feed is gone, and a pool fault shared between them would
+// take both out at once. `M-7ZT-WSBYPASS` builds this on the default transport.
+func NewLiveDialerWithTransport(rt http.RoundTripper) Dialer {
+	return liveDialer{transport: rt}
+}
+
+func (d liveDialer) Dial(ctx context.Context, url string, h http.Header) (Socket, error) {
 	hc := &http.Client{
+		Transport: d.transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return fmt.Errorf("refusing redirect to %s: the handshake is "+
 				"signed for one host and a redirect completes it against "+

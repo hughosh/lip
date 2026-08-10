@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"sync/atomic"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"lip/feed"
 	"lip/harness/hstore"
 	"lip/harness/lifecycle"
+	"lip/harness/netx"
 	"lip/harness/quote"
 	"lip/harness/rest"
 	"lip/harness/risk"
@@ -162,6 +165,108 @@ func (e exchange) validate() error {
 	return nil
 }
 
+// ---------------------------------------------------------------------------
+// F6 -- the network layer
+// ---------------------------------------------------------------------------
+
+// f6Net is the process's ONE resolver cache and the TWO transports over it.
+//
+// One cache, because the point of §F6's floor TTL is that a host resolved by
+// any part of the process is a host every other part can still reach when the
+// system resolver wedges. Two transports over it, because H-FAIL-2 requires
+// REST and the websocket to be separately poolable: REST is how a cancel still
+// reaches the exchange when the feed is gone, and a connection-pool fault
+// shared between them takes out the escape route along with the feed.
+type f6Net struct {
+	dialer *netx.CachedDialer
+	rest   *http.Transport
+	ws     *http.Transport
+}
+
+// newF6Net composes F6 over injected system collaborators.
+//
+// The resolver, the dial and the clock are arguments rather than defaults for
+// the same reason `netx.NewCachedDialer` insists on them: the fallback is
+// reachable only from a resolver that can be made to fail, and a composition
+// root that hard-coded the real ones would leave the production wiring -- which
+// is what the two BYPASS mutations attack -- with no test that traverses it.
+func newF6Net(anom *anomalySink, r netx.Resolver, d netx.DialFunc,
+	now func() time.Time) (*f6Net, error) {
+
+	if anom == nil {
+		return nil, fmt.Errorf("the F6 network layer needs the process anomaly " +
+			"sink; a nil one would make the resolver fall back silently, and a " +
+			"silent fallback is the 2.5-hour wedge going unnoticed for exactly " +
+			"as long as it did before this package existed")
+	}
+	cd, err := netx.NewCachedDialer(r, d, now, dnsFallbackReporter(anom))
+	if err != nil {
+		return nil, err
+	}
+	return &f6Net{dialer: cd, rest: f6Transport(cd), ws: f6Transport(cd)}, nil
+}
+
+// f6Transport is `net/http`'s default transport with ONLY its dial replaced.
+//
+// The fields are restated rather than cloned from `http.DefaultTransport` so
+// that what production runs on is written down: this is the same transport the
+// harness has always had, plus the cache. Nothing here touches TLS, so
+// `crypto/tls` still derives `ServerName` from the URL and still verifies the
+// certificate against the real hostname -- which is the whole reason F6 is a
+// dialer (see `netx.CachedDialer.DialContext`).
+func f6Transport(cd *netx.CachedDialer) *http.Transport {
+	return &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           cd.DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+}
+
+// dnsFallbackReporter is §F6's queued SEV2, on the process sink.
+//
+// It is account-scoped -- `Ticker` is deliberately empty -- because a wedged
+// resolver is a property of the host, not of a market, and attributing it to
+// the market that happened to be quoting would make it look market-specific in
+// the anomaly journal.
+//
+// `anomalySink.raise` is a non-blocking send into a buffered channel, which is
+// what makes this legal to call from inside the dial path at all:
+// `netx.Reporter` MUST NOT block, and a reporter that took a lock or wrote a
+// file would turn F6's survival path into a second stall.
+//
+// `M-7ZT-NOALERT` drops the report on the floor, which leaves the harness
+// silently running on a cached address -- the fallback working perfectly and
+// nobody ever learning that it was needed.
+func dnsFallbackReporter(anom *anomalySink) netx.Reporter {
+	return func(f netx.Fallback) {
+		anom.raise(dnsFallbackAnomaly(f))
+	}
+}
+
+// dnsFallbackAnomaly is the §13.1 record one fallback produces.
+//
+// It is split from the reporter so the TEXT is a pure function of the fallback
+// and can be asserted without a sink, and so that the one line that hands it to
+// the sink has nothing else in it -- which is the line `M-7ZT-NOALERT` removes.
+func dnsFallbackAnomaly(f netx.Fallback) risk.Anomaly {
+	outcome := "which connected"
+	if !f.Connected {
+		outcome = "WHICH DID NOT CONNECT EITHER"
+	}
+	return risk.Anomaly{
+		Class: "DNS_FALLBACK",
+		Sev:   risk.SEV2,
+		Text: fmt.Sprintf("resolving %s failed (%v); dialled the "+
+			"last-known-good address %s instead, %s. If `nslookup` answers "+
+			"normally this is the system resolver wedging (F6), not the "+
+			"network going away", f.Host, f.LookupErr, f.Address, outcome),
+	}
+}
+
 // productionExchange builds the collaborators that reach the real account.
 //
 // The Target Size is fetched here rather than configured, and the ticker is
@@ -169,28 +274,65 @@ func (e exchange) validate() error {
 // earns nothing however well we quote it, and a stale target in a config file
 // is the kind of number nobody re-reads: quoting to a threshold the exchange
 // stopped using produces a harness that believes it is qualifying and is not.
-func productionExchange(ctx context.Context, c config) (exchange, error) {
+//
+// It takes the process anomaly sink rather than making one, because the DNS
+// fallback raised from inside the dial path and every anomaly the rig raises
+// have to arrive in the same queue and the same durable journal. Two sinks
+// would mean the fallback was recorded somewhere nothing drains.
+func productionExchange(ctx context.Context, c config, anom *anomalySink) (exchange, error) {
 	signer, err := feed.NewSignerFrom(c.Paths.Key, c.Paths.Env)
 	if err != nil {
 		return exchange{}, fmt.Errorf("credentials: %w", err)
 	}
 
-	universe, _, err := feed.Universe(ctx)
+	// The ONLY place the real resolver, the real dial and the real clock are
+	// named. `restTimeout` bounds the connect for the same reason it bounds the
+	// request: a dial that hangs holds the poll goroutine past the point where
+	// its own answer would have expired.
+	nt, err := newF6Net(anom, netx.SystemResolver(),
+		(&net.Dialer{Timeout: restTimeout}).DialContext, time.Now)
 	if err != nil {
-		return exchange{}, fmt.Errorf("reading the active LIP universe: %w", err)
+		return exchange{}, err
 	}
-	target, listed := universe[c.Ticker]
+	return exchangeOver(ctx, c, signer, nt)
+}
+
+// exchangeOver builds the exchange over an ALREADY-COMPOSED network layer.
+//
+// This is the production wiring, and it is a separate function only so that a
+// test can reach it with a scripted resolver. Both BYPASS mutations live in the
+// three lines below: `M-7ZT-RESTBYPASS` builds the Doer on the default
+// transport and `M-7ZT-WSBYPASS` builds the Dialer on it, and either one leaves
+// F6 implemented, tested, and on no path the harness actually uses -- which is
+// the shape H-CAP-8 has already had once in this tree.
+func exchangeOver(ctx context.Context, c config, signer *feed.Signer,
+	nt *f6Net) (exchange, error) {
+
+	doer := rest.NewHTTPDoerWithTransport(signer, restTimeout, nt.rest)
+
+	// The active set is read through the cached transport, as a COMPLETE walk.
+	// `feed.Universe` did this before and could do neither: it builds its own
+	// transport over a bare dialer, and it reads one page of 200 and never
+	// sends a cursor. It is hash-pinned, so the walk is rebuilt in `rest`
+	// rather than repaired where it was.
+	programs := rest.NewClient(doer).Programs(ctx)
+	if !programs.Replaces() {
+		return exchange{}, fmt.Errorf("reading the active LIP universe: the "+
+			"walk %s after %d pages: %v", programs.Outcome, programs.Pages,
+			programs.Err)
+	}
+	target, listed := programs.ByTarget[c.Ticker]
 	if !listed {
 		return exchange{}, fmt.Errorf("%s is not in the active LIP universe "+
 			"(%d markets); quoting a market outside the incentive programme "+
 			"earns nothing however well it is quoted, and there is no Target "+
-			"Size for its qualifying walk", c.Ticker, len(universe))
+			"Size for its qualifying walk", c.Ticker, len(programs.ByTarget))
 	}
 
 	start := time.Now()
 	return exchange{
-		Doer:   rest.NewHTTPDoer(signer, restTimeout),
-		Dialer: wsx.NewLiveDialer(),
+		Doer:   doer,
+		Dialer: wsx.NewLiveDialerWithTransport(nt.ws),
 		Signer: signer,
 		Clock:  wsx.NewSystemClock(),
 		Target: target,
@@ -367,12 +509,26 @@ type rig struct {
 //
 // Keeping the rig in a local the closure owns makes that unexpressible: there is
 // no assignment any `return` can make that the unwind path can see.
-func newRig(ctx context.Context, c config, resume bool, ex exchange) (*rig, error) {
+func newRig(ctx context.Context, c config, resume bool, ex exchange,
+	anom *anomalySink) (*rig, error) {
+
 	if err := ex.validate(); err != nil {
 		return nil, err
 	}
+	// The sink is the CALLER's, and there is no default for it here for the
+	// same reason there is none for any field of `exchange`. It is created
+	// before `productionExchange` so the DNS fallback -- which is raised from
+	// inside the dial path, before this function has run and possibly before it
+	// ever will -- lands in the queue this rig goes on to drain. A sink made
+	// here would be a second one, and the fallback that preceded it would be
+	// recorded somewhere nothing reads.
+	if anom == nil {
+		return nil, fmt.Errorf("the rig needs the process anomaly sink; a nil " +
+			"one is a monitor with no queue, and every SEV1 it would have " +
+			"raised is a nil dereference on the monitor goroutine")
+	}
 
-	r := &rig{cfg: c, ex: ex, snap: new(atomic.Pointer[risk.Snapshot])}
+	r := &rig{cfg: c, ex: ex, anom: anom, snap: new(atomic.Pointer[risk.Snapshot])}
 	var err error
 	defer func() {
 		if err != nil {
@@ -429,8 +585,6 @@ func newRig(ctx context.Context, c config, resume bool, ex exchange) (*rig, erro
 		<-r.storeDone
 		r.store.Close()
 	})
-
-	r.anom = newAnomalySink()
 
 	// (4) The run row. §15 requires every §16 parameter recorded verbatim, and
 	// the handle it issues is the licence every later record needs. It is

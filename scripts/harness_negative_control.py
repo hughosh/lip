@@ -2548,6 +2548,113 @@ MUTATIONS = [
      ],
      'TestStartupHistoryIsNeverALiveCanaryFill'),
 
+    # ---- lip-7zt: F6, the resolver that stops answering -------------------
+    #
+    # MEASURED, not hypothetical: `getaddrinfo` wedges system-wide on this
+    # machine roughly every 2.5 hours, and `nslookup` keeps working straight
+    # through it -- which is why it went unnoticed long enough to be
+    # characterised. A read-only qualification run is 4-6 hours, so it meets the
+    # wedge once or twice by arithmetic.
+    #
+    # §F6 has four independent clauses and each fails on its own, so each is
+    # anchored on its own: fall back to the last-known-good address, hold a
+    # resolution for a floor of one hour, PRESERVE SNI while doing it, and say
+    # so exactly once as a queued SEV2. The two BYPASS mutations are a fifth
+    # thing again -- they leave every clause implemented, tested, and on no path
+    # the harness actually uses, which is the shape H-CAP-8 already has once in
+    # this tree.
+
+    ('M-7ZT-NOFALLBACK',
+     'return the refresh lookup error even when a previous resolution is held, '
+     'so the cache records a last-known-good address and never uses it -- the '
+     'harness fails every connection for the duration of the wedge while '
+     'holding a perfectly good answer',
+     [
+         ('harness/netx/dns.go',
+          '\tif !held {\n\t\treturn nil, lookupErr\n\t}\n',
+          '\treturn nil, lookupErr\n'),
+     ],
+     'TestCachedDialerFallsBackOnlyAfterPriorSuccessfulResolution'),
+
+    ('M-7ZT-SHORTTTL',
+     'reduce the one-hour floor to a minute, so the harness goes back to a '
+     'wedged resolver every sixty seconds while still holding the answer it '
+     'needs -- the floor is a FLOOR and not an expiry, and inside it the '
+     'resolver is not consulted at all',
+     [
+         ('harness/netx/dns.go',
+          'const FloorTTL = time.Hour\n',
+          'const FloorTTL = time.Minute\n'),
+     ],
+     'TestCachedDialerKeepsResolvedAddressForAtLeastOneHour'),
+
+    ('M-7ZT-RESTBYPASS',
+     'build the production REST Doer -- and with it the active-programme walk '
+     'and every portfolio read -- on net/http\'s default transport, so F6 is '
+     'implemented, tested, and on no path the harness uses',
+     [
+         ('cmd/harness/runtime.go',
+          '\tdoer := rest.NewHTTPDoerWithTransport(signer, restTimeout, nt.rest)\n',
+          '\tdoer := rest.NewHTTPDoer(signer, restTimeout)\n'),
+     ],
+     'TestProductionRESTUsesF6DialerForActiveProgramsAndPortfolio'),
+
+    ('M-7ZT-WSBYPASS',
+     'build the production websocket Dialer on net/http\'s default transport, '
+     'so the RECONNECT -- the one dial most likely to happen during a wedge, '
+     'because the wedge is what took the socket down -- resolves through the '
+     'system stack that is broken',
+     [
+         ('cmd/harness/runtime.go',
+          '\t\tDialer: wsx.NewLiveDialerWithTransport(nt.ws),\n',
+          '\t\tDialer: wsx.NewLiveDialer(),\n'),
+     ],
+     'TestProductionWebSocketUsesF6Dialer'),
+
+    # The SNI clause, and the whole reason F6 is a dialer rather than a URL
+    # rewrite. Terminating TLS inside the transport is the plausible way to get
+    # this wrong: it looks like taking control of the handshake and it silently
+    # sends the numeric fallback address as the server name, so the certificate
+    # is verified against an IP the exchange never issued one for.
+    ('M-7ZT-IPHOST',
+     'terminate TLS inside the F6 transport against the address that was '
+     'dialled, so the numeric fallback becomes the SNI server name and the '
+     'certificate is verified against an IP -- exactly what a URL rewrite '
+     'would have produced, and what "SNI preserved" exists to forbid',
+     [
+         ('cmd/harness/runtime.go',
+          '\t"crypto/rand"\n',
+          '\t"crypto/rand"\n\t"crypto/tls"\n'),
+         ('cmd/harness/runtime.go',
+          '\t\tDialContext:           cd.DialContext,\n',
+          '\t\tDialTLSContext: func(ctx context.Context, network,\n'
+          '\t\t\taddr string) (net.Conn, error) {\n\n'
+          '\t\t\traw, err := cd.DialContext(ctx, network, addr)\n'
+          '\t\t\tif err != nil {\n\t\t\t\treturn nil, err\n\t\t\t}\n'
+          '\t\t\thost, _, err := net.SplitHostPort(raw.RemoteAddr().String())\n'
+          '\t\t\tif err != nil {\n\t\t\t\treturn nil, err\n\t\t\t}\n'
+          '\t\t\tconn := tls.Client(raw, &tls.Config{ServerName: host})\n'
+          '\t\t\treturn conn, conn.HandshakeContext(ctx)\n'
+          '\t\t},\n'),
+     ],
+     'TestF6FallbackPreservesHostAndSNIOnRESTAndWebSocket'),
+
+    # The alert. The fallback's whole job is to make the harness keep working,
+    # so a fallback that worked and said nothing is indistinguishable from a
+    # machine that was fine -- and the operator never learns that the thing
+    # carrying them is a cached address that could go stale at any moment.
+    ('M-7ZT-NOALERT',
+     'discard the fallback report instead of raising it on the process anomaly '
+     'sink, so the resolver wedges, the cache carries the harness through, and '
+     'nobody is ever told',
+     [
+         ('cmd/harness/runtime.go',
+          '\t\tanom.raise(dnsFallbackAnomaly(f))\n',
+          '\t\tdropped := dnsFallbackAnomaly(f)\n'
+          '\t\tif dropped.Class == "" {\n\t\t\tanom.raise(dropped)\n\t\t}\n'),
+     ],
+     'TestF6FallbackQueuesSEV2ThroughTheProcessSink'),
+
 ]
 
 
