@@ -64,39 +64,75 @@ const (
 	exitRefused = 2
 )
 
-func main() {
-	fs := flag.NewFlagSet("harness", flag.ExitOnError)
+// cmdline is this binary's command line, after parsing.
+//
+// It is a type, and the registration below is a function, for one reason:
+// `-deploy` WRITES an argv that this same binary is later started with, and the
+// only honest way to assert that the written argv still starts is to parse it
+// with the flag set `main` registers. A test that hand-rolled its own parser
+// would be checking the plist against its own idea of the flag names, which is
+// the "a test must not measure itself" failure in its most literal form -- rename
+// `-rung` here and a hand-rolled parser goes on passing while every deployed job
+// on the machine stops starting. `TestTheDeployedArgvStartsUnderTheRungGate`
+// parses a real plist's ProgramArguments with `newFlagSet`.
+type cmdline struct {
+	configPath  string
+	resume      string
+	rung        string
+	doProvision bool
+	doDeploy    bool
+	force       bool
+	live        bool
+}
+
+// newFlagSet registers the command line and returns the destination it parses
+// into.
+//
+// `errorHandling` is a parameter rather than the constant `main` wants because
+// `flag.ExitOnError` calls `os.Exit` from inside `Parse`, and a test that parsed
+// a bad argv under it would take the whole suite down instead of reporting.
+// Production passes `ExitOnError`; a test passes `ContinueOnError`. Nothing else
+// about the set differs between them.
+func newFlagSet(errorHandling flag.ErrorHandling) (*flag.FlagSet, *cmdline) {
+	fs := flag.NewFlagSet("harness", errorHandling)
+	var cl cmdline
 
 	// No default. A default config path is a path this binary invents, and the
 	// file it names carries the location of the durable halt latch: a harness
 	// started from a different directory would find a fresh empty one, which is
 	// H-HALT-4 erased by a `cd`.
-	configPath := fs.String("config", "", "path to the pilot config file (required)")
-	resume := fs.String("resume", "", "start with the halt latch SET, after "+
+	fs.StringVar(&cl.configPath, "config", "", "path to the pilot config file (required)")
+	fs.StringVar(&cl.resume, "resume", "", "start with the halt latch SET, after "+
 		"reading it (§10.4). The value is the reason, recorded in the log")
-	rung := fs.String("rung", "", "the capital ladder step this invocation is "+
+	fs.StringVar(&cl.rung, "rung", "", "the capital ladder step this invocation is "+
 		"for (pilot-plan §1). Required whenever S exceeds the canary's one contract")
 
-	doProvision := fs.Bool("provision", false, "create the five-record store "+
+	fs.BoolVar(&cl.doProvision, "provision", false, "create the five-record store "+
 		"and its anomaly journal, then exit. Refuses if either already exists")
-	doDeploy := fs.Bool("deploy", false, "render and install the launchd job, "+
+	fs.BoolVar(&cl.doDeploy, "deploy", false, "render and install the launchd job, "+
 		"then exit. Prints the launchctl lines; does not run them")
-	force := fs.Bool("force", false, "with -deploy, overwrite an installed plist")
+	fs.BoolVar(&cl.force, "force", false, "with -deploy, overwrite an installed plist")
 
 	// H-VER-1's FIRST key. A flag and never a JSON field: a config that armed
 	// itself would arm every process that read it, including one an operator
 	// started to look at a book. The second key is the `live_ok` sentinel, and
 	// both are required before any non-GET request leaves this process.
-	live := fs.Bool("live", false, "permit writes to the exchange. Requires "+
+	fs.BoolVar(&cl.live, "live", false, "permit writes to the exchange. Requires "+
 		"the paths.live_ok sentinel to exist as well; without both keys this "+
 		"process is structurally read-only and cannot place an order")
+
+	return fs, &cl
+}
+
+func main() {
+	fs, cl := newFlagSet(flag.ExitOnError)
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		os.Exit(exitRefused)
 	}
 
-	if err := run(fs, *configPath, *resume, *rung, *doProvision, *doDeploy,
-		*force, *live); err != nil {
+	if err := run(fs, cl.configPath, cl.resume, cl.rung, cl.doProvision,
+		cl.doDeploy, cl.force, cl.live); err != nil {
 
 		fmt.Fprintf(os.Stderr, "harness: %v\n", err)
 		var ref *refusal
@@ -169,8 +205,12 @@ func run(fs *flag.FlagSet, configPath, resume, rung string,
 		if err != nil {
 			return err
 		}
-		return installAgent(c, abs, agentOptions{Force: force, Live: live},
-			os.Stdout)
+		// `rung` is carried into the deployed argv rather than dropped here.
+		// It used to be dropped, and the result was a plist for any S above
+		// the canary that `checkRung` refused at every start -- forever, under
+		// `KeepAlive` (lip-3yo). `installAgent` refuses a rung that does not
+		// match this config before it writes anything.
+		return installAgent(c, abs, deployOptions(rung, force, live), os.Stdout)
 	}
 
 	// The ladder gate. `config.go` has already asserted the config's own rung

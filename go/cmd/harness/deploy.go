@@ -60,7 +60,8 @@ const agentDirMode = 0o700
 // `TestAFailedPlistWriteLeavesThePreviousJobIntact` drives it.
 var plistWriteFn = func(f *os.File, b []byte) (int, error) { return f.Write(b) }
 
-// agentOptions are the two things about an install that are not derived.
+// agentOptions is everything about an install that is NOT derived from the
+// config -- which is to say, everything the operator had to type.
 type agentOptions struct {
 	// Dir is where the plist is written. Empty means
 	// `~/Library/LaunchAgents`, which is the only value production ever uses;
@@ -82,6 +83,43 @@ type agentOptions struct {
 	// silently bake today's state into a job that starts for months.
 	// `M-ES6-DEPLOYARM` arms every deployed job.
 	Live bool
+	// Rung is the ladder step the operator asserted at deployment time, and it
+	// is rendered into the deployed argv as `-rung <name>`.
+	//
+	// It exists because the harness refuses to START without it. `checkRung`
+	// makes `-rung` mandatory for any S above the canary's one contract, and a
+	// deployed argv is not a command line anybody retypes: `KeepAlive` restarts
+	// on every exit, so a plist missing this flag is not a job that fails once
+	// but a refusal loop, throttled by launchd and reported by nothing. That is
+	// the defect this field closes (lip-3yo).
+	//
+	// It is NEVER derived from `c.Rung`, and the reason is the same one that
+	// makes `-rung` a flag rather than a JSON field. The config says what the
+	// run IS; the invocation says what the operator BELIEVED they were
+	// installing. Filling this in from the file would collapse the two into one
+	// statement that cannot disagree with itself, and pilot-plan §1 makes the
+	// knob between a $1 canary and a $100 pilot the one thing that must be
+	// asserted twice. `M-3YO-DERIVEDRUNG` does exactly that collapse.
+	//
+	// Empty is the canary's unadorned invocation, and only the canary's:
+	// `installAgent` puts this through the SAME `checkRung` the start path
+	// uses, so an empty Rung on an S=12 config is refused here rather than
+	// discovered by launchd at 3am.
+	Rung string
+}
+
+// deployOptions is the `-deploy` arm's options, built here rather than inline
+// at the call site.
+//
+// The same argument `agentArgs` makes one function lower: `run`'s deploy arm
+// installs into `~/Library/LaunchAgents` -- `agentOptions.Dir` is empty in
+// production and a test that drove that arm would install a real launchd job on
+// the machine running the suite. So the arm cannot be tested end to end, and the
+// one thing about it that has been wrong (it had `rung` in scope and dropped it
+// on the floor, which is the whole of lip-3yo) becomes a pure expression a test
+// can assert on instead. `M-3YO-DROPPEDATCALLSITE` drops it again.
+func deployOptions(rung string, force, live bool) agentOptions {
+	return agentOptions{Rung: rung, Force: force, Live: live}
 }
 
 // installAgent renders the H-DEP-2/H-DEP-3 plist and installs it.
@@ -102,6 +140,25 @@ func installAgent(c config, configPath string, opts agentOptions,
 	if _, err := os.Stat(configPath); err != nil {
 		return fmt.Errorf("the config %s the job would be started with cannot "+
 			"be read: %w", configPath, err)
+	}
+
+	// The ladder gate, run HERE with the same function the start path runs it
+	// with, and run first (lip-3yo).
+	//
+	// The same function is the whole point. This is not "validate the input
+	// early": it is the assertion that the argv about to be written is one this
+	// binary will accept when launchd starts it. Any second implementation of
+	// the rule -- even a correct one -- is a copy that can drift, and the
+	// direction it drifts in is a plist that installs cleanly and then refuses
+	// forever under `KeepAlive`, at whatever rate launchd throttles to, with
+	// nobody watching. `checkRung` is therefore called with exactly what
+	// `agentArgs` is about to render, and nothing else.
+	//
+	// First, because it is the only check here that costs nothing and depends
+	// on nothing outside its two arguments. An operator who typed the wrong
+	// ladder step should be told that, not told about a database.
+	if err := checkRung(c, opts.Rung); err != nil {
+		return err
 	}
 
 	// The store, before the plist. `KeepAlive: true` restarts on any exit, so a
@@ -136,7 +193,7 @@ func installAgent(c config, configPath string, opts agentOptions,
 	plan := lifecycle.LaunchdPlan{
 		Label:      agentLabel,
 		Executable: exe,
-		Args:       agentArgs(configPath, opts.Live),
+		Args:       agentArgs(configPath, opts.Rung, opts.Live),
 		WorkingDir: logDir,
 		StdoutPath: filepath.Join(logDir, "harness.out"),
 		StderrPath: filepath.Join(logDir, "harness.err"),
@@ -358,12 +415,22 @@ func writeInstallReport(out io.Writer, path string,
 
 // agentArgs is the deployed argv after the executable.
 //
-// `-config <absolute path>`, then AT MOST ONE `-live`. Built here rather than
-// inline so the arming decision is a single expression a test can drive both
-// ways, and so that "exactly once" is a property of the function rather than of
-// wherever the slice happened to be assembled.
-func agentArgs(configPath string, live bool) []string {
+// `-config <absolute path>`, then `-rung <name>` when the operator asserted one,
+// then AT MOST ONE `-live`. Built here rather than inline so each decision is a
+// single expression a test can drive both ways, and so that "exactly once" is a
+// property of the function rather than of wherever the slice happened to be
+// assembled.
+//
+// The order is stable and it is the order an operator reads: which file, which
+// step of the ladder, and then -- last, because it is the one that lets orders
+// leave the process -- whether this job may write. `flag` does not care, but the
+// human running `launchctl print` on a job they installed months ago does, and
+// that human is the only reader this argv has.
+func agentArgs(configPath, rung string, live bool) []string {
 	argv := []string{"-config", configPath}
+	if rung != "" {
+		argv = append(argv, "-rung", rung)
+	}
 	if live {
 		argv = append(argv, "-live")
 	}

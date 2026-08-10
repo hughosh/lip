@@ -2655,6 +2655,97 @@ MUTATIONS = [
      ],
      'TestF6FallbackQueuesSEV2ThroughTheProcessSink'),
 
+    # ---- lip-3yo: the deployed argv carries the operator's rung ------------
+    #
+    # `checkRung` refuses any start whose S exceeds the canary's one contract
+    # unless `-rung <name>` names the step the config declares, and the deployed
+    # argv did not carry one. That is not a job that starts wrong: it is a job
+    # that cannot start once, restarted forever by `KeepAlive`, at whatever rate
+    # launchd throttles to, reported by nothing -- the anomaly journal needs the
+    # harness to be RUNNING to record anything.
+    #
+    # The mutations below are the four ways to lose the assertion (never render
+    # it, never validate it, validate it too weakly, drop it at the call site)
+    # plus the two ways to keep rendering something that looks right: copy it
+    # out of the config so it can never disagree, or move it behind `-live`.
+
+    ('M-3YO-NORUNG',
+     'render the deployed argv without `-rung`, so every above-canary plist '
+     'installs cleanly and is then refused by `checkRung` at every start -- a '
+     'KeepAlive refusal loop, throttled by launchd, watched by nothing',
+     [
+         ('cmd/harness/deploy.go',
+          '\tif rung != "" {\n\t\targv = append(argv, "-rung", rung)\n\t}\n',
+          ''),
+     ],
+     'TestTheDeployedArgvStartsUnderTheRungGate'),
+
+    ('M-3YO-NOVALIDATE',
+     'drop the deploy-time ladder gate, so `-deploy` on an S=12 config with no '
+     'rung asserted writes the plist and reports success -- the refusal is then '
+     'discovered by launchd, hours later, in a file nobody is reading',
+     [
+         ('cmd/harness/deploy.go',
+          '\tif err := checkRung(c, opts.Rung); err != nil {\n'
+          '\t\treturn err\n\t}\n',
+          ''),
+     ],
+     'TestDeployRefusesAnAboveCanaryConfigWithNoRung'),
+
+    ('M-3YO-NONEMPTYONLY',
+     'weaken the deploy-time gate to "a rung was given", so any non-empty '
+     'string is accepted -- including a rung naming a DIFFERENT ladder step '
+     'than the config declares, which installs a plist the binary refuses',
+     [
+         ('cmd/harness/deploy.go',
+          '\tif err := checkRung(c, opts.Rung); err != nil {\n'
+          '\t\treturn err\n\t}\n',
+          '\tif opts.Rung == "" {\n'
+          '\t\tif err := checkRung(c, opts.Rung); err != nil {\n'
+          '\t\t\treturn err\n\t\t}\n\t}\n'),
+     ],
+     'TestDeployRefusesARungThatDisagreesWithTheConfig'),
+
+    # The attractive wrong answer, and the one this bead's text forbids by name:
+    # "Never derive away the second assertion". A rung copied out of the config
+    # passes `checkRung` unconditionally, because a copy cannot disagree with
+    # its source -- so every test that only asks "does the deployed argv start?"
+    # goes on passing while the operator's assertion stops existing.
+    ('M-3YO-DERIVEDRUNG',
+     "fill the deployed `-rung` in from the config's own declared rung instead "
+     'of the operator assertion, so the second assertion is derived away and '
+     'the canary gets a flag nobody typed',
+     [
+         ('cmd/harness/deploy.go',
+          '\t\tArgs:       agentArgs(configPath, opts.Rung, opts.Live),\n',
+          '\t\tArgs:       agentArgs(configPath, c.Rung.name, opts.Live),\n'),
+     ],
+     'TestCanaryDeployRendersExactlyWhatTheOperatorAsserted'),
+
+    ('M-3YO-DROPPEDATCALLSITE',
+     'drop the rung where the command line becomes install options -- the '
+     'original defect exactly: `run` had the operator assertion in scope and '
+     'never passed it on',
+     [
+         ('cmd/harness/deploy.go',
+          '\treturn agentOptions{Rung: rung, Force: force, Live: live}\n',
+          '\treturn agentOptions{Force: force, Live: live}\n'),
+     ],
+     'TestDeployOptionsCarryTheOperatorsRung'),
+
+    ('M-3YO-RUNGORDER',
+     'render `-rung` after `-live`, so the flag that decides whether orders '
+     'leave the process is no longer the last thing in the argv an operator '
+     'reads out of a plist they installed months ago',
+     [
+         ('cmd/harness/deploy.go',
+          '\tif rung != "" {\n\t\targv = append(argv, "-rung", rung)\n\t}\n'
+          '\tif live {\n\t\targv = append(argv, "-live")\n\t}\n',
+          '\tif live {\n\t\targv = append(argv, "-live")\n\t}\n'
+          '\tif rung != "" {\n\t\targv = append(argv, "-rung", rung)\n\t}\n'),
+     ],
+     'TestPilotDeployCarriesTheConfigAndRungInStableOrder'),
+
 ]
 
 
