@@ -43,6 +43,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"lip/harness/num"
 )
@@ -76,13 +77,15 @@ const (
 // on the machine stops starting. `TestTheDeployedArgvStartsUnderTheRungGate`
 // parses a real plist's ProgramArguments with `newFlagSet`.
 type cmdline struct {
-	configPath  string
-	resume      string
-	rung        string
-	doProvision bool
-	doDeploy    bool
-	force       bool
-	live        bool
+	configPath    string
+	qualification string
+	assess        string
+	resume        string
+	rung          string
+	doProvision   bool
+	doDeploy      bool
+	force         bool
+	live          bool
 }
 
 // newFlagSet registers the command line and returns the destination it parses
@@ -102,6 +105,11 @@ func newFlagSet(errorHandling flag.ErrorHandling) (*flag.FlagSet, *cmdline) {
 	// started from a different directory would find a fresh empty one, which is
 	// H-HALT-4 erased by a `cd`.
 	fs.StringVar(&cl.configPath, "config", "", "path to the pilot config file (required)")
+	fs.StringVar(&cl.qualification, "qualification", "", "absolute path to the durable "+
+		"read-only qualification evidence bundle; incompatible with -live")
+	fs.StringVar(&cl.assess, "assess-qualification", "", "absolute path to a preserved "+
+		"qualification evidence bundle. Reads that one file, prints the LOCAL q01 "+
+		"assessment as JSON, and exits. Starts no observer and awards no rung")
 	fs.StringVar(&cl.resume, "resume", "", "start with the halt latch SET, after "+
 		"reading it (§10.4). The value is the reason, recorded in the log")
 	fs.StringVar(&cl.rung, "rung", "", "the capital ladder step this invocation is "+
@@ -131,8 +139,8 @@ func main() {
 		os.Exit(exitRefused)
 	}
 
-	if err := run(fs, cl.configPath, cl.resume, cl.rung, cl.doProvision,
-		cl.doDeploy, cl.force, cl.live); err != nil {
+	if err := run(fs, cl.configPath, cl.qualification, cl.assess, cl.resume,
+		cl.rung, cl.doProvision, cl.doDeploy, cl.force, cl.live); err != nil {
 
 		fmt.Fprintf(os.Stderr, "harness: %v\n", err)
 		var ref *refusal
@@ -159,8 +167,25 @@ func refuse(format string, a ...any) error {
 	return &refusal{err: fmt.Errorf(format, a...)}
 }
 
-func run(fs *flag.FlagSet, configPath, resume, rung string,
+func run(fs *flag.FlagSet, configPath, qualification, assess, resume, rung string,
 	doProvision, doDeploy, force, live bool) error {
+
+	// The offline assessor, and it is FIRST because it is the one invocation
+	// that reads no config, opens no store, and reaches no network. Every other
+	// flag is refused alongside it rather than ignored: an assessment that could
+	// be requested from a starting harness would make the process under
+	// examination the author of its own verdict, and `-assess-qualification`
+	// exists precisely so the judging happens after the run, from the artifact.
+	if assess != "" {
+		if configPath != "" || qualification != "" || resume != "" || rung != "" ||
+			doProvision || doDeploy || force || live {
+			return refuse("-assess-qualification reads one preserved evidence " +
+				"file and exits. It takes no other flag: an assessment issued by " +
+				"a process that was also starting the observer, provisioning a " +
+				"store, or arming for writes would be the run grading itself")
+		}
+		return assessQualificationBundle(assess, os.Stdout)
+	}
 
 	if configPath == "" {
 		fs.Usage()
@@ -176,6 +201,16 @@ func run(fs *flag.FlagSet, configPath, resume, rung string,
 			"creates the ownership ledger this account's fills are classified " +
 			"against, the other installs a job that will start trading. Run them " +
 			"one at a time and look at the output of each")
+	}
+	if qualification != "" && live {
+		return refuse("-qualification and -live cannot be given together. " +
+			"Qualification is the zero-write rung; an evidence file produced by " +
+			"a process armed to write would misstate the operating envelope")
+	}
+	if doProvision && qualification != "" {
+		return refuse("-provision and -qualification are separate acts. " +
+			"Provisioning exits without running the observer, so it cannot " +
+			"contribute a process segment to qualification evidence")
 	}
 
 	// Refused BEFORE the config is read, and so before `-provision` could
@@ -205,12 +240,20 @@ func run(fs *flag.FlagSet, configPath, resume, rung string,
 		if err != nil {
 			return err
 		}
+		// Installing a job which can only restart into a structural refusal is
+		// not a successful deployment.  Validate both destinations before the
+		// plist is written; this loads no exchange credential and makes no
+		// network request.
+		if _, err := productionAlertFactory(c.Paths.Env); err != nil {
+			return &refusal{err: err}
+		}
 		// `rung` is carried into the deployed argv rather than dropped here.
 		// It used to be dropped, and the result was a plist for any S above
 		// the canary that `checkRung` refused at every start -- forever, under
 		// `KeepAlive` (lip-3yo). `installAgent` refuses a rung that does not
 		// match this config before it writes anything.
-		return installAgent(c, abs, deployOptions(rung, force, live), os.Stdout)
+		return installAgent(c, abs,
+			deployOptions(rung, qualification, force, live), os.Stdout)
 	}
 
 	// The ladder gate. `config.go` has already asserted the config's own rung
@@ -227,6 +270,27 @@ func run(fs *flag.FlagSet, configPath, resume, rung string,
 	// stat-ed freshly at every write, so removing the file disarms the next one
 	// without needing to find and stop this process.
 	c.Live = live
+
+	// Both alert destinations are required for an unattended run.  Load and
+	// validate them before the first exchange request so a broken deployment
+	// refuses without touching the account.
+	makeAlerts, err := productionAlertFactory(c.Paths.Env)
+	if err != nil {
+		return &refusal{err: err}
+	}
+
+	// H-DEP-5 begins here, before either the active-program GET below or the
+	// qualification bundle can be touched. newRigWithLock takes ownership once
+	// composition begins; until then this deferred close owns every error path.
+	heldLock, qrec, err := lockThenOpenQualification(qualification, c)
+	if err != nil {
+		return &refusal{err: err}
+	}
+	defer func() {
+		if heldLock != nil {
+			heldLock.Close()
+		}
+	}()
 
 	// A plain background context, and NO signal wired into it.
 	//
@@ -251,12 +315,14 @@ func run(fs *flag.FlagSet, configPath, resume, rung string,
 	// rig raises afterwards.
 	anom := newAnomalySink()
 
-	ex, err := productionExchange(ctx, c, anom)
+	ex, err := productionExchange(ctx, c, anom, qrec)
 	if err != nil {
 		return err
 	}
 
-	r, err := newRig(ctx, c, resume != "", ex, anom)
+	r, err := newRigWithLock(ctx, c, resume != "", ex, makeAlerts, anom, qrec, heldLock)
+	// Ownership transfers at function entry, including its refusal paths.
+	heldLock = nil
 	if err != nil {
 		// Every refusal `newRig` makes is structural: the lock is held, the
 		// latch is set, the store does not exist. None of them is retryable by
@@ -272,6 +338,15 @@ func run(fs *flag.FlagSet, configPath, resume, rung string,
 	}
 
 	err = r.serve(ctx)
+	if qrec != nil {
+		if endErr := qrec.EndSegment(time.Now().UTC(),
+			qualificationEndReason(err)); endErr != nil && err == nil {
+			err = fmt.Errorf("ending qualification evidence segment: %w", endErr)
+		}
+		if checkpointErr := qrec.Checkpoint(); checkpointErr != nil && err == nil {
+			err = fmt.Errorf("checkpointing qualification evidence segment: %w", checkpointErr)
+		}
+	}
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return err
 	}

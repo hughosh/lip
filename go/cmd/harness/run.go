@@ -427,6 +427,9 @@ func newOwner(r *rig, sd *shutdown) *owner {
 func (r *rig) serve(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	if r.qual != nil {
+		go r.runQualificationCheckpoints(ctx)
+	}
 
 	sd := newShutdown(r)
 	o := newOwner(r, sd)
@@ -452,6 +455,13 @@ func (r *rig) serve(ctx context.Context) error {
 			})
 		}
 	}()
+
+	// Alerting is independent of startup and begins with an immediate Step.
+	// In particular, a startup walk which stalls or fails must not prevent a
+	// pending alert from a previous process being retried.
+	if err := r.startAlerts(ctx); err != nil {
+		return err
+	}
 
 	adoption, err := o.startup(ctx)
 	if err != nil {
@@ -536,6 +546,8 @@ func (r *rig) serve(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case err := <-r.qualErrors:
+			return fmt.Errorf("qualification evidence failed: %w", err)
 
 		case ev := <-events:
 			o.applyEvent(ev, tokens)
@@ -870,6 +882,12 @@ func (o *owner) applyPnLFill(f risk.FillEvent) {
 // the book when the handler refuses, and `FrameEffects.Delivered` is its REPORT
 // of what it did rather than permission for the caller to do it afterwards.
 func (o *owner) applyEvent(ev wsx.Event, tokens chan<- wsx.ReconcileToken) {
+	if o.r.qual != nil && ev.Kind != wsx.EventFrame {
+		name := "websocket:" + ev.Kind.String()
+		if err := o.r.qual.RecordEvent("state", name, time.Now().UTC()); err != nil {
+			o.r.failQualification(fmt.Errorf("recording websocket state: %w", err))
+		}
+	}
 	switch ev.Kind {
 	case wsx.EventConnected:
 		eff := o.r.gate.OnConnect(ev.At)
@@ -1222,6 +1240,14 @@ func (o *owner) applyRead(read wsx.PortfolioRead) {
 	now := o.r.ex.Mono()
 	eff := wsx.ApplyPortfolio(o.r.gate, o.r.pf, o.r.store.Ownership(), o.r.store,
 		read, risk.Live, now, o.p)
+	if o.r.qual != nil {
+		complete := eff.Applied[wsx.TruthFills] &&
+			eff.Applied[wsx.TruthOrders] && eff.Applied[wsx.TruthPositions]
+		if err := o.r.qual.RecordPortfolioWalk(!eff.Stale, complete,
+			time.Now().UTC()); err != nil {
+			o.r.failQualification(fmt.Errorf("recording portfolio walk: %w", err))
+		}
+	}
 
 	o.r.anom.raiseAll(eff.Anomalies)
 	o.noteReduce(eff.Reduce)
@@ -2081,6 +2107,26 @@ func (o *owner) pump(now time.Duration, writes chan<- writeRequest) {
 			Text: fmt.Sprintf("a %s on %s/%s was selected but could not be "+
 				"built: %v", d.Op, d.Market, d.Side, err),
 		})
+		return
+	}
+
+	// A read-only process rehearses the exact decision but never enters the
+	// dispatch-authority path. In particular it takes no ownership reservation:
+	// owned_order is proof that a write was licensed to leave, not a telemetry
+	// table for a write the invocation forbade. Dropping the selected intents
+	// also prevents the guarded-refusal completion loop that previously minted
+	// and abandoned rows at SQLite speed.
+	if !o.r.cfg.Live {
+		if o.r.qual != nil {
+			fp := wouldWriteFingerprint(req, o.global, o.market,
+				o.r.gate.Generation())
+			if err := o.r.qual.RecordWouldWrite(fp, time.Now().UTC()); err != nil {
+				o.r.failQualification(fmt.Errorf("recording would-write: %w", err))
+			}
+		}
+		for _, id := range d.IDs {
+			o.r.queue.Drop(id)
+		}
 		return
 	}
 
@@ -3037,6 +3083,13 @@ func (o *owner) publish(now time.Duration) {
 	}
 	snap.Markets = []risk.MarketSnap{m}
 	o.r.snap.Store(snap)
+	if o.r.qual != nil {
+		name := fmt.Sprintf("global=%s;market=%s;actionable=%t;truth_generation=%d",
+			o.global, o.market, m.BookActionable, o.r.gate.Generation())
+		if err := o.r.qual.RecordEvent("state", name, time.Now().UTC()); err != nil {
+			o.r.failQualification(fmt.Errorf("recording state summary: %w", err))
+		}
+	}
 }
 
 // confidence: high

@@ -238,3 +238,74 @@ func TestNTFYTopicLoadsOnlyFromAnExplicitAbsoluteEnvFile(t *testing.T) {
 		t.Fatal("a sender was built from the zero Topic")
 	}
 }
+
+// TestDeadmanLoadsOnlyFromAnExplicitAbsoluteEnvFile is the production source
+// boundary for the second bearer credential.
+//
+// DEADMAN_URL is the whole check-in endpoint, not merely an address: anyone who
+// learns it can suppress the external alarm indefinitely. Loader failures are
+// startup errors and are therefore likely to be logged or pasted into an
+// incident; no rejected value may appear in them.
+func TestDeadmanLoadsOnlyFromAnExplicitAbsoluteEnvFile(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+		return p
+	}
+
+	if _, err := LoadHTTPSDeadman("relative/env"); err == nil {
+		t.Fatal("a relative env path was accepted; which dead-man credential is " +
+			"loaded must not depend on the working directory")
+	}
+	if _, err := LoadHTTPSDeadman(filepath.Join(dir, "nope")); err == nil {
+		t.Fatal("a missing env file was accepted")
+	}
+	if _, err := LoadHTTPSDeadman(
+		write("deadman-absent", "NTFY_TOPIC=channel-only\n")); err == nil {
+		t.Fatal("an env file with no DEADMAN_URL was accepted; a harness with no " +
+			"external observer must fail to start rather than run unattended")
+	}
+	if _, err := LoadHTTPSDeadman(
+		write("deadman-empty", "DEADMAN_URL=\n")); err == nil {
+		t.Fatal("an empty DEADMAN_URL was accepted")
+	}
+
+	const (
+		firstSecret  = "https://first-deadman-secret.example/checkin"
+		secondSecret = "https://second-deadman-secret.example/checkin"
+	)
+	_, err := LoadHTTPSDeadman(write("deadman-duplicate",
+		"DEADMAN_URL="+firstSecret+"\nDEADMAN_URL="+secondSecret+"\n"))
+	if err == nil {
+		t.Fatal("duplicate DEADMAN_URL entries were accepted; choosing either " +
+			"one by shell precedence could check in with the wrong observer")
+	}
+	assertNoSecret(t, "duplicate dead-man loader error", err,
+		firstSecret, secondSecret)
+
+	for name, endpoint := range map[string]string{
+		"plaintext": "http://plaintext-deadman-secret.example/checkin",
+		"malformed": "https://malformed-deadman-secret.example/%zz",
+	} {
+		_, err := LoadHTTPSDeadman(write("deadman-"+name,
+			"export DEADMAN_URL=\""+endpoint+"\"\n"))
+		if err == nil {
+			t.Fatalf("a %s DEADMAN_URL was accepted", name)
+		}
+		assertNoSecret(t, name+" dead-man loader error", err, endpoint)
+	}
+
+	dead, err := LoadHTTPSDeadman(write("deadman-good",
+		"# both credentials may share the explicit file\n"+
+			"NTFY_TOPIC=channel-1\n"+
+			"export DEADMAN_URL=\"https://watchdog.example/checkin/token-1\"\n"))
+	if err != nil {
+		t.Fatalf("a well-formed DEADMAN_URL was rejected: %v", err)
+	}
+	if !dead.valid() {
+		t.Fatal("the loaded dead-man transport reports itself invalid")
+	}
+}

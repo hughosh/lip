@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"lip/harness/hstore"
 	"lip/harness/lifecycle"
 	"lip/harness/netx"
+	"lip/harness/qual"
 	"lip/harness/quote"
 	"lip/harness/rest"
 	"lip/harness/risk"
@@ -279,7 +281,8 @@ func dnsFallbackAnomaly(f netx.Fallback) risk.Anomaly {
 // fallback raised from inside the dial path and every anomaly the rig raises
 // have to arrive in the same queue and the same durable journal. Two sinks
 // would mean the fallback was recorded somewhere nothing drains.
-func productionExchange(ctx context.Context, c config, anom *anomalySink) (exchange, error) {
+func productionExchange(ctx context.Context, c config, anom *anomalySink,
+	qrec *qual.Recorder) (exchange, error) {
 	signer, err := feed.NewSignerFrom(c.Paths.Key, c.Paths.Env)
 	if err != nil {
 		return exchange{}, fmt.Errorf("credentials: %w", err)
@@ -294,7 +297,7 @@ func productionExchange(ctx context.Context, c config, anom *anomalySink) (excha
 	if err != nil {
 		return exchange{}, err
 	}
-	return exchangeOver(ctx, c, signer, nt)
+	return exchangeOver(ctx, c, signer, nt, qrec)
 }
 
 // exchangeOver builds the exchange over an ALREADY-COMPOSED network layer.
@@ -306,9 +309,16 @@ func productionExchange(ctx context.Context, c config, anom *anomalySink) (excha
 // F6 implemented, tested, and on no path the harness actually uses -- which is
 // the shape H-CAP-8 has already had once in this tree.
 func exchangeOver(ctx context.Context, c config, signer *feed.Signer,
-	nt *f6Net) (exchange, error) {
+	nt *f6Net, qrec *qual.Recorder) (exchange, error) {
 
-	doer := rest.NewHTTPDoerWithTransport(signer, restTimeout, nt.rest)
+	var doer rest.Doer = rest.NewHTTPDoerWithTransport(signer, restTimeout, nt.rest)
+	if qrec != nil {
+		var err error
+		doer, err = qrec.WrapDoer(doer)
+		if err != nil {
+			return exchange{}, fmt.Errorf("installing qualification HTTP counter: %w", err)
+		}
+	}
 
 	// The active set is read through the cached transport, as a COMPLETE walk.
 	// `feed.Universe` did this before and could do neither: it builds its own
@@ -408,7 +418,11 @@ func (noopSink) Reference(core.ReferenceRow)        {}
 // and a `*hstore.Store` whose mutex protects a FIFO, and a copy of either is a
 // second view of state that is supposed to have exactly one.
 type rig struct {
-	cfg config
+	cfg  config
+	qual *qual.Recorder
+	// qualErrors is the fail-closed hand-off from observation/checkpoint hooks
+	// to serve. It is nil outside a qualification run, disabling its select arm.
+	qualErrors chan error
 
 	// --- lifecycle ---------------------------------------------------------
 
@@ -478,6 +492,18 @@ type rig struct {
 	// for §13.3 rather than written.
 	last atomic.Pointer[risk.StepResult]
 
+	// --- alert delivery ----------------------------------------------------
+
+	// alerts is constructed only after the store reader and writer exist.  Its
+	// loop is the sole owner of Step's retry and suppression state.
+	alerts       alertStepper
+	alertWake    chan struct{}
+	alertFlush   chan chan struct{}
+	alertMu      sync.Mutex
+	alertCancel  context.CancelFunc
+	alertDone    chan struct{}
+	alertStopped bool
+
 	anom *anomalySink
 
 	// cleanup unwinds a partially-built rig in reverse order. Construction here
@@ -510,9 +536,45 @@ type rig struct {
 // Keeping the rig in a local the closure owns makes that unexpressible: there is
 // no assignment any `return` can make that the unwind path can see.
 func newRig(ctx context.Context, c config, resume bool, ex exchange,
-	anom *anomalySink) (*rig, error) {
+	makeAlerts alertFactory, anom *anomalySink, qrec *qual.Recorder) (*rig, error) {
+	return newRigWithLock(ctx, c, resume, ex, makeAlerts, anom, qrec, nil)
+}
 
-	if err := ex.validate(); err != nil {
+// newRigWithLock composes the production path around a lock acquired before
+// the first REST request. It takes ownership of heldLock at function entry,
+// including when validation or later construction returns an error. Tests and
+// other in-package callers use newRig, whose nil lock takes the same acquisition
+// path here without needing to emulate command startup.
+func newRigWithLock(ctx context.Context, c config, resume bool, ex exchange,
+	makeAlerts alertFactory, anom *anomalySink, qrec *qual.Recorder,
+	heldLock *lifecycle.InstanceLock) (*rig, error) {
+
+	r := &rig{
+		cfg: c, ex: ex, anom: anom, qual: qrec,
+		snap:      new(atomic.Pointer[risk.Snapshot]),
+		alertWake: make(chan struct{}, 1), alertFlush: make(chan chan struct{}),
+		lock: heldLock,
+	}
+	if qrec != nil {
+		r.qualErrors = make(chan error, 1)
+	}
+	if r.lock != nil {
+		r.defer_(func() { r.lock.Close() })
+	}
+
+	var err error
+	defer func() {
+		if err != nil {
+			r.unwind()
+		}
+	}()
+
+	if err = ex.validate(); err != nil {
+		return nil, err
+	}
+	if makeAlerts == nil {
+		err = errors.New("the rig needs an alert factory; there is no safe " +
+			"unattended default")
 		return nil, err
 	}
 	// The sink is the CALLER's, and there is no default for it here for the
@@ -523,29 +585,24 @@ func newRig(ctx context.Context, c config, resume bool, ex exchange,
 	// here would be a second one, and the fallback that preceded it would be
 	// recorded somewhere nothing reads.
 	if anom == nil {
-		return nil, fmt.Errorf("the rig needs the process anomaly sink; a nil " +
+		err = fmt.Errorf("the rig needs the process anomaly sink; a nil " +
 			"one is a monitor with no queue, and every SEV1 it would have " +
 			"raised is a nil dereference on the monitor goroutine")
+		return nil, err
 	}
-
-	r := &rig{cfg: c, ex: ex, anom: anom, snap: new(atomic.Pointer[risk.Snapshot])}
-	var err error
-	defer func() {
-		if err != nil {
-			r.unwind()
-		}
-	}()
 
 	// (1) THE LOCK IS FIRST, and it is first with respect to the REST client
 	// rather than merely with respect to the run loop. H-DEP-5's failure is two
 	// processes on one account, and the damage begins at the first request each
 	// of them sends -- so the second process must be refused before it can send
 	// one. Nothing above this line touches the network.
-	r.lock, err = lifecycle.AcquireInstanceLock(c.Paths.Lock)
-	if err != nil {
-		return nil, err
+	if r.lock == nil {
+		r.lock, err = acquireHarnessLock(c)
+		if err != nil {
+			return nil, err
+		}
+		r.defer_(func() { r.lock.Close() })
 	}
-	r.defer_(func() { r.lock.Close() })
 
 	// (2) The store is OPENED. It is not created, and `provision.go` is where
 	// creation lives. `hstore.StoreConfig.DBPath` says so in one line -- "It is
@@ -586,6 +643,18 @@ func newRig(ctx context.Context, c config, resume bool, ex exchange,
 		r.store.Close()
 	})
 
+	// The alert service's queue is the store's read-only connection and every
+	// delivery acknowledgement goes through the running single writer.  Build
+	// it here -- after both exist, before any runtime loop can start.
+	r.alerts, err = makeAlerts(r.store.Reader(), r.store, c.Params.Heartbeat)
+	if err != nil {
+		return nil, fmt.Errorf("constructing alert delivery: %w", err)
+	}
+	if r.alerts == nil {
+		err = errors.New("the alert factory returned no service")
+		return nil, err
+	}
+
 	// (4) The run row. §15 requires every §16 parameter recorded verbatim, and
 	// the handle it issues is the licence every later record needs. It is
 	// awaited rather than assumed: `BeginRun` returns a receipt, and the handle
@@ -601,6 +670,11 @@ func newRig(ctx context.Context, c config, resume bool, ex exchange,
 	r.run, r.deferred, err = awaitRunHandle(ctx, r.store, rcpt)
 	if err != nil {
 		return nil, err
+	}
+	if qrec != nil {
+		if err = qrec.LinkCurrentSegmentRun(r.run.RunID()); err != nil {
+			return nil, fmt.Errorf("linking qualification segment to committed run: %w", err)
+		}
 	}
 
 	// (5) The latch, through the controller that owns it. Constructing the
@@ -652,7 +726,14 @@ func newRig(ctx context.Context, c config, resume bool, ex exchange,
 	if err != nil {
 		return nil, err
 	}
-	r.api = rest.NewClient(guarded)
+	var clientDoer rest.Doer = guarded
+	if qrec != nil {
+		clientDoer, err = qrec.WrapAttemptDoer(clientDoer)
+		if err != nil {
+			return nil, fmt.Errorf("installing qualification attempt counter: %w", err)
+		}
+	}
+	r.api = rest.NewClient(clientDoer)
 
 	tickers := []string{c.Ticker}
 
@@ -705,6 +786,12 @@ func newRig(ctx context.Context, c config, resume bool, ex exchange,
 			r.anom.raiseAll(res.Anomalies)
 			held := res
 			r.last.Store(&held)
+			if r.qual != nil {
+				fresh := !res.Stale && len(res.Samples) > 0
+				if err := r.qual.RecordMonitorSample(fresh, time.Now().UTC()); err != nil {
+					r.failQualification(fmt.Errorf("recording monitor sample: %w", err))
+				}
+			}
 		})
 
 	return r, nil
@@ -731,7 +818,11 @@ func (r *rig) unwind() {
 // released only after the store has been dealt with: while any record is still
 // in flight this process is still the one incarnation entitled to write them.
 func (r *rig) close(ctx context.Context) error {
-	err := r.store.Shutdown(ctx, r.storeCancel)
+	err := r.stopAlerts(ctx)
+	if err != nil {
+		return err
+	}
+	err = r.store.Shutdown(ctx, r.storeCancel)
 	if err == nil {
 		<-r.storeDone
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,19 @@ import (
 	"lip/harness/cfg"
 	"lip/harness/num"
 )
+
+func TestConfigHashPinsTheExactInputBytes(t *testing.T) {
+	body := `{"ticker":"KXTEST-A","rung":"canary","s":1,` + goodTail(t) + `}`
+	path := writeConfig(t, body)
+	c, err := loadConfig(path)
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	want := fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(body)))
+	if c.ConfigHash != want {
+		t.Fatalf("config hash is %q, want %q for the exact file bytes", c.ConfigHash, want)
+	}
+}
 
 // writeConfig puts a config file in a temp dir and returns its path.
 func writeConfig(t *testing.T, body string) string {

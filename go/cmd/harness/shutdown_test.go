@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -13,6 +14,7 @@ import (
 	"lip/harness/cfg"
 	"lip/harness/hstore"
 	"lip/harness/lifecycle"
+	"lip/harness/qual"
 	"lip/harness/quote"
 	"lip/harness/risk"
 )
@@ -117,6 +119,12 @@ func newFixture(t *testing.T, tune func(*cfg.Params)) *fixture {
 		deferred:    deferred,
 		anom:        newAnomalySink(),
 		ex:          exchange{NowMs: f.now, Mono: f.elapsed},
+		alerts:      quietTestAlertStepper{},
+		alertWake:   make(chan struct{}, 1),
+		alertFlush:  make(chan chan struct{}),
+	}
+	if err := f.rig.startAlerts(context.Background()); err != nil {
+		t.Fatalf("starting fixture alert loop: %v", err)
 	}
 	f.sd = newShutdown(f.rig)
 	// The whole point of the injection: the real os.Exit would take the test
@@ -346,6 +354,45 @@ func TestOnlyAnAuthorisedDrainReachesTheProcessExit(t *testing.T) {
 		t.Fatalf("process exits = %v, want exactly [0]: the undrained "+
 			"observation must change nothing and the drained one must end the "+
 			"process cleanly", f.exits)
+	}
+}
+
+func TestQualificationEvidenceIsFinalizedBeforeAuthorisedExit(t *testing.T) {
+	f := newFixture(t, nil)
+	qrec, err := qual.Open(filepath.Join(t.TempDir(), "qualification.json"),
+		qual.Metadata{
+			SchemaVersion: qual.SchemaVersion, ConfigHash: "sha256:test-config",
+			BinaryIdentity: "sha256:test-binary", Ticker: f.rig.cfg.Ticker,
+			Rung: "canary", Live: false,
+		}, qual.SegmentStart{
+			ID: "process-1", PID: os.Getpid(), StartedAt: time.Now().UTC(),
+		})
+	if err != nil {
+		t.Fatalf("qual.Open: %v", err)
+	}
+	f.rig.qual = qrec
+
+	eff := f.sd.onSignal(syscall.SIGTERM, quote.GlobalInput{
+		State: quote.Running, TruthReadable: true, Reconciled: true,
+		RiskKnown: true,
+	})
+	if !eff.Permit.Valid() {
+		t.Fatalf("no permit from a committed stop: %+v", eff)
+	}
+	obs := make(chan lifecycle.DrainObservation, 1)
+	obs <- lifecycle.DrainObservation{TruthKnown: true}
+	close(obs)
+	if err := f.sd.drainLoop(context.Background(), obs); err != nil {
+		t.Fatalf("drainLoop: %v", err)
+	}
+
+	evidence := qrec.Snapshot()
+	if evidence.FinalizedAt == nil || evidence.Segments[0].EndedAt == nil {
+		t.Fatalf("authorised exit left qualification evidence open: %+v", evidence)
+	}
+	if len(f.exits) != 1 || f.exits[0] != exitDrained {
+		t.Fatalf("process exits = %v, want [%d] after evidence finalization",
+			f.exits, exitDrained)
 	}
 }
 

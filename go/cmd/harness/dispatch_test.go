@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -707,6 +708,46 @@ func TestAbsenceIsClaimedOnlyFromACompleteRead(t *testing.T) {
 				"(H-FAIL-3)")
 		}
 	})
+}
+
+// TestGuardedCancelSweepIsUnsent joins H-VER-1's result to the dispatcher's
+// capacity bookkeeping. A sweep still ATTEMPTS its DELETEs and performs its GET
+// verification while read-only; neither fact means a write crossed the guard.
+func TestGuardedCancelSweepIsUnsent(t *testing.T) {
+	target := rest.Order{OrderID: "EX-1", Ticker: dispatchTicker,
+		Side: quote.SideYes, Remaining: num.QtyFromFloat(1)}
+	ex := &fakeExchange{resting: []map[string]any{
+		restingOrder("EX-1", "lipH-owned", "yes", 0.42),
+	}}
+	r, reserves := newDispatchRig(t, ex)
+	guarded, err := rest.NewWriteGuard(ex, rest.WriteArm{})
+	if err != nil {
+		t.Fatalf("NewWriteGuard: %v", err)
+	}
+	r.api = rest.NewClient(guarded)
+
+	res := r.executeWrite(context.Background(), writeRequest{
+		IDs: []uint64{1}, Market: dispatchTicker, Side: quote.SideYes,
+		Role: quote.RoleAdding, Op: quote.OpCancel,
+		Orders: []rest.Order{target},
+	}, reserves)
+
+	if res.Sent {
+		t.Fatal("a guard-refused cancel was reported sent; the owner would burn " +
+			"write capacity on a DELETE that never left the process")
+	}
+	if got := ex.deleteCount(); got != 0 {
+		t.Fatalf("raw transport received %d DELETE(s), want zero", got)
+	}
+	var refused *rest.WriteRefused
+	if !errors.As(res.Err, &refused) {
+		t.Fatalf("result error is %v, want the typed WriteRefused preserved for "+
+			"the owner's refund path", res.Err)
+	}
+	if res.Absent {
+		t.Fatal("absence was claimed while the complete verifying read still " +
+			"listed the target order")
+	}
 }
 
 // TestACancelTakesNoPermitAndReservesNothing is I1 stated as an absence.

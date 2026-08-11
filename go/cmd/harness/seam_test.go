@@ -14,9 +14,12 @@ import (
 	"io"
 	"lip/feed"
 	"lip/harness/cfg"
+	"lip/harness/hstore"
 	"lip/harness/lifecycle"
 	"lip/harness/netx"
 	"lip/harness/num"
+	"lip/harness/ping"
+	"lip/harness/qual"
 	"lip/harness/quote"
 	"lip/harness/rest"
 	"lip/harness/risk"
@@ -191,6 +194,10 @@ type seamExchange struct {
 	// goroutine.
 	onCreate func(idx int, c seamCreate)
 
+	// beforeDo is the narrow composition-test hook for ordering against a REST
+	// request. It is set before serve starts and must not call testing methods.
+	beforeDo func(rest.Request)
+
 	// ackFill is the `fill_count` a create acknowledgement reports, as a wire
 	// decimal. Empty means "0.00", which is the ordinary case.
 	//
@@ -222,6 +229,9 @@ func newSeamExchange() *seamExchange {
 }
 
 func (f *seamExchange) Do(_ context.Context, req rest.Request) (rest.Response, error) {
+	if f.beforeDo != nil {
+		f.beforeDo(req)
+	}
 	switch {
 	case req.Method == "GET" && req.Path == "/portfolio/positions":
 		return f.positionsPage()
@@ -853,12 +863,25 @@ type seamHarness struct {
 	clk  *seamClock
 	xch  exchange
 	anom *anomalySink
+	qual *qual.Recorder
 
 	rig *rig
 
 	serveCancel context.CancelFunc
 	serveDone   chan struct{}
 	serveErr    error
+}
+
+type seamAlertStepper struct{}
+
+func (seamAlertStepper) Step(_ context.Context, nowMs int64,
+	_ ping.Heartbeat) ping.Effects {
+	return ping.Effects{NextStepMs: nowMs + int64(time.Minute/time.Millisecond)}
+}
+
+func seamAlertFactory(*hstore.Reader, *hstore.Store,
+	time.Duration) (alertStepper, error) {
+	return seamAlertStepper{}, nil
 }
 
 // newSeamConfig builds a pilot config whose every artifact is under t.TempDir().
@@ -993,6 +1016,24 @@ func newSeamHarness(t *testing.T, opt seamOptions) *seamHarness {
 		NowMs:  h.clk.wallMs,
 		Mono:   h.clk.monoNow,
 	}
+	if opt.ReadOnly {
+		var err error
+		h.qual, err = qual.Open(filepath.Join(filepath.Dir(c.Paths.DB),
+			"qualification.json"), qual.Metadata{
+			SchemaVersion: qual.SchemaVersion, ConfigHash: "sha256:seam-config",
+			BinaryIdentity: "sha256:seam-binary", Ticker: c.Ticker,
+			Rung: c.Rung.name, Live: false,
+		}, qual.SegmentStart{
+			ID: "seam", PID: os.Getpid(), StartedAt: time.Now().UTC(),
+		})
+		if err != nil {
+			t.Fatalf("opening qualification evidence: %v", err)
+		}
+		h.xch.Doer, err = h.qual.WrapDoer(h.xch.Doer)
+		if err != nil {
+			t.Fatalf("wrapping qualification transport: %v", err)
+		}
+	}
 
 	if opt.SkipRig {
 		return h
@@ -1002,7 +1043,7 @@ func newSeamHarness(t *testing.T, opt seamOptions) *seamHarness {
 	// before `productionExchange` so F6's DNS fallback can reach it before the
 	// rig exists; here there is no dialer, so it exists only to be passed.
 	h.anom = newAnomalySink()
-	r, err := newRig(h.ctx, c, opt.Resume, h.xch, h.anom)
+	r, err := newRig(h.ctx, c, opt.Resume, h.xch, seamAlertFactory, h.anom, h.qual)
 	if err != nil {
 		t.Fatalf("newRig: %v", err)
 	}
@@ -1442,7 +1483,7 @@ func seamNewRig(t *testing.T, ctx context.Context, c config, resume bool,
 				"`r != nil`", p)
 		}
 	}()
-	return newRig(ctx, c, resume, ex, anom)
+	return newRig(ctx, c, resume, ex, seamAlertFactory, anom, nil)
 }
 
 // ---------------------------------------------------------------------------
@@ -4775,23 +4816,11 @@ func TestAnInvKillBreachThatReducesToFlatDoesNotResumeAdding(t *testing.T) {
 	}
 }
 
-// TestReadOnlyRunRecordsWouldWriteWithoutSendingNonGET is H-VER-1 as a property
-// of the whole composed process, and it is the test the bead exists for.
-//
-// A rehearsal is only worth running if it exercises everything except the write.
-// So the assertions are in two directions at once, and both are load-bearing:
-//
-//   - The harness REACHES the decision. It adopts the position, publishes a
-//     REDUCING market at an actionable touch, wants to rest an exit, takes a
-//     durable reservation for it, and abandons that reservation when the write
-//     is refused. That is the five-table evidence of a would-write, and it is
-//     recorded with no sixth table -- an `owned_order` row that is neither bound
-//     nor outstanding is exactly what "we would have placed this" looks like.
-//   - NOTHING non-GET reaches the transport. Not one POST, not one DELETE, and
-//     the read walks keep going, so this is a complete observer that cannot act.
-//
-// A test that asserted only the second half would pass on a harness that
-// crashed at startup.
+// TestReadOnlyRunRecordsWouldWriteWithoutSendingNonGET is H-VER-1 and q01 as a
+// property of the whole composed process. It proves both reachability and
+// absence: an actionable reducer decision becomes a bounded evidence episode,
+// while neither the raw transport nor the dispatch-authority ledger sees a
+// write. A test of absence alone would pass on a harness that never started.
 func TestReadOnlyRunRecordsWouldWriteWithoutSendingNonGET(t *testing.T) {
 	h := newSeamHarness(t, seamOptions{
 		ReadOnly:  true,
@@ -4833,28 +4862,90 @@ func TestReadOnlyRunRecordsWouldWriteWithoutSendingNonGET(t *testing.T) {
 			"either; a process that neither reads nor writes rehearses nothing")
 	}
 
-	// The would-write, on disk. `Abandoned` is the terminal a refused create
-	// leaves behind: the reservation was taken durably BEFORE the write was
-	// attempted (H-ORD-6's barrier) and then closed out when it was refused.
+	// Qualification telemetry is categorically outside the ownership ledger.
+	// A row here would claim dispatch authority for a request the invocation
+	// expressly forbade and would grow without bound over a long rehearsal.
 	rows, err := h.rig.store.Reader().OwnedOrders()
 	if err != nil {
 		t.Fatalf("reading owned_order: %v", err)
 	}
-	abandoned := 0
-	for _, r := range rows {
-		if r.Abandoned {
-			abandoned++
+	if len(rows) != 0 {
+		t.Fatalf("read-only qualification created %d owned_order row(s), want zero", len(rows))
+	}
+
+	evidence := h.qual.Snapshot()
+	if len(evidence.WouldWrites) != 1 {
+		t.Fatalf("%d distinct would-write episodes after an unchanged decision, "+
+			"want exactly one: %+v", len(evidence.WouldWrites), evidence.WouldWrites)
+	}
+	if evidence.WouldWrites[0].Observations < 2 {
+		t.Fatalf("the stable would-write episode has %d observation(s), want "+
+			"repeated owner evaluations aggregated into it",
+			evidence.WouldWrites[0].Observations)
+	}
+	getCalls := uint64(0)
+	for _, count := range evidence.HTTP {
+		if count.Method != http.MethodGet && count.Count > 0 {
+			t.Fatalf("qualification counted %d raw %s call(s) below the guard at %s",
+				count.Count, count.Method, count.Endpoint)
 		}
-		if r.Bound {
-			t.Fatalf("coid %s is BOUND in a read-only run: an order id can "+
-				"only come from an exchange that answered a create", r.Coid)
+		getCalls += count.Count
+	}
+	if getCalls == 0 {
+		t.Fatal("qualification recorded no raw GET calls; the observer did not read")
+	}
+	connected := false
+	for _, event := range evidence.Events {
+		if event.Category == qual.EventState && event.Name == "websocket:connected" {
+			connected = event.Count > 0
 		}
 	}
-	if abandoned == 0 {
-		t.Fatalf("no abandoned reservation is recorded across %d owned_order "+
-			"row(s). The refusal has to leave the same durable trail as any "+
-			"other unplaced order, or a rehearsal proves the harness declined "+
-			"to trade and not that it decided to and was stopped", len(rows))
+	if !connected {
+		t.Fatal("qualification did not record the websocket connection state")
+	}
+}
+
+// TestReadOnlyRigStillGuardsDirectRESTWrites pins the second, independent
+// zero-write boundary. The owner shadow prevents ledger churn, but every other
+// REST client user (startup adoption, reduction, and future callers) still has
+// to pass through WriteGuard. Calling the composed client directly reaches
+// that boundary without contacting a live account.
+func TestReadOnlyRigStillGuardsDirectRESTWrites(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{ReadOnly: true, SkipRig: false})
+	coid, err := rest.Coid("QUALGUARD", 0, quote.SideYes, 1)
+	if err != nil {
+		t.Fatalf("Coid: %v", err)
+	}
+	one := num.QtyFromFloat(1)
+	order, err := rest.NewCreateOrder(seamTicker, quote.SideYes, 40, one, one, coid)
+	if err != nil {
+		t.Fatalf("NewCreateOrder: %v", err)
+	}
+	result := h.rig.api.Create(context.Background(), order, h.cfg.Params)
+	var refused *rest.WriteRefused
+	if !errors.As(result.Err, &refused) || result.Attempts != 0 {
+		t.Fatalf("direct read-only create = attempts=%d err=%v, want "+
+			"an unsent WriteRefused", result.Attempts, result.Err)
+	}
+	if got := h.ex.createCount(); got != 0 {
+		t.Fatalf("direct read-only create reached the raw transport %d time(s)", got)
+	}
+	evidence := h.qual.Snapshot()
+	for _, count := range evidence.HTTP {
+		if count.Method != http.MethodGet && count.Count > 0 {
+			t.Fatalf("below-guard counter recorded %d %s request(s) at %s",
+				count.Count, count.Method, count.Endpoint)
+		}
+	}
+	attemptedPOST := uint64(0)
+	for _, count := range evidence.AttemptedHTTP {
+		if count.Method == http.MethodPost {
+			attemptedPOST += count.Count
+		}
+	}
+	if attemptedPOST != 1 {
+		t.Fatalf("above-guard POST attempts = %d, want 1 guarded refusal: %+v",
+			attemptedPOST, evidence.AttemptedHTTP)
 	}
 }
 
@@ -5344,7 +5435,7 @@ func TestProductionRESTUsesF6DialerForActiveProgramsAndPortfolio(t *testing.T) {
 	anom, nt := f6Compose(t, f)
 	ctx := context.Background()
 
-	ex, err := exchangeOver(ctx, f6Config(t), f6Signer(t), nt)
+	ex, err := exchangeOver(ctx, f6Config(t), f6Signer(t), nt, nil)
 	if err != nil {
 		t.Fatalf("exchangeOver could not build the production exchange over the "+
 			"F6 transports: %v", err)
@@ -5388,6 +5479,36 @@ func TestProductionRESTUsesF6DialerForActiveProgramsAndPortfolio(t *testing.T) {
 	}
 }
 
+func TestProductionExchangeCountsTheActiveProgramWalkBelowTheGuard(t *testing.T) {
+	f6NoDefaultTransport(t)
+	f := newF6Fixture(t)
+	_, nt := f6Compose(t, f)
+	qrec, err := qual.Open(filepath.Join(t.TempDir(), "qualification.json"),
+		qual.Metadata{
+			SchemaVersion: qual.SchemaVersion, ConfigHash: "sha256:f6-config",
+			BinaryIdentity: "sha256:f6-binary", Ticker: f6Ticker,
+			Rung: "canary", Live: false,
+		}, qual.SegmentStart{
+			ID: "f6", PID: os.Getpid(), StartedAt: time.Now().UTC(),
+		})
+	if err != nil {
+		t.Fatalf("qual.Open: %v", err)
+	}
+	if _, err := exchangeOver(context.Background(), f6Config(t), f6Signer(t), nt, qrec); err != nil {
+		t.Fatalf("exchangeOver: %v", err)
+	}
+	var programGETs uint64
+	for _, count := range qrec.Snapshot().HTTP {
+		if count.Method == http.MethodGet && count.Endpoint == rest.EpPrograms.Path {
+			programGETs += count.Count
+		}
+	}
+	if programGETs != 2 {
+		t.Fatalf("counted %d active-program GET(s), want the two-page production walk",
+			programGETs)
+	}
+}
+
 // The websocket half. It is a SEPARATE transport over the SAME cache, and this
 // test is the only thing in the tree that says so.
 func TestProductionWebSocketUsesF6Dialer(t *testing.T) {
@@ -5397,7 +5518,7 @@ func TestProductionWebSocketUsesF6Dialer(t *testing.T) {
 	signer := f6Signer(t)
 	ctx := context.Background()
 
-	ex, err := exchangeOver(ctx, f6Config(t), signer, nt)
+	ex, err := exchangeOver(ctx, f6Config(t), signer, nt, nil)
 	if err != nil {
 		t.Fatalf("exchangeOver: %v", err)
 	}
@@ -5466,7 +5587,7 @@ func TestF6FallbackPreservesHostAndSNIOnRESTAndWebSocket(t *testing.T) {
 	// (1) SEED both hostnames. §F6 falls back only after a prior SUCCESSFUL
 	// resolution: with nothing cached there is nothing to fall back to, and
 	// inventing an address would be a connection to somewhere never verified.
-	ex, err := exchangeOver(ctx, f6Config(t), signer, nt)
+	ex, err := exchangeOver(ctx, f6Config(t), signer, nt, nil)
 	if err != nil {
 		t.Fatalf("seeding the cache through the programs walk: %v", err)
 	}
@@ -5573,7 +5694,7 @@ func TestF6FallbackQueuesSEV2ThroughTheProcessSink(t *testing.T) {
 	anom, nt := f6Compose(t, f)
 	ctx := context.Background()
 
-	ex, err := exchangeOver(ctx, f6Config(t), f6Signer(t), nt)
+	ex, err := exchangeOver(ctx, f6Config(t), f6Signer(t), nt, nil)
 	if err != nil {
 		t.Fatalf("seeding the cache: %v", err)
 	}

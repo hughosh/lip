@@ -8,9 +8,11 @@ import (
 	"strconv"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"lip/harness/hstore"
 	"lip/harness/lifecycle"
+	"lip/harness/qual"
 	"lip/harness/quote"
 	"lip/harness/risk"
 )
@@ -293,6 +295,18 @@ func (s *shutdown) drainLoop(ctx context.Context, obs <-chan lifecycle.DrainObse
 			})
 			continue
 		}
+		// A qualification process normally ends through this os.Exit path, not
+		// by returning through main. Freeze its last segment only after the
+		// trading store has completed its own orderly stop. If the independent
+		// evidence file cannot be made durable, exit failed rather than emit a
+		// successful process status for an artifact that cannot be assessed.
+		if s.r.qual != nil {
+			if err := s.r.qual.Finalize(time.Now().UTC()); err != nil {
+				fmt.Fprintf(os.Stderr, "harness: finalizing qualification evidence: %v\n", err)
+				s.exit(exitFailed)
+				return nil
+			}
+		}
 		s.exit(0)
 		return nil
 	}
@@ -314,6 +328,20 @@ func (s *shutdown) drainLoop(ctx context.Context, obs <-chan lifecycle.DrainObse
 func (s *shutdown) stop(ctx context.Context) error {
 	s.handleResults(s.r.store.TakeResults())
 	s.handleAnomalies()
+	if err := s.r.store.Drain(ctx); err != nil {
+		return err
+	}
+	// The drain above may have published terminal results, and failed records
+	// raise anomaly submissions of their own.  Sweep and drain those before the
+	// final delivery pass so every alert that can be durable is visible to it.
+	s.handleResults(s.r.store.TakeResults())
+	s.handleAnomalies()
+	if err := s.r.store.Drain(ctx); err != nil {
+		return err
+	}
+	if err := s.r.flushAlerts(ctx); err != nil {
+		return err
+	}
 	return s.r.close(ctx)
 }
 
@@ -474,6 +502,12 @@ func (s *shutdown) handleResults(batch []hstore.Result) {
 		s.submitAnomaly(a)
 	}
 	for _, res := range batch {
+		if res.Kind == hstore.KindAnomaly && res.Err == nil {
+			// Store.Wake belongs exclusively to runResults.  Alert delivery gets
+			// its own coalescing signal, and only a successful commit can emit it:
+			// a receipt is not yet an alert that may be delivered.
+			s.r.wakeAlerts()
+		}
 		// EVERY reservation outcome is forwarded, not only the ones that issued
 		// a permit. A reservation that FAILED produces no permit at all, and a
 		// dispatcher told only about successes would sit on its receipt until
@@ -544,8 +578,13 @@ func (s *shutdown) handleAnomalies() {
 // `launchd` captures, and it is the only channel left once the store refuses
 // records at all.
 func (s *shutdown) submitAnomaly(a risk.Anomaly) {
+	s.recordQualificationAnomaly(a.Sev.String() + ":" + a.Class)
 	id := s.nextAnomalyID()
 	if _, err := s.r.store.RecordAnomaly(s.r.run, id, a, s.r.ex.NowMs()); err != nil {
+		// The ordinary class above says what happened. This second, fixed class
+		// says its durable anomaly record could not even be accepted, which is a
+		// categorical q01 failure rather than an absence inferred later.
+		s.recordQualificationAnomaly("SEV1:ANOMALY_SUBMISSION_FAILED")
 		ticker := a.Ticker
 		if ticker == "" {
 			ticker = "account"
@@ -553,6 +592,16 @@ func (s *shutdown) submitAnomaly(a risk.Anomaly) {
 		fmt.Fprintf(os.Stderr, "harness: anomaly %s (%s, sev%d, %s) could not be "+
 			"submitted to either journal and is now only in this line: %s (%v)\n",
 			id, a.Class, a.Sev, ticker, a.Text, err)
+	}
+}
+
+func (s *shutdown) recordQualificationAnomaly(name string) {
+	if s.r.qual == nil {
+		return
+	}
+	if err := s.r.qual.RecordEvent(qual.EventAnomaly, name, time.Now().UTC()); err != nil {
+		s.r.failQualification(fmt.Errorf("recording qualification anomaly %s: %w",
+			name, err))
 	}
 }
 

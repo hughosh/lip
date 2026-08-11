@@ -1349,10 +1349,17 @@ MUTATIONS = [
           '\tarm := rest.WriteArm{Live: c.Live, LiveOKPath: c.Paths.LiveOK}\n'
           '\tguarded, err := rest.NewWriteGuard(ex.Doer, arm)\n'
           '\tif err != nil {\n\t\treturn nil, err\n\t}\n'
-          '\tr.api = rest.NewClient(guarded)\n',
+          '\tvar clientDoer rest.Doer = guarded\n'
+          '\tif qrec != nil {\n'
+          '\t\tclientDoer, err = qrec.WrapAttemptDoer(clientDoer)\n'
+          '\t\tif err != nil {\n'
+          '\t\t\treturn nil, fmt.Errorf("installing qualification attempt counter: %w", err)\n'
+          '\t\t}\n'
+          '\t}\n'
+          '\tr.api = rest.NewClient(clientDoer)\n',
           '\tr.api = rest.NewClient(ex.Doer)\n'),
      ],
-     'TestReadOnlyRunRecordsWouldWriteWithoutSendingNonGET'),
+     'TestReadOnlyRigStillGuardsDirectRESTWrites'),
 
     ('M-ES6-UNKNOWN',
      'read a guarded refusal as AMBIGUOUS, so a read-only rehearsal '
@@ -1683,6 +1690,124 @@ MUTATIONS = [
      ],
      'TestDeadmanConstructorErrorNeverContainsEndpoint'),
 
+    ('M-6W5-DEADMANVALIDATION',
+     'load DEADMAN_URL into a superficially sealed transport without passing '
+     'through NewHTTPSDeadman, so plaintext and malformed bearer endpoints are '
+     'accepted even though the production object still reports itself valid',
+     [
+         ('harness/ping/secret.go',
+          '\treturn NewHTTPSDeadman(endpoint)\n',
+          '\treturn &HTTPSDeadman{reveal: func() string { return endpoint }, '\
+          'http: newBearerClient()}, nil\n'),
+     ],
+     'TestDeadmanLoadsOnlyFromAnExplicitAbsoluteEnvFile'),
+
+    ('M-6W5-NOSTEPPER',
+     'accept an alert factory that returns no service. Construction succeeds '
+     'with no external consumer, so every package-local ping test remains green '
+     'while the production process can never deliver',
+     [
+         ('cmd/harness/runtime.go',
+          '\tif r.alerts == nil {\n',
+          '\tif false && r.alerts == nil {\n'),
+     ],
+     'TestAlertFactoryAndStepperAreRequired'),
+
+    ('M-6W5-NODEPLOYPREFLIGHT',
+     'install a launchd job without validating either alert destination. A bad '
+     'secret then becomes a KeepAlive refusal loop instead of a failed operator act',
+     [
+         ('cmd/harness/main.go',
+          '\t\tif _, err := productionAlertFactory(c.Paths.Env); err != nil {\n'
+          '\t\t\treturn &refusal{err: err}\n'
+          '\t\t}\n',
+          ''),
+     ],
+     'TestRunAndDeployValidateAlertsBeforeCredentialsOrAccountAccess'),
+
+    ('M-6W5-NOLOOP',
+     'omit the production alert loop. The durable queue and delivery policy '
+     'remain fully unit-tested but no process ever calls them',
+     [
+         ('cmd/harness/run.go',
+          '\tif err := r.startAlerts(ctx); err != nil {\n'
+          '\t\treturn err\n'
+          '\t}\n',
+          ''),
+     ],
+     'TestServeStartsAlertLoopBeforeStartupCanReturn'),
+
+    ('M-6W5-WAKEUNCOMMITTED',
+     'wake external delivery for a failed anomaly result as though receipt '
+     'meant durability, so an alert can be claimed sent for a row the journal lost',
+     [
+         ('cmd/harness/shutdown.go',
+          '\t\tif res.Kind == hstore.KindAnomaly && res.Err == nil {\n',
+          '\t\tif res.Kind == hstore.KindAnomaly {\n'),
+     ],
+     'TestOnlyACommittedAnomalyWakesAlertDelivery'),
+
+    ('M-6W5-HEARTLIE',
+     'render unknown integrated presence as a measured zero. The heartbeat is '
+     'alive but makes a claim for which this process has no accumulator',
+     [
+         ('cmd/harness/alerts.go',
+          '\t\tUptime:  ping.KnownDuration(r.ex.Mono()),\n',
+          '\t\tUptime:     ping.KnownDuration(r.ex.Mono()),\n'
+          '\t\tIntegrated: ping.KnownFloat(0),\n'),
+     ],
+     'TestHeartbeatUsesPublishedAndDurableTruth'),
+
+    ('M-6W5-NOQUAL',
+     'discard successful heartbeat and dead-man check-ins from the qualification '
+     'bundle, leaving q01 to infer external liveness from process existence',
+     [
+         ('cmd/harness/alerts.go',
+          '\tif r.qual == nil {\n',
+          '\tif true {\n'),
+     ],
+     'TestSuccessfulHeartbeatAndDeadmanAreQualificationEvents'),
+
+    ('M-6W5-LOGSECRET',
+     'include the transport error in the alert log. Bearer destinations are '
+     'opaque secrets, so an error path can then copy one into launchd stderr',
+     [
+         ('cmd/harness/alerts.go',
+          '\t\tfmt.Fprintln(os.Stderr, "harness: alert queue could not be read; retry scheduled")\n',
+          '\t\tfmt.Fprintf(os.Stderr, "harness: alert queue could not be read: %v; retry scheduled\\n", eff.Err)\n'),
+     ],
+     'TestAlertFailureLoggingCannotRevealTransportSecrets'),
+
+    ('M-6W5-CONCURRENTFINAL',
+     'call the stateful alert Step directly from shutdown while its goroutine '
+     'may already own it, racing retry ladders and suppression buckets',
+     [
+         ('cmd/harness/shutdown.go',
+          '\tif err := s.r.flushAlerts(ctx); err != nil {\n'
+          '\t\treturn err\n'
+          '\t}\n'
+          '\treturn s.r.close(ctx)\n',
+          '\ts.r.stepAlerts(ctx)\n'
+          '\treturn s.r.close(ctx)\n'),
+     ],
+     'TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore'),
+
+    ('M-6W5-CLOSEFIRST',
+     'close the alert loop and store before the final delivery pass, so the '
+     'last durable anomaly can be stranded precisely during orderly shutdown',
+     [
+         ('cmd/harness/shutdown.go',
+          '\tif err := s.r.flushAlerts(ctx); err != nil {\n'
+          '\t\treturn err\n'
+          '\t}\n'
+          '\treturn s.r.close(ctx)\n',
+          '\tif err := s.r.close(ctx); err != nil {\n'
+          '\t\treturn err\n'
+          '\t}\n'
+          '\treturn s.r.flushAlerts(ctx)\n'),
+     ],
+     'TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore'),
+
     # --- v3 items 11-13: the ping scheduling repairs --------------------------
 
     ('M-P-STALEPOLL',
@@ -1954,11 +2079,26 @@ MUTATIONS = [
      'start without the single-instance lock, so a second harness runs against '
      'the same account and neither can tell whose fills moved the position',
      [
-         ('cmd/harness/runtime.go',
-          '\tr.lock, err = lifecycle.AcquireInstanceLock(c.Paths.Lock)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n',
-          '\tr.lock, err = nil, error(nil)\n'),
+         ('cmd/harness/qualification.go',
+          'func acquireHarnessLock(c config) (*lifecycle.InstanceLock, error) {\n\treturn lifecycle.AcquireInstanceLock(c.Paths.Lock)\n}\n',
+          'func acquireHarnessLock(c config) (*lifecycle.InstanceLock, error) {\n\treturn nil, nil\n}\n'),
      ],
      'TestTheInstanceLockIsHeldForTheWholeRunAndRefusesASecondRig'),
+
+    # Merely having the lock somewhere in construction is not H-DEP-5. The
+    # losing process must discover it before the active-program GET and before
+    # it opens the shared qualification bundle; reversing these two calls
+    # creates a durable false restart segment even though the process refuses.
+    ('M-FY7-OPENBEFORELOCK',
+     'open and append qualification evidence before taking the instance lock, '
+     'so a losing second process corrupts the first process evidence before it '
+     'is refused',
+     [
+         ('cmd/harness/qualification.go',
+          '\tlock, err := acquireHarnessLock(c)\n\tif err != nil {\n\t\treturn nil, nil, err\n\t}\n\trecorder, err := openQualification(path, c)\n\tif err != nil {\n\t\tlock.Close()\n\t\treturn nil, nil, err\n\t}\n\treturn lock, recorder, nil\n',
+          '\trecorder, err := openQualification(path, c)\n\tif err != nil {\n\t\treturn nil, nil, err\n\t}\n\tlock, err := acquireHarnessLock(c)\n\tif err != nil {\n\t\treturn nil, nil, err\n\t}\n\treturn lock, recorder, nil\n'),
+     ],
+     'TestSecondProcessCannotAppendQualificationBeforeLockRefusal'),
 
     # H-HALT-4's latch survives the process ON PURPOSE -- "the harness never
     # self-clears it" -- and §10.4 makes clearing it an OPERATOR action. A
@@ -2613,8 +2753,8 @@ MUTATIONS = [
      'implemented, tested, and on no path the harness uses',
      [
          ('cmd/harness/runtime.go',
-          '\tdoer := rest.NewHTTPDoerWithTransport(signer, restTimeout, nt.rest)\n',
-          '\tdoer := rest.NewHTTPDoer(signer, restTimeout)\n'),
+          '\tvar doer rest.Doer = rest.NewHTTPDoerWithTransport(signer, restTimeout, nt.rest)\n',
+          '\tvar doer rest.Doer = rest.NewHTTPDoer(signer, restTimeout)\n'),
      ],
      'TestProductionRESTUsesF6DialerForActiveProgramsAndPortfolio'),
 
@@ -2736,8 +2876,8 @@ MUTATIONS = [
      'the canary gets a flag nobody typed',
      [
          ('cmd/harness/deploy.go',
-          '\t\tArgs:       agentArgs(configPath, opts.Rung, opts.Live),\n',
-          '\t\tArgs:       agentArgs(configPath, c.Rung.name, opts.Live),\n'),
+          '\t\tArgs:       agentArgs(configPath, opts.Rung, opts.Qualification, opts.Live),\n',
+          '\t\tArgs:       agentArgs(configPath, c.Rung.name, opts.Qualification, opts.Live),\n'),
      ],
      'TestCanaryDeployRendersExactlyWhatTheOperatorAsserted'),
 
@@ -2747,10 +2887,14 @@ MUTATIONS = [
      'never passed it on',
      [
          ('cmd/harness/deploy.go',
-          '\treturn agentOptions{Rung: rung, Force: force, Live: live}\n',
-          '\treturn agentOptions{Force: force, Live: live}\n'),
+          '\treturn agentOptions{\n'
+          '\t\tRung: rung, Qualification: qualification, Force: force, Live: live,\n'
+          '\t}\n',
+          '\treturn agentOptions{\n'
+          '\t\tQualification: qualification, Force: force, Live: live,\n'
+          '\t}\n'),
      ],
-     'TestDeployOptionsCarryTheOperatorsRung'),
+     'TestDeployOptionsCarryTheOperatorsAssertions'),
 
     ('M-3YO-RUNGORDER',
      'render `-rung` after `-live`, so the flag that decides whether orders '
@@ -2759,7 +2903,13 @@ MUTATIONS = [
      [
          ('cmd/harness/deploy.go',
           '\tif rung != "" {\n\t\targv = append(argv, "-rung", rung)\n\t}\n'
+          '\tif qualification != "" {\n'
+          '\t\targv = append(argv, "-qualification", qualification)\n'
+          '\t}\n'
           '\tif live {\n\t\targv = append(argv, "-live")\n\t}\n',
+          '\tif qualification != "" {\n'
+          '\t\targv = append(argv, "-qualification", qualification)\n'
+          '\t}\n'
           '\tif live {\n\t\targv = append(argv, "-live")\n\t}\n'
           '\tif rung != "" {\n\t\targv = append(argv, "-rung", rung)\n\t}\n'),
      ],
@@ -3310,6 +3460,470 @@ MUTATIONS = [
           '\t_, err := os.Stat(o.r.cfg.Paths.Stop)\n'),
      ],
      'TestEveryEntryAtHarnessStopPathRequestsStop'),
+
+    # ---- lip-fy7: bounded zero-write qualification -----------------------
+    #
+    # A q01 process is structurally read-only, so its owner records the exact
+    # prospective action before dispatch authority rather than reserving and
+    # abandoning an owned_order row on every completion. The raw HTTP counter
+    # sits below WriteGuard: a guarded refusal is a would-write, never a
+    # network write. These are independent boundaries and the mutations keep
+    # them independent -- losing either one must have its own exact catcher.
+
+    ('M-FY7-NOSHADOW',
+     'bypass the read-only shadow branch, restoring the completion-driven '
+     'reserve/refuse/abandon loop. An unchanged actionable decision then grows '
+     'owned_order at local SQLite speed for the whole q01 rehearsal',
+     [
+         ('cmd/harness/run.go',
+          '\tif !o.r.cfg.Live {\n',
+          '\tif false {\n'),
+     ],
+     'TestReadOnlyRunRecordsWouldWriteWithoutSendingNonGET'),
+
+    ('M-FY7-NODEDUPE',
+     'start a new durable would-write episode for every identical owner '
+     'evaluation, so the evidence grows with loop frequency instead of with '
+     'material decision changes',
+     [
+         ('harness/qual/recorder.go',
+          '\tif i, ok := r.wouldIndex[key]; ok {\n',
+          '\tif i, ok := r.wouldIndex[key]; ok && false {\n'),
+     ],
+     'TestWouldWriteDedupeAndMaterialChange'),
+
+    ('M-FY7-NONDURABLE',
+     'record a below-guard non-GET only in memory before forwarding it. The '
+     'required SIGKILL can then erase the categorical breach, and a checkpoint '
+     'failure no longer prevents the raw transport from receiving it',
+     [
+         ('harness/qual/recorder.go',
+          'd.recorder.recordHTTP(req, d.recorder.now(), req.Method != "GET")',
+          'd.recorder.recordHTTP(req, d.recorder.now(), false)'),
+     ],
+     'TestBelowGuardNonGETCheckpointFailurePreventsForwarding'),
+
+    # The nil check in the replacement is LOAD-BEARING and was added after this
+    # row was measured. A bare `segment.EndedAt.Sub(...)` nil-dereferences on the
+    # open-segment case, and the panic takes the whole test binary down at
+    # `TestAssessRejectsEachIncompleteCondition` -- second in `assess_test.go` --
+    # so `TestAssessUsesMonotonicActiveDurationNotWallTimestamps`, eighth in the
+    # same file, never ran. The round scored "caught, but NOT by the named test"
+    # while the named test was in fact never given the chance to fail. A mutation
+    # must FAIL a test, not crash the process that would have run it.
+    ('M-FY7-WALLELAPSED',
+     'derive qualification duration from diagnostic wall timestamps instead '
+     'of persisted monotonic active time, so a clock jump can qualify a short '
+     'run or erase a real one',
+     [
+         ('harness/qual/assess.go',
+          '\t\tactive := time.Duration(segment.ActiveNanos)\n',
+          '\t\tvar active time.Duration\n'
+          '\t\tif segment.EndedAt != nil {\n'
+          '\t\t\tactive = segment.EndedAt.Sub(segment.StartedAt)\n'
+          '\t\t}\n'),
+     ],
+     'TestAssessUsesMonotonicActiveDurationNotWallTimestamps'),
+
+    ('M-FY7-DROPUNCLEANACTIVE',
+     'discard the monotonic duration durably checkpointed by a SIGKILL-ended '
+     'segment, so q01\'s required forced restart silently resets the four-hour '
+     'qualification clock',
+     [
+         ('harness/qual/assess.go',
+          '\t\tactive := time.Duration(segment.ActiveNanos)\n',
+          '\t\tactive := time.Duration(segment.ActiveNanos)\n'
+          '\t\tif segment.EndedAt == nil {\n\t\t\tactive = 0\n\t\t}\n'),
+     ],
+     'TestAssessCountsPersistedActiveTimeAcrossHistoricalUncleanRestart'),
+
+    ('M-FY7-OBSERVEDDENOM',
+     'divide freshness only by callbacks that happened. One fresh monitor tick '
+     'and one complete portfolio walk followed by four hours of silence then '
+     'both score 100 percent',
+     [
+         ('harness/qual/assess.go',
+          '\tmonitorDenominator := maxUint64(e.Monitor.Checks, result.ExpectedMonitorChecks)\n'
+          '\tportfolioDenominator := maxUint64(e.Portfolio.Walks, result.ExpectedPortfolioWalks)\n',
+          '\tmonitorDenominator := e.Monitor.Checks\n'
+          '\tportfolioDenominator := e.Portfolio.Walks\n'),
+     ],
+     'TestAssessCadenceDenominatorPenalizesFourHoursOfSilence'),
+
+    ('M-FY7-UNBOUNDEDDETAIL',
+     'append a new would-write fingerprint after the fixed detail cap, turning '
+     'ordinary moving-market decisions back into an evidence file that grows '
+     'without a hard bound',
+     [
+         ('harness/qual/recorder.go',
+          '\t} else if len(r.wouldWrites) < MaxWouldWriteDetails {\n',
+          '\t} else if true {\n'),
+     ],
+     'TestWouldWriteDetailsAreHardBoundedWithExactOverflowTotals'),
+
+    ('M-FY7-UNLINKEDOK',
+     'count a pre-run qualification segment that never acquired a committed '
+     'hstore run as elapsed time and restart evidence. A failed startup can '
+     'then masquerade as q01\'s required forced process restart',
+     [
+         ('harness/qual/assess.go',
+          '\t\tif strings.TrimSpace(segment.RunID) == "" {\n',
+          '\t\tif false {\n'),
+     ],
+     'TestAssessRejectsUnlinkedHistoricalSegmentWithoutCountingRestart'),
+
+    ('M-FY7-NORUNLINK',
+     'leave the qualification segment unlinked after the hstore run commits. '
+     'The evidence then has no durable proof that its samples belong to the '
+     'run row which authorises every harness record',
+     [
+         ('cmd/harness/runtime.go',
+          '\tif qrec != nil {\n'
+          '\t\tif err = qrec.LinkCurrentSegmentRun(r.run.RunID()); err != nil {\n'
+          '\t\t\treturn nil, fmt.Errorf("linking qualification segment to committed run: %w", err)\n'
+          '\t\t}\n'
+          '\t}\n',
+          '\tif false && qrec != nil {\n'
+          '\t\tif err = qrec.LinkCurrentSegmentRun(r.run.RunID()); err != nil {\n'
+          '\t\t\treturn nil, fmt.Errorf("linking qualification segment to committed run: %w", err)\n'
+          '\t\t}\n'
+          '\t}\n'),
+     ],
+     'TestQualificationSegmentLinksOnlyToTheCommittedRun'),
+
+    ('M-FY7-OVERDEDUPE',
+     'erase create price and quantity from the would-write fingerprint, so a '
+     'materially different order is reported as the same stable decision',
+     [
+         ('cmd/harness/qualification.go',
+          '\t"strconv"\n',
+          ''),
+         ('cmd/harness/qualification.go',
+          '\t\tfp.Price = strconv.Itoa(req.Order.PriceCents())\n'
+          '\t\tfp.Quantity = req.Order.Count().Wire()\n',
+          '\t\tfp.Price = "omitted"\n'
+          '\t\tfp.Quantity = "omitted"\n'),
+     ],
+     'TestWouldWriteFingerprintIncludesEveryMaterialCreateField'),
+
+    ('M-FY7-COUNTBYPASS',
+     'construct the production exchange over an uncounted raw Doer, so the '
+     'evidence can report zero network methods merely because the real client '
+     'bypassed its observer',
+     [
+         ('cmd/harness/runtime.go',
+          '\tvar doer rest.Doer = rest.NewHTTPDoerWithTransport(signer, restTimeout, nt.rest)\n'
+          '\tif qrec != nil {\n'
+          '\t\tvar err error\n'
+          '\t\tdoer, err = qrec.WrapDoer(doer)\n'
+          '\t\tif err != nil {\n'
+          '\t\t\treturn exchange{}, fmt.Errorf("installing qualification HTTP counter: %w", err)\n'
+          '\t\t}\n'
+          '\t}\n',
+          '\tvar doer rest.Doer = rest.NewHTTPDoerWithTransport(signer, restTimeout, nt.rest)\n'),
+     ],
+     'TestProductionExchangeCountsTheActiveProgramWalkBelowTheGuard'),
+
+    ('M-FY7-COUNTABOVE',
+     'move the HTTP counter above WriteGuard. A refused POST is then counted '
+     'as network traffic even though it never reached the raw Doer, destroying '
+     'the distinction the q01 artifact is meant to prove',
+     [
+         ('cmd/harness/runtime.go',
+          '\tvar doer rest.Doer = rest.NewHTTPDoerWithTransport(signer, restTimeout, nt.rest)\n'
+          '\tif qrec != nil {\n'
+          '\t\tvar err error\n'
+          '\t\tdoer, err = qrec.WrapDoer(doer)\n'
+          '\t\tif err != nil {\n'
+          '\t\t\treturn exchange{}, fmt.Errorf("installing qualification HTTP counter: %w", err)\n'
+          '\t\t}\n'
+          '\t}\n',
+          '\tvar doer rest.Doer = rest.NewHTTPDoerWithTransport(signer, restTimeout, nt.rest)\n'),
+         ('cmd/harness/runtime.go',
+          '\tvar clientDoer rest.Doer = guarded\n'
+          '\tif qrec != nil {\n'
+          '\t\tclientDoer, err = qrec.WrapAttemptDoer(clientDoer)\n'
+          '\t\tif err != nil {\n'
+          '\t\t\treturn nil, fmt.Errorf("installing qualification attempt counter: %w", err)\n'
+          '\t\t}\n'
+          '\t}\n'
+          '\tr.api = rest.NewClient(clientDoer)\n',
+          '\tvar clientDoer rest.Doer = guarded\n'
+          '\tif qrec != nil {\n'
+          '\t\tclientDoer, err = qrec.WrapDoer(clientDoer)\n'
+          '\t\tif err != nil {\n'
+          '\t\t\treturn nil, fmt.Errorf("installing qualification HTTP counter: %w", err)\n'
+          '\t\t}\n'
+          '\t\tclientDoer, err = qrec.WrapAttemptDoer(clientDoer)\n'
+          '\t\tif err != nil {\n'
+          '\t\t\treturn nil, fmt.Errorf("installing qualification attempt counter: %w", err)\n'
+          '\t\t}\n'
+          '\t}\n'
+          '\tr.api = rest.NewClient(clientDoer)\n'),
+     ],
+     'TestReadOnlyRigStillGuardsDirectRESTWrites'),
+
+    ('M-FY7-NOATTEMPT',
+     'omit the above-guard attempt recorder. The transport evidence still '
+     'proves zero writes, but direct startup or future callers can repeatedly '
+     'hit WriteGuard without leaving any audit trail',
+     [
+         ('cmd/harness/runtime.go',
+          '\t\tclientDoer, err = qrec.WrapAttemptDoer(clientDoer)\n',
+          '\t\tclientDoer, err = qrec.WrapAttemptDoer(clientDoer)\n'
+          '\t\tclientDoer = guarded\n'),
+     ],
+     'TestReadOnlyRigStillGuardsDirectRESTWrites'),
+
+    ('M-FY7-NONDURABLEATTEMPT',
+     'record an attempted non-GET only in memory before WriteGuard sees it. A '
+     'checkpoint failure or required SIGKILL can then erase proof that the '
+     'process exercised the guard',
+     [
+         ('harness/qual/recorder.go',
+          'd.recorder.recordAttemptHTTP(req, d.recorder.now(), req.Method != "GET")',
+          'd.recorder.recordAttemptHTTP(req, d.recorder.now(), false)'),
+     ],
+     'TestAttemptNonGETCheckpointFailurePreventsForwarding'),
+
+    ('M-FY7-MERGEATTEMPT',
+     'merge above-guard attempts into the below-guard network map, destroying '
+     'the categorical distinction between a refused write and a transmitted one',
+     [
+         ('harness/qual/recorder.go',
+          '\tr.attemptHTTPCounts[key]++\n',
+          '\tr.httpCounts[key]++\n'),
+     ],
+     'TestAttemptHTTPCountingIsDistinctFromBelowGuard'),
+
+    ('M-FY7-NOANOMFLOW',
+     'record anomalies only at their original producer and not at the common '
+     'submission boundary. Synthetic drop reports and store-rejection anomalies '
+     'then bypass qualification and q01 can claim there was no loss',
+     [
+         ('cmd/harness/shutdown.go',
+          '\ts.recordQualificationAnomaly(a.Sev.String() + ":" + a.Class)\n',
+          ''),
+     ],
+     'TestQualificationRecordsEveryAnomalySubmissionBoundary'),
+
+    ('M-FY7-NOANOMSUBMITFAIL',
+     'omit the fixed qualification failure when the anomaly record itself is '
+     'refused. The one journal intended to report evidence loss can disappear '
+     'without the independent bundle saying so',
+     [
+         ('cmd/harness/shutdown.go',
+          '\t\ts.recordQualificationAnomaly("SEV1:ANOMALY_SUBMISSION_FAILED")\n',
+          ''),
+     ],
+     'TestQualificationRecordsEveryAnomalySubmissionBoundary'),
+
+    ('M-FY7-CANCELSENT',
+     'classify a guarded cancel as sent merely because a DELETE was attempted. '
+     'The owner spends capacity and can enter CANCEL_UNVERIFIED churn even '
+     'though WriteGuard transmitted nothing',
+     [
+         ('cmd/harness/dispatch.go',
+          '\t\tres.Sent = res.Sent || cancel.Sent\n',
+          '\t\tres.Sent = len(sweep.Cancels) > 0\n'),
+     ],
+     'TestGuardedCancelSweepIsUnsent'),
+
+    ('M-FY7-INCOMPLETEOK',
+     'mark every structurally valid bundle qualified even when it is live, '
+     'open, too short, missing would-write/freshness/events, or contains a '
+     'below-guard POST. This turns artifact existence into qualification',
+     [
+         ('harness/qual/assess.go',
+          '\tresult.Qualified = len(result.Failures) == 0\n',
+          '\tresult.Qualified = true\n'),
+     ],
+     'TestAssessRejectsEachIncompleteCondition'),
+
+    ('M-FY7-NOFINALIZE',
+     'skip qualification finalization on the one authorised process-exit path. '
+     'The JSON exists and may have hours of samples, but its current segment '
+     'remains open and the assessor must refuse it forever',
+     [
+         ('cmd/harness/shutdown.go',
+          '\t\tif s.r.qual != nil {\n'
+          '\t\t\tif err := s.r.qual.Finalize(time.Now().UTC()); err != nil {\n',
+          '\t\tif false {\n'
+          '\t\t\tif err := s.r.qual.Finalize(time.Now().UTC()); err != nil {\n'),
+     ],
+     'TestQualificationEvidenceIsFinalizedBeforeAuthorisedExit'),
+
+    # --- lip-30p and lip-6w5: the alert loop's process scheduling -------------
+    #
+    # The OBVIOUS control here is a trap, and it is recorded rather than quietly
+    # avoided. Replacing `go r.runAlerts(alertCtx, r.alertDone)` with a direct
+    # call -- the mutation lip-30p's own design names -- wedges `startAlerts`
+    # for every DIRECT caller, including the unit tests that never run `serve`.
+    # The package then reaches its panic timeout having printed no `--- FAIL:`
+    # line at all, and `failed_tests` returns EMPTY. This script scores that as
+    # "caught, but NOT by the named test": a red gate that says nothing about
+    # whether the catcher works. Measured, not assumed -- a 4-minute run
+    # produced zero named failures and one wedged unrelated test.
+    #
+    # M-30P-OWNERSTEPS is the same defect at the place F20 actually names: the
+    # COMPOSITION, where the loop must not run on the goroutine that owns
+    # reduction, publication and monitoring. `serve` takes the loop's opening
+    # steps itself, so a transport that hangs holds the owner. A healthy stepper
+    # is untouched, which is why this produces exactly one failure in ~71s.
+    ('M-30P-OWNERSTEPS',
+     "take the alert loop's opening steps on the serve goroutine before "
+     'spawning it, so an alert transport that hangs holds the goroutine that '
+     'owns reduction, publication and I2 monitoring',
+     [
+         ('cmd/harness/run.go',
+          '\tif err := r.startAlerts(ctx); err != nil {\n',
+          '\tr.stepAlerts(ctx)\n'
+          '\tr.stepAlerts(ctx)\n'
+          '\tif err := r.startAlerts(ctx); err != nil {\n'),
+     ],
+     'TestAlertHangCannotBlockOwnerReductionOrMonitoring'),
+
+    ('M-6W5-BLOCKINGDRAIN',
+     'drain the alert timer with a blocking receive. Stop reports false while '
+     'the runtime is publishing the timer value, and a wake or cancellation '
+     'that has already won means no value ever arrives -- the one goroutine '
+     'responsible for external delivery wedges on its own timer',
+     [
+         ('cmd/harness/alerts.go',
+          '\tif timer.Stop() {\n\t\treturn\n\t}\n'
+          '\tselect {\n\tcase <-timer.C:\n\tdefault:\n\t}\n',
+          '\tif timer.Stop() {\n\t\treturn\n\t}\n'
+          '\t<-timer.C\n'),
+     ],
+     'TestStopAlertTimerReturnsAfterExpiryWasAlreadyReceived'),
+
+    # --- lip-fy7: the offline consumer of the fixed local assessor ------------
+
+    ('M-Q01-ASSESSAWARD',
+     'let the offline assessor exit successfully for a bundle that met none of '
+     'the local q01 requirements. The printed JSON still lists every failure, '
+     'so only a caller who reads exit status is told the rehearsal qualified',
+     [
+         ('cmd/harness/qualification.go',
+          '\tif !assessment.LocalRequirementsMet {\n'
+          '\t\treturn fmt.Errorf("%s does not meet the local q01 requirements (%d failure(s))",\n'
+          '\t\t\tpath, len(assessment.Failures))\n'
+          '\t}\n'
+          '\treturn nil\n',
+          '\treturn nil\n'),
+     ],
+     'TestOfflineAssessmentPrintsLocalLimitsAndCannotAwardQ01'),
+
+    ('M-Q01-ASSESSANYFLAG',
+     'accept -assess-qualification alongside every other flag, so the single '
+     'invocation that starts the observer, provisions the store or arms for '
+     'writes can also issue its own qualification verdict',
+     [
+         ('cmd/harness/main.go',
+          '\t\tif configPath != "" || qualification != "" || resume != "" || rung != "" ||\n'
+          '\t\t\tdoProvision || doDeploy || force || live {\n'
+          '\t\t\treturn refuse("-assess-qualification reads one preserved evidence " +\n'
+          '\t\t\t\t"file and exits. It takes no other flag: an assessment issued by " +\n'
+          '\t\t\t\t"a process that was also starting the observer, provisioning a " +\n'
+          '\t\t\t\t"store, or arming for writes would be the run grading itself")\n'
+          '\t\t}\n',
+          ''),
+     ],
+     'TestOfflineAssessmentPrintsLocalLimitsAndCannotAwardQ01'),
+
+    # --- lip-fy7: the FIXED q01 assessor --------------------------------------
+    #
+    # The M-FY7-* rows above cover the generic, caller-parameterised `Assess`.
+    # These cover `AssessQ01Local`, whose whole purpose is that its thresholds
+    # are NOT parameters. One row per named q01 fact; deliberately not one row
+    # per test.
+
+    ('M-Q01-BURSTFILLS',
+     'score fixed q01 monitor freshness from callback totals instead of '
+     'distinct one-second slots, so a burst of samples inside one second '
+     'stands in for hours of silence',
+     [
+         ('harness/qual/q01.go',
+          '\tresult.MonitorFreshSlotRatio = ratio(result.FreshMonitorSlots,\n'
+          '\t\tresult.ExpectedMonitorSlots)\n'
+          '\tif !meetsQ01Percentage(result.FreshMonitorSlots, result.ExpectedMonitorSlots) {\n',
+          '\tresult.MonitorFreshSlotRatio = ratio(e.Monitor.Fresh,\n'
+          '\t\tresult.ExpectedMonitorSlots)\n'
+          '\tif !meetsQ01Percentage(e.Monitor.Fresh, result.ExpectedMonitorSlots) {\n'),
+     ],
+     'TestAssessQ01LocalBurstThenSilenceCannotFillSlots'),
+
+    ('M-Q01-CALLERPOLICY',
+     'grade coverage against the slots that happened rather than the slots four '
+     'hours of operation owes. The run then supplies its own denominator, which '
+     'is precisely the caller-selected policy AssessQ01Local refuses to take as '
+     'an argument',
+     [
+         ('harness/qual/q01.go',
+          '\tif !meetsQ01Percentage(result.FreshMonitorSlots, result.ExpectedMonitorSlots) {\n',
+          '\tif !meetsQ01Percentage(result.FreshMonitorSlots, result.ObservedMonitorSlots) {\n'),
+         ('harness/qual/q01.go',
+          '\tif !meetsQ01Percentage(result.FreshCompletePortfolioSlots,\n'
+          '\t\tresult.ExpectedPortfolioSlots) {\n',
+          '\tif !meetsQ01Percentage(result.FreshCompletePortfolioSlots,\n'
+          '\t\tresult.ObservedPortfolioSlots) {\n'),
+     ],
+     'TestCallerSelectedRequirementsCannotWeakenQ01'),
+
+    ('M-Q01-PRERUNTIME',
+     'leave the monotonic active clock at process start when the segment is '
+     'linked to its committed run, so construction, credential loading and the '
+     'startup walk all count towards the four hours',
+     [
+         ('harness/qual/recorder.go',
+          '\tr.activeOrigin = r.activeNow()\n'
+          '\tr.monitorSlotSet = false\n',
+          '\tr.monitorSlotSet = false\n'),
+     ],
+     'TestLinkCurrentSegmentRunResetsPreAuthorityActiveOrigin'),
+
+    ('M-Q01-SHORTRUN',
+     'reduce the fixed four-hour q01 minimum to one nanosecond. Every other '
+     'requirement still applies, so a rehearsal that ran for seconds produces '
+     'an otherwise complete-looking local pass',
+     [
+         ('harness/qual/q01.go',
+          '\tq01MinimumActive     = 4 * time.Hour\n',
+          '\tq01MinimumActive     = time.Nanosecond\n'),
+     ],
+     'TestAssessQ01LocalRejectsOneNanosecondBelowFourHours'),
+
+    ('M-Q01-PERCENTAGE',
+     'reduce the fixed q01 slot-coverage minimum from 99 percent to 1 percent, '
+     'so a run that was blind for almost its whole window still passes locally',
+     [
+         ('harness/qual/q01.go',
+          '\tq01MinimumPercentage = uint64(99)\n',
+          '\tq01MinimumPercentage = uint64(1)\n'),
+     ],
+     'TestAssessQ01LocalNinetyNinePercentSlotBoundary'),
+
+    ('M-Q01-ANOMALYOK',
+     'stop rejecting SEV1 and dropped-anomaly events during q01, so the one '
+     'rehearsal whose entire purpose is to observe nothing going wrong can pass '
+     'with a recorded SEV1 or a lost anomaly',
+     [
+         ('harness/qual/q01.go',
+          '\t\tif event.Category == EventAnomaly &&\n'
+          '\t\t\t(strings.HasPrefix(event.Name, "SEV1:") || anomalyDroppedName(event.Name)) {\n',
+          '\t\tif false {\n'),
+     ],
+     'TestAssessQ01LocalRejectsUnexpectedSEV1AndAnomalyDrop'),
+
+    ('M-Q01-NOEXTERNAL',
+     'return an empty outstanding-evidence list, so a local pass reads as the '
+     'whole of q01 rather than as the part this process can prove about itself',
+     [
+         ('harness/qual/q01.go',
+          '\t\tExternalOutstanding: append([]string(nil), q01ExternalOutstanding[:]...),\n',
+          '\t\tExternalOutstanding: nil,\n'),
+     ],
+     'TestAssessQ01LocalPassesExactFourHourRestartBoundary'),
 ]
 
 

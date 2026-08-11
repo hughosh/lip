@@ -1,0 +1,316 @@
+package qual
+
+import (
+	"strings"
+	"testing"
+	"time"
+)
+
+func validQ01Evidence() Evidence {
+	firstActive := 2 * time.Hour
+	secondActive := 2 * time.Hour
+	secondStart := testStart.Add(firstActive)
+	ended := secondStart.Add(secondActive)
+	finalized := ended
+	fingerprint := WouldWriteFingerprint{
+		Kind: WriteCreate, Ticker: "TEST-26AUG11", Side: "yes",
+		Price: "45", Quantity: "1", State: "ADDING",
+	}
+	e := Evidence{
+		Metadata:  testMetadata(),
+		CreatedAt: testStart,
+		UpdatedAt: ended,
+		Segments: []ProcessSegment{
+			{
+				ID: "process-1", RunID: "run-1", PID: 101, StartedAt: testStart,
+				ActiveNanos: int64(firstActive),
+			},
+			{
+				ID: "process-2", RunID: "run-2", PID: 202, StartedAt: secondStart,
+				EndedAt: &ended, EndReason: "finalized", ActiveNanos: int64(secondActive),
+			},
+		},
+		AttemptedHTTP: []HTTPCount{{
+			HTTPKey: HTTPKey{Method: "POST", Endpoint: "/portfolio/events/orders"}, Count: 1,
+		}},
+		HTTP: []HTTPCount{{
+			HTTPKey: HTTPKey{Method: "GET", Endpoint: "/portfolio/orders"}, Count: 20,
+		}},
+		WouldWrites: []WouldWriteEpisode{{
+			Fingerprint: fingerprint, SegmentID: "process-2",
+			FirstAt: secondStart, LastAt: ended, Observations: 10,
+		}},
+		Events: []EventCounter{
+			{Category: EventHeartbeat, Name: "deadman_checkin_sent", Count: 4, FirstAt: testStart, LastAt: ended},
+			{Category: EventHeartbeat, Name: "sent", Count: 4, FirstAt: testStart, LastAt: ended},
+			{Category: EventState, Name: "websocket:connected", Count: 2, FirstAt: testStart, LastAt: ended},
+			{Category: EventState, Name: "websocket:disconnected", Count: 1, FirstAt: secondStart, LastAt: secondStart},
+		},
+		FinalizedAt: &finalized,
+	}
+	setQ01Durations(&e, firstActive, secondActive)
+	return e
+}
+
+func setQ01Durations(e *Evidence, durations ...time.Duration) {
+	var monitor, portfolio uint64
+	for i, active := range durations {
+		e.Segments[i].ActiveNanos = int64(active)
+		m := expectedCallbacks(active, q01MonitorCadence)
+		p := expectedCallbacks(active, q01PortfolioCadence)
+		e.Segments[i].MonitorSlots = MonitorSlotCoverage{Observed: m, Fresh: m}
+		e.Segments[i].PortfolioSlots = PortfolioSlotCoverage{
+			Observed: p, FreshComplete: p,
+		}
+		monitor += m
+		portfolio += p
+	}
+	e.Monitor = FreshnessCounters{
+		Checks: monitor, Fresh: monitor,
+		LastCheckAt: e.UpdatedAt, LastFreshAt: e.UpdatedAt,
+	}
+	e.Portfolio = PortfolioCounters{
+		Walks: portfolio, Fresh: portfolio, Complete: portfolio,
+		FreshComplete: portfolio, LastWalkAt: e.UpdatedAt,
+		LastFreshAt: e.UpdatedAt, LastCompleteAt: e.UpdatedAt,
+	}
+}
+
+func q01FailureCodes(result Q01LocalAssessment) map[FailureCode]int {
+	out := make(map[FailureCode]int)
+	for _, failure := range result.Failures {
+		out[failure.Code]++
+	}
+	return out
+}
+
+func removeQ01Event(e *Evidence, category EventCategory, name string) {
+	out := e.Events[:0]
+	for _, event := range e.Events {
+		if event.Category != category || event.Name != name {
+			out = append(out, event)
+		}
+	}
+	e.Events = out
+}
+
+func TestAssessQ01LocalPassesExactFourHourRestartBoundary(t *testing.T) {
+	result, err := AssessQ01Local(validQ01Evidence())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.LocalRequirementsMet || len(result.Failures) != 0 {
+		t.Fatalf("exact q01 boundary did not pass locally: %+v", result)
+	}
+	if result.Scope != Q01LocalScope || result.Elapsed != 4*time.Hour ||
+		result.HistoricalUncleanSegments != 1 ||
+		result.ExpectedMonitorSlots != 4*60*60 ||
+		result.FreshMonitorSlots != result.ExpectedMonitorSlots ||
+		result.ExpectedPortfolioSlots != 4*60*60/5 ||
+		result.FreshCompletePortfolioSlots != result.ExpectedPortfolioSlots {
+		t.Fatalf("q01 local measurements = %+v", result)
+	}
+	if len(result.ExternalOutstanding) != len(q01ExternalOutstanding) {
+		t.Fatalf("external outstanding = %v", result.ExternalOutstanding)
+	}
+	for _, item := range result.ExternalOutstanding {
+		if !strings.Contains(item, "provenance") &&
+			!strings.Contains(item, "provider") {
+			t.Fatalf("external item does not name unproved evidence: %q", item)
+		}
+	}
+}
+
+func TestAssessQ01LocalRejectsOneNanosecondBelowFourHours(t *testing.T) {
+	e := validQ01Evidence()
+	setQ01Durations(&e, 2*time.Hour, 2*time.Hour-time.Nanosecond)
+	result, err := AssessQ01Local(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.LocalRequirementsMet || q01FailureCodes(result)[FailureTooShort] != 1 {
+		t.Fatalf("sub-four-hour q01 passed: %+v", result)
+	}
+}
+
+func TestAssessQ01LocalNinetyNinePercentSlotBoundary(t *testing.T) {
+	boundary := validQ01Evidence()
+	// Monitor: 14,256/14,400 is exactly 99%. Portfolio: ceil(99% of
+	// 2,880)=2,852; the missing 28 slots are silence, not bad observed walks.
+	boundary.Segments[1].MonitorSlots.Fresh = 7056
+	boundary.Monitor.Fresh = 14256
+	boundary.Monitor.Stale = 144
+	boundary.Segments[1].PortfolioSlots.Observed = 1412
+	boundary.Segments[1].PortfolioSlots.FreshComplete = 1412
+	boundary.Portfolio = PortfolioCounters{
+		Walks: 2852, Fresh: 2852, Complete: 2852, FreshComplete: 2852,
+		LastWalkAt: boundary.UpdatedAt, LastFreshAt: boundary.UpdatedAt,
+		LastCompleteAt: boundary.UpdatedAt,
+	}
+	result, err := AssessQ01Local(boundary)
+	if err != nil || !result.LocalRequirementsMet {
+		t.Fatalf("fixed 99%% boundary did not pass: result=%+v err=%v", result, err)
+	}
+
+	monitorBelow := boundary
+	monitorBelow.Segments = append([]ProcessSegment(nil), boundary.Segments...)
+	monitorBelow.Segments[1].MonitorSlots.Fresh--
+	monitorBelow.Monitor.Fresh--
+	monitorBelow.Monitor.Stale++
+	result, err = AssessQ01Local(monitorBelow)
+	if err != nil || result.LocalRequirementsMet ||
+		q01FailureCodes(result)[FailureQ01MonitorSlots] != 1 {
+		t.Fatalf("below-99%% monitor slots passed: result=%+v err=%v", result, err)
+	}
+
+	portfolioBelow := boundary
+	portfolioBelow.Segments = append([]ProcessSegment(nil), boundary.Segments...)
+	portfolioBelow.Segments[1].PortfolioSlots.Observed--
+	portfolioBelow.Segments[1].PortfolioSlots.FreshComplete--
+	portfolioBelow.Portfolio.Walks--
+	portfolioBelow.Portfolio.Fresh--
+	portfolioBelow.Portfolio.Complete--
+	portfolioBelow.Portfolio.FreshComplete--
+	result, err = AssessQ01Local(portfolioBelow)
+	if err != nil || result.LocalRequirementsMet ||
+		q01FailureCodes(result)[FailureQ01PortfolioSlots] != 1 {
+		t.Fatalf("below-99%% portfolio slots passed: result=%+v err=%v", result, err)
+	}
+}
+
+func TestAssessQ01LocalAboveSixHoursIsDeviationOnly(t *testing.T) {
+	e := validQ01Evidence()
+	setQ01Durations(&e, 3*time.Hour, 3*time.Hour+time.Second)
+	result, err := AssessQ01Local(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.LocalRequirementsMet || len(result.Failures) != 0 ||
+		len(result.ProtocolDeviations) != 1 ||
+		result.ProtocolDeviations[0].Code != DeviationQ01AboveTargetWindow {
+		t.Fatalf("above-six-hour assessment = %+v", result)
+	}
+}
+
+func TestAssessQ01LocalBurstThenSilenceCannotFillSlots(t *testing.T) {
+	e := validQ01Evidence()
+	e.Segments[0].MonitorSlots = MonitorSlotCoverage{Observed: 1, Fresh: 1}
+	e.Segments[1].MonitorSlots = MonitorSlotCoverage{}
+	result, err := AssessQ01Local(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.LocalRequirementsMet ||
+		q01FailureCodes(result)[FailureQ01MonitorSlots] != 1 ||
+		result.FreshMonitorSlots != 1 || result.ExpectedMonitorSlots != 4*60*60 {
+		t.Fatalf("burst stood in for silent monitor slots: %+v", result)
+	}
+}
+
+func TestCallerSelectedRequirementsCannotWeakenQ01(t *testing.T) {
+	e := validQ01Evidence()
+	e.Segments[0].MonitorSlots = MonitorSlotCoverage{Observed: 1, Fresh: 1}
+	e.Segments[1].MonitorSlots = MonitorSlotCoverage{}
+
+	generic, err := Assess(e, Requirements{
+		MinimumElapsed:                     time.Millisecond,
+		ExpectedMonitorCadence:             24 * time.Hour,
+		ExpectedPortfolioCadence:           24 * time.Hour,
+		MinimumMonitorFreshRatio:           0.000001,
+		MinimumPortfolioFreshCompleteRatio: 0.000001,
+	})
+	if err != nil || !generic.Qualified {
+		t.Fatalf("generic low policy should demonstrate caller control: result=%+v err=%v",
+			generic, err)
+	}
+	fixed, err := AssessQ01Local(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fixed.LocalRequirementsMet || q01FailureCodes(fixed)[FailureQ01MonitorSlots] != 1 {
+		t.Fatalf("caller-selected generic policy weakened fixed q01: %+v", fixed)
+	}
+}
+
+func TestAssessQ01LocalRejectsUnexpectedSEV1AndAnomalyDrop(t *testing.T) {
+	for _, name := range []string{"SEV1:OWNER_STALLED", "ANOMALY_DROPPED", "SEV2:ANOMALY_DROPPED"} {
+		t.Run(name, func(t *testing.T) {
+			e := validQ01Evidence()
+			e.Events = append(e.Events, EventCounter{
+				Category: EventAnomaly, Name: name, Count: 1,
+				FirstAt: testStart, LastAt: testStart,
+			})
+			result, err := AssessQ01Local(e)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.LocalRequirementsMet ||
+				q01FailureCodes(result)[FailureQ01UnexpectedAnomaly] != 1 {
+				t.Fatalf("forbidden anomaly %q passed: %+v", name, result)
+			}
+		})
+	}
+}
+
+func TestAssessQ01LocalRequiresAttemptsDecisionsHeartbeatsAndDisconnect(t *testing.T) {
+	tests := []struct {
+		name string
+		edit func(*Evidence)
+		code FailureCode
+	}{
+		{"attempt evidence", func(e *Evidence) { e.AttemptedHTTP = nil }, FailureQ01AttemptEvidence},
+		{"would-write", func(e *Evidence) { e.WouldWrites = nil }, FailureNoWouldWrite},
+		{"heartbeat sent", func(e *Evidence) { removeQ01Event(e, EventHeartbeat, "sent") }, FailureQ01HeartbeatMissing},
+		{"deadman check-in", func(e *Evidence) { removeQ01Event(e, EventHeartbeat, "deadman_checkin_sent") }, FailureQ01HeartbeatMissing},
+		{"disconnect", func(e *Evidence) { removeQ01Event(e, EventState, "websocket:disconnected") }, FailureQ01DisconnectMissing},
+		{"reconnect", func(e *Evidence) {
+			for i := range e.Events {
+				if e.Events[i].Category == EventState && e.Events[i].Name == "websocket:connected" {
+					e.Events[i].Count = 1
+				}
+			}
+		}, FailureQ01DisconnectMissing},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			e := validQ01Evidence()
+			tc.edit(&e)
+			result, err := AssessQ01Local(e)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.LocalRequirementsMet || q01FailureCodes(result)[tc.code] == 0 {
+				t.Fatalf("missing %s passed: %+v", tc.name, result)
+			}
+		})
+	}
+}
+
+func TestAssessQ01LocalAllowsNoAboveGuardNonGETOnCleanAccount(t *testing.T) {
+	e := validQ01Evidence()
+	e.AttemptedHTTP = []HTTPCount{{
+		HTTPKey: HTTPKey{Method: "GET", Endpoint: "/portfolio/orders"}, Count: 1,
+	}}
+	result, err := AssessQ01Local(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.LocalRequirementsMet || result.AboveGuardNonGET != 0 {
+		t.Fatalf("clean-account q01 required an unreachable non-GET attempt: %+v", result)
+	}
+}
+
+func TestAssessQ01LocalRejectsObservedBadPortfolioWalk(t *testing.T) {
+	e := validQ01Evidence()
+	e.Portfolio.Walks++
+	e.Portfolio.Stale++
+	e.Portfolio.Incomplete++
+	result, err := AssessQ01Local(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.LocalRequirementsMet ||
+		q01FailureCodes(result)[FailureQ01PortfolioBadWalk] != 1 {
+		t.Fatalf("observed bad portfolio walk passed: %+v", result)
+	}
+}

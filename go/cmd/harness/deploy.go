@@ -83,6 +83,11 @@ type agentOptions struct {
 	// silently bake today's state into a job that starts for months.
 	// `M-ES6-DEPLOYARM` arms every deployed job.
 	Live bool
+	// Qualification is the absolute evidence path preserved in the launchd
+	// argv for an R0 read-only run. It is mutually exclusive with Live: the
+	// artifact's metadata says Live=false and that claim must follow from the
+	// invocation, not from operator memory.
+	Qualification string
 	// Rung is the ladder step the operator asserted at deployment time, and it
 	// is rendered into the deployed argv as `-rung <name>`.
 	//
@@ -118,8 +123,10 @@ type agentOptions struct {
 // one thing about it that has been wrong (it had `rung` in scope and dropped it
 // on the floor, which is the whole of lip-3yo) becomes a pure expression a test
 // can assert on instead. `M-3YO-DROPPEDATCALLSITE` drops it again.
-func deployOptions(rung string, force, live bool) agentOptions {
-	return agentOptions{Rung: rung, Force: force, Live: live}
+func deployOptions(rung, qualification string, force, live bool) agentOptions {
+	return agentOptions{
+		Rung: rung, Qualification: qualification, Force: force, Live: live,
+	}
 }
 
 // installAgent renders the H-DEP-2/H-DEP-3 plist and installs it.
@@ -140,6 +147,13 @@ func installAgent(c config, configPath string, opts agentOptions,
 	if _, err := os.Stat(configPath); err != nil {
 		return fmt.Errorf("the config %s the job would be started with cannot "+
 			"be read: %w", configPath, err)
+	}
+	if opts.Live && opts.Qualification != "" {
+		return fmt.Errorf("a deployed job cannot be both live and a read-only qualification")
+	}
+	if opts.Qualification != "" && !filepath.IsAbs(opts.Qualification) {
+		return fmt.Errorf("the qualification evidence path %q is relative; "+
+			"launchd runs with no inherited working directory", opts.Qualification)
 	}
 
 	// The ladder gate, run HERE with the same function the start path runs it
@@ -193,7 +207,7 @@ func installAgent(c config, configPath string, opts agentOptions,
 	plan := lifecycle.LaunchdPlan{
 		Label:      agentLabel,
 		Executable: exe,
-		Args:       agentArgs(configPath, opts.Rung, opts.Live),
+		Args:       agentArgs(configPath, opts.Rung, opts.Qualification, opts.Live),
 		WorkingDir: logDir,
 		StdoutPath: filepath.Join(logDir, "harness.out"),
 		StderrPath: filepath.Join(logDir, "harness.err"),
@@ -426,10 +440,13 @@ func writeInstallReport(out io.Writer, path string,
 // leave the process -- whether this job may write. `flag` does not care, but the
 // human running `launchctl print` on a job they installed months ago does, and
 // that human is the only reader this argv has.
-func agentArgs(configPath, rung string, live bool) []string {
+func agentArgs(configPath, rung, qualification string, live bool) []string {
 	argv := []string{"-config", configPath}
 	if rung != "" {
 		argv = append(argv, "-rung", rung)
+	}
+	if qualification != "" {
+		argv = append(argv, "-qualification", qualification)
 	}
 	if live {
 		argv = append(argv, "-live")

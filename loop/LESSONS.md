@@ -106,3 +106,72 @@ from running tests. The value was in the *reading*, not the automation.
 - The cheap, high-yield shape is therefore: implement directly, and spend codex
   on *review at decision points* — which is what the pre-existing
   `codex-red-team-workflow` memory already said before any of this was built.
+
+## What the 2026-08-10/11 Claude courier cycle added
+
+The courier was strongest when it behaved as an evidence-preserving observer,
+not as a mandatory implementation half. It corrected the driver's 33-row count
+to 34, refused to treat component tests as composed proof, removed a duplicate
+expensive test, added the historical reproducer actually requested, reported a
+real `WriteRefused` design divergence, and reconstructed a partially applied
+`bd` transaction before attempting any repair. Keep those habits.
+
+The mandatory baton did not earn its place. Ordinary work paid a decision turn,
+a translation handoff and a four-hour gate even when one write-enabled driver
+could decide and implement the same coherent seam. Broad audits also bypassed
+the convergence rule above: absence of composed evidence became one blocking
+bead per row before reachability or a surviving mutation distinguished a
+production defect from verification debt. That is how q01 acquired 27
+dependency lines despite being structurally read-only.
+
+The operating lessons are:
+
+- The active driver owns routine design and implementation. Independent or
+  cross-model review is reserved for safety architecture, disputed findings,
+  spec conflicts and promotion decisions.
+- Keep the driver context to the current milestone, candidate unit, constraints,
+  decisions and verification status. Delegate bounded sweeps, raw-log inspection
+  and test archaeology; consume concise, cited conclusions.
+- A dependency edge is causal: A depends on B only when A's own acceptance
+  cannot be satisfied without B. Eventual release relevance is not an edge.
+- Classify discoveries before filing them as blockers: reachable production
+  defect, evidence gap, or operational prerequisite. Evidence debt does not
+  block a safe rung merely because it matters later.
+- A declared catcher is a candidate until the exact named test has been observed
+  failing against the exact compiling mutation. Editing either side invalidates
+  that admission.
+- Per coherent implementation unit, run baseline checks, the real-tree anchor
+  audit, touched catchers and affected mutations. Run the complete catalogue on
+  the exact trees promoted to read-only qualification, first writer and CR-1.
+  Nothing is deleted, weakened, sampled away or called inert without a positive
+  argument.
+- Apply tracker creates, updates, dependency changes and closes as separate
+  phases, with postcondition and cycle checks after each. A failed bulk mutation
+  is first inventoried, never blindly retried.
+
+## A mutation can be RED without being a catch (2026-08-11)
+
+The rule above -- "a declared catcher is a candidate until the named test has
+been observed failing" -- has a second failure mode, and it was found by running
+the control rather than by reading it.
+
+`lip-30p`'s design named its own primary mutation: turn `go r.runAlerts(...)`
+into a direct call. It compiles, it is a real defect, and the suite goes red.
+It is still not a catch. A direct call never returns, so it wedges every
+*direct* caller of `startAlerts` -- including unit tests that never run `serve`
+-- and the package reaches its panic timeout having printed no `--- FAIL:` line
+at all. `failed_tests` parses named failures, so it returns EMPTY, and
+`harness_negative_control.py` scores the round as "caught, but NOT by the named
+test": a red gate carrying no information about the catcher, bought for ten
+minutes.
+
+Two things follow, and both are about measuring rather than reasoning:
+
+- Exit status is not the observable. The observable is the NAME in the failure
+  list. A mutation that hangs, panics, or takes the process down before the
+  catcher runs produces neither a catch nor an honest survival.
+- Prefer the mutation that expresses the defect at the composition the invariant
+  actually names, not at the smallest edit that produces it. Moving the same
+  defect into `serve` -- where F20's clause "never block the owner goroutine"
+  lives -- left healthy steppers untouched and produced exactly one named
+  failure in 71 seconds instead of zero in ten minutes.

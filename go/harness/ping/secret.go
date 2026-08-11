@@ -62,6 +62,24 @@ func LoadNTFYTopic(path string) (Topic, error) {
 	return Topic{reveal: func() string { return value }}, nil
 }
 
+// LoadHTTPSDeadman reads `DEADMAN_URL` from an explicit ABSOLUTE env-file path
+// and constructs the sealed production check-in transport.
+//
+// The endpoint is a bearer credential: anyone holding it can report a dead
+// harness alive. It therefore follows the same source rule as NTFY_TOPIC -- no
+// process environment, no relative file and exactly one non-empty entry -- and
+// is handed directly to NewHTTPSDeadman without ever being included in an
+// error. NewHTTPSDeadman's validation errors are secret-free even when URL
+// parsing fails, which is why this loader returns them unchanged rather than
+// wrapping them with the value it was trying to load.
+func LoadHTTPSDeadman(path string) (*HTTPSDeadman, error) {
+	endpoint, err := readEnvValue(path, "DEADMAN_URL")
+	if err != nil {
+		return nil, err
+	}
+	return NewHTTPSDeadman(endpoint)
+}
+
 // validTopic rejects anything that would change the destination path.
 //
 // The topic becomes a URL path segment. A value containing a slash, a query

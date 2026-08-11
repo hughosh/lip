@@ -478,8 +478,22 @@ func (r *rig) cancelWrite(ctx context.Context, req writeRequest) writeResult {
 
 	sweep := r.api.CancelAndSweep(ctx, req.Market, req.Orders)
 	res.Sweep = sweep
-	res.Sent = len(sweep.Cancels) > 0
 	res.Anomalies = append(res.Anomalies, sweep.Anomalies...)
+
+	// H-VER-1. An ATTEMPT is not a sent write. `CancelAndSweep` records every
+	// round, including a DELETE the transport guard refused, so the length of
+	// this slice says only how many cancels were wanted. Capacity is spent only
+	// when at least one CancelResult says it crossed the guard.
+	var refused error
+	for _, cancel := range sweep.Cancels {
+		res.Sent = res.Sent || cancel.Sent
+		if refused == nil && !cancel.Sent {
+			var wr *rest.WriteRefused
+			if errors.As(cancel.Err, &wr) {
+				refused = cancel.Err
+			}
+		}
+	}
 
 	// `Clean` says the REQUESTED orders are gone. `Queue.ConfirmAbsent`'s gate
 	// is stronger and is keyed on (market, side): nothing of OURS rests there.
@@ -490,6 +504,13 @@ func (r *rig) cancelWrite(ctx context.Context, req writeRequest) writeResult {
 	// H-FAIL-3 demands, and it is the only thing that opens a
 	// cancel-confirm-place's second leg.
 	res.Absent = sweep.Clean && !restsOn(sweep.OtherOurs, req.Side)
+	if !res.Sent && !res.Absent && refused != nil {
+		// Preserve the typed refusal so the owner refunds the token and does not
+		// report an exchange WRITE_FAILED. The complete read still owns absence:
+		// a guarded DELETE that happened to race with an already-absent order is
+		// satisfied by that read and needs no error.
+		res.Err = refused
+	}
 	return res
 }
 

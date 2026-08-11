@@ -65,6 +65,77 @@ def go_available() -> bool:
     return Path(h.GO_BIN).exists()
 
 
+def anchor_failures(mutations, go_src: Path) -> list[tuple[str, str, int]]:
+    """Return every catalogue anchor that is absent or ambiguous.
+
+    This is intentionally only a string scan.  Compiling each replacement is
+    the preflight's separate job; this check exists so drift in an `old` anchor
+    fails catalogue-tests before the expensive negative-control round starts.
+    """
+    failures: list[tuple[str, str, int]] = []
+    sources: dict[str, str] = {}
+    for mid, _name, patches, _expected in mutations:
+        for rel, old, _new in patches:
+            if rel not in sources:
+                sources[rel] = (go_src / rel).read_text()
+            count = sources[rel].count(old)
+            if count != 1:
+                failures.append((mid, rel, count))
+    return failures
+
+
+class TestRealCatalogueAnchors(unittest.TestCase):
+    """The cheap, real-tree half of catalogue admission (lip-70u)."""
+
+    def test_every_real_old_anchor_occurs_exactly_once_in_real_tree(self):
+        failures = anchor_failures(h.MUTATIONS, h.GO_SRC)
+        detail = "\n".join(
+            f"{mid}: anchor appears {count}x in {rel}, need exactly 1"
+            for mid, rel, count in failures
+        )
+        self.assertEqual(failures, [], detail)
+
+    def test_rejectlive_style_neighbour_insertion_is_caught_without_go(self):
+        """Reproduce the lip-gp8/M-W-REJECTLIVE anchor rot cheaply.
+
+        M-W-REJECTLIVE used to include the function's closing brace in its
+        anchor.  Adding mark retirement between `snapGen = 0` and that brace
+        left the mutation's meaning untouched but made the old anchor occur
+        zero times.  The catalogue test must catch that without compiling or
+        running any Go code.
+        """
+        stale_anchor = ("\tm.quarantined = true\n"
+                        "\tm.snapGen = 0\n"
+                        "}\n")
+        pristine = ("package wsx\n\n"
+                    "func quarantineRejectedBook(m *marketGate) {\n"
+                    + stale_anchor)
+        after_neighbour_change = pristine.replace(
+            "\tm.snapGen = 0\n}\n",
+            "\tm.snapGen = 0\n\tm.pnlMarkGen = 0\n}\n",
+        )
+        mutation = (
+            "M-W-REJECTLIVE",
+            "fixture for an old anchor rotted by a neighbouring insertion",
+            [("harness/wsx/gate.go", stale_anchor, "}\n")],
+            "TestRejectedBookFrameImmediatelyQuarantinesAnActionableMarket",
+        )
+
+        with tempfile.TemporaryDirectory() as td:
+            go_src = Path(td)
+            gate = go_src / "harness" / "wsx" / "gate.go"
+            gate.parent.mkdir(parents=True)
+            gate.write_text(after_neighbour_change)
+            with unittest.mock.patch.object(
+                    h, "run", side_effect=AssertionError("Go must not run")):
+                failures = anchor_failures([mutation], go_src)
+
+        self.assertEqual(
+            failures,
+            [("M-W-REJECTLIVE", "harness/wsx/gate.go", 0)],
+        )
+
+
 class PreflightFixture(unittest.TestCase):
     """A throwaway Go module plus a catalogue that patches it."""
 

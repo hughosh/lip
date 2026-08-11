@@ -329,7 +329,7 @@ func TestProvisionWithLiveRefusesBeforeCreatingArtifacts(t *testing.T) {
 
 	fs := flag.NewFlagSet("harness", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	err := run(fs, cfgPath, "", "", true, false, false, true)
+	err := run(fs, cfgPath, "", "", "", "", true, false, false, true)
 
 	var ref *refusal
 	if !errors.As(err, &ref) {

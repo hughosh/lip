@@ -393,6 +393,62 @@ func TestReadOnlyDeployNeverCarriesLive(t *testing.T) {
 	}
 }
 
+// TestQualificationDeployCarriesItsAbsoluteEvidencePath proves a supervised
+// q01 restart resumes the same bundle. The path is an invocation fact, like
+// the rung and live arm; dropping it from the plist would create a read-only
+// observer whose run cannot be qualified.
+func TestQualificationDeployCarriesItsAbsoluteEvidencePath(t *testing.T) {
+	c, configPath, dir := newDeployFixture(t)
+	evidencePath := filepath.Join(t.TempDir(), "qualification.json")
+
+	var out bytes.Buffer
+	if err := installAgent(c, configPath, agentOptions{
+		Dir: dir, Rung: fixtureRung, Qualification: evidencePath,
+	}, &out); err != nil {
+		t.Fatalf("installAgent: %v", err)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, agentLabel+".plist"))
+	if err != nil {
+		t.Fatalf("reading the installed plist: %v", err)
+	}
+	argv := harnessArgv(t, programArguments(t, string(body)))
+	fs, cl := newFlagSet(flag.ContinueOnError)
+	if err := fs.Parse(argv); err != nil {
+		t.Fatalf("the deployed qualification argv does not parse: %v", err)
+	}
+	if cl.qualification != evidencePath {
+		t.Fatalf("deployed qualification path is %q, want %q: %v",
+			cl.qualification, evidencePath, argv)
+	}
+	if cl.live {
+		t.Fatalf("the qualification job is armed live: %v", argv)
+	}
+}
+
+func TestDeployRefusesLiveQualificationAndRelativeEvidencePath(t *testing.T) {
+	c, configPath, dir := newDeployFixture(t)
+	for _, tc := range []struct {
+		name string
+		opts agentOptions
+		want string
+	}{
+		{"live qualification", agentOptions{
+			Dir: dir, Rung: fixtureRung, Qualification: filepath.Join(dir, "q.json"), Live: true,
+		}, "both live"},
+		{"relative evidence", agentOptions{
+			Dir: dir, Rung: fixtureRung, Qualification: "q.json",
+		}, "relative"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var out bytes.Buffer
+			err := installAgent(c, configPath, tc.opts, &out)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("installAgent error = %v, want text %q", err, tc.want)
+			}
+		})
+	}
+}
+
 // TestExplicitLiveDeployCarriesLiveExactlyOnce is the other half: when the
 // operator does say so, the flag appears, and it appears ONCE.
 //
@@ -766,13 +822,17 @@ func TestCanaryDeployRendersExactlyWhatTheOperatorAsserted(t *testing.T) {
 // therefore one expression, and this asserts that expression carries every
 // thing the operator typed -- including the `rung` that the arm had in scope
 // and dropped on the floor for the whole life of the defect.
-func TestDeployOptionsCarryTheOperatorsRung(t *testing.T) {
-	opts := deployOptions("pilot", true, true)
+func TestDeployOptionsCarryTheOperatorsAssertions(t *testing.T) {
+	evidencePath := filepath.Join(t.TempDir(), "qualification.json")
+	opts := deployOptions("pilot", evidencePath, true, false)
 	if opts.Rung != "pilot" {
 		t.Fatalf("deployOptions dropped the rung: %+v", opts)
 	}
-	if !opts.Force || !opts.Live {
-		t.Fatalf("deployOptions dropped -force or -live: %+v", opts)
+	if opts.Qualification != evidencePath {
+		t.Fatalf("deployOptions dropped the qualification path: %+v", opts)
+	}
+	if !opts.Force || opts.Live {
+		t.Fatalf("deployOptions changed -force or armed a qualification: %+v", opts)
 	}
 	if opts.Dir != "" {
 		t.Fatalf("deployOptions invented the agent directory %q. Empty means "+
@@ -781,7 +841,7 @@ func TestDeployOptionsCarryTheOperatorsRung(t *testing.T) {
 
 	// The unadorned case is the read-only canary deploy, and it must stay the
 	// zero value in every field.
-	if got := deployOptions("", false, false); got != (agentOptions{}) {
+	if got := deployOptions("", "", false, false); got != (agentOptions{}) {
 		t.Fatalf("an unadorned -deploy built %+v, want the zero options", got)
 	}
 }

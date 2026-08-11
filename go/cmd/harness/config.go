@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -165,6 +166,11 @@ type config struct {
 	Params cfg.Params
 	Ticker string
 	Rung   rung
+	// ConfigHash pins the exact bytes the operator supplied, not a
+	// re-serialization of the parsed values. Qualification evidence can
+	// therefore distinguish comments/format revisions and, more importantly,
+	// can never resume under a file whose effective identity is ambiguous.
+	ConfigHash string
 	// EarlyCloseLead is the operator's H-CLOSE-4 backoff. See the field comment
 	// on `fileConfig`. Zero disables it.
 	EarlyCloseLead time.Duration
@@ -339,7 +345,7 @@ func loadConfig(path string) (config, error) {
 			path, err)
 	}
 
-	c := config{Params: p}
+	c := config{Params: p, ConfigHash: fmt.Sprintf("sha256:%x", sha256.Sum256(b))}
 
 	if fc.Ticker == nil || *fc.Ticker == "" {
 		return config{}, errors.New("config names no ticker: the pilot profile " +
