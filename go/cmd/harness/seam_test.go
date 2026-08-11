@@ -4466,6 +4466,280 @@ func TestATakerFillOnTheCanaryKeepsTheStrongerCause(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// 14. lip-lqw -- F17, `inv_kill` reaches the durable global latch
+// ---------------------------------------------------------------------------
+//
+// Every test in this section runs at the PILOT rung, and that is the subject
+// rather than the setting. `stopOnFirstOwnedFill` is a canary property, so a
+// pilot has no first-fill bound at all and the inventory ladder IS its backstop:
+// `inv_hard` market-scoped, `inv_kill` global. Until this bead the second of
+// those was parsed, ordered against its neighbours by `Validate`, and read by
+// nothing -- so the rung the burn-in actually runs at had no global inventory
+// backstop whatsoever. A canary fixture would hide that, because the canary
+// stops on the first fill and never reaches these figures.
+
+// TestInventoryBeyondInvKillLatchesTheGlobalHaltByName is F17's whole claim:
+// §6.4.5 clause 5 and the §12 row both say a position past `inv_kill` is a
+// GLOBAL halt, and §11 gives it SEV1.
+//
+// The position is stepped from 15.00 rather than seeded past the threshold, and
+// the step is what makes the test measure the right value. Seeded inventory is
+// adopted, so `q_local` and `q_exch` are equal on every poll and a detector
+// reading either one would pass -- while the rule is specifically about the
+// exchange's figure AFTER H-POS-1's overwrite. Stepping leaves them disagreeing
+// at the moment of the breach, and by 3.01 contracts, which is inside
+// `pos_drift_hard` (5) so nothing else stops the harness and the latch records
+// this rule's cause rather than a drift's.
+func TestInventoryBeyondInvKillLatchesTheGlobalHaltByName(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{
+		Rung:      "pilot",
+		Positions: map[string]string{seamTicker: "15.00"},
+	})
+	h.start()
+	h.awaitActionable()
+
+	// The control. 15.00 is over `inv_hard` and under `inv_kill`, so the market
+	// is already REDUCING and the harness is still RUNNING -- everything below
+	// is attributable to the step alone.
+	h.awaitTicks(2)
+	if s := h.snapshot(); s.Global != quote.Running {
+		t.Fatalf("the global state is %s while holding 15.00 contracts, want "+
+			"RUNNING: §16 puts that between inv_hard and inv_kill, which is the "+
+			"market-scoped brake's band and not the global one's", s.Global)
+	}
+	if got := h.latchTrigger(); got != "" {
+		t.Fatalf("the halt latch already reads %q before the test did anything",
+			got)
+	}
+
+	h.ex.setPosition(seamTicker, "18.01")
+	h.clk.Advance(h.cfg.Params.PositionPoll)
+
+	h.awaitGlobalEvent("RUNNING->WINDING_DOWN/global_stop")
+	h.await("the durable §12 cause to reach the latch", func() bool {
+		return h.latchTrigger() != ""
+	})
+	if got := h.latchTrigger(); got != "inv_kill" {
+		t.Fatalf("18.01 contracts against inv_kill 18.00 latched with cause "+
+			"%q, want inv_kill.\n\n"+
+			"The latch is the one artefact that survives the process, and §10.4 "+
+			"has the operator read its cause to learn WHICH row of the halt "+
+			"table fired. `portfolio_read` is the label five different causes "+
+			"already share; a named row of §12 arriving under it is a halt "+
+			"whose reason cannot be recovered at 3am", got)
+	}
+	h.await("the SEV1 INVENTORY_KILL anomaly to reach the store", func() bool {
+		return seamContains(h.anomalyClasses(), "INVENTORY_KILL")
+	})
+}
+
+// TestInventoryExactlyAtInvKillIsNotABreach is the strict `>`.
+//
+// `Validate` orders inv_soft < inv_hard < inv_kill strictly, so §12 assigns the
+// whole band up to and including `inv_kill` to the MARKET-scoped row and only
+// what is past it to the global one. A `>=` here takes the global halt at a
+// figure the spec gives to the other row, and it does it one quantum early --
+// which on the ladder §16 actually ships is the difference between a market
+// that keeps reducing and a process that stops adding everywhere.
+func TestInventoryExactlyAtInvKillIsNotABreach(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{
+		Rung:      "pilot",
+		Positions: map[string]string{seamTicker: "15.00"},
+	})
+	h.start()
+	h.awaitActionable()
+
+	h.ex.setPosition(seamTicker, "18.00")
+	for i := 0; i < 3; i++ {
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(2)
+	}
+
+	if got := h.latchTrigger(); got != "" {
+		t.Fatalf("exactly 18.00 contracts against inv_kill 18.00 latched with "+
+			"cause %q, and the comparison is specified strict", got)
+	}
+	if s := h.snapshot(); s.Global != quote.Running {
+		t.Fatalf("the global state is %s at exactly inv_kill, want RUNNING",
+			s.Global)
+	}
+	m, ok := h.market()
+	if !ok || m.State != quote.Reducing {
+		t.Fatalf("the market is %v (present=%v) at exactly inv_kill, want "+
+			"REDUCING: the position is far past inv_hard and the market-scoped "+
+			"brake is what owns this band", m.State, ok)
+	}
+}
+
+// TestInventoryBetweenInvHardAndInvKillStopsOneMarketAndNotTheProcess is the
+// bead's central claim, and the one assertion that separates the two rows.
+//
+// harness-spec.md:1599-1600 distinguishes them by SCOPE and by nothing else:
+// `inv_hard` is market-scoped, `inv_kill` is global and durable. A detector
+// pointed at the wrong threshold still stops the harness on every position this
+// suite drives past `inv_kill`, so no amount of evidence that the breach fires
+// can tell the two apart. Only evidence that it does NOT fire can.
+func TestInventoryBetweenInvHardAndInvKillStopsOneMarketAndNotTheProcess(
+	t *testing.T) {
+
+	h := newSeamHarness(t, seamOptions{
+		Rung:      "pilot",
+		Positions: map[string]string{seamTicker: "10.00"},
+	})
+	h.start()
+	h.awaitActionable()
+
+	for i := 0; i < 3; i++ {
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(2)
+	}
+
+	m, ok := h.market()
+	if !ok || m.State != quote.Reducing {
+		t.Fatalf("the market is %v (present=%v) holding 10.00 contracts "+
+			"against inv_hard 7.00, want REDUCING", m.State, ok)
+	}
+	if got := h.latchTrigger(); got != "" {
+		t.Fatalf("10.00 contracts latched the GLOBAL halt with cause %q.\n\n"+
+			"§16 puts inv_hard at 7.00 and inv_kill at 18.00, and §12 gives the "+
+			"band between them to the market-scoped row: adds off in THIS "+
+			"market, reducer live, every other market untouched. A global halt "+
+			"here is the harness treating its ordinary taper as its kill "+
+			"switch, and the two thresholds stop existing separately", got)
+	}
+	if s := h.snapshot(); s.Global != quote.Running {
+		t.Fatalf("the global state is %s holding 10.00 contracts, want RUNNING",
+			s.Global)
+	}
+}
+
+// TestAnIncompletePositionWalkNeverLatchesInvKill is H-PAGE-1 applied to F17.
+//
+// "Stale, never empty" is the whole of it, and the trap it names is specific: a
+// truncated positions walk that reads as flat everywhere. `applyPositions`
+// refuses a walk that did not replace, so the breach is never evaluated against
+// a partial reading -- neither created from one nor cleared by one.
+//
+// The second half is not decoration. An assertion that nothing fired is
+// satisfied by a detector that cannot fire at all, and this bead exists because
+// exactly that went unnoticed for the whole of `inv_kill`'s life.
+func TestAnIncompletePositionWalkNeverLatchesInvKill(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{
+		Rung:      "pilot",
+		Positions: map[string]string{seamTicker: "15.00"},
+	})
+	h.start()
+	h.awaitActionable()
+
+	// The breach is TRUE on the account and the read that would establish it
+	// does not complete. Both at once is the case that matters.
+	h.ex.breakPositions(true)
+	h.ex.setPosition(seamTicker, "18.01")
+	for i := 0; i < 3; i++ {
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(2)
+	}
+
+	if got := h.latchTrigger(); got != "" {
+		t.Fatalf("F17 latched with cause %q from a positions walk that did not "+
+			"complete.\n\n"+
+			"An incomplete walk applies nothing -- not q, not the drift streak, "+
+			"not a record -- so there is no authoritative |q| to compare "+
+			"against inv_kill, and any halt taken here was decided from a "+
+			"reading that does not exist", got)
+	}
+
+	h.ex.breakPositions(false)
+	h.clk.Advance(h.cfg.Params.PositionPoll)
+	h.awaitGlobalEvent("RUNNING->WINDING_DOWN/global_stop")
+	h.await("the durable §12 cause to reach the latch", func() bool {
+		return h.latchTrigger() != ""
+	})
+	if got := h.latchTrigger(); got != "inv_kill" {
+		t.Fatalf("the completed walk latched with cause %q, want inv_kill; the "+
+			"assertion above is only worth anything if this one fires", got)
+	}
+}
+
+// TestAnInvKillBreachThatReducesToFlatDoesNotResumeAdding is the failure the
+// bead was filed for, and it is the only one of these that is about what
+// happens AFTER the halt.
+//
+// `quote/machine.go` takes REDUCING -> IDLE at exactly flat, and IDLE -> QUOTING
+// is an ordinary edge. So a breach that reduced itself away would leave a market
+// that had every reason to resume adding, and the harness would work its way
+// back to a position, breach again, and repeat -- with no operator ever told,
+// because nothing about that loop is an error.
+//
+// The durable latch is what forbids it: `NextGlobal` reads `Latched` before
+// every other rule (A14) and §10.4 provides no edge back to RUNNING without an
+// operator `-resume`. This test is that claim measured end to end rather than
+// argued from the state table.
+func TestAnInvKillBreachThatReducesToFlatDoesNotResumeAdding(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{
+		Rung:      "pilot",
+		Positions: map[string]string{seamTicker: "15.00"},
+	})
+	h.start()
+	h.awaitActionable()
+
+	h.ex.setPosition(seamTicker, "18.01")
+	h.clk.Advance(h.cfg.Params.PositionPoll)
+	h.await("the durable §12 cause to reach the latch", func() bool {
+		return h.latchTrigger() != ""
+	})
+	if got := h.latchTrigger(); got != "inv_kill" {
+		t.Fatalf("the breach latched with cause %q, want inv_kill", got)
+	}
+
+	// The exit fills, in the sense the positions endpoint reports: the market
+	// reduces all the way to exactly zero, which is the figure §5.2 lets a
+	// REDUCING market leave on.
+	h.ex.setPosition(seamTicker, "0.00")
+	for i := 0; i < 4; i++ {
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(3)
+	}
+
+	// The create baseline is taken HERE and not at the latch, because a create
+	// between the two is the reducing quote and §12 requires it: the row for
+	// this trigger reads "adds off everywhere, reducer LIVE". What must not
+	// exist is a create issued once the market is flat -- there is nothing left
+	// to reduce, so any order placed from here is an adding one.
+	placedWhileWindingDown := h.ex.createCount()
+	for i := 0; i < 4; i++ {
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(3)
+	}
+
+	if s := h.snapshot(); s.Global.AddsRisk() {
+		t.Fatalf("the global state is %s after the breached inventory reduced "+
+			"to flat, and AddsRisk() is true.\n\n"+
+			"That is the harness quoting again after a §12 global halt, with no "+
+			"operator action and nothing on disk cleared. The latch outranks "+
+			"every other rule in NextGlobal precisely so this cannot happen",
+			s.Global)
+	}
+	if m, ok := h.market(); ok && (m.State == quote.Quoting ||
+		m.State == quote.Skewed) {
+		t.Fatalf("the market is %v after the breach reduced to flat, and both "+
+			"QUOTING and SKEWED rest an ADDING side", m.State)
+	}
+	if got := h.ex.createCount(); got != placedWhileWindingDown {
+		t.Fatalf("%d further order(s) reached the exchange after the halted "+
+			"harness reached flat (%d before, %d after).\n\n"+
+			"A flat market has nothing to reduce, so every one of them is an "+
+			"adding order placed under a §12 global halt",
+			got-placedWhileWindingDown, placedWhileWindingDown, got)
+	}
+	if got := h.latchTrigger(); got != "inv_kill" {
+		t.Fatalf("the latch reads %q after the position went flat, want "+
+			"inv_kill still: a halt that clears itself when the condition "+
+			"passes is not durable", got)
+	}
+}
+
 // TestReadOnlyRunRecordsWouldWriteWithoutSendingNonGET is H-VER-1 as a property
 // of the whole composed process, and it is the test the bead exists for.
 //

@@ -2809,6 +2809,91 @@ MUTATIONS = [
      ],
      'TestTheFundabilityBoundIsSection103sDerivation'),
 
+    # --- lip-lqw: F17, `inv_kill` reaches the durable global latch ----------
+    #
+    # Every catching test here lives in `cmd/harness`. That is the point of the
+    # unit rather than a convention: `inv_kill` was declared, ordered against
+    # its neighbours by `Validate`, and READ BY NOTHING, and a catalogue that
+    # certified the parameter from inside `harness/cfg` would have gone on
+    # reporting green over a §12 halt row that could not fire.
+
+    ('M-LQW-NODETECT',
+     'never compare |q| against inv_kill, which is the defect exactly as it '
+     'was found: the parameter is parsed, bounds-checked, and read by nothing, '
+     'so F17\'s global WINDING_DOWN cannot fire and inventory past the kill '
+     'threshold reduces quietly and lets the harness carry on adding',
+     [
+         ('harness/risk/position.go',
+          '\t\tif remote.Abs() > prm.InvKill && eff.InvKill == "" {\n',
+          '\t\tif false && eff.InvKill == "" {\n'),
+     ],
+     'TestInventoryBeyondInvKillLatchesTheGlobalHaltByName'),
+
+    ('M-LQW-INVHARD',
+     'compare against inv_hard instead of inv_kill, collapsing §12\'s two '
+     'inventory rows into one. It fires EARLIER, so every test that drives a '
+     'position past inv_kill still sees its global halt -- only a test '
+     'asserting that inv_hard-level inventory does NOT stop the process can '
+     'tell the market-scoped brake from the global kill',
+     [
+         ('harness/risk/position.go',
+          '\t\tif remote.Abs() > prm.InvKill && eff.InvKill == "" {\n',
+          '\t\tif remote.Abs() > prm.InvHard && eff.InvKill == "" {\n'),
+     ],
+     'TestInventoryBetweenInvHardAndInvKillStopsOneMarketAndNotTheProcess'),
+
+    ('M-LQW-BOUNDARY',
+     'take the global halt at exactly inv_kill rather than past it. §16 orders '
+     'inv_soft < inv_hard < inv_kill strictly and §12 gives the band up to and '
+     'including inv_kill to the MARKET-scoped row, so a `>=` stops the whole '
+     'process one quantum inside the threshold the other row owns',
+     [
+         ('harness/risk/position.go',
+          '\t\tif remote.Abs() > prm.InvKill && eff.InvKill == "" {\n',
+          '\t\tif remote.Abs() >= prm.InvKill && eff.InvKill == "" {\n'),
+     ],
+     'TestInventoryExactlyAtInvKillIsNotABreach'),
+
+    ('M-LQW-LOCALNOTEXCH',
+     'evaluate the breach against q_local -- the figure H-POS-1 is one line '
+     'from overwriting -- rather than the exchange\'s. The two agree on every '
+     'poll where nothing changed, so this is invisible except at the moment '
+     'the position actually moves past the threshold, which is the only moment '
+     'F17 is about',
+     [
+         ('harness/risk/position.go',
+          '\t\tif remote.Abs() > prm.InvKill && eff.InvKill == "" {\n',
+          '\t\tif local.Abs() > prm.InvKill && eff.InvKill == "" {\n'),
+     ],
+     'TestInventoryBeyondInvKillLatchesTheGlobalHaltByName'),
+
+    ('M-LQW-STOPNOTKILL',
+     'route the breach through the existing generic stop instead of its own '
+     'cause, so the harness halts correctly and the durable latch records '
+     '`portfolio_read` -- the label five other causes already share. §10.4 has '
+     'the operator read that field to learn WHICH row of the halt table fired, '
+     'and this is the version of the fix that stops the process and loses the '
+     'only durable record of why',
+     [
+         ('harness/risk/position.go',
+          '\t\t\teff.InvKill = t\n',
+          '\t\t\teff.Stop = true\n'),
+     ],
+     'TestInventoryBeyondInvKillLatchesTheGlobalHaltByName'),
+
+    ('M-LQW-ONINCOMPLETE',
+     'let a positions walk that did NOT complete reach the replace, so a '
+     'truncated read is evaluated as though it were authoritative. H-PAGE-1 '
+     'names this trap exactly -- "stale, never empty" -- and the guard removed '
+     'here is the only thing standing between a 500 from the positions '
+     'endpoint and a global halt decided from a reading that does not exist',
+     [
+         ('harness/wsx/portfolio.go',
+          '\tif !read.positions.Replaces() {\n',
+          '\tif false {\n'),
+     ],
+     'TestAnIncompletePositionWalkNeverLatchesInvKill'),
+
 ]
 
 

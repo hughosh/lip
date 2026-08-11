@@ -757,6 +757,20 @@ type PositionEffects struct {
 	Reduce []string
 	// Stop requests global WINDING_DOWN.
 	Stop bool
+	// InvKill is the ticker whose |q| breached `inv_kill`, and it is separate
+	// from `Stop` on purpose (F17, lip-lqw).
+	//
+	// `Stop` is a boolean shared by five different causes, and its caller
+	// records all of them under the one generic durable label. The §10.4
+	// operator reads that label to learn WHY the harness stopped, so a global
+	// halt whose actual reason is "we are holding more than inv_kill" has to
+	// arrive carrying its own name and the market it came from, or the one
+	// artefact that survives the process cannot distinguish it from a drift.
+	//
+	// Empty means no breach. Where several markets breach on one poll this is
+	// the first in the sorted walk -- the halt is global and fires once, so the
+	// field names an example rather than an enumeration.
+	InvKill string
 }
 
 // ReplacePositions is H-POS-1: on every poll, `q_local := q_exch`.
@@ -824,6 +838,34 @@ func (p *Portfolio) ReplacePositions(exch map[string]num.Qty, complete bool,
 			delete(p.q, t)
 		} else {
 			p.q[t] = remote
+		}
+
+		// F17, and the whole of what the rule reduces to (§6.4.5 clause 5).
+		//
+		// The question is asked of `remote`, which the overwrite immediately
+		// above has just made `q`, and never of `local`: `local` is the answer
+		// to the PREVIOUS poll, and a rule that reads it decides today's global
+		// halt from yesterday's inventory. This is the authoritative reading or
+		// it is nothing.
+		//
+		// Strictly greater, matching `quote/machine.go`'s `inv_hard` test.
+		// `inv_kill` is a level the position may reach and may not pass, and
+		// `Validate` orders it strictly above `inv_hard` -- so the band between
+		// them belongs to the MARKET-scoped brake, and a `>=` here would take
+		// the global one at a figure §12 assigns to the other row.
+		//
+		// It does not `break` the switch below or stand in front of it. The
+		// drift check answers a different question -- whether our model of `q`
+		// is right -- and both answers are wanted from the same poll.
+		if remote.Abs() > prm.InvKill && eff.InvKill == "" {
+			eff.InvKill = t
+			eff.Anomalies = append(eff.Anomalies, Anomaly{
+				Class: "INVENTORY_KILL", Sev: SEV1, Ticker: t,
+				Text: fmt.Sprintf("q_exch %s is beyond inv_kill %s; §12 makes "+
+					"this a GLOBAL halt, so every market stops adding and every "+
+					"reducing quote stays live", remote.Wire(),
+					prm.InvKill.Wire()),
+			})
 		}
 
 		mag := delta.Abs()

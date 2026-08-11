@@ -226,9 +226,18 @@ type PortfolioEffects struct {
 	Foreign      []risk.LiveOrder
 	// Bound is the coid -> order-id bindings this cycle SUBMITTED from the
 	// orders walk, in walk order. Submitted, not committed.
-	Bound     []Binding
-	Reduce    []string
-	Stop      bool
+	Bound  []Binding
+	Reduce []string
+	Stop   bool
+	// InvKill is F17's ticker, carried apart from `Stop` all the way to the
+	// owner so the durable §12 latch can record `inv_kill` by name.
+	//
+	// `Stop` reaches `requestStop("portfolio_read", "")`, which is one label
+	// over five distinct causes. That is tolerable for the four that are
+	// genuinely "the portfolio read said something is wrong"; it is not
+	// tolerable for a named row of the halt table, because §10.4's operator
+	// reads the latch to learn which row fired.
+	InvKill   string
 	Anomalies []risk.Anomaly
 }
 
@@ -530,6 +539,9 @@ func applyPositions(g *Gate, pf *risk.Portfolio, read PortfolioRead,
 	eff.merge(pe.Anomalies)
 	eff.Reduce = append(eff.Reduce, pe.Reduce...)
 	eff.Stop = eff.Stop || pe.Stop
+	if eff.InvKill == "" {
+		eff.InvKill = pe.InvKill
+	}
 	eff.Applied[TruthPositions] = true
 	g.noteTruth(TruthPositions, read.token, read.positionsAt)
 }

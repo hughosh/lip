@@ -1068,6 +1068,25 @@ func (o *owner) applyRead(read wsx.PortfolioRead) {
 	if eff.Stop {
 		o.requestStop("portfolio_read", "")
 	}
+	// F17, and it sits in the ONLY place it can: below `eff.Stop` and above the
+	// canary, because `commitStop` is first-writer-wins and this is a ranking of
+	// causes rather than a sequence of steps.
+	//
+	// Below `eff.Stop`, because the causes funnelled through there include a
+	// hard position drift -- and "our model of our own inventory is wrong" is a
+	// worse thing to be woken for than "our inventory is too large". The two are
+	// simultaneously true of a position that appears out of nowhere past
+	// `inv_kill`, and the operator reading the latch at 3am is better served by
+	// the one that says the model cannot be trusted. Nothing is lost by losing
+	// the race: the harness is stopped either way, and the SEV1
+	// `INVENTORY_KILL` anomaly is raised whichever cause takes the latch.
+	//
+	// Above the canary, because `inv_kill` is a row of the §12 halt table and
+	// "the canary traded" is a rung policy. That ordering is the one this file
+	// already applies to every other pair of causes here.
+	if eff.InvKill != "" {
+		o.requestStop("inv_kill", eff.InvKill)
+	}
 
 	// §7.9's canary bound, and it comes AFTER `eff.Stop` on purpose. A taker
 	// fill, a foreign fill and a hard position drift all arrive on this same
@@ -2103,10 +2122,12 @@ func (o *owner) escalateUnresolved() {
 // Today that means the stops `applyRead` already funnels through
 // `requestStop("portfolio_read", "")` -- taker, foreign, an unavailable
 // ownership ledger, an unconvertible fill, and hard position drift -- which is
-// why the canary block sits below it. F17 is NOT among them and this comment
-// does not claim it is: `inv_kill` is parsed and bounds-checked and has no
-// production reader at all (`lip-lqw`). When that detector lands it must be
-// wired ahead of this call for the same reason the others are.
+// why the canary block sits below it. F17 joined them in `lip-lqw` and is
+// offered from its own call, `requestStop("inv_kill", ticker)`, immediately
+// above the canary block: a §12 halt-table row outranks a rung policy, and
+// unlike the five above it carries a cause of its own rather than the generic
+// label, because the operator of §10.4 reads the latch to learn which row of
+// the table fired.
 func (o *owner) canaryStop(trigger, market string) {
 	if !o.r.cfg.Rung.stopOnFirstOwnedFill {
 		return
