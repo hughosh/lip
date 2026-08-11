@@ -63,6 +63,25 @@ type marketGate struct {
 	// quietPinged stops BOOK_QUIET repeating every tick for a market that is
 	// simply closed for the night.
 	quietPinged bool
+	// pnlMarkAt is when this market last delivered a book frame that core
+	// ACCEPTED, monotonic. It is H-HALT-5's mark clock and it is deliberately
+	// NOT `lastFrame`.
+	//
+	// The two answer different questions and must not be conflated. F5 asks
+	// "is this market still talking to us", so `lastFrame` is seeded at
+	// connect (there is no silence yet) and keeps running through frames core
+	// REFUSES, because a market whose every frame is rejected is exactly the
+	// silence F5 exists to reduce. H-HALT-5 asks "is the price I am about to
+	// value inventory at real", and neither of those answers it: a connection
+	// that has said nothing has no price, and a rejected frame is a price core
+	// declined to believe. Valuing a position against either is how a loss
+	// floor fires late, or fails to fire at all.
+	pnlMarkAt time.Duration
+	// pnlMarkGen is the connection generation that established `pnlMarkAt`.
+	// Zero means no mark. It follows `snapGen`'s convention rather than
+	// `lastFrame`'s: invalidation is by generation, so a disconnect retires
+	// the mark without anything having to be erased.
+	pnlMarkGen uint64
 	// reducing is sticky. Nothing in this package clears it: recovering a
 	// socket is not evidence that the risk taken during the outage is gone,
 	// and a market that silently resumed quoting on reconnect would be the
@@ -401,9 +420,21 @@ func (g *Gate) ApplyFrame(info FrameInfo, handle func() error,
 		// connection that delivered it -- and only now that core has it.
 		m.snapGen = g.gen
 		m.quarantined = false
+		// A snapshot is a whole book, so it ESTABLISHES the mark clock
+		// (H-HALT-5). This is reachable only past `handle()` returning nil,
+		// which is the one moment a frame is known to have been accepted.
+		m.pnlMarkAt = now.Mono
+		m.pnlMarkGen = g.gen
 	case FrameDelta:
 		m.lastFrame = now.Mono
 		m.quietPinged = false
+		// A delta REFRESHES the mark, and only against a book this generation
+		// has already snapshotted. An increment applied to a book we never
+		// received in full does not make the resulting price current; it makes
+		// it an unknown base plus a known edit, which is not a mark.
+		if m.pnlMarkGen == g.gen {
+			m.pnlMarkAt = now.Mono
+		}
 	}
 	return eff
 }
@@ -435,6 +466,10 @@ func quarantineRejectedBook(m *marketGate, kind FrameKind) {
 	}
 	m.quarantined = true
 	m.snapGen = 0
+	// The mark goes with the snapshot. `lastFrame` deliberately survives here
+	// so F5's silence clock keeps running; the mark must NOT, because the
+	// rejected frame is precisely a price core declined to accept.
+	m.pnlMarkGen = 0
 }
 
 // NoteSeqGap records `core.Rig`'s subscription-wide sequence gap.
@@ -451,6 +486,10 @@ func (g *Gate) NoteSeqGap(now Stamp) FrameEffects {
 	for _, m := range g.markets {
 		m.quarantined = true
 		m.snapGen = 0
+		// Subscription-wide, so every mark goes too: the gap means SOME market
+		// lost a delta and nothing says which, and a mark that might be
+		// missing an increment is a price we cannot value inventory against.
+		m.pnlMarkGen = 0
 	}
 	return FrameEffects{
 		Resnapshot: true,
@@ -546,6 +585,50 @@ func (g *Gate) Actionable(ticker string, now Stamp) bool {
 		}
 	}
 	return true
+}
+
+// PnLMarkState is what the gate can say about one market's H-HALT-5 mark.
+//
+// Three answers rather than a boolean, because H-HALT-5 makes the operator's
+// SEV2 distinguish a book that is ABSENT from one that is merely STALE, and a
+// two-valued answer forces the caller to guess which it is looking at. Both
+// non-fresh answers are equally not-fired -- the distinction is diagnostic, not
+// behavioural.
+type PnLMarkState int
+
+const (
+	// PnLMarkAbsent is no usable mark at all: this generation has not accepted
+	// a snapshot for the market, or the mark was retired by a rejected frame,
+	// a sequence gap or a disconnect.
+	PnLMarkAbsent PnLMarkState = iota
+	// PnLMarkStale is a mark that exists and is older than `pnl_mark_max_age_s`.
+	PnLMarkStale
+	// PnLMarkFresh is a mark inside the age bound and safe to value against.
+	PnLMarkFresh
+)
+
+// PnLMark reports the age of a market's accepted-book mark and whether it may
+// be used to value inventory (H-HALT-5).
+//
+// The bound is `pnl_mark_max_age_s`, and it is NOT either of the two 60s clocks
+// this file already keeps. `quiet_s` asks whether the market is still talking;
+// `truth_max_age_s` asks whether the PORTFOLIO reads are current. Neither is a
+// statement about the freshness of the PRICE, and at 60s both would authorise
+// valuing a position against a mark H-HALT-5 has already declared unusable.
+//
+// The comparison is `>`, so a mark of exactly `pnl_mark_max_age_s` is FRESH.
+// §16 states the parameter as a maximum age and H-HALT-5 as "age <= 30s", so
+// the boundary belongs to the usable side.
+func (g *Gate) PnLMark(ticker string, now Stamp) (time.Duration, PnLMarkState) {
+	m := g.markets[ticker]
+	if m == nil || m.pnlMarkGen == 0 || m.pnlMarkGen != g.gen {
+		return 0, PnLMarkAbsent
+	}
+	age := now.Mono - m.pnlMarkAt
+	if age > g.p.PnLMarkMaxAge {
+		return age, PnLMarkStale
+	}
+	return age, PnLMarkFresh
 }
 
 // CancelPermitted is always true, and the constancy is the property.

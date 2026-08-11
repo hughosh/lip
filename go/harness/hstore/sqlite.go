@@ -1370,6 +1370,40 @@ func (r *Reader) Fill(tradeID string) (FillRow, bool, error) {
 	return row, true, nil
 }
 
+// Fills returns every `our_fill` row in exchange-time order, oldest first.
+//
+// EVERY run's, and BOTH provenances. H-HALT-5's realised P&L is the account's
+// cash flow over the ownership ledger, not this incarnation's: a position
+// adopted at startup was paid for by an earlier run, and a reader that dropped
+// those rows would value inventory it holds against a basis it never recorded.
+// Filtering by `first_run_id`, or by `backfilled`, is therefore exactly the
+// mistake this method exists to make impossible -- which is why it takes no
+// arguments to filter by.
+//
+// The order is `(exchange_ts_ms, trade_id)`, and the second key is not
+// decoration. Average cost is path-dependent -- a fill that crosses through
+// zero closes one position and opens another at its own price -- so two fills
+// bearing the same exchange millisecond must be replayed in the same order on
+// every run, or a restart can compute a different basis from identical rows.
+// `trade_id` is the primary key (H-ORD-6), so the pair is a total order.
+func (r *Reader) Fills() ([]FillRow, error) {
+	rows, err := r.db.Query(
+		`SELECT ` + fillCols + ` FROM our_fill ORDER BY exchange_ts_ms, trade_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []FillRow
+	for rows.Next() {
+		row, err := scanFill(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
 const anomalyCols = `anomaly_id, run_id, class, sev, ticker, text, first_ms,
 	journaled_ms, delivered_ms, attempts, last_attempt_ms, suppressed_count`
 
