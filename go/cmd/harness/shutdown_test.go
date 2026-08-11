@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -33,11 +34,16 @@ import (
 // separate from it for the same reason `exchange` separates them: an elapsed
 // interval measured on a wall clock goes negative over an NTP correction, and a
 // test that shared one would be testing a clock the harness does not have.
+// `mono` is atomic and `wall` is not, and the asymmetry is the point: the alert
+// loop `newFixture` starts reads the monotonic clock from its own goroutine
+// through `ex.Mono`, while a test steps it from the test goroutine. `wall` is
+// written once in the literal below, before that goroutine exists, and never
+// again.
 type fixture struct {
 	t     *testing.T
 	rig   *rig
 	sd    *shutdown
-	mono  time.Duration
+	mono  atomic.Int64
 	wall  int64
 	exits []int
 }
@@ -143,7 +149,11 @@ func newFixture(t *testing.T, tune func(*cfg.Params)) *fixture {
 }
 
 func (f *fixture) now() int64             { return f.wall }
-func (f *fixture) elapsed() time.Duration { return f.mono }
+func (f *fixture) elapsed() time.Duration { return time.Duration(f.mono.Load()) }
+
+// setMono steps the faked monotonic clock. It is a method rather than a field
+// assignment because the alert goroutine is reading it concurrently.
+func (f *fixture) setMono(d time.Duration) { f.mono.Store(int64(d)) }
 
 // flush blocks until every submitted record is durable, so the assertions read
 // the database rather than a receipt.
@@ -258,7 +268,7 @@ func TestSIGTERMWithInventoryDoesNotAuthoriseAnExitAndKeepsEscalating(t *testing
 		{8 * time.Hour, 1},
 	}
 	for _, st := range steps {
-		f.mono = st.at
+		f.setMono(st.at)
 		if f.sd.observeDrain(obs) {
 			t.Fatalf("an exit was authorised %s into a drain with inventory "+
 				"still open. HR-009: a drain timeout is evidence the operator is "+

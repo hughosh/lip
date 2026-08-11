@@ -451,7 +451,7 @@ func TestHeartbeatUsesPublishedAndDurableTruth(t *testing.T) {
 	if err := f.rig.stopAlerts(ctx); err != nil {
 		t.Fatalf("stopping fixture alert loop: %v", err)
 	}
-	f.mono = 37 * time.Minute
+	f.setMono(37 * time.Minute)
 	f.rig.snap = new(atomic.Pointer[risk.Snapshot])
 	f.rig.snap.Store(&risk.Snapshot{
 		Global: quote.Running,
@@ -474,7 +474,7 @@ func TestHeartbeatUsesPublishedAndDurableTruth(t *testing.T) {
 		t.Fatalf("heartbeat state/market = %+v", hb)
 	}
 	if !hb.Capital.Known || hb.Capital.V != f.rig.cfg.Params.CapitalMax ||
-		!hb.Uptime.Known || hb.Uptime.V != f.mono ||
+		!hb.Uptime.Known || hb.Uptime.V != f.elapsed() ||
 		!hb.SourceStale.Known || !hb.SourceStale.V ||
 		!hb.Undelivered.Known || hb.Undelivered.V != 1 {
 		t.Fatalf("heartbeat metrics = %+v", hb)
