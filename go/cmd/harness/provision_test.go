@@ -44,6 +44,7 @@ func newProvisionConfig(t *testing.T) config {
 			Key:        filepath.Join(d, "kalshi.pem"),
 			Env:        filepath.Join(d, "env"),
 			LiveOK:     filepath.Join(d, "live_ok"),
+			Stop:       filepath.Join(d, "harness.stop"),
 		},
 	}
 }
@@ -270,8 +271,8 @@ func TestProvisionSatisfiesTheRefusalTheRunPathMakes(t *testing.T) {
 	}
 }
 
-// TestProvisionNeverCreatesLiveOK keeps setting the harness up and letting it
-// trade separate acts (H-VER-1).
+// TestProvisionNeverCreatesEitherControlSentinel keeps setting the harness up
+// separate from BOTH of the operator's controls.
 //
 // `provision` creates everything else the process needs: the store, the anomaly
 // journal, their directories. If it created the arming sentinel too, then a
@@ -279,7 +280,12 @@ func TestProvisionSatisfiesTheRefusalTheRunPathMakes(t *testing.T) {
 // key would be present for every future invocation on it -- which is the whole
 // failure the sentinel exists to prevent, arriving through the one command an
 // operator runs without thinking about writes at all.
-func TestProvisionNeverCreatesLiveOK(t *testing.T) {
+// The same argument covers §12's `harness.stop`, in the mirror direction. If
+// provisioning created it, a freshly prepared machine would refuse to add from
+// its first tick and the operator would be debugging a halt nobody requested --
+// and, worse, would learn to delete the file as part of setup, which is exactly
+// the habit that makes the control useless when it matters.
+func TestProvisionNeverCreatesEitherControlSentinel(t *testing.T) {
 	c := newProvisionConfig(t)
 	var out bytes.Buffer
 	if err := provision(c, &out); err != nil {
@@ -295,6 +301,13 @@ func TestProvisionNeverCreatesLiveOK(t *testing.T) {
 			"Provisioning is how a machine is prepared; arming is a separate "+
 			"sentence a human types afterwards, having looked at what was "+
 			"prepared", c.Paths.LiveOK)
+	}
+	if _, err := os.Stat(c.Paths.Stop); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("provision created (or found) the halt sentinel at %s. A "+
+			"freshly provisioned machine would refuse to add from its first "+
+			"tick, and the operator would learn to delete the file as part of "+
+			"setup -- which is the habit that makes the control useless on the "+
+			"night it is needed", c.Paths.Stop)
 	}
 }
 

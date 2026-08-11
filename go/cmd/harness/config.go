@@ -144,6 +144,20 @@ type pathConfig struct {
 	// it trade" the same act. The operator creates it by hand, and removes it
 	// to disarm the next write.
 	LiveOK *string `json:"live_ok"`
+	// Stop is §12's out-of-band halt: the file whose PRESENCE asks a running
+	// harness to wind down.
+	//
+	// It is the mirror image of `live_ok` and the pairing is the point. One file
+	// arms the process and the other stops it, neither is ever created by this
+	// binary, and both are operator actions expressed as a filesystem fact
+	// rather than as a signal -- because a signal needs a pid, and the operator
+	// reaching for this at 3am has a config file and a shell.
+	//
+	// It is NOT a drain. §5.1 is explicit that DRAINED does not exit the
+	// process, and `SignalController.Confirm` refuses a permit to any cause that
+	// is not SIGTERM or SIGINT, so this can stop the harness adding and can
+	// never end it.
+	Stop *string `json:"stop"`
 }
 
 // config is the validated result: the §16 params plus this run's identity.
@@ -172,6 +186,11 @@ type paths struct {
 	// validated; its existence is checked freshly at every write and never
 	// here, so an operator can arm and disarm without touching the config.
 	LiveOK string
+	// Stop is §12's out-of-band halt sentinel. Same discipline as LiveOK: the
+	// path is validated here and the file's existence is checked freshly by the
+	// owner, never here, so the operator can halt a running process without
+	// touching the config or finding its pid.
+	Stop string
 }
 
 // rung is the capital ladder of pilot-plan §1.
@@ -412,10 +431,11 @@ func resolvePaths(pc pathConfig, configPath string) (paths, error) {
 		{"key", pc.Key, "the RSA private key used to sign every request"},
 		{"env", pc.Env, "the file holding KALSHI_API_KEY_ID"},
 		{"live_ok", pc.LiveOK, "the write-arming sentinel (H-VER-1)"},
+		{"stop", pc.Stop, "the out-of-band halt sentinel (§12 harness.stop)"},
 	}
 	var out paths
 	dst := []*string{&out.DB, &out.AnomalyLog, &out.Latch, &out.Lock,
-		&out.Key, &out.Env, &out.LiveOK}
+		&out.Key, &out.Env, &out.LiveOK, &out.Stop}
 
 	for i, n := range need {
 		if n.v == nil || *n.v == "" {
@@ -433,12 +453,12 @@ func resolvePaths(pc pathConfig, configPath string) (paths, error) {
 		*dst[i] = filepath.Clean(*n.v)
 	}
 
-	// The sentinel must be its OWN file (H-VER-1). Every other path here is
-	// something the harness creates or requires in order to run at all, so a
-	// `live_ok` aliased onto one of them would exist for reasons that have
-	// nothing to do with arming: provisioning the store would arm the machine,
-	// and so would having credentials. The config file itself is included
-	// because it is the one path guaranteed to exist whenever the binary runs.
+	// BOTH sentinels must be their OWN file. Every other path here is something
+	// the harness creates or requires in order to run at all, so a sentinel
+	// aliased onto one of them would exist for reasons that have nothing to do
+	// with what it signals: provisioning the store would arm the machine, and so
+	// would having credentials. The config file itself is included because it is
+	// the one path guaranteed to exist whenever the binary runs.
 	//
 	// Compared AFTER cleaning, so `/a/b` and `/a/./b` do not slip past.
 	others := []struct{ name, path string }{
@@ -451,13 +471,39 @@ func resolvePaths(pc pathConfig, configPath string) (paths, error) {
 				"the config file", filepath.Clean(abs)})
 		}
 	}
-	for _, o := range others {
-		if o.path == out.LiveOK {
-			return paths{}, fmt.Errorf("paths.live_ok is %q, which is also "+
-				"%s. The write-arming sentinel must be a file that exists for "+
-				"NO other reason: sharing it means the harness arms itself the "+
-				"moment it is provisioned or given credentials, and H-VER-1's "+
-				"second key stops being a key at all", out.LiveOK, o.name)
+	// The two sentinels are checked against the shared list AND against each
+	// other, and the second half is the one that matters most. They are opposite
+	// instructions -- one permits the next write, the other stops the process
+	// adding -- so a config that aliased them would arm the harness with the
+	// same act that halts it, and disarm it by lifting the halt.
+	sentinels := []struct {
+		name, path, why string
+	}{
+		{"live_ok", out.LiveOK, "the write-arming sentinel must be a file that " +
+			"exists for NO other reason: sharing it means the harness arms " +
+			"itself the moment it is provisioned or given credentials, and " +
+			"H-VER-1's second key stops being a key at all"},
+		{"stop", out.Stop, "the halt sentinel must be a file that exists for NO " +
+			"other reason: sharing it means the harness stops adding the moment " +
+			"it is provisioned or given credentials, and §12's out-of-band halt " +
+			"becomes a condition nobody asked for"},
+	}
+	for i, s := range sentinels {
+		for _, o := range others {
+			if o.path == s.path {
+				return paths{}, fmt.Errorf("paths.%s is %q, which is also %s. %s",
+					s.name, s.path, o.name, s.why)
+			}
+		}
+		for _, t := range sentinels[i+1:] {
+			if t.path == s.path {
+				return paths{}, fmt.Errorf("paths.%s and paths.%s are both %q. "+
+					"They are OPPOSITE instructions -- one permits the next "+
+					"write, the other stops the harness adding -- so aliasing "+
+					"them means arming the harness is the same act as halting "+
+					"it, and disarming it is the same act as lifting the halt",
+					s.name, t.name, s.path)
+			}
 		}
 	}
 	return out, nil

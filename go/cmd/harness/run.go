@@ -316,6 +316,26 @@ type owner struct {
 	// the condition clearing.
 	pnlKilled bool
 
+	// --- §12's out-of-band halt -----------------------------------------------
+
+	// harnessStopSeen and harnessStopUnreadable dedupe the sentinel's two
+	// anomalies to one per condition, and neither is ever cleared.
+	//
+	// Never cleared is the property, not an oversight. Removing the file must
+	// not resume adding: the stop is durable the moment `commitStop` writes it,
+	// H-HALT-4 makes it survive the process, and §10.4 makes clearing it an
+	// OPERATOR action through the latch rather than through the sentinel. A flag
+	// that reset when the file vanished would make `rm` an undo, and the
+	// operator who created the file to stop a harness at 3am would find it
+	// trading again by tidying up.
+	//
+	// Without the dedupe the condition is standing and the raise is not: a file
+	// that stays put would put a SEV2 into a 256-slot buffer four times a second
+	// and re-enter the stop funnel on every tick, evicting the anomalies the
+	// operator actually needs to read.
+	harnessStopSeen       bool
+	harnessStopUnreadable bool
+
 	snapSeq uint64
 }
 
@@ -1633,6 +1653,85 @@ func (o *owner) pnlUnavailable(class, ticker, why string) {
 	})
 }
 
+// ---------------------------------------------------------------------------
+// §12 — harness.stop, the out-of-band halt
+// ---------------------------------------------------------------------------
+
+// checkHarnessStop is the operator's stop file: §12's halt that arrives from
+// outside the process.
+//
+// It is a FILE and not a signal because a signal needs a pid. The operator
+// reaching for this has a config file and a shell, and `launchd KeepAlive`
+// restarts anything they kill -- so the durable thing has to be the instruction,
+// not the death of the process. It is the mirror of `live_ok`: one file permits
+// the next write, the other stops the harness adding, neither is ever created by
+// this binary, and `resolvePaths` refuses a config that aliases them.
+//
+// It STOPS ADDING AND NOTHING ELSE. §5.1: "DRAINED does not exit the process; it
+// idles and keeps monitoring", and `SignalController.Confirm` refuses a drain
+// permit to any cause that is not SIGTERM or SIGINT -- its own comment says a
+// taker fill "must not be able to buy an exit by being retried through the same
+// path", and neither may this. So the reducer stays live, the polls continue,
+// the monitor keeps publishing, and the process stays alive holding whatever it
+// holds.
+//
+// `Lstat`, never `Stat`. The question is whether the operator put something at
+// that path, and a DANGLING SYMLINK is something: `Stat` follows the link, fails
+// to find the target, and reports the path as absent -- which turns a halt the
+// operator believes they have requested into silence. Every entry counts:
+// regular file, directory, symlink, dangling symlink.
+func (o *owner) checkHarnessStop() {
+	_, err := os.Lstat(o.r.cfg.Paths.Stop)
+	switch {
+	case err == nil:
+		if o.harnessStopSeen {
+			return
+		}
+		o.harnessStopSeen = true
+		o.r.anom.raise(risk.Anomaly{
+			Class: "HARNESS_STOP_REQUESTED", Sev: risk.SEV2,
+			Text: fmt.Sprintf("%s exists, so §12's out-of-band halt has been "+
+				"requested: the harness stops ADDING and nothing else. Every "+
+				"reducing quote stays live, the portfolio walks continue, the "+
+				"monitor keeps publishing and the process stays alive. Removing "+
+				"the file does NOT resume trading -- the stop is durable in the "+
+				"halt latch, and §10.4 makes clearing that an operator action",
+				o.r.cfg.Paths.Stop),
+		})
+		o.requestStop("harness_stop", "")
+
+	case errors.Is(err, os.ErrNotExist):
+		// Absent, and that is the ordinary answer on every one of the four ticks
+		// a second. It is NOT a clear: nothing here ever un-requests a stop.
+
+	default:
+		// FAIL CLOSED, and under its own cause. Anything that is not ENOENT --
+		// a permission failure, an I/O error, a path whose parent is no longer a
+		// directory -- means the control the operator was told to rely on cannot
+		// be read. Treating that as absence is the one reading that keeps the
+		// harness adding while its stop switch is broken.
+		//
+		// The cause is DISTINCT from `harness_stop` on purpose. §10.4 has the
+		// operator read the latch to learn what happened, and "you asked me to
+		// stop" and "I can no longer tell whether you asked me to stop" are
+		// different problems with different fixes -- the second one needs the
+		// path looked at before the harness is started again.
+		if o.harnessStopUnreadable {
+			return
+		}
+		o.harnessStopUnreadable = true
+		o.r.anom.raise(risk.Anomaly{
+			Class: "HARNESS_STOP_UNREADABLE", Sev: risk.SEV1,
+			Text: fmt.Sprintf("%s could not be read (%v), so §12's out-of-band "+
+				"halt cannot be evaluated. This is NOT absence: the harness "+
+				"stops adding rather than continue with a stop switch it cannot "+
+				"see. The path needs looking at before this process is started "+
+				"again", o.r.cfg.Paths.Stop, err),
+		})
+		o.requestStop("harness_stop_unreadable", "")
+	}
+}
+
 // evaluate is one pass of §5.2, §6.2 and §6.5 over the one market.
 func (o *owner) evaluate(now time.Duration) {
 	// `RetryLatch`, honoured, and FIRST: a held cause that becomes durable on
@@ -1697,6 +1796,14 @@ func (o *owner) evaluate(now time.Duration) {
 	// `stopHeld`, and §5.2's REDUCING is what actually takes the adding side off
 	// the book.
 	o.evaluatePnL()
+
+	// §12's out-of-band halt, checked LAST of the three causes this function can
+	// raise. `gate` and `pnl_kill` above are specific automatic findings about
+	// the market or the account; this one is the generic fact that somebody
+	// touched a file. `commitStop` is first-writer-wins, so checking it here is
+	// what keeps a real §12 finding as the cause §10.4 reads when both are true
+	// on the same evaluation.
+	o.checkHarnessStop()
 
 	ticker := o.r.cfg.Ticker
 	q := o.r.pf.Q(ticker)

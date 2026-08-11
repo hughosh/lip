@@ -793,6 +793,18 @@ type seamOptions struct {
 	// reaches and cannot transmit a single non-GET.
 	ReadOnly bool
 
+	// StopPath overrides `paths.stop`, and it exists for exactly one case: a
+	// test that needs `Lstat` on that path to fail with something OTHER than
+	// ENOENT. There is no injection point for a failing stat -- the owner calls
+	// `os.Lstat` directly, deliberately, because a filesystem seam here would be
+	// a second thing that can lie about whether the operator asked us to stop --
+	// so the test makes the REAL filesystem fail by putting the sentinel under a
+	// parent that is a regular file (ENOTDIR).
+	//
+	// The rig copies the config BY VALUE, so mutating `h.cfg` after construction
+	// does not reach it; the override has to happen here.
+	StopPath string
+
 	// Rung selects the capital ladder step. Empty is `pilot`, which is what
 	// every test written before the canary policy existed assumes.
 	//
@@ -855,7 +867,7 @@ type seamHarness struct {
 // `lip.db` in the repository root have had live collectors writing them since
 // 24 July, and a test that opened one writable would switch its journal mode
 // underneath two running writers.
-func newSeamConfig(t *testing.T) config {
+func newSeamConfig(t *testing.T, stopPath string) config {
 	t.Helper()
 	d := t.TempDir()
 	store := filepath.Join(d, "store")
@@ -872,6 +884,7 @@ func newSeamConfig(t *testing.T) config {
 			Key:        filepath.Join(d, "kalshi.pem"),
 			Env:        filepath.Join(d, "env"),
 			LiveOK:     filepath.Join(d, "live_ok"),
+			Stop:       seamStopPath(d, stopPath),
 		},
 		// ARMED BY DEFAULT, and only here (H-VER-1).
 		//
@@ -892,7 +905,7 @@ func newSeamConfig(t *testing.T) config {
 func newSeamHarness(t *testing.T, opt seamOptions) *seamHarness {
 	t.Helper()
 
-	c := newSeamConfig(t)
+	c := newSeamConfig(t, opt.StopPath)
 	if opt.ReadOnly {
 		// The disarmed rehearsal. Both keys off: no `-live`, and the sentinel
 		// is never created. `TestReadOnlyRunRecordsWouldWriteWithoutSendingNonGET`
@@ -1300,6 +1313,28 @@ func (h *seamHarness) anomalyClasses() []string {
 	out := make([]string, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, r.Class)
+	}
+	return out
+}
+
+// anomalySevs is every DURABLE anomaly of one class with the severity it was
+// recorded at.
+//
+// A class-only assertion cannot see a severity downgrade, and §11 assigns the
+// severity deliberately: SEV1 wakes somebody and SEV2 does not. A control that
+// failed and reported it at SEV3 is a control that failed silently as far as the
+// operator's night is concerned.
+func (h *seamHarness) anomalySevs(class string) []risk.Severity {
+	h.t.Helper()
+	rows, err := h.rig.store.Reader().PendingAnomalies()
+	if err != nil {
+		h.t.Fatalf("PendingAnomalies: %v", err)
+	}
+	var out []risk.Severity
+	for _, r := range rows {
+		if r.Class == class {
+			out = append(out, r.Sev)
+		}
 	}
 	return out
 }
@@ -5264,7 +5299,7 @@ func f6WSHeaders(t *testing.T, s *feed.Signer) http.Header {
 }
 
 func f6Config(t *testing.T) config {
-	c := newSeamConfig(t)
+	c := newSeamConfig(t, "")
 	c.Ticker = f6Ticker
 	return c
 }
@@ -6555,5 +6590,345 @@ func TestRewardArrivalCannotMoveTradingPnL(t *testing.T) {
 			"a balance-delta reading is masked by exactly the incentive payment "+
 			"this system exists to collect, and would sit silent through the "+
 			"drawdown it is supposed to stop", rich, poor)
+	}
+}
+
+// seamStopPath is the sentinel path a seam fixture runs with: the override when
+// a test supplied one, and the ordinary dedicated file otherwise.
+func seamStopPath(dir, override string) string {
+	if override != "" {
+		return override
+	}
+	return filepath.Join(dir, "harness.stop")
+}
+
+// ---------------------------------------------------------------------------
+// 16. lip-603 -- §12's out-of-band halt, `harness.stop`
+// ---------------------------------------------------------------------------
+//
+// The sentinel is a FILE and not a signal because a signal needs a pid, and
+// `launchd KeepAlive` restarts anything the operator kills. The durable thing
+// has to be the instruction rather than the death of the process.
+
+// seamCreateStop puts a regular file at the fixture's sentinel path.
+func (h *seamHarness) seamCreateStop() {
+	h.t.Helper()
+	if err := os.WriteFile(h.cfg.Paths.Stop, []byte("stop\n"), 0o600); err != nil {
+		h.t.Fatalf("creating %s: %v", h.cfg.Paths.Stop, err)
+	}
+}
+
+// TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive is the whole
+// unit: the operator's file reaches the durable latch under its own name, and
+// the four other columns of the §12 row hold.
+//
+// `harness_stop` by name matters for the same reason `inv_kill` and `pnl_kill`
+// do. §10.4 has the operator read the latch to learn WHY the harness stopped,
+// and `portfolio_read` is the label five automatic causes already share -- a
+// halt somebody REQUESTED arriving under it is indistinguishable from one the
+// harness decided on its own.
+//
+// The position is 15.00 contracts, past `inv_hard` 7.00 so a reducer is live to
+// be observed and under `inv_kill` 18.00 so the cause is this one.
+func TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{
+		Rung:      "pilot",
+		Positions: map[string]string{seamTicker: "15.00"},
+	})
+	h.start()
+	h.awaitActionable()
+
+	// The control: nothing is stopped before the file exists. Without this the
+	// test is satisfied by a harness that halts for some other reason.
+	h.awaitTicks(2)
+	if got := h.latchTrigger(); got != "" {
+		t.Fatalf("the halt latch already reads %q before the sentinel was "+
+			"created", got)
+	}
+
+	h.seamCreateStop()
+
+	h.await("the durable §12 cause to reach the latch", func() bool {
+		return h.latchTrigger() != ""
+	})
+	if got := h.latchTrigger(); got != "harness_stop" {
+		t.Fatalf("the operator's stop file latched %q, want harness_stop.\n\n"+
+			"§10.4 reads this field to learn which row of the halt table fired. "+
+			"A requested halt arriving under a generic label is one whose "+
+			"reason cannot be recovered afterwards", got)
+	}
+	h.await("the SEV2 HARNESS_STOP_REQUESTED anomaly to reach the store",
+		func() bool {
+			return seamContains(h.anomalyClasses(), "HARNESS_STOP_REQUESTED")
+		})
+	// The SEVERITY, asserted rather than assumed. §11 makes a requested halt a
+	// SEV2: it is an expected operator action and does not need somebody woken,
+	// but it does need to be in the record at a level the morning review reads.
+	// A class-only assertion cannot tell SEV2 from SEV3.
+	if sevs := h.anomalySevs("HARNESS_STOP_REQUESTED"); len(sevs) != 1 ||
+		sevs[0] != risk.SEV2 {
+		t.Fatalf("HARNESS_STOP_REQUESTED was recorded as %v, want exactly one "+
+			"SEV2", sevs)
+	}
+	h.awaitGlobalEvent("RUNNING->WINDING_DOWN/global_stop")
+
+	// I1's columns, read after the halt is durable. This stops ADDING and
+	// nothing else: §5.1 is explicit that a drained harness idles and keeps
+	// monitoring, and `SignalController.Confirm` refuses a drain permit to any
+	// cause that is not a signal -- so this one cannot end the process however
+	// long it is left.
+	before := h.snapSeq()
+	h.awaitTicks(4)
+	if got := h.snapSeq(); got <= before {
+		t.Fatalf("the snapshot sequence stopped at %d after the sentinel "+
+			"halt; I2 makes the monitor unstoppable and H-TOP-5's stall "+
+			"detector is that number advancing", got)
+	}
+	if s := h.snapshot(); s.Global != quote.WindingDown {
+		t.Fatalf("the global state is %s after the sentinel halt, want "+
+			"WINDING_DOWN", s.Global)
+	}
+	m, ok := h.market()
+	if !ok || m.State != quote.Reducing {
+		t.Fatalf("the market is %v (present=%v) holding 15.00 contracts after "+
+			"the sentinel halt, want REDUCING.\n\n"+
+			"The operator asked the harness to stop ADDING. A market that went "+
+			"IDLE here would be one that stopped trying to get out of the "+
+			"position it is still holding", m.State, ok)
+	}
+}
+
+// TestUnreadableHarnessStopFailsClosedOnce is the fail-closed half, and it is
+// the half that decides whether this control can be trusted at all.
+//
+// Treating an unreadable sentinel as an absent one keeps the harness adding
+// while its stop switch is broken -- and the operator has no way to tell, since
+// a working "no halt requested" and a broken "I cannot look" produce identical
+// behaviour. So anything that is not ENOENT stops the harness, under its OWN
+// cause: "you asked me to stop" and "I can no longer tell whether you asked me
+// to stop" need different fixes, and the second one needs the path looked at
+// before the process is started again.
+//
+// ENOTDIR is the deterministic failure: the sentinel's parent is a regular file,
+// so `Lstat` fails without the test needing to inject a filesystem.
+func TestUnreadableHarnessStopFailsClosedOnce(t *testing.T) {
+	d := t.TempDir()
+	notADir := filepath.Join(d, "not-a-directory")
+	if err := os.WriteFile(notADir, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h := newSeamHarness(t, seamOptions{
+		Rung:     "pilot",
+		StopPath: filepath.Join(notADir, "harness.stop"),
+	})
+	h.start()
+
+	h.await("the durable §12 cause to reach the latch", func() bool {
+		return h.latchTrigger() != ""
+	})
+	if got := h.latchTrigger(); got != "harness_stop_unreadable" {
+		t.Fatalf("an unreadable sentinel latched %q, want "+
+			"harness_stop_unreadable.\n\n"+
+			"`harness_stop` would say the operator asked for this. They did "+
+			"not: the control they were told to rely on cannot be read, and "+
+			"that is the thing the next start needs to know", got)
+	}
+	h.await("the SEV1 HARNESS_STOP_UNREADABLE anomaly to reach the store",
+		func() bool {
+			return seamContains(h.anomalyClasses(), "HARNESS_STOP_UNREADABLE")
+		})
+
+	// EXACTLY once, over many ticks. The condition is standing and the raise is
+	// not: four SEV1s a second would evict every other anomaly from the
+	// 256-slot buffer, including the ones explaining what the harness was doing
+	// when it stopped.
+	h.awaitTicks(8)
+	n := 0
+	for _, c := range h.anomalyClasses() {
+		if c == "HARNESS_STOP_UNREADABLE" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("HARNESS_STOP_UNREADABLE was raised %d times over 8 ticks, "+
+			"want exactly 1", n)
+	}
+	// SEV1, and this one genuinely wakes somebody. The operator's stop switch
+	// cannot be read; the harness has halted itself as a precaution, and the
+	// path needs looking at before it is started again. A SEV2 here is a broken
+	// safety control filed alongside routine notices.
+	if sevs := h.anomalySevs("HARNESS_STOP_UNREADABLE"); len(sevs) != 1 ||
+		sevs[0] != risk.SEV1 {
+		t.Fatalf("HARNESS_STOP_UNREADABLE was recorded as %v, want exactly one "+
+			"SEV1: an unreadable stop switch is not a routine notice", sevs)
+	}
+	if seamContains(h.anomalyClasses(), "HARNESS_STOP_REQUESTED") {
+		t.Fatalf("an unreadable sentinel also raised HARNESS_STOP_REQUESTED; " +
+			"the two conditions are distinct and so are their fixes")
+	}
+}
+
+// TestHarnessStopRemovalCannotClearAndPersistentFileDoesNotSpam is the two
+// properties that make the sentinel safe to leave lying around.
+//
+// REMOVAL IS NOT AN UNDO. The stop is durable the moment `commitStop` writes it,
+// H-HALT-4 makes it survive the process, and §10.4 makes clearing it an operator
+// action through the LATCH. An operator who stopped a harness at 3am and then
+// tidied up the file must not find it trading again.
+//
+// AND THE FILE STAYS PUT. It is the ordinary case -- nobody deletes it
+// immediately -- so the raise has to be once per condition rather than once per
+// tick.
+func TestHarnessStopRemovalCannotClearAndPersistentFileDoesNotSpam(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{
+		Rung:      "pilot",
+		Positions: map[string]string{seamTicker: "15.00"},
+	})
+	h.start()
+	h.awaitActionable()
+	h.seamCreateStop()
+
+	h.await("the durable §12 cause to reach the latch", func() bool {
+		return h.latchTrigger() == "harness_stop"
+	})
+
+	// It stays put for a while: one anomaly, not one per tick.
+	h.awaitTicks(8)
+	n := 0
+	for _, c := range h.anomalyClasses() {
+		if c == "HARNESS_STOP_REQUESTED" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("HARNESS_STOP_REQUESTED was raised %d times over 8 ticks, "+
+			"want exactly 1: a standing condition is worth saying once, and "+
+			"four times a second into a 256-slot buffer evicts everything else",
+			n)
+	}
+
+	// Now the operator tidies up.
+	if err := os.Remove(h.cfg.Paths.Stop); err != nil {
+		t.Fatalf("removing %s: %v", h.cfg.Paths.Stop, err)
+	}
+	h.awaitTicks(8)
+
+	if got := h.latchTrigger(); got != "harness_stop" {
+		t.Fatalf("the durable cause is %q after the sentinel was removed, want "+
+			"harness_stop still.\n\n"+
+			"`rm` is not an undo. The halt is on disk and H-HALT-4 makes it "+
+			"survive the process; clearing it is an operator action against the "+
+			"LATCH", got)
+	}
+	if s := h.snapshot(); s.Global != quote.WindingDown {
+		t.Fatalf("the global state is %s after the sentinel was removed, want "+
+			"WINDING_DOWN: removing the file must not resume adding", s.Global)
+	}
+	m, ok := h.market()
+	if !ok || m.State == quote.Quoting {
+		t.Fatalf("the market is %v (present=%v) after the sentinel was "+
+			"removed; QUOTING would mean the harness resumed adding because a "+
+			"file went away", m.State, ok)
+	}
+}
+
+// TestHarnessStopRanksAfterSpecificAutomaticCauses is the first-writer-wins
+// ordering, and it is the only property of the sentinel's placement that is
+// observable at all.
+//
+// `commitStop` discards a second cause arriving before the first is durable, so
+// when the operator's file and a real §12 finding are both true on one
+// evaluation, the order of the checks decides which one §10.4 reads. The
+// specific automatic cause has to win: "we have lost more than we said we would"
+// tells the operator what happened, and "somebody touched a file" tells them
+// something they already know, having touched it.
+//
+// It runs at OWNER level and calls `evaluate` once, because that is where the
+// ordering is deterministic. In a composed run whether the portfolio read or the
+// 250 ms tick lands first is a race, and a test of a ranking must not be decided
+// by a scheduler.
+func TestHarnessStopRanksAfterSpecificAutomaticCauses(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{Rung: "pilot"})
+	o := h.ownerFor()
+	h.connectGate()
+	h.acceptBook(o, 1, [][]string{{"0.4000", "20.00"}},
+		[][]string{{"0.5500", "20.00"}})
+
+	// A loss past the floor, and the operator's file, both true on the SAME
+	// evaluation.
+	h.seedOwnerLedger(o, seamHeldLossLegs()...)
+	o.pnlQExch = map[string]num.Qty{seamTicker: num.QtyFromFloat(15)}
+	o.pnlQKnown = true
+	h.seamCreateStop()
+
+	o.evaluate(h.clk.monoNow())
+
+	if got := h.latchTrigger(); got != "pnl_kill" {
+		t.Fatalf("an evaluation where BOTH the loss floor and the operator's "+
+			"stop file were true latched %q, want pnl_kill.\n\n"+
+			"The sentinel is the generic fact that somebody touched a file; "+
+			"pnl_kill is a measurement of the account. §10.4's operator reading "+
+			"`harness_stop` would learn only what they already knew, and would "+
+			"never find out the account was past its loss floor", got)
+	}
+}
+
+// TestEveryEntryAtHarnessStopPathRequestsStop is why the check is `Lstat` and
+// not `Stat`.
+//
+// The question the sentinel asks is whether the operator PUT SOMETHING at that
+// path, and every one of these is something. The dangling symlink is the case
+// that separates the two calls: `Stat` follows the link, fails to find the
+// target, and reports ENOENT -- so a halt the operator believes they have
+// requested produces silence, and the harness keeps adding. It is not an exotic
+// shape either; it is what a symlink into a directory that has been moved,
+// renamed or not yet mounted looks like.
+func TestEveryEntryAtHarnessStopPathRequestsStop(t *testing.T) {
+	kinds := []struct {
+		name   string
+		create func(t *testing.T, path string)
+	}{
+		{"regular file", func(t *testing.T, p string) {
+			if err := os.WriteFile(p, []byte("stop\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"directory", func(t *testing.T, p string) {
+			if err := os.Mkdir(p, 0o700); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"symlink to a file that exists", func(t *testing.T, p string) {
+			target := p + ".target"
+			if err := os.WriteFile(target, []byte("x"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(target, p); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"dangling symlink", func(t *testing.T, p string) {
+			if err := os.Symlink(p+".this-does-not-exist", p); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	}
+
+	for _, k := range kinds {
+		t.Run(k.name, func(t *testing.T) {
+			h := newSeamHarness(t, seamOptions{Rung: "pilot"})
+			o := h.ownerFor()
+			k.create(t, h.cfg.Paths.Stop)
+
+			o.checkHarnessStop()
+
+			if got := h.latchTrigger(); got != "harness_stop" {
+				t.Fatalf("a %s at the sentinel path latched %q, want "+
+					"harness_stop.\n\n"+
+					"The operator put something there. Reading that as "+
+					"\"no halt requested\" is the harness deciding it knows "+
+					"better than the person who configured it", k.name, got)
+			}
+		})
 	}
 }

@@ -16,6 +16,7 @@
     "lock": "/Users/hugh/.lip/canary/harness.lock",
     "key": "/Users/hugh/.kalshi/kalshi.pem",
     "env": "/Users/hugh/.kalshi/env",
-    "live_ok": "/Users/hugh/.lip/canary/live_ok"
+    "live_ok": "/Users/hugh/.lip/canary/live_ok",
+    "stop": "/Users/hugh/.lip/canary/harness.stop"
   }
 }

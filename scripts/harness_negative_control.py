@@ -3134,6 +3134,182 @@ MUTATIONS = [
           '\t\tPrice4: int64(a.Summary().Balance), ExchangeTsMs: 2})\n'),
      ],
      'TestRewardArrivalCannotMoveTradingPnL'),
+
+    # -----------------------------------------------------------------------
+    # lip-603 -- §12's out-of-band halt, `harness.stop`
+    # -----------------------------------------------------------------------
+
+    ('M-603-PATHOPTIONAL',
+     'drop `stop` from the required paths, so a deployment can run with no halt '
+     'sentinel location at all. `paths.Stop` is then the empty string, `Lstat` '
+     'is asked about "", and the operator\'s documented way to stop a running '
+     'harness does nothing on a machine whose config predates it. Reachable on '
+     'every start from an older or hand-edited config',
+     [
+         ('cmd/harness/config.go',
+          '\t\t{"stop", pc.Stop, "the out-of-band halt sentinel '
+          '(\u00a712 harness.stop)"},\n',
+          ''),
+     ],
+     'TestEveryPathIsRequired'),
+
+    ('M-603-PATHALIAS',
+     'stop checking that the halt sentinel is a DEDICATED file, so it may alias '
+     'live_ok, the db, the key or the config file. Pointed at any of those it '
+     'exists the moment the harness is usable at all, and the harness refuses to '
+     'add from its first tick -- a halt nobody requested, indistinguishable from '
+     'a harness that does not work. Aliased onto live_ok specifically, arming '
+     'becomes the same act as halting. Reachable on every start with such a '
+     'config',
+     [
+         ('cmd/harness/config.go',
+          '\t\t{"stop", out.Stop, "the halt sentinel must be a file that exists '
+          'for NO " +\n\t\t\t"other reason: sharing it means the harness stops '
+          'adding the moment " +\n\t\t\t"it is provisioned or given credentials, '
+          'and \u00a712\'s out-of-band halt " +\n\t\t\t"becomes a condition nobody '
+          'asked for"},\n',
+          ''),
+     ],
+     'TestHarnessStopPathIsRequiredAbsoluteAndDedicated'),
+
+    ('M-603-STARTONLY',
+     'check the sentinel only on the FIRST evaluation, so a stop file created '
+     'while the harness is running is never seen. This is the whole point of the '
+     'control: the operator creates the file at 3am against a process that is '
+     'already trading. A start-only check passes every test that creates the '
+     'file before launch and fails the only scenario the bead exists for',
+     [
+         ('cmd/harness/run.go',
+          '\to.checkHarnessStop()\n\n\tticker := o.r.cfg.Ticker',
+          '\tif o.snapSeq == 0 {\n\t\to.checkHarnessStop()\n\t}\n\n'
+          '\tticker := o.r.cfg.Ticker'),
+     ],
+     'TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive'),
+
+    ('M-603-NOWIRE',
+     'raise the SEV2 and never ask for the durable stop -- the defect class this '
+     'whole ladder keeps finding, after inv_kill (lip-lqw), stuck_s (lip-2da), '
+     'H-CAP-8 (lip-lpf) and pnl_kill (lip-gp8). The anomaly reaches the store, so '
+     'the log shows the harness noticed the operator asking it to stop; nothing '
+     'on disk records a halt and the harness keeps adding. Reachable the first '
+     'time the file is created',
+     [
+         ('cmd/harness/run.go',
+          '\t\to.requestStop("harness_stop", "")\n',
+          '\t\t_ = "harness_stop"\n'),
+     ],
+     'TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive'),
+
+    ('M-603-CAUSE',
+     'record the halt under the generic `gate` cause instead of its own name. '
+     'The harness stops correctly and the durable latch loses WHO stopped it: '
+     '\u00a710.4 has the operator read that field to learn which row fired, and an '
+     'operator-requested halt filed under an automatic cause sends them looking '
+     'for a fault that does not exist. Reachable every time the file is used',
+     [
+         ('cmd/harness/run.go',
+          '\t\to.requestStop("harness_stop", "")\n',
+          '\t\to.requestStop("gate", "")\n'),
+     ],
+     'TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive'),
+
+    ('M-603-PRESENTSEV',
+     'file the requested halt at SEV3. \u00a711 assigns severities so the morning '
+     'review and the pager see different things; a deliberate operator halt '
+     'belongs in the record at SEV2, and at SEV3 it sits below the line most '
+     'reviews read. The harness still stops, so only an assertion on the '
+     'SEVERITY can see this -- a class-only check cannot',
+     [
+         ('cmd/harness/run.go',
+          '\t\t\tClass: "HARNESS_STOP_REQUESTED", Sev: risk.SEV2,\n',
+          '\t\t\tClass: "HARNESS_STOP_REQUESTED", Sev: risk.SEV3,\n'),
+     ],
+     'TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive'),
+
+    ('M-603-STATFAILOPEN',
+     'treat EVERY stat failure as absence, not just ENOENT. A permission error, '
+     'an I/O error or a parent that is no longer a directory then reads as "no '
+     'halt requested" and the harness keeps adding with its stop switch broken -- '
+     'and the operator cannot tell, because a working "nothing requested" and a '
+     'broken "I cannot look" produce identical behaviour. Reachable on any '
+     'mount, permission or hardware fault under the sentinel path',
+     [
+         ('cmd/harness/run.go',
+          '\tcase errors.Is(err, os.ErrNotExist):\n',
+          '\tcase err != nil:\n'),
+     ],
+     'TestUnreadableHarnessStopFailsClosedOnce'),
+
+    ('M-603-UNREADCAUSE',
+     'latch a broken control as an ordinary requested halt. The harness stops, '
+     'so nothing is unsafe in the moment -- and the durable record says the '
+     'operator asked for this when in fact the sentinel could not be read. The '
+     'next start is made from a false premise, and the broken path is never '
+     'looked at',
+     [
+         ('cmd/harness/run.go',
+          '\t\to.requestStop("harness_stop_unreadable", "")\n',
+          '\t\to.requestStop("harness_stop", "")\n'),
+     ],
+     'TestUnreadableHarnessStopFailsClosedOnce'),
+
+    ('M-603-UNREADSEV',
+     'file an unreadable stop switch at SEV2 rather than SEV1. It is a safety '
+     'control that has failed, and \u00a711 reserves SEV1 for the things worth '
+     'waking somebody for; at SEV2 it is filed beside routine notices and read '
+     'in the morning, by which time the harness has been sitting halted for '
+     'hours for a reason nobody investigated',
+     [
+         ('cmd/harness/run.go',
+          '\t\t\tClass: "HARNESS_STOP_UNREADABLE", Sev: risk.SEV1,\n',
+          '\t\t\tClass: "HARNESS_STOP_UNREADABLE", Sev: risk.SEV2,\n'),
+     ],
+     'TestUnreadableHarnessStopFailsClosedOnce'),
+
+    ('M-603-RANK',
+     'check the sentinel BEFORE the specific automatic causes in the same '
+     'evaluation. `commitStop` is first-writer-wins, so the harness still stops '
+     'on the same tick and the only thing that changes is which cause the latch '
+     'carries. An operator who created the file while the account was also past '
+     'its loss floor would read `harness_stop`, learn only what they already '
+     'knew, and never find out about the drawdown. Reachable whenever a halt is '
+     'requested during any real \u00a712 condition -- which is exactly when an '
+     'operator reaches for it',
+     [
+         ('cmd/harness/run.go',
+          '\to.evaluatePnL()\n\n\t// \u00a712\'s out-of-band halt, checked LAST',
+          '\to.checkHarnessStop()\n\to.evaluatePnL()\n\n'
+          '\t// \u00a712\'s out-of-band halt, checked LAST'),
+     ],
+     'TestHarnessStopRanksAfterSpecificAutomaticCauses'),
+
+    ('M-603-NODEDUPE',
+     'never latch the seen flag, so a file that stays put re-raises its SEV2 and '
+     're-enters the stop funnel on every 250 ms tick. Four anomalies a second '
+     'into a 256-slot buffer evicts everything else in it -- including the '
+     'records explaining what the harness was doing when it stopped. The '
+     'ordinary case is that nobody deletes the file immediately, so this is '
+     'reachable every time the control is used',
+     [
+         ('cmd/harness/run.go',
+          '\t\to.harnessStopSeen = true\n',
+          '\t\to.harnessStopSeen = false\n'),
+     ],
+     'TestHarnessStopRemovalCannotClearAndPersistentFileDoesNotSpam'),
+
+    ('M-603-FOLLOWLINK',
+     'follow the link. `Stat` resolves a symlink and reports ENOENT when the '
+     'target is missing, so a DANGLING symlink at the sentinel path reads as '
+     'absent and the requested halt silently does not happen. That is not an '
+     'exotic shape: it is what a symlink into a directory that has been moved, '
+     'renamed or not yet mounted looks like, and the operator has no way to see '
+     'that their halt was ignored',
+     [
+         ('cmd/harness/run.go',
+          '\t_, err := os.Lstat(o.r.cfg.Paths.Stop)\n',
+          '\t_, err := os.Stat(o.r.cfg.Paths.Stop)\n'),
+     ],
+     'TestEveryEntryAtHarnessStopPathRequestsStop'),
 ]
 
 

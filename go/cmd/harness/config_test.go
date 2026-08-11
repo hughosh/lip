@@ -36,7 +36,8 @@ func goodTail(t *testing.T) string {
 		`"lock":"` + filepath.Join(d, "harness.lock") + `",` +
 		`"key":"` + filepath.Join(d, "kalshi.pem") + `",` +
 		`"env":"` + filepath.Join(d, "env") + `",` +
-		`"live_ok":"` + filepath.Join(d, "live_ok") + `"}`
+		`"live_ok":"` + filepath.Join(d, "live_ok") + `",` +
+		`"stop":"` + filepath.Join(d, "harness.stop") + `"}`
 }
 
 // TestConfigSizesAreContractsAndDollarsNotRawQuanta is the whole reason this
@@ -148,7 +149,8 @@ func TestRelativePathsAreRefused(t *testing.T) {
 		"lock":"`+filepath.Join(d, "l.lock")+`",
 		"key":"`+filepath.Join(d, "k.pem")+`",
 		"env":"`+filepath.Join(d, "env")+`",
-		"live_ok":"`+filepath.Join(d, "live_ok")+`"}}`)
+		"live_ok":"`+filepath.Join(d, "live_ok")+`",
+		"stop":"`+filepath.Join(d, "harness.stop")+`"}}`)
 
 	_, err := loadConfig(p)
 	if err == nil {
@@ -165,6 +167,7 @@ func TestRelativePathsAreRefused(t *testing.T) {
 func TestEveryPathIsRequired(t *testing.T) {
 	for _, missing := range []string{
 		"db", "anomaly_log", "latch", "lock", "key", "env", "live_ok",
+		"stop",
 	} {
 		d := t.TempDir()
 		all := map[string]string{
@@ -175,6 +178,7 @@ func TestEveryPathIsRequired(t *testing.T) {
 			"key":         filepath.Join(d, "k.pem"),
 			"env":         filepath.Join(d, "env"),
 			"live_ok":     filepath.Join(d, "live_ok"),
+			"stop":        filepath.Join(d, "harness.stop"),
 		}
 		delete(all, missing)
 		var b strings.Builder
@@ -387,6 +391,7 @@ func TestLiveOKPathIsRequiredAbsoluteAndDedicated(t *testing.T) {
 			"key":         filepath.Join(d, "k.pem"),
 			"env":         filepath.Join(d, "env"),
 			"live_ok":     filepath.Join(d, "live_ok"),
+			"stop":        filepath.Join(d, "harness.stop"),
 		}
 	}
 	write := func(t *testing.T, d string, m map[string]string) string {
@@ -586,4 +591,113 @@ func TestTheFundabilityBoundIsSection103sDerivation(t *testing.T) {
 	if !strings.Contains(err.Error(), "H-CAP-8") {
 		t.Fatalf("the refusal does not name the rule it enforces: %v", err)
 	}
+}
+
+// TestHarnessStopPathIsRequiredAbsoluteAndDedicated is §12's out-of-band halt
+// held to the same standard as H-VER-1's arming sentinel, and for the mirror
+// reason.
+//
+// `live_ok` must be dedicated because a shared path would ARM the harness for
+// reasons that have nothing to do with arming. `stop` must be dedicated because
+// a shared path would HALT it for reasons that have nothing to do with halting:
+// point it at the db and the harness stops adding the moment it is provisioned,
+// point it at the key and it stops the moment it has credentials. A halt nobody
+// requested is indistinguishable, from the outside, from a harness that does not
+// work.
+//
+// The last subtest is the one neither sentinel's own rules would catch. They are
+// OPPOSITE instructions, so a config that aliases them makes arming and halting
+// the same act -- and makes `rm` both the disarm and the resume.
+func TestHarnessStopPathIsRequiredAbsoluteAndDedicated(t *testing.T) {
+	base := func(d string) map[string]string {
+		return map[string]string{
+			"db":          filepath.Join(d, "harness.db"),
+			"anomaly_log": filepath.Join(d, "a.jsonl"),
+			"latch":       filepath.Join(d, "h.halt"),
+			"lock":        filepath.Join(d, "l.lock"),
+			"key":         filepath.Join(d, "k.pem"),
+			"env":         filepath.Join(d, "env"),
+			"live_ok":     filepath.Join(d, "live_ok"),
+			"stop":        filepath.Join(d, "harness.stop"),
+		}
+	}
+	write := func(t *testing.T, d string, m map[string]string) string {
+		t.Helper()
+		var b strings.Builder
+		b.WriteString(`{"ticker":"KXTEST-A","rung":"canary","s":1,"paths":{`)
+		first := true
+		for k, v := range m {
+			if !first {
+				b.WriteString(",")
+			}
+			first = false
+			b.WriteString(`"` + k + `":"` + v + `"`)
+		}
+		b.WriteString("}}")
+		p := filepath.Join(d, "config.json")
+		if err := os.WriteFile(p, []byte(b.String()), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+
+	t.Run("relative", func(t *testing.T) {
+		d := t.TempDir()
+		m := base(d)
+		m["stop"] = "harness.stop"
+		if _, err := loadConfig(write(t, d, m)); err == nil {
+			t.Fatal("a relative stop path was accepted; it would resolve to a " +
+				"different file under launchd than under the shell the operator " +
+				"created it from, so the halt would be requested in one place " +
+				"and looked for in another")
+		}
+	})
+
+	for _, alias := range []string{"db", "latch", "key", "env"} {
+		t.Run("aliased onto "+alias, func(t *testing.T) {
+			d := t.TempDir()
+			m := base(d)
+			m["stop"] = m[alias]
+			_, err := loadConfig(write(t, d, m))
+			if err == nil {
+				t.Fatalf("stop was accepted while pointing at paths.%s. That "+
+					"file exists because the harness needs it, so §12's halt "+
+					"would be requested the moment the harness was usable at "+
+					"all", alias)
+			}
+			if !strings.Contains(err.Error(), "stop") {
+				t.Fatalf("the error does not name stop: %v", err)
+			}
+		})
+	}
+
+	t.Run("aliased onto the config file", func(t *testing.T) {
+		d := t.TempDir()
+		m := base(d)
+		m["stop"] = filepath.Join(d, "config.json")
+		if _, err := loadConfig(write(t, d, m)); err == nil {
+			t.Fatal("stop was accepted while pointing at the config file " +
+				"itself, which is the one path guaranteed to exist whenever " +
+				"the binary runs -- so the harness would refuse to add from " +
+				"its first tick, forever")
+		}
+	})
+
+	t.Run("aliased onto live_ok", func(t *testing.T) {
+		d := t.TempDir()
+		m := base(d)
+		m["stop"] = m["live_ok"]
+		_, err := loadConfig(write(t, d, m))
+		if err == nil {
+			t.Fatal("stop and live_ok were accepted as the SAME file.\n\n" +
+				"They are opposite instructions. Arming the harness would be " +
+				"the same act as halting it, and disarming it by removing the " +
+				"file would be the same act as lifting the halt -- so the " +
+				"operator's two controls would each undo the other")
+		}
+		if !strings.Contains(err.Error(), "live_ok") ||
+			!strings.Contains(err.Error(), "stop") {
+			t.Fatalf("the error does not name both sentinels: %v", err)
+		}
+	})
 }
