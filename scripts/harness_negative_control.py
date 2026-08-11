@@ -566,9 +566,28 @@ MUTATIONS = [
      "a book frame core never accepted leaves an ALREADY-ACTIONABLE market "
      "licensed to place -- quoting against a book we know is behind",
      [
+         # Re-anchored by lip-gp8: `quarantineRejectedBook` also retires the
+         # H-HALT-5 mark now, so the two statements this deletes are no longer
+         # the last two in the function. The mutation is UNCHANGED in meaning --
+         # it removes the quarantine and the snapshot generation, and nothing
+         # else. The mark retirement is deliberately left in place so this stays
+         # a mutation about A13's licence to place rather than a second, weaker
+         # copy of M-GP8-MARKFORGE.
          ("harness/wsx/gate.go",
-          "\tm.quarantined = true\n\tm.snapGen = 0\n}\n",
-          "}\n"),
+          "\tm.quarantined = true\n"
+          "\tm.snapGen = 0\n"
+          "\t// The mark goes with the snapshot. `lastFrame` deliberately "
+          "survives here\n"
+          "\t// so F5's silence clock keeps running; the mark must NOT, because "
+          "the\n"
+          "\t// rejected frame is precisely a price core declined to accept.\n"
+          "\tm.pnlMarkGen = 0\n",
+          "\t// The mark goes with the snapshot. `lastFrame` deliberately "
+          "survives here\n"
+          "\t// so F5's silence clock keeps running; the mark must NOT, because "
+          "the\n"
+          "\t// rejected frame is precisely a price core declined to accept.\n"
+          "\tm.pnlMarkGen = 0\n"),
      ],
      "TestRejectedBookFrameImmediatelyQuarantinesAnActionableMarket"),
     # -----------------------------------------------------------------------
@@ -2894,6 +2913,227 @@ MUTATIONS = [
      ],
      'TestAnIncompletePositionWalkNeverLatchesInvKill'),
 
+
+    # -----------------------------------------------------------------------
+    # lip-gp8 -- H-HALT-5, the trading P&L loss floor
+    # -----------------------------------------------------------------------
+
+    ('M-GP8-MARKFORGE',
+     'stamp the P&L mark from `lastFrame` instead of the dedicated accepted-'
+     'frame clock, so a connection that has said nothing and a book carried '
+     'across a gap both read as freshly priced. `lastFrame` is seeded at '
+     'CONNECT and survives frames core REFUSED -- both correct for F5, whose '
+     'subject is silence, and both fatal in a price: the mark would be fresh '
+     'over a book nobody has confirmed, and the loss floor would fire against '
+     'a number no one quoted. Reachable at every rung: every reconnect '
+     'produces exactly this state (H-FAIL-5)',
+     [
+         ('harness/wsx/gate.go',
+          '\tif m == nil || m.pnlMarkGen == 0 || m.pnlMarkGen != g.gen {\n'
+          '\t\treturn 0, PnLMarkAbsent\n'
+          '\t}\n'
+          '\tage := now.Mono - m.pnlMarkAt\n',
+          '\tif m == nil {\n'
+          '\t\treturn 0, PnLMarkAbsent\n'
+          '\t}\n'
+          '\tage := now.Mono - m.lastFrame\n'),
+     ],
+     'TestPnLMarkRequiresAnAcceptedCurrentGenerationSnapshot'),
+
+    ('M-GP8-AGE60',
+     'age the mark against `quiet_s` rather than `pnl_mark_max_age_s`, which '
+     'is the mistake reusing an existing clock would make. Both existing '
+     'thresholds are 60s and H-HALT-5 specifies 30s, so this doubles the age '
+     'at which inventory may be valued -- and it is invisible except in the '
+     'thirty seconds between them, which is the whole interval the parameter '
+     'exists to name. Reachable at every rung on any market quiet for half a '
+     'minute',
+     [
+         ('harness/wsx/gate.go',
+          '\tif age > g.p.PnLMarkMaxAge {\n',
+          '\tif age > g.p.Quiet {\n'),
+     ],
+     'TestPnLMarkExpiresAtThirtySecondsBeforeBothSixtySecondClocks'),
+
+    ('M-GP8-RAWMID',
+     'mark against the RAW book, without subtracting our own possibly-live '
+     'size. This is H-Q-10 arriving at the loss floor instead of at the quote: '
+     'our own bid holds the mark up while the position it is valuing gets '
+     'worse, so `pnl_kill` fires late or not at all. Reachable whenever we are '
+     'at the touch, which on a LIP market is the ordinary state -- the harness '
+     'is paid to be there',
+     [
+         ('harness/quote/mark.go',
+          '\tbid := ExternalBest(yes, oursYes)\n'
+          '\task := ExternalBest(no, oursNo)\n',
+          '\tbid := ExternalBest(yes, nil)\n'
+          '\task := ExternalBest(no, nil)\n'),
+     ],
+     'TestPnLMarkUsesExternalBestAfterSubtractingAllOurSize'),
+
+    ('M-GP8-MARKDEFAULT',
+     'fall back to a REALISED-ONLY total when a required mark is unavailable, '
+     'instead of refusing to evaluate. It is the plausible mistake -- a number '
+     'is better than no number -- and it is precisely the fired-or-safe answer '
+     'H-HALT-5 forbids: open inventory is valued at zero P&L, so a position '
+     'that has moved the whole way to the floor contributes nothing and the '
+     'floor cannot fire on it. Reachable on every disconnect, sequence gap and '
+     'quiet market',
+     [
+         ('harness/risk/pnl.go',
+          '\t\tif !mk.MarkOK {\n'
+          '\t\t\tres.NoMark = append(res.NoMark, mk.Ticker)\n'
+          '\t\t\tres.Evaluable = false\n'
+          '\t\t\tcontinue\n'
+          '\t\t}\n',
+          '\t\tif !mk.MarkOK {\n'
+          '\t\t\tres.NoMark = append(res.NoMark, mk.Ticker)\n'
+          '\t\t\tcontinue\n'
+          '\t\t}\n'),
+     ],
+     'TestStaleAndAbsentPnLMarksAreSEV2AndCannotFireTheKill'),
+
+    ('M-GP8-NOFEE',
+     'leave the fee out of signed cash flow. Fees are the one cost that is '
+     'certain -- they are charged on every fill and never recovered -- and a '
+     'P&L that omits them is optimistic by exactly the amount the account has '
+     'definitely lost. Reachable on every fill at every rung',
+     [
+         ('harness/risk/pnl.go',
+          '\tm.cash -= f.Fee\n',
+          '\t_ = f.Fee\n'),
+     ],
+     'TestTradingPnLIncludesFeesExactlyOnce'),
+
+    ('M-GP8-CROSSBASIS',
+     'carry the old average cost across a crossing by scaling it the way a '
+     'partial close does, instead of reopening the residual at the incoming '
+     'price. A long that flips to a short then values the new short against '
+     'the price the LONG was bought at -- a price those contracts never '
+     'traded at. It cancels out of the total and shows up only in the '
+     'realised/unrealised split, which is what the operator reads afterwards '
+     'to decide whether the loss is booked or still open. Reachable any time '
+     'a reducer overshoots, which A12 bounds but H-ORD-5b makes possible',
+     [
+         ('harness/risk/pnl.go',
+          '\t\tm.openBasis = -num.Money(int64(after) * yesPrice4)\n',
+          '\t\tm.openBasis = num.Money(int64(m.openBasis) * int64(after) /\n'
+          '\t\t\tint64(before))\n'),
+     ],
+     'TestTradingPnLCrossingZeroReopensAtTheIncomingCost'),
+
+    ('M-GP8-NOHISTORY',
+     'drop the BACKFILLED rows when seeding the ledger from `our_fill`, '
+     'keeping only what this incarnation watched happen. A position adopted at '
+     'startup was paid for by an earlier run, so its cost lives entirely in '
+     'rows marked backfilled; without them the ledger opens at zero and the '
+     'loss floor measures from the wrong point. Reachable on every restart, '
+     'which is the supervision policy the spec mandates (launchd KeepAlive)',
+     [
+         ('cmd/harness/run.go',
+          '\tfor _, row := range rows {\n'
+          '\t\tif f, ok := o.fillFromRow(row); ok {\n',
+          '\tfor _, row := range rows {\n'
+          '\t\tif row.Backfilled {\n'
+          '\t\t\tcontinue\n'
+          '\t\t}\n'
+          '\t\tif f, ok := o.fillFromRow(row); ok {\n'),
+     ],
+     'TestPnLRestartIncludesEveryOwnedFillRegardlessOfRunAndBackfilledFlag'),
+
+    ('M-GP8-NOBASISCHECK',
+     'trust the authoritative quantity over the ledger when the two disagree, '
+     'rather than refusing. The account then holds contracts we have no fills '
+     'for and they are valued AT THE MARK -- which assumes they were acquired '
+     'at today\'s price, contributing exactly zero P&L. That is the assumption '
+     'most likely to hide a loss, and it silences the SEV2 that would have '
+     'told the operator the ledger and the exchange disagree. Reachable via a '
+     'manual trade, a settlement, or any fill the walk never reported',
+     [
+         ('harness/risk/pnl.go',
+          '\t\tif qty != mk.QExch {\n'
+          '\t\t\tres.NoBasis = append(res.NoBasis, mk.Ticker)\n'
+          '\t\t\tres.Evaluable = false\n'
+          '\t\t\tcontinue\n'
+          '\t\t}\n',
+          '\t\tif qty != mk.QExch {\n'
+          '\t\t\tqty = mk.QExch\n'
+          '\t\t}\n'),
+     ],
+     'TestPnLRefusesASteppedPositionWithoutAMatchingOwnedFill'),
+
+    ('M-GP8-BOUNDARY',
+     'make the floor STRICT, so exactly `pnl_kill` is treated as safe. §12\'s '
+     'row reads "P&L <= pnl_kill" and the parameter is a negative floor, so '
+     'the value itself is a breach. It is the mistake of copying `inv_kill`\'s '
+     '`>` by reflex -- and that one is strict for a reason this one does not '
+     'have: `inv_kill` has a market-scoped row owning the band immediately '
+     'below it, and `pnl_kill` has no neighbour at all. Reachable exactly at '
+     'the configured loss',
+     [
+         ('cmd/harness/run.go',
+          '\tif res.Total > o.p.PnLKill {\n\t\treturn\n\t}\n',
+          '\tif res.Total >= o.p.PnLKill {\n\t\treturn\n\t}\n'),
+     ],
+     'TestPnLKillIsInclusiveAtTheExactNegativeFloor'),
+
+    ('M-GP8-NOWIRE',
+     'raise the SEV1 and never ask for the durable stop, which is the defect '
+     'class this bead belongs to -- the same shape as `inv_kill` before '
+     'lip-lqw, `stuck_s` before lip-2da and `H-CAP-8` before lip-lpf. The '
+     'anomaly reaches the store, so every log and every §14 report shows the '
+     'harness noticed; nothing on disk records a halt, and the harness keeps '
+     'adding. Reachable the first time the floor is breached at any rung',
+     [
+         ('cmd/harness/run.go',
+          '\to.requestStop("pnl_kill", "")\n',
+          '\t_ = "pnl_kill"\n'),
+     ],
+     'TestPnLKillLatchesByNameAndKeepsTheReducerLive'),
+
+    ('M-GP8-RANK',
+     'rank the loss floor ABOVE `portfolio_read` and `inv_kill` by evaluating '
+     'it before them. `commitStop` is first-writer-wins, so the harness still '
+     'stops -- correctly, and on the same poll -- and the only thing that '
+     'changes is WHICH cause the durable latch records. §10.4 has the operator '
+     'read that field to learn what happened, so a taker fill or a corrupted '
+     'position model would be investigated as an ordinary drawdown. Reachable '
+     'on any poll where a §12 cause coincides with a breach, which is the '
+     'ordinary case rather than the exotic one: the events that lose money and '
+     'the events that break the model are the same events',
+     [
+         ('cmd/harness/run.go',
+          '\to.evaluatePnL()\n\n\t// §7.9\'s canary bound, and it comes AFTER '
+          '`eff.Stop` on purpose.',
+          '\t// §7.9\'s canary bound, and it comes AFTER `eff.Stop` on purpose.'),
+         ('cmd/harness/run.go',
+          '\tif eff.Stop {\n\t\to.requestStop("portfolio_read", "")\n\t}\n',
+          '\to.evaluatePnL()\n'
+          '\tif eff.Stop {\n\t\to.requestStop("portfolio_read", "")\n\t}\n'),
+     ],
+     'TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary'),
+
+    ('M-GP8-BALANCE',
+     'fold the account balance into the ledger at startup, which is the '
+     'implementation HR-021 found and rejected. The red team had two '
+     'conforming implementations disagree completely on the same position: a '
+     'fills-and-cost-basis reading saw -$90 and halted while a balance-delta '
+     'reading saw nothing, and "an incoming $100 LIP reward masks the drawdown '
+     'entirely". The reward is what this system is measuring itself against, '
+     'so a P&L that counts it is one that goes quiet exactly when the '
+     'incentive is being collected. Reachable on every start',
+     [
+         ('cmd/harness/run.go',
+          '\to.seedPnL(a.OwnedFills())\n',
+          '\to.seedPnL(a.OwnedFills())\n'
+          '\to.pnl.Apply(risk.FillEvent{TradeID: "M-GP8-BALANCE-OPEN",\n'
+          '\t\tTicker: o.r.cfg.Ticker, Side: quote.SideYes, Count: 1,\n'
+          '\t\tExchangeTsMs: 1})\n'
+          '\to.pnl.Apply(risk.FillEvent{TradeID: "M-GP8-BALANCE-CLOSE",\n'
+          '\t\tTicker: o.r.cfg.Ticker, Side: quote.SideYes, Count: -1,\n'
+          '\t\tPrice4: int64(a.Summary().Balance), ExchangeTsMs: 2})\n'),
+     ],
+     'TestRewardArrivalCannotMoveTradingPnL'),
 ]
 
 

@@ -5598,3 +5598,962 @@ func TestF6FallbackQueuesSEV2ThroughTheProcessSink(t *testing.T) {
 		return false
 	})
 }
+
+// ---------------------------------------------------------------------------
+// 15. lip-gp8 -- H-HALT-5, the trading P&L loss floor
+// ---------------------------------------------------------------------------
+
+// seamMakerFill is one owned MAKER fill row for the P&L fixture.
+//
+// `is_taker` false and `fee_cost` "0.0000" go together and neither is
+// incidental. S2 makes a NON-ZERO FEE an independent witness of a taker fill
+// whatever the flag claims, and H-ORD-8's taker stop is ranked above `pnl_kill`;
+// a fixture that paid a fee would latch `portfolio_read` before the loss floor
+// was ever consulted, and every test below would pass while proving nothing.
+func seamMakerFill(tradeID, orderID, side, yesFP, noFP, count string,
+	tsMs int64) map[string]any {
+
+	return map[string]any{
+		"fill_id":           tradeID + "-FILL",
+		"trade_id":          tradeID,
+		"order_id":          orderID,
+		"ticker":            seamTicker,
+		"side":              side,
+		"yes_price_dollars": yesFP,
+		"no_price_dollars":  noFP,
+		"count":             count,
+		"is_taker":          false,
+		"fee_cost":          "0.0000",
+		"ts":                fmt.Sprintf("%d", tsMs),
+	}
+}
+
+// seamOwnedOrderOn makes one exchange order id OURS on a chosen side, so a
+// fixture can hand the fills walk a fill on either leg.
+//
+// `installOwnedOrder` is fixed to the YES side and to one contract, which is all
+// its own callers need. These tests need both legs: a market bought on YES and
+// closed on NO is two orders on a real exchange, and `risk.Portfolio` says so --
+// a NO fill arriving on a YES order state raises ORDER_SIDE_CONFLICT and is not
+// applied, which leaves `q_local` holding a position the exchange has already
+// closed and stops the harness on POSITION_DRIFT before the loss floor is ever
+// reached.
+func (h *seamHarness) seamOwnedOrderOn(orderID string, seq uint64,
+	side quote.Side, cents int, count num.Qty) {
+
+	h.t.Helper()
+	coid, err := rest.Coid("SEAMPNL0", 0, side, seq)
+	if err != nil {
+		h.t.Fatalf("building a coid: %v", err)
+	}
+	o, err := rest.NewCreateOrder(seamTicker, side, cents, count, count, coid)
+	if err != nil {
+		h.t.Fatalf("building the reserved order: %v", err)
+	}
+	if _, err := h.rig.store.ReserveOrder(h.rig.run, o, quote.RoleAdding,
+		h.clk.wallMs()); err != nil {
+		h.t.Fatalf("reserving %s: %v", coid, err)
+	}
+	if _, err := h.rig.store.BindOrder(coid, orderID,
+		h.clk.wallMs()); err != nil {
+		h.t.Fatalf("binding %s -> %s: %v", coid, orderID, err)
+	}
+	h.await("the seeded ownership binding to commit", func() bool {
+		got, ok := h.rig.store.Ownership().Bound(orderID)
+		return ok && got == coid
+	})
+}
+
+// seamPnLLeg is one fill of a P&L fixture, with the owned order it landed on.
+//
+// `cents` is the price the OWNED ORDER was placed at and has nothing to do with
+// the fill price: the ownership ledger is what H-ORD-9 classifies by, and it
+// carries no price cross-check. It is here only because `rest.NewCreateOrder`
+// requires one.
+type seamPnLLeg struct {
+	trade string
+	side  quote.Side
+	// yesFP and noFP are the wire prices, which must sum to $1.0000 --
+	// `rest.readPrice` enforces that exactly (H-CO-1), and it is what makes the
+	// YES-equivalent conversion of a NO fill exact rather than approximate.
+	yesFP string
+	noFP  string
+	count num.Qty
+	cents int
+}
+
+// seedPnLFills registers one owned order PER LEG and hands the fills to the
+// fixture's fills walk, stamped in the order given.
+//
+// One order per leg, rather than one order for the market. A market entered on
+// YES and closed on NO is two orders on a real exchange, and `risk.Portfolio`
+// agrees: a NO fill arriving on a YES order state raises ORDER_SIDE_CONFLICT and
+// is NOT applied, which leaves `q_local` holding a position the exchange has
+// already closed and stops the harness on POSITION_DRIFT -- with the loss floor
+// never consulted and the test green.
+func (h *seamHarness) seedPnLFills(legs ...seamPnLLeg) {
+	h.t.Helper()
+	base := h.clk.wallMs()
+	for i, leg := range legs {
+		id := fmt.Sprintf("SEAM-PNL-ORD-%d", i+1)
+		h.seamOwnedOrderOn(id, uint64(4001+i), leg.side, leg.cents, leg.count)
+		side := "yes"
+		if leg.side == quote.SideNo {
+			side = "no"
+		}
+		h.ex.addFill(seamMakerFill(leg.trade, id, side, leg.yesFP, leg.noFP,
+			leg.count.Wire(), base+int64(i)+1))
+	}
+}
+
+// seamFloorLegs is the two fills that lose EXACTLY $15.00 and end FLAT.
+//
+//	buy  30.00 YES at $0.9000   cash -= 3000 * 9000 =	-$27.00   q = +30.00
+//	sell 30.00 YES at $0.4000   cash += 3000 * 4000 =	+$12.00   q =   0.00
+//
+// The sell is expressed the way the exchange expresses it: a NO buy at $0.6000,
+// whose YES-equivalent price is $1.0000 - $0.6000 (H-CO-1). Both legs land on
+// ONE poll, so the intermediate +30.00 position is never an authoritative
+// reading and `inv_kill` -- which outranks this rule -- is never breached by the
+// fixture that exists to test this one.
+//
+// Ending FLAT is what makes the figure independent of the book: a flat market
+// has no unrealised component, so the total is realised cash that no mark can
+// move, and the boundary is decided by the fills alone.
+func seamFloorLegs() []seamPnLLeg {
+	return []seamPnLLeg{
+		{trade: "SEAM-PNL-BUY", side: quote.SideYes, yesFP: "0.9000",
+			noFP: "0.1000", count: num.QtyFromFloat(30), cents: 90},
+		{trade: "SEAM-PNL-SELL", side: quote.SideNo, yesFP: "0.4000",
+			noFP: "0.6000", count: num.QtyFromFloat(30), cents: 60},
+	}
+}
+
+// seamMicroLegs is a round trip of ONE QUANTUM that moves the total by exactly
+// one microdollar, in whichever direction is asked for.
+//
+// 0.01 contracts is `num.Qty` 1 and a price4 is 1e-4 dollars, so their product
+// is exactly one of the 1e-6 dollars `num.Money` counts. That is the finest step
+// the exchange's own quanta can express, and it is what lets the boundary be
+// tested at the resolution the comparison is actually performed at rather than
+// at a cent.
+//
+// It nets to zero quantity, so it leaves the market flat and the fixture's
+// independence from the mark intact.
+func seamMicroLegs(loss bool) []seamPnLLeg {
+	closeYes, closeNo := "0.5001", "0.4999"
+	if loss {
+		closeYes, closeNo = "0.4999", "0.5001"
+	}
+	return []seamPnLLeg{
+		{trade: "SEAM-PNL-MICRO-OPEN", side: quote.SideYes, yesFP: "0.5000",
+			noFP: "0.5000", count: 1, cents: 50},
+		{trade: "SEAM-PNL-MICRO-CLOSE", side: quote.SideNo, yesFP: closeYes,
+			noFP: closeNo, count: 1, cents: 50},
+	}
+}
+
+// TestPnLKillIsInclusiveAtTheExactNegativeFloor is the boundary, from both
+// sides and at the quantum the comparison is made at.
+//
+// §12's row reads "P&L <= pnl_kill", so exactly -$15.00 FIRES. That is the
+// opposite sense to `inv_kill`'s strict `>` and it is not an inconsistency:
+// `inv_kill` has a market-scoped neighbour immediately below it and `Validate`
+// orders them strictly, so the band up to and including it belongs to the other
+// row. `pnl_kill` has no neighbour -- `Validate` refuses a non-negative one
+// because it would fire immediately -- so nothing else owns the figure itself.
+//
+// A strict `<` here is one microdollar of drawdown that the backstop lets
+// through, which is not a rounding difference but a rule that does not fire on
+// the value the spec names.
+func TestPnLKillIsInclusiveAtTheExactNegativeFloor(t *testing.T) {
+	run := func(t *testing.T, extra []seamPnLLeg) string {
+		h := newSeamHarness(t, seamOptions{Rung: "pilot"})
+		h.start()
+		h.awaitActionable()
+
+		h.seedPnLFills(append(seamFloorLegs(), extra...)...)
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(4)
+		return h.latchTrigger()
+	}
+
+	t.Run("exactly at the floor fires", func(t *testing.T) {
+		if got := run(t, nil); got != "pnl_kill" {
+			t.Fatalf("a trading P&L of exactly -$15.00 against pnl_kill -$15.00 "+
+				"latched %q, want pnl_kill.\n\n"+
+				"§12 reads \"P&L <= pnl_kill\". The floor itself is a breach, and "+
+				"a harness that treats it as safe is one whose loss backstop does "+
+				"not fire at the number the operator configured", got)
+		}
+	})
+
+	t.Run("one microdollar above the floor does not fire", func(t *testing.T) {
+		if got := run(t, seamMicroLegs(false)); got != "" {
+			t.Fatalf("a trading P&L of -$14.999999 latched %q against pnl_kill "+
+				"-$15.00.\n\n"+
+				"One microdollar above the floor is not a breach. A halt here is "+
+				"the harness stopping on a loss the operator permitted, and it is "+
+				"the direction that costs uptime rather than money -- but it also "+
+				"means the comparison is not the one §12 specifies", got)
+		}
+	})
+
+	t.Run("one microdollar below the floor fires", func(t *testing.T) {
+		if got := run(t, seamMicroLegs(true)); got != "pnl_kill" {
+			t.Fatalf("a trading P&L of -$15.000001 latched %q, want pnl_kill",
+				got)
+		}
+	})
+}
+
+// seamHeldLossLegs is a NON-FLAT breaching fixture: 15.00 contracts still held,
+// against a realised loss deep enough that the mark cannot rescue it.
+//
+//	buy  30.00 YES at $0.9000   cash = -$27.00   q = +30.00
+//	sell 15.00 YES at $0.3000   cash = -$22.50   q = +15.00
+//
+// The opening book marks YES at (40 + (100-55)) * 50 = 4250, so the inventory is
+// worth 1500 * 4250 = $6.375 and the total is -$16.125 -- past the floor with
+// $1.125 of room, so the test is not measuring a rounding step.
+//
+// 15.00 contracts is deliberate at both ends: past `inv_hard` 7.00 so the market
+// is REDUCING and a reducer is live to be observed, and under `inv_kill` 18.00
+// so the halt that fires is this one rather than the rule ranked above it.
+func seamHeldLossLegs() []seamPnLLeg {
+	return []seamPnLLeg{
+		{trade: "SEAM-PNL-HOLD-BUY", side: quote.SideYes, yesFP: "0.9000",
+			noFP: "0.1000", count: num.QtyFromFloat(30), cents: 90},
+		{trade: "SEAM-PNL-HOLD-SELL", side: quote.SideNo, yesFP: "0.3000",
+			noFP: "0.7000", count: num.QtyFromFloat(15), cents: 70},
+	}
+}
+
+// TestPnLKillLatchesByNameAndKeepsTheReducerLive is the wiring, end to end, and
+// the §12 row's OTHER four columns.
+//
+// The latch is the one artefact that survives the process, and §10.4 has the
+// operator read its cause to learn which row of the halt table fired.
+// `portfolio_read` is the label five distinct causes already share; a named §12
+// row arriving under it is a halt whose reason cannot be recovered at 3am.
+//
+// The rest of the row is I1, and it is the whole difference between a loss
+// backstop and a kill switch: adding stops, REDUCING does not, the monitor keeps
+// publishing, and the process stays alive. A harness that exits here abandons
+// the inventory that caused the loss.
+func TestPnLKillLatchesByNameAndKeepsTheReducerLive(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{Rung: "pilot"})
+	h.start()
+	h.awaitActionable()
+
+	h.seedPnLFills(seamHeldLossLegs()...)
+	h.ex.setPosition(seamTicker, "15.00")
+	h.clk.Advance(h.cfg.Params.PositionPoll)
+
+	h.await("the durable §12 cause to reach the latch", func() bool {
+		return h.latchTrigger() != ""
+	})
+	if got := h.latchTrigger(); got != "pnl_kill" {
+		t.Fatalf("a trading P&L of -$16.125 against pnl_kill -$15.00 latched "+
+			"%q, want pnl_kill", got)
+	}
+	h.await("the SEV1 PNL_KILL anomaly to reach the store", func() bool {
+		return seamContains(h.anomalyClasses(), "PNL_KILL")
+	})
+	h.awaitGlobalEvent("RUNNING->WINDING_DOWN/global_stop")
+
+	// I1's four columns, read after the halt is durable.
+	before := h.snapSeq()
+	h.awaitTicks(4)
+	if got := h.snapSeq(); got <= before {
+		t.Fatalf("the snapshot sequence stopped at %d after the halt.\n\n"+
+			"I2 makes the monitor unstoppable, and H-TOP-5's whole stall "+
+			"detector is that number advancing. A harness that stops publishing "+
+			"while continuing to hold inventory leaves the monitor re-reporting "+
+			"a snapshot that was true once", got)
+	}
+	s := h.snapshot()
+	if s.Global != quote.WindingDown {
+		t.Fatalf("the global state is %s after the loss floor fired, want "+
+			"WINDING_DOWN", s.Global)
+	}
+	m, ok := h.market()
+	if !ok || m.State != quote.Reducing {
+		t.Fatalf("the market is %v (present=%v) after the loss floor fired, "+
+			"want REDUCING.\n\n"+
+			"§12 stops ADDING and keeps the reducing quote live. 15.00 contracts "+
+			"are still held; a market that went IDLE here would be one that "+
+			"stopped trying to get out of the position that caused the halt",
+			m.State, ok)
+	}
+}
+
+// TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary is the
+// first-writer-wins ordering, and it is the only property of the placement that
+// is observable at all.
+//
+// `commitStop` discards a second cause arriving before the first is durable, so
+// the position of the P&L block in `applyRead` decides which cause the latch
+// carries when several are true of the same poll -- and several being true at
+// once is the ordinary case, not the exotic one. Each subtest drives TWO real
+// causes and asserts which one the operator finds.
+func TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary(t *testing.T) {
+	t.Run("inv_kill outranks it", func(t *testing.T) {
+		h := newSeamHarness(t, seamOptions{Rung: "pilot"})
+		h.start()
+		h.awaitActionable()
+
+		// 18.01 contracts held, bought at $0.9000 and partly closed at $0.3000:
+		// cash -$23.403, inventory 1801 * 4250 = $7.654, total -$15.749. Both
+		// rules are breached by the same poll.
+		h.seedPnLFills(
+			seamPnLLeg{trade: "SEAM-RANK-BUY", side: quote.SideYes,
+				yesFP: "0.9000", noFP: "0.1000",
+				count: num.QtyFromFloat(30), cents: 90},
+			seamPnLLeg{trade: "SEAM-RANK-SELL", side: quote.SideNo,
+				yesFP: "0.3000", noFP: "0.7000",
+				count: num.QtyFromFloat(11.99), cents: 70},
+		)
+		h.ex.setPosition(seamTicker, "18.01")
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+
+		h.await("the durable §12 cause to reach the latch", func() bool {
+			return h.latchTrigger() != ""
+		})
+		if got := h.latchTrigger(); got != "inv_kill" {
+			t.Fatalf("a poll breaching BOTH inv_kill and pnl_kill latched %q, "+
+				"want inv_kill.\n\n"+
+				"\"We hold more than we said we would\" is a fact about the "+
+				"position; \"we have lost more than we said we would\" is a "+
+				"calculation over it, and one that depends on a mark that may "+
+				"itself be the thing that is wrong. The operator woken at 3am is "+
+				"better served by the measurement than by the arithmetic", got)
+		}
+	})
+
+	t.Run("portfolio_read outranks it", func(t *testing.T) {
+		h := newSeamHarness(t, seamOptions{Rung: "pilot"})
+		h.start()
+		h.awaitActionable()
+
+		// The floor fixture, with the closing leg taken as a TAKER. H-ORD-8 is
+		// the cheapest detector for the most expensive bug in the system, and
+		// the $0.01 fee takes the total to -$15.01 so the loss floor is
+		// genuinely breached on the same poll rather than merely nearly.
+		legs := seamFloorLegs()
+		h.seamOwnedOrderOn("SEAM-TAKE-Y", 4101, quote.SideYes, 90,
+			num.QtyFromFloat(30))
+		h.seamOwnedOrderOn("SEAM-TAKE-N", 4102, quote.SideNo, 60,
+			num.QtyFromFloat(30))
+		base := h.clk.wallMs()
+		h.ex.addFill(seamMakerFill(legs[0].trade, "SEAM-TAKE-Y", "yes",
+			"0.9000", "0.1000", "30.00", base+1))
+		taker := seamMakerFill(legs[1].trade, "SEAM-TAKE-N", "no",
+			"0.4000", "0.6000", "30.00", base+2)
+		taker["is_taker"] = true
+		taker["fee_cost"] = "0.0100"
+		h.ex.addFill(taker)
+
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.await("the durable §12 cause to reach the latch", func() bool {
+			return h.latchTrigger() != ""
+		})
+		if got := h.latchTrigger(); got != "portfolio_read" {
+			t.Fatalf("a poll carrying a TAKER fill and breaching pnl_kill "+
+				"latched %q, want portfolio_read.\n\n"+
+				"A taker fill means the model of our own orders is wrong, and "+
+				"every cause funnelled through `eff.Stop` outranks a calculated "+
+				"loss for that reason", got)
+		}
+	})
+
+	t.Run("the canary bound does not outrank it", func(t *testing.T) {
+		h := newSeamHarness(t, seamOptions{Rung: "canary"})
+		h.start()
+		h.awaitActionable()
+
+		// At the canary rung the FIRST live owned fill stops the harness on its
+		// own (§7.9). The same poll breaches the floor, and `pnl_kill` is a row
+		// of the §12 halt table while "the canary traded" is a rung policy.
+		h.seedPnLFills(seamFloorLegs()...)
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+
+		h.await("the durable §12 cause to reach the latch", func() bool {
+			return h.latchTrigger() != ""
+		})
+		if got := h.latchTrigger(); got != "pnl_kill" {
+			t.Fatalf("a poll tripping BOTH the canary first-fill bound and "+
+				"pnl_kill latched %q, want pnl_kill.\n\n"+
+				"Every §12 cause outranks a rung policy. §10.4's operator reading "+
+				"`canary_owned_fill` would investigate a planned, expected event "+
+				"and never learn the account was $15 down", got)
+		}
+	})
+}
+
+// TestPnLRefusesASteppedPositionWithoutAMatchingOwnedFill is H-ORD-5a's
+// principle applied to a loss floor: ignorance is reported, not resolved.
+//
+// The account holds 18.00 contracts and the ledger has fills for 15.00. The
+// missing 3.00 were paid for by something this process never saw -- a manual
+// trade, a settlement, a fill that never arrived -- and there is no honest basis
+// to value them at. Valuing them AT THE MARK would assume they were acquired at
+// today's price, which is the assumption most likely to hide a loss: it prices
+// the unexplained position at exactly zero P&L.
+//
+// The step is 3.00, inside `pos_drift_hard` 5.00, so no drift stop competes; and
+// 18.00 is exactly `inv_kill`, which is a strict `>` and therefore not a breach.
+// The loss is real and past the floor either way, so a harness that evaluated
+// anyway WOULD fire -- which is what makes an empty latch here evidence.
+func TestPnLRefusesASteppedPositionWithoutAMatchingOwnedFill(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{Rung: "pilot"})
+	h.start()
+	h.awaitActionable()
+
+	h.seedPnLFills(seamHeldLossLegs()...)
+	h.ex.setPosition(seamTicker, "18.00")
+	for i := 0; i < 3; i++ {
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(2)
+	}
+
+	if got := h.latchTrigger(); got != "" {
+		t.Fatalf("the loss floor latched %q from a ledger holding 15.00 "+
+			"contracts against an authoritative 18.00.\n\n"+
+			"The two disagree, so there is no basis for 3.00 of the position and "+
+			"the total is not a figure anyone can stand behind. H-HALT-5 makes "+
+			"an unevaluable trigger NOT FIRED -- never fired-or-safe", got)
+	}
+	h.await("the SEV2 PNL_BASIS_UNAVAILABLE anomaly to reach the store",
+		func() bool {
+			return seamContains(h.anomalyClasses(), "PNL_BASIS_UNAVAILABLE")
+		})
+	if seamContains(h.anomalyClasses(), "PNL_KILL") {
+		t.Fatalf("PNL_KILL was raised for a position the ledger has no fills " +
+			"for")
+	}
+}
+
+// TestPnLRestartIncludesEveryOwnedFillRegardlessOfRunAndBackfilledFlag is the
+// history half, and it is two claims about the same table.
+//
+// The first is that INHERITED history counts. The fills are on the account
+// before this process starts, so §7.5 adopts them and `recordBackfilled` writes
+// them with `backfilled = true`; a ledger seeded only from what this incarnation
+// watched happen would open at zero and never fire, while the account sat $15
+// down. A position adopted at startup was paid for by an earlier run.
+//
+// The second is that the DURABLE table is the source. A fresh owner over the
+// same store, offered no adoption at all, recovers the identical figure from
+// `our_fill` alone -- which is what the next restart does, and the only reason a
+// restart does not reset the loss floor's zero.
+func TestPnLRestartIncludesEveryOwnedFillRegardlessOfRunAndBackfilledFlag(
+	t *testing.T) {
+
+	h := newSeamHarness(t, seamOptions{Rung: "pilot"})
+	// Seeded BEFORE `start`, so these are history the process INHERITS rather
+	// than trading it watches.
+	h.seedPnLFills(seamFloorLegs()...)
+	h.start()
+
+	h.await("the inherited history to reach the loss floor", func() bool {
+		return h.latchTrigger() == "pnl_kill"
+	})
+
+	// The durable half. `stopServe` first: the owner goroutine is the single
+	// writer for everything a second owner would touch, and this one only reads
+	// the store, but the discipline is the discipline.
+	h.stopServe()
+	o := h.ownerFor()
+	o.seedPnL(nil)
+	if got, want := o.pnl.Realised(seamTicker), num.MoneyFromDollars(-15); got != want {
+		t.Fatalf("a fresh owner seeded from our_fill alone recovered realised "+
+			"P&L %s, want %s.\n\n"+
+			"`Reader.Fills` takes no argument to filter by, on purpose: every "+
+			"row, every run, both provenances. A restart that read only its own "+
+			"run's rows would hold inventory it has no cost for, and the "+
+			"authoritative-quantity check would then refuse to evaluate the "+
+			"trigger for the life of the process", got, want)
+	}
+	if got := o.pnl.Qty(seamTicker); got != 0 {
+		t.Fatalf("the recovered ledger holds %s, want flat: the two durable "+
+			"rows net to zero", got.Wire())
+	}
+}
+
+// TestStaleAndAbsentPnLMarksAreSEV2AndCannotFireTheKill is H-HALT-5's refusal,
+// in both of the two shapes it distinguishes.
+//
+// "If no mark of acceptable age exists the trigger cannot be evaluated: emit
+// SEV2 and treat it as not-fired." Not fired-or-safe, and not realised-only: a
+// harness that valued the held 15.00 contracts at their cost, or at zero, or at
+// the last price it happened to remember would produce a number that looks like
+// a P&L and is not one.
+//
+// The loss is past the floor in both subtests, so an empty latch is evidence
+// that the refusal happened rather than evidence that nothing was wrong.
+func TestStaleAndAbsentPnLMarksAreSEV2AndCannotFireTheKill(t *testing.T) {
+	t.Run("stale", func(t *testing.T) {
+		h := newSeamHarness(t, seamOptions{Rung: "pilot"})
+		h.start()
+		h.awaitActionable()
+
+		// Six polls with no book frame takes the mark to `pnl_mark_max_age_s`
+		// and one more takes it past. The fills are seeded only at the end, so
+		// the first evaluation that has anything to evaluate is the stale one.
+		for i := 0; i < 6; i++ {
+			h.clk.Advance(h.cfg.Params.PositionPoll)
+			h.awaitTicks(2)
+		}
+		h.seedPnLFills(seamHeldLossLegs()...)
+		h.ex.setPosition(seamTicker, "15.00")
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(4)
+
+		if got := h.latchTrigger(); got != "" {
+			t.Fatalf("the loss floor latched %q from a mark 35s old against "+
+				"pnl_mark_max_age_s 30s.\n\n"+
+				"A stale mark is not a cheap approximation of a fresh one. The "+
+				"position it is valuing may have moved the whole way to the "+
+				"floor or the whole way back, and H-HALT-5 refuses to guess "+
+				"which", got)
+		}
+		h.await("the SEV2 PNL_MARK_UNAVAILABLE anomaly to reach the store",
+			func() bool {
+				return seamContains(h.anomalyClasses(), "PNL_MARK_UNAVAILABLE")
+			})
+		if seamContains(h.anomalyClasses(), "PNL_KILL") {
+			t.Fatalf("PNL_KILL was raised against a stale mark")
+		}
+	})
+
+	t.Run("absent", func(t *testing.T) {
+		h := newSeamHarness(t, seamOptions{Rung: "pilot"})
+		o := h.ownerFor()
+		h.connectGate()
+		// A book with levels in it, installed straight into the decoder -- so
+		// `core` holds a full book and the GATE has never accepted a frame for
+		// it. That is the state a reconnect leaves: levels carried across the
+		// gap, and no snapshot on this generation entitling anyone to believe
+		// them (H-FAIL-5).
+		h.installBook([][]string{{"0.4000", "20.00"}},
+			[][]string{{"0.5500", "20.00"}})
+		h.seedOwnerLedger(o, seamHeldLossLegs()...)
+		o.pnlQExch = map[string]num.Qty{seamTicker: num.QtyFromFloat(15)}
+		o.pnlQKnown = true
+
+		o.evaluatePnL()
+
+		if got := h.latchTrigger(); got != "" {
+			t.Fatalf("the loss floor latched %q from a book the gate never "+
+				"accepted a frame for.\n\n"+
+				"An absent mark and a stale one are the same not-fired answer "+
+				"and completely different things to be woken for, and neither is "+
+				"a price", got)
+		}
+		var raised []string
+		for _, a := range h.takeRaised() {
+			raised = append(raised, a.Class)
+		}
+		if !seamContains(raised, "PNL_MARK_UNAVAILABLE") {
+			t.Fatalf("no PNL_MARK_UNAVAILABLE was raised for a market with no "+
+				"accepted snapshot; raised %v", raised)
+		}
+	})
+}
+
+// seedOwnerLedger drives fills straight into one owner's P&L ledger, for the
+// owner-level tests whose subject is the MARK rather than the wiring.
+func (h *seamHarness) seedOwnerLedger(o *owner, legs ...seamPnLLeg) {
+	h.t.Helper()
+	for i, leg := range legs {
+		price4 := seamPrice4(h.t, leg.yesFP)
+		if leg.side == quote.SideNo {
+			price4 = seamPrice4(h.t, leg.noFP)
+		}
+		o.applyPnLFill(risk.FillEvent{
+			TradeID: leg.trade, OrderID: "SEAM-OWNER-LEDGER",
+			Ticker: seamTicker, Side: leg.side, Price4: price4,
+			Count: leg.count, ExchangeTsMs: int64(i + 1),
+		})
+	}
+}
+
+func seamPrice4(t *testing.T, fp string) int64 {
+	t.Helper()
+	p, err := rest.ParsePrice4(fp)
+	if err != nil {
+		t.Fatalf("ParsePrice4(%q): %v", fp, err)
+	}
+	return int64(p)
+}
+
+// setBalance changes what `GET /portfolio/balance` reports. It exists so a test
+// can move the account's cash AFTER startup, which is the only shape the reward
+// regression guard can currently take.
+func (f *seamExchange) setBalance(cents int64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.balanceCents = cents
+}
+
+// acceptBook delivers one snapshot through the GATE, for the owner-level tests.
+//
+// It goes through `applyEvent` rather than `rig.book.Handle` because that is the
+// distinction the mark clock is built on: `installBook` puts levels in `core`
+// without the gate ever seeing a frame, which is exactly the state a reconnect
+// leaves behind, and only an ACCEPTED frame may stamp a mark.
+func (h *seamHarness) acceptBook(o *owner, tsMs int64, yes, no [][]string) {
+	h.t.Helper()
+	frame, err := h.ws.frame("orderbook_snapshot", map[string]any{
+		"market_ticker":  seamTicker,
+		"ts_ms":          tsMs,
+		"yes_dollars_fp": yes,
+		"no_dollars_fp":  no,
+	})
+	if err != nil {
+		h.t.Fatalf("building a snapshot frame: %v", err)
+	}
+	tokens := make(chan wsx.ReconcileToken, 1)
+	o.applyEvent(wsx.Event{Kind: wsx.EventFrame, Frame: frame,
+		At: h.clk.Now()}, tokens)
+}
+
+// seamAgedLossLegs is a breaching fixture holding 5.00 contracts.
+//
+//	buy  30.00 YES at $0.9000   cash = -$27.00   q = +30.00
+//	sell 25.00 YES at $0.3000   cash = -$19.50   q =  +5.00
+//
+// Marked at 4250 the inventory is worth $2.125 and the total is -$17.375. The
+// position is under `inv_hard` 7.00 on purpose: the market therefore stays out
+// of REDUCING, which is what makes "the two 60-second clocks are still fresh" an
+// assertion the test can actually make.
+func seamAgedLossLegs() []seamPnLLeg {
+	return []seamPnLLeg{
+		{trade: "SEAM-PNL-AGE-BUY", side: quote.SideYes, yesFP: "0.9000",
+			noFP: "0.1000", count: num.QtyFromFloat(30), cents: 90},
+		{trade: "SEAM-PNL-AGE-SELL", side: quote.SideNo, yesFP: "0.3000",
+			noFP: "0.7000", count: num.QtyFromFloat(25), cents: 70},
+	}
+}
+
+// TestPnLMarkExpiresAtThirtySecondsBeforeBothSixtySecondClocks is the reason the
+// mark needed a clock of its own.
+//
+// This file already keeps two 60-second clocks. `quiet_s` asks whether the
+// market is still talking; `truth_max_age_s` asks whether the PORTFOLIO reads
+// are current. Neither is a statement about the freshness of the PRICE, and at
+// 60 seconds either would authorise valuing inventory against a mark H-HALT-5
+// declared unusable thirty seconds earlier.
+//
+// The second subtest is the whole point: at 35 seconds the mark is gone while
+// both 60-second clocks are demonstrably still fresh -- the market is
+// actionable and it is not reducing -- so a comparison against either of them
+// would have fired the kill on a stale price.
+func TestPnLMarkExpiresAtThirtySecondsBeforeBothSixtySecondClocks(t *testing.T) {
+	seed := func(h *seamHarness) {
+		h.t.Helper()
+		h.seedPnLFills(seamAgedLossLegs()...)
+		h.ex.setPosition(seamTicker, "5.00")
+	}
+
+	t.Run("exactly pnl_mark_max_age_s is inside the bound", func(t *testing.T) {
+		h := newSeamHarness(t, seamOptions{Rung: "pilot"})
+		h.start()
+		h.awaitActionable()
+
+		// Five polls takes the opening snapshot's mark to 25s; the fills are
+		// seeded there so that the first evaluation with anything to evaluate is
+		// the one at exactly `pnl_mark_max_age_s`.
+		for i := 0; i < 5; i++ {
+			h.clk.Advance(h.cfg.Params.PositionPoll)
+			h.awaitTicks(2)
+		}
+		seed(h)
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+
+		h.await("the durable §12 cause to reach the latch", func() bool {
+			return h.latchTrigger() != ""
+		})
+		if got := h.latchTrigger(); got != "pnl_kill" {
+			t.Fatalf("a mark of exactly pnl_mark_max_age_s %v latched %q, want "+
+				"pnl_kill.\n\n"+
+				"§16 states the parameter as a MAXIMUM age and H-HALT-5 as "+
+				"\"age <= 30s\", so the boundary belongs to the usable side. A "+
+				"harness that refused here would go unevaluable once a second on "+
+				"a market whose book updates at exactly the bound",
+				h.cfg.Params.PnLMarkMaxAge, got)
+		}
+	})
+
+	t.Run("one poll past the bound is stale", func(t *testing.T) {
+		h := newSeamHarness(t, seamOptions{Rung: "pilot"})
+		h.start()
+		h.awaitActionable()
+
+		for i := 0; i < 6; i++ {
+			h.clk.Advance(h.cfg.Params.PositionPoll)
+			h.awaitTicks(2)
+		}
+		seed(h)
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(4)
+
+		if got := h.latchTrigger(); got != "" {
+			t.Fatalf("a mark 35s old latched %q against pnl_mark_max_age_s %v",
+				got, h.cfg.Params.PnLMarkMaxAge)
+		}
+		h.await("the SEV2 PNL_MARK_UNAVAILABLE anomaly to reach the store",
+			func() bool {
+				return seamContains(h.anomalyClasses(), "PNL_MARK_UNAVAILABLE")
+			})
+
+		// Both 60-second clocks, still fresh at the moment the 30-second one has
+		// expired. This is the assertion that separates `pnl_mark_max_age_s`
+		// from the two thresholds it would otherwise be indistinguishable from.
+		m, ok := h.market()
+		if !ok || !m.BookActionable {
+			t.Fatalf("the market is not actionable (present=%v) at 35s, so "+
+				"truth_max_age_s %v cannot be shown to be fresh and the subject "+
+				"of this test is not observable", ok, h.cfg.Params.TruthMaxAge)
+		}
+		if m.State == quote.Reducing {
+			t.Fatalf("the market is REDUCING at 35s holding 5.00 contracts "+
+				"against inv_hard %s, which means quiet_s %v has fired and the "+
+				"two clocks cannot be told apart here",
+				h.cfg.Params.InvHard.Wire(), h.cfg.Params.Quiet)
+		}
+	})
+}
+
+// TestPnLMarkRequiresAnAcceptedCurrentGenerationSnapshot is what the mark clock
+// is FOR, and it is the reason it is not `lastFrame`.
+//
+// `lastFrame` is seeded at CONNECT and survives frames `core` refused, because
+// silence is what F5 measures. Neither property is tolerable in a price: a
+// connection that has said nothing has told us nothing about value, and a frame
+// core declined to believe is not evidence of one. Both would produce a mark
+// that looks fresh over a book nobody has confirmed.
+//
+// Three cases, and the third is not decoration. An assertion that nothing fired
+// is satisfied by a detector that cannot fire at all.
+func TestPnLMarkRequiresAnAcceptedCurrentGenerationSnapshot(t *testing.T) {
+	setup := func(t *testing.T) (*seamHarness, *owner) {
+		h := newSeamHarness(t, seamOptions{Rung: "pilot"})
+		o := h.ownerFor()
+		h.seedOwnerLedger(o, seamHeldLossLegs()...)
+		o.pnlQExch = map[string]num.Qty{seamTicker: num.QtyFromFloat(15)}
+		o.pnlQKnown = true
+		return h, o
+	}
+	yes := [][]string{{"0.4000", "20.00"}}
+	no := [][]string{{"0.5500", "20.00"}}
+
+	t.Run("a connection alone establishes no mark", func(t *testing.T) {
+		h, o := setup(t)
+		h.connectGate()
+		// Levels in `core`, and not one frame the gate has accepted.
+		h.installBook(yes, no)
+
+		o.evaluatePnL()
+
+		if got := h.latchTrigger(); got != "" {
+			t.Fatalf("the loss floor latched %q on a connection that has not "+
+				"delivered an accepted snapshot.\n\n"+
+				"A mark stamped at connect time is a price nobody has quoted. "+
+				"H-FAIL-5 is explicit that a book carried across a gap "+
+				"authorises nothing until a fresh snapshot replaces it", got)
+		}
+	})
+
+	t.Run("a prior generation's mark does not survive", func(t *testing.T) {
+		h, o := setup(t)
+		h.connectGate()
+		h.acceptBook(o, 1, yes, no)
+
+		// The socket drops and comes back. `core` is reset by the disconnect, so
+		// the levels are re-installed directly afterwards -- leaving a FULL book
+		// whose only snapshot belongs to the previous generation, which is
+		// exactly the state H-FAIL-5 describes.
+		tokens := make(chan wsx.ReconcileToken, 1)
+		o.applyEvent(wsx.Event{Kind: wsx.EventDisconnected, At: h.clk.Now(),
+			Clean: true}, tokens)
+		o.applyEvent(wsx.Event{Kind: wsx.EventConnected, At: h.clk.Now()},
+			tokens)
+		h.installBook(yes, no)
+
+		o.evaluatePnL()
+
+		if got := h.latchTrigger(); got != "" {
+			t.Fatalf("the loss floor latched %q from a mark established on the "+
+				"PREVIOUS connection.\n\n"+
+				"A generation change invalidates every reading taken under the "+
+				"old one. A mark that survived it is a price from before an "+
+				"outage of unknown length, presented as current", got)
+		}
+	})
+
+	t.Run("an accepted current-generation snapshot marks", func(t *testing.T) {
+		h, o := setup(t)
+		h.connectGate()
+		h.acceptBook(o, 1, yes, no)
+
+		o.evaluatePnL()
+
+		if got := h.latchTrigger(); got != "pnl_kill" {
+			t.Fatalf("a fresh accepted snapshot on the current generation "+
+				"latched %q, want pnl_kill.\n\n"+
+				"Without this case the two above are satisfied by a rule that "+
+				"can never fire, which is the failure mode this whole bead "+
+				"exists because of", got)
+		}
+	})
+}
+
+// TestPnLMarkUsesExternalBestAfterSubtractingAllOurSize is H-Q-10 arriving at
+// the loss floor instead of at the quote.
+//
+// Valuing inventory against a touch we are ourselves posting is self-reference:
+// our own bid holds the mark up while the position it is valuing gets worse, and
+// `pnl_kill` fires late or not at all. `Book.Mid()` is exactly that unsubtracted
+// reading, which is why the helper takes levels rather than a book.
+//
+// The two subtests are the SAME BOOK and differ only in whether the 60c level
+// belongs to us. That is the whole experiment: 60c ours gives an external touch
+// of 40c and a mark of 4250, which breaches; 60c somebody else's gives 5250,
+// which does not. A harness that skipped the subtraction cannot tell them apart.
+func TestPnLMarkUsesExternalBestAfterSubtractingAllOurSize(t *testing.T) {
+	yes := [][]string{{"0.6000", "5.00"}, {"0.4000", "20.00"}}
+	no := [][]string{{"0.5500", "20.00"}}
+
+	setup := func(t *testing.T) (*seamHarness, *owner) {
+		h := newSeamHarness(t, seamOptions{Rung: "pilot"})
+		o := h.ownerFor()
+		h.connectGate()
+		h.acceptBook(o, 1, yes, no)
+		h.seedOwnerLedger(o, seamHeldLossLegs()...)
+		o.pnlQExch = map[string]num.Qty{seamTicker: num.QtyFromFloat(15)}
+		o.pnlQKnown = true
+		return h, o
+	}
+
+	t.Run("the top of book is ours", func(t *testing.T) {
+		h, o := setup(t)
+		h.installResting(risk.LiveOrder{
+			OrderID: "SEAM-PNL-RESTING", Ticker: seamTicker,
+			Side: quote.SideYes, Price4: 6000, Remaining: num.QtyFromFloat(5),
+		})
+
+		o.evaluatePnL()
+
+		if got := h.latchTrigger(); got != "pnl_kill" {
+			t.Fatalf("the loss floor did not fire (latch %q) while our own 60c "+
+				"bid was the only thing holding the mark above it.\n\n"+
+				"Subtracting our resting size leaves an external touch of 40c "+
+				"and a mark of 4250, at which the total is -$16.125. A mark "+
+				"taken from the raw book reads 5250 and -$14.625 -- inside the "+
+				"floor, on the strength of our own quote", got)
+		}
+	})
+
+	t.Run("the top of book is somebody else's", func(t *testing.T) {
+		h, o := setup(t)
+
+		o.evaluatePnL()
+
+		if got := h.latchTrigger(); got != "" {
+			t.Fatalf("the loss floor latched %q against a genuinely external "+
+				"60c bid, at which the mark is 5250 and the total -$14.625.\n\n"+
+				"This is the control for the subtraction: without it, a rule "+
+				"that ignored our size entirely would pass the other half of "+
+				"this test for the wrong reason", got)
+		}
+	})
+}
+
+// TestRewardArrivalCannotMoveTradingPnL is HR-021, kept as a regression guard.
+//
+// The red team found two conforming implementations disagreeing completely on
+// the same position: a fills-and-cost-basis reading saw -$90 and halted, while a
+// balance-delta reading saw nothing -- and, worse, "an incoming $100 LIP reward
+// masks the drawdown entirely". The reward is the thing this system is measuring
+// itself against. It is not a component of its P&L.
+//
+// `risk.TradingPnL` excludes it BY CONSTRUCTION: the only thing that can enter
+// the type is an owned `FillEvent` and there is no method by which a balance
+// could reach it. So this test cannot fail while that holds, which is exactly
+// what makes it a guard rather than a proof -- it fails the moment someone adds
+// the balance reader that would make the exclusion a choice again.
+//
+// The literal post-start reward-delivery path is unreachable today: the only
+// runtime balance read is at startup. When `lip-o7a` adds delivery, that bead
+// must strengthen this into an actual delivered-delta test.
+func TestRewardArrivalCannotMoveTradingPnL(t *testing.T) {
+	// The fixture is one microdollar PAST the floor, so it fires -- and firing is
+	// what makes the test sensitive to the defect. HR-021's failure is MASKING:
+	// a balance folded into the ledger swamps a $15 drawdown with a four-figure
+	// account balance and the halt silently stops happening. A fixture that sat
+	// inside the floor would go on not-firing under exactly that bug, and would
+	// prove only that the harness can decline to stop.
+	realised := func(t *testing.T, startCents, laterCents int64) num.Money {
+		t.Helper()
+		h := newSeamHarness(t, seamOptions{Rung: "pilot"})
+		h.ex.setBalance(startCents)
+		h.start()
+		h.awaitActionable()
+
+		h.seedPnLFills(append(seamFloorLegs(), seamMicroLegs(true)...)...)
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+
+		h.await("the durable §12 cause to reach the latch", func() bool {
+			return h.latchTrigger() != ""
+		})
+		if got := h.latchTrigger(); got != "pnl_kill" {
+			t.Fatalf("an account holding %d cents and down $15.000001 latched "+
+				"%q, want pnl_kill.\n\n"+
+				"The balance is four figures and the drawdown is fifteen "+
+				"dollars. Any reading that lets the former reach the P&L cannot "+
+				"see the latter at all -- which is HR-021 exactly: \"an incoming "+
+				"$100 LIP reward masks the drawdown entirely\"", startCents, got)
+		}
+
+		// The reward lands AFTER the halt. `balance_poll_s` is 60s and the
+		// session's own read deadline is 60s, so it is walked there one
+		// `position_poll_s` at a time rather than stepped past in one jump.
+		h.ex.setBalance(laterCents)
+		for i := 0; i < 13; i++ {
+			h.clk.Advance(h.cfg.Params.PositionPoll)
+			h.awaitTicks(2)
+		}
+		if got := h.latchTrigger(); got != "pnl_kill" {
+			t.Fatalf("the durable cause is %q after a reward arrived, want "+
+				"pnl_kill: a P&L halt is never undone by money arriving from "+
+				"somewhere other than trading", got)
+		}
+		if s := h.snapshot(); s.Global != quote.WindingDown {
+			t.Fatalf("the global state is %s after a reward arrived, want "+
+				"WINDING_DOWN", s.Global)
+		}
+
+		h.stopServe()
+		o := h.ownerFor()
+		o.seedPnL(nil)
+		return o.pnl.Realised(seamTicker)
+	}
+
+	poor := realised(t, 100_000, 100_000)
+	rich := realised(t, 110_000, 120_000)
+
+	if want := num.Money(-15_000_001); poor != want {
+		t.Fatalf("trading P&L is %s, want %s: the fixture's fills alone decide "+
+			"the figure", poor, want)
+	}
+	if poor != rich {
+		t.Fatalf("trading P&L is %s on an account that started $100 richer and "+
+			"was paid $100 more after startup, against %s on the poor one.\n\n"+
+			"H-HALT-5 measures TRADING P&L. A reward arriving must not move it: "+
+			"a balance-delta reading is masked by exactly the incentive payment "+
+			"this system exists to collect, and would sit silent through the "+
+			"drawdown it is supposed to stop", rich, poor)
+	}
+}

@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	"lip/harness/cfg"
+	"lip/harness/hstore"
 	"lip/harness/lifecycle"
 	"lip/harness/num"
 	"lip/harness/quote"
@@ -261,6 +263,59 @@ type owner struct {
 	// times a second into a 256-slot buffer.
 	reducerCancelPinged [2]bool
 
+	// --- H-HALT-5's ledger ---------------------------------------------------
+
+	// pnl is the trading P&L: seeded from the durable `our_fill` history at
+	// startup and advanced by every owned fill this process sees afterwards.
+	//
+	// The owner holds it and nothing else has a reference. `risk.TradingPnL` is
+	// a pure accumulator with no clock, no lock and no I/O, which is what makes
+	// one owner goroutine sufficient for it -- the same argument this file makes
+	// for `risk.Portfolio`.
+	pnl *risk.TradingPnL
+	// pnlTickers is every market the ledger has taken a fill for.
+	//
+	// `Evaluate` refuses outright when the ledger holds a market the caller did
+	// not ask about, because that market's cash would otherwise be missing from
+	// the total and a missing contribution understates a loss. Keeping the set
+	// here means the owner always asks about all of them, so that refusal stays
+	// a backstop rather than the normal path.
+	pnlTickers map[string]struct{}
+	// pnlQExch is the LATEST COMPLETE authoritative position per market, and it
+	// is deliberately not `Portfolio.Q`.
+	//
+	// `q_local` is advanced by ACKS as well as by fills -- `Portfolio.settle`
+	// applies max(ackCum, fillCum) -- so a ledger built from fills alone would
+	// disagree with it for a reason that is not a basis hole at all, and every
+	// such disagreement would refuse to evaluate the trigger. H-POS-1's
+	// overwrite is the reading H-HALT-5 wants checked against. An INCOMPLETE
+	// walk contributes nothing and leaves the previous figure standing, which is
+	// H-PAGE-1's "stale, never empty" applied here.
+	pnlQExch map[string]num.Qty
+	// pnlQKnown is whether any complete positions walk has landed yet. Until one
+	// has there is no authoritative figure to check the ledger against, so the
+	// trigger is simply not evaluated -- which is not-fired, and is not safe.
+	pnlQKnown bool
+	// pnlPinged dedupes the SEV2 once per market per unavailable EPISODE and
+	// re-arms when that market's mark or basis recovers.
+	//
+	// Same shape and same argument as `ORDER_UNKNOWN`'s and
+	// `FILL_UNCLASSIFIABLE`'s: a standing condition is worth saying once, and at
+	// four evaluations a second into a 256-slot buffer it is worth not saying
+	// two hundred times a minute -- which would evict every other anomaly in the
+	// buffer, including the one the operator needs.
+	pnlPinged map[string]struct{}
+	// pnlKilled is whether the floor has already fired, and it is never cleared.
+	//
+	// Without it the breach re-raises its SEV1 and re-enters the stop funnel on
+	// every tick for the life of the process -- the loss does not go away
+	// because the harness stopped adding to it, and `pnl <= pnl_kill` stays true
+	// afterwards. It is also the field that makes the halt IRREVERSIBLE in
+	// memory as well as on disk: a durable pnl halt is never undone when the
+	// mark later disappears, and a later refusal to evaluate must not read as
+	// the condition clearing.
+	pnlKilled bool
+
 	snapSeq uint64
 }
 
@@ -313,6 +368,11 @@ func newOwner(r *rig, sd *shutdown) *owner {
 		market:   quote.Idle,
 		capacity: r.cap,
 		pending:  make(map[string]pendingOrder),
+
+		pnl:        risk.NewTradingPnL(),
+		pnlTickers: make(map[string]struct{}),
+		pnlQExch:   make(map[string]num.Qty),
+		pnlPinged:  make(map[string]struct{}),
 	}
 
 	if r.boot.BlockAdding || r.boot.RetryLatch {
@@ -598,6 +658,7 @@ func (o *owner) install(a lifecycle.Adoption) {
 	// against an empty baseline.
 	o.startupTrades = a.StartupTrades()
 	o.recordBackfilled(a.OwnedFills())
+	o.seedPnL(a.OwnedFills())
 	o.r.anom.raiseAll(a.Anomalies())
 
 	sum := a.Summary()
@@ -667,6 +728,117 @@ func (o *owner) recordBackfilled(fills []rest.Fill) {
 					"lost rather than late", f.TradeID, f.OrderID, err),
 			})
 		}
+	}
+}
+
+// seedPnL builds H-HALT-5's ledger from every fill that is already known.
+//
+// Two sources, and they overlap deliberately.
+//
+// `our_fill` is the DURABLE history: every row, every run, both provenances. No
+// filter, and the reader takes no argument to filter by. A position adopted at
+// startup was PAID FOR BY AN EARLIER RUN, so a ledger restricted to this run's
+// rows would hold inventory it has no cost for -- and the check against the
+// authoritative quantity would then refuse to evaluate the trigger for the rest
+// of the process's life. Restricting by `backfilled` fails the same way.
+//
+// The adoption's own fills are the ones §7.5 has just read and whose rows are
+// still in flight to the store writer, so the query above cannot be relied on to
+// contain them yet. `TradingPnL.Apply` is idempotent by trade id, so offering
+// the same fill from both sources costs nothing and missing it from one of them
+// costs the basis.
+//
+// The read happens HERE, once, inside `install`, and never from a tick: the
+// owner drives a 250 ms loop and a SQLite query on that path would put the
+// store's latency inside the quoting decision.
+func (o *owner) seedPnL(adopted []rest.Fill) {
+	rows, err := o.r.store.Reader().Fills()
+	if err != nil {
+		// Not fatal, and not silent. The ledger continues from the adoption
+		// alone, which means any inventory older than it has no basis -- and the
+		// authoritative-quantity check turns that into a refusal to evaluate
+		// rather than into a wrong number.
+		o.r.anom.raise(risk.Anomaly{
+			Class: "PNL_BASIS_UNAVAILABLE", Sev: risk.SEV2, Ticker: o.r.cfg.Ticker,
+			Text: fmt.Sprintf("the durable our_fill history could not be read "+
+				"(%v), so H-HALT-5's ledger starts from this adoption alone; any "+
+				"position older than it has no cost basis and the trigger will "+
+				"refuse to evaluate rather than value it at the mark", err),
+		})
+	}
+	for _, row := range rows {
+		if f, ok := o.fillFromRow(row); ok {
+			o.applyPnLFill(f)
+		}
+	}
+
+	events, err := lifecycle.ConvertFills(adopted)
+	if err != nil {
+		// Unreachable for the reason `recordBackfilled` gives -- §7.5 converted
+		// this same slice and refused to produce an Adoption when it could not --
+		// and reported anyway, because this is the one call that sets the
+		// ledger's opening balance and a silent `_ = err` here is a loss floor
+		// measured from the wrong zero.
+		o.r.anom.raise(risk.Anomaly{
+			Class: "PNL_BASIS_UNAVAILABLE", Sev: risk.SEV2, Ticker: o.r.cfg.Ticker,
+			Text: fmt.Sprintf("the adoption's %d owned fill(s) did not convert "+
+				"(%v), so none of the history this process inherited reaches "+
+				"H-HALT-5's ledger", len(adopted), err),
+		})
+		return
+	}
+	for _, f := range events {
+		o.applyPnLFill(f)
+	}
+}
+
+// fillFromRow reads one durable `our_fill` row back into the ledger's own form.
+//
+// A row whose side does not parse is REFUSED rather than guessed. The side
+// decides the sign of both the position and the cash (H-CO-1), so a guess is a
+// fabricated basis; refusing leaves the ledger's quantity disagreeing with the
+// authoritative one, which is exactly the `PNL_BASIS_UNAVAILABLE` refusal
+// H-HALT-5 already defines. Failing into an existing not-fired path is better
+// than inventing a number that the loss floor is then compared against.
+func (o *owner) fillFromRow(row hstore.FillRow) (risk.FillEvent, bool) {
+	var side quote.Side
+	switch row.Side {
+	case quote.SideYes.String():
+		side = quote.SideYes
+	case quote.SideNo.String():
+		side = quote.SideNo
+	default:
+		o.r.anom.raise(risk.Anomaly{
+			Class: "PNL_BASIS_UNAVAILABLE", Sev: risk.SEV2, Ticker: row.Ticker,
+			Text: fmt.Sprintf("our_fill row %s carries side %q, which is neither "+
+				"%q nor %q; the side decides the sign of the position and of the "+
+				"cash, so the row is refused rather than guessed and this "+
+				"market's P&L will not evaluate", row.TradeID, row.Side,
+				quote.SideYes, quote.SideNo),
+		})
+		return risk.FillEvent{}, false
+	}
+	return risk.FillEvent{
+		TradeID:      row.TradeID,
+		OrderID:      row.OrderID,
+		Ticker:       row.Ticker,
+		Side:         side,
+		Price4:       row.Price4,
+		Count:        row.Count,
+		Fee:          row.Fee,
+		IsTaker:      row.IsTaker,
+		ExchangeTsMs: row.ExchangeTsMs,
+	}, true
+}
+
+// applyPnLFill offers one fill to the ledger and remembers the market it was in.
+//
+// The market is recorded only when the fill was NEW, because a duplicate means
+// the market was recorded when the first copy landed. What the set is for is
+// `evaluatePnL` asking about every market the ledger holds -- see `pnlTickers`.
+func (o *owner) applyPnLFill(f risk.FillEvent) {
+	if o.pnl.Apply(f) {
+		o.pnlTickers[f.Ticker] = struct{}{}
 	}
 }
 
@@ -1065,6 +1237,34 @@ func (o *owner) applyRead(read wsx.PortfolioRead) {
 			})
 		}
 	}
+	// H-HALT-5's ledger, advanced from the SAME effects the two loops above just
+	// wrote rows from, and from both provenances. A fill older than `backfill_h`
+	// was still paid for and still moved the position, so a ledger taking only
+	// `OwnedFill` would price inherited inventory against a basis it never saw --
+	// and, because the quantity check would then fail, would refuse to evaluate
+	// the loss floor for as long as that inventory was held.
+	for _, f := range eff.OwnedFill {
+		o.applyPnLFill(f)
+	}
+	for _, f := range eff.BackfilledFill {
+		o.applyPnLFill(f)
+	}
+	// The authoritative position, from a COMPLETE walk and from nothing else.
+	// `Applied` is `wsx`'s report that this walk replaced rather than went stale,
+	// and an incomplete one leaves the previous figure standing: H-PAGE-1's
+	// "stale, never empty", applied to the figure the ledger is checked against.
+	//
+	// Every record is kept, including the flat ones. A market that has traded to
+	// flat still carries realised cash, and dropping it here would drop that cash
+	// from the total -- while also making it a market the ledger knows and the
+	// caller did not ask about, which `Evaluate` refuses on.
+	if eff.Applied[wsx.TruthPositions] {
+		o.pnlQExch = make(map[string]num.Qty, len(eff.Records))
+		for _, rec := range eff.Records {
+			o.pnlQExch[rec.Ticker] = rec.QExch
+		}
+		o.pnlQKnown = true
+	}
 	if eff.Stop {
 		o.requestStop("portfolio_read", "")
 	}
@@ -1087,6 +1287,28 @@ func (o *owner) applyRead(read wsx.PortfolioRead) {
 	if eff.InvKill != "" {
 		o.requestStop("inv_kill", eff.InvKill)
 	}
+
+	// H-HALT-5, and it is evaluated HERE as well as on the tick because this is
+	// the moment both of its inputs change: the new owned fills are in the ledger
+	// and the latest complete authoritative position is installed, both a few
+	// lines above.
+	//
+	// The RANKING is the reason it sits between those two blocks, and it is a
+	// ranking of causes rather than a sequence of steps -- `commitStop` is
+	// first-writer-wins, so position in this list decides which cause the durable
+	// latch carries and therefore which row the §10.4 operator reads at 3am.
+	//
+	// Below `inv_kill`, because "we hold more than we said we would" is a fact
+	// about the position while "we have lost more than we said we would" is a
+	// CALCULATION over it -- one that depends on a mark, which may itself be the
+	// thing that is wrong. When both fire on the same read the operator is better
+	// served by the measurement than by the arithmetic over it.
+	//
+	// Above the canary, for the reason `inv_kill` is above it: `pnl_kill` is a row
+	// of the §12 halt table and "the canary traded" is a rung policy. Nothing is
+	// lost by losing either race -- the harness stops either way and the SEV1
+	// `PNL_KILL` anomaly is raised whichever cause takes the latch.
+	o.evaluatePnL()
 
 	// §7.9's canary bound, and it comes AFTER `eff.Stop` on purpose. A taker
 	// fill, a foreign fill and a hard position drift all arrive on this same
@@ -1162,6 +1384,255 @@ func (o *owner) clearListed() {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// H-HALT-5 — the loss floor
+// ---------------------------------------------------------------------------
+
+// evaluatePnL is H-HALT-5: value the account's inventory, and halt if the loss
+// has reached `pnl_kill`.
+//
+// It is REFUSAL-FIRST, and that shape is mandated rather than defensive. H-HALT-5
+// says that if no mark of acceptable age exists the trigger CANNOT be evaluated:
+// SEV2, treated as not-fired, and never as fired-or-safe. So every path that
+// cannot produce an honest figure raises and returns, and the one path that
+// stops the harness is the one that computed a total from a fresh EXTERNAL mark
+// and a complete AUTHORITATIVE position.
+//
+// What it measures is TRADING P&L and nothing else. No balance can reach
+// `risk.TradingPnL` -- there is no method by which one could -- because HR-021's
+// finding is that a $100 LIP reward landing mid-drawdown masks it entirely in a
+// balance-delta reading. The reward is the thing this system is measuring itself
+// against; it is not a component of its P&L.
+func (o *owner) evaluatePnL() {
+	if o.pnlKilled {
+		// Fired once, and the cause is already durable or held for retry by the
+		// stop funnel. Re-raising would put a SEV1 into a 256-slot buffer four
+		// times a second and re-enter `commitStop` on every tick, for a
+		// condition that by construction does not go away.
+		return
+	}
+	if !o.pnlQKnown {
+		// No complete positions walk has landed yet, so there is no
+		// authoritative figure to check the ledger against -- and checking it
+		// against `q_local` instead would compare a fill-derived quantity to one
+		// the ACKS also move. Silent, because this is the opening seconds of a
+		// run rather than a condition: `Actionable` withholds every placement
+		// until all three walks have landed, so nothing has been risked yet.
+		return
+	}
+
+	in, why := o.pnlInputs()
+	res := o.pnl.Evaluate(in)
+
+	// Re-arm every episode that has ENDED, before raising the ones that are
+	// live. A market that goes stale, recovers, and goes stale again is two
+	// conditions, and an operator told about it only the first time would not
+	// know the second happened.
+	live := make(map[string]struct{}, len(res.NoMark)+len(res.NoBasis))
+	for _, t := range res.NoMark {
+		live[pnlEpisode("PNL_MARK_UNAVAILABLE", t)] = struct{}{}
+	}
+	for _, t := range res.NoBasis {
+		live[pnlEpisode("PNL_BASIS_UNAVAILABLE", t)] = struct{}{}
+	}
+	for k := range o.pnlPinged {
+		if _, still := live[k]; !still {
+			delete(o.pnlPinged, k)
+		}
+	}
+
+	for _, t := range res.NoMark {
+		reason := why[t]
+		if reason == "" {
+			reason = "no usable mark exists for this market"
+		}
+		o.pnlUnavailable("PNL_MARK_UNAVAILABLE", t, reason)
+	}
+	for _, t := range res.NoBasis {
+		o.pnlUnavailable("PNL_BASIS_UNAVAILABLE", t, fmt.Sprintf(
+			"the fill-derived position %s disagrees with the authoritative %s, "+
+				"so the account holds contracts this ledger has no fills for -- a "+
+				"manual trade, a settlement, or a fill we never saw. There is no "+
+				"honest basis to value them at, and valuing them AT THE MARK "+
+				"would assume they were acquired at today's price, which is the "+
+				"assumption most likely to hide a loss. Ignorance is reported, "+
+				"not resolved (H-ORD-5a)",
+			o.pnl.Qty(t).Wire(), o.pnlQExch[t].Wire()))
+	}
+	if !res.Evaluable {
+		return
+	}
+
+	// §12's row reads "P&L <= pnl_kill", so the comparison is INCLUSIVE: exactly
+	// the floor fires, and one microdollar above it does not.
+	//
+	// That is the OPPOSITE sense to `inv_kill`'s strict `>`, and the two are
+	// consistent rather than contradictory. `inv_kill` is a level the position
+	// may REACH and may not pass -- `Validate` orders it strictly above
+	// `inv_hard`, so the band between them belongs to the market-scoped brake.
+	// `pnl_kill` has no such neighbour below it: it is a floor, `Validate`
+	// refuses a non-negative one because it would fire immediately, and there is
+	// no second rule owning the figure itself.
+	if res.Total > o.p.PnLKill {
+		return
+	}
+	o.pnlKilled = true
+	o.r.anom.raise(risk.Anomaly{
+		Class: "PNL_KILL", Sev: risk.SEV1, Ticker: o.r.cfg.Ticker,
+		Text: fmt.Sprintf("trading P&L %s has reached pnl_kill %s (§12 reads "+
+			"\"P&L <= pnl_kill\", so the floor itself fires). §12 makes this a "+
+			"GLOBAL halt: every market stops adding, every reducing quote stays "+
+			"live, monitoring continues and the process stays alive (I1). The "+
+			"figure is realised cash plus open inventory at the external mid, "+
+			"fees included and rewards excluded", res.Total, o.p.PnLKill),
+	})
+	o.requestStop("pnl_kill", "")
+}
+
+// pnlInputs is one evaluation's per-market input: what the exchange says we
+// hold, and what the book says it is worth.
+//
+// It returns the reason a mark could not be formed alongside the inputs, so the
+// SEV2 can name WHICH market and WHY without computing the mark a second time.
+//
+// The market set is the UNION of the last complete walk's and the ledger's. The
+// walk's side is obvious; the ledger's is not, and it closes a real hole: a
+// market that traded to flat is deleted from `q` and can be absent from a later
+// walk's records, while still carrying realised cash that belongs in the total.
+// `Evaluate` refuses outright on any ledger market the caller omits, so leaving
+// it out would not lose the cash silently -- it would make the trigger
+// permanently unevaluable instead.
+func (o *owner) pnlInputs() ([]risk.PnLInput, map[string]string) {
+	tickers := make([]string, 0, len(o.pnlQExch)+len(o.pnlTickers))
+	seen := make(map[string]struct{}, len(o.pnlQExch)+len(o.pnlTickers))
+	for t := range o.pnlQExch {
+		if _, dup := seen[t]; !dup {
+			seen[t] = struct{}{}
+			tickers = append(tickers, t)
+		}
+	}
+	for t := range o.pnlTickers {
+		if _, dup := seen[t]; !dup {
+			seen[t] = struct{}{}
+			tickers = append(tickers, t)
+		}
+	}
+	// Deterministic, because the anomaly text names markets in this order and an
+	// operator comparing two SEV2s should not have to work out whether a
+	// reordering means anything.
+	sort.Strings(tickers)
+
+	in := make([]risk.PnLInput, 0, len(tickers))
+	why := make(map[string]string)
+	for _, t := range tickers {
+		// Absence from a COMPLETE walk means flat. That inference is exactly the
+		// one `ReplacePositions` makes, and it is only available because the
+		// walk completed.
+		mk := risk.PnLInput{Ticker: t, QExch: o.pnlQExch[t]}
+		if !mk.QExch.IsFlat() {
+			// A FLAT market needs no mark: with nothing open there is no
+			// unrealised component, so its contribution is realised cash that no
+			// price can change. Demanding one anyway would make a wound-down
+			// harness -- flat, and the state H-HALT-5 most needs to stay
+			// evaluable in -- unevaluable the moment its book went quiet.
+			var reason string
+			mk.Mark4, mk.MarkOK, reason = o.mark4(t)
+			if !mk.MarkOK {
+				why[t] = reason
+			}
+		}
+		in = append(in, mk)
+	}
+	return in, why
+}
+
+// mark4 is one market's H-HALT-5 mark: the EXTERNAL mid, YES-denominated, in the
+// exchange's own 1e-4 dollar quantum.
+//
+// The second return says whether it may be used at all, and the third says why
+// not. The third exists because H-HALT-5 requires the SEV2 to distinguish a book
+// that is ABSENT from one that is merely STALE -- they are the same not-fired
+// answer and completely different things to be woken for. Every branch below
+// says which of the two it is, in those words.
+//
+// A mark is only ever available for the CONFIGURED market. This process
+// subscribes to one book and there is no second `core.Rig` to ask, so a position
+// the account holds in another market cannot be priced here. That does not make
+// it worth zero and does not make it skippable: it makes the whole figure
+// unevaluable, and names the market. A held position nobody can price is exactly
+// the state a loss floor must refuse to guess about.
+func (o *owner) mark4(ticker string) (int64, bool, string) {
+	if ticker != o.r.cfg.Ticker {
+		return 0, false, fmt.Sprintf("%s is not the configured market, so this "+
+			"process subscribes to no book for it and no mark exists at any "+
+			"age. ABSENT, not stale", ticker)
+	}
+	// The gate's own mark clock, which is neither of the two 60s clocks. It is
+	// stamped only from frames `core` ACCEPTED and retired by a disconnect, a
+	// sequence gap or a rejected frame, so it answers "is there a price here we
+	// are entitled to believe" rather than "is this market still talking".
+	age, state := o.r.gate.PnLMark(ticker, o.r.ex.Clock.Now())
+	switch state {
+	case wsx.PnLMarkAbsent:
+		return 0, false, "no accepted book snapshot exists on the current " +
+			"connection: a disconnect, a sequence gap or a rejected frame " +
+			"retired the mark and no fresh snapshot has re-established it. " +
+			"ABSENT, not stale -- there is no price here of any age"
+	case wsx.PnLMarkStale:
+		return 0, false, fmt.Sprintf("the last accepted book frame is %v old, "+
+			"past pnl_mark_max_age_s %v. STALE, not absent -- a price exists "+
+			"and is too old to value inventory against",
+			age.Truncate(time.Millisecond), o.p.PnLMarkMaxAge)
+	}
+	book := o.r.book.Book(ticker)
+	if book == nil {
+		return 0, false, "the gate holds a fresh mark but no book is installed " +
+			"for this market, so there are no levels to take a mid from. " +
+			"ABSENT, not stale"
+	}
+	// Our own possibly-live size on both sides: H-Q-5b's aggregate of RESTING,
+	// SENDING, UNKNOWN and unconfirmed-cancel, which is what `restingOn`
+	// already returns.
+	oursYes, _, _ := o.restingOn(quote.SideYes)
+	oursNo, _, _ := o.restingOn(quote.SideNo)
+	mark, unavail := quote.ExternalMark4(book.Yes(), book.No(), oursYes, oursNo)
+	switch unavail {
+	case quote.MarkNoBook:
+		return 0, false, "one or both sides of the book carry no levels at all, " +
+			"so there is no midpoint to take. ABSENT, not stale"
+	case quote.MarkOneSided:
+		return 0, false, "one side of the book has no EXTERNAL liquidity once " +
+			"our own resting size is subtracted (H-Q-10): the only price there " +
+			"is our own, and valuing inventory against our own quote is the " +
+			"self-reference that would hold the mark up while the position it " +
+			"values got worse. PRESENT and one-sided, not stale"
+	}
+	return mark, true, ""
+}
+
+// pnlEpisode is the dedupe key: one episode is one class on one market.
+//
+// The classes are kept apart because they are different conditions with
+// different fixes -- a stale book is a feed problem and a basis mismatch is an
+// accounting one -- and a market can be in both at once.
+func pnlEpisode(class, ticker string) string { return class + "\x00" + ticker }
+
+// pnlUnavailable raises one market's SEV2 at most once per unavailable episode.
+func (o *owner) pnlUnavailable(class, ticker, why string) {
+	key := pnlEpisode(class, ticker)
+	if _, pinged := o.pnlPinged[key]; pinged {
+		return
+	}
+	o.pnlPinged[key] = struct{}{}
+	o.r.anom.raise(risk.Anomaly{
+		Class: class, Sev: risk.SEV2, Ticker: ticker,
+		Text: fmt.Sprintf("H-HALT-5 cannot be evaluated while %s: %s. The "+
+			"trigger is treated as NOT FIRED, and never as fired-or-safe, so "+
+			"the harness keeps running with the loss floor unenforced until "+
+			"this clears", ticker, why),
+	})
+}
+
 // evaluate is one pass of §5.2, §6.2 and §6.5 over the one market.
 func (o *owner) evaluate(now time.Duration) {
 	// `RetryLatch`, honoured, and FIRST: a held cause that becomes durable on
@@ -1213,6 +1684,19 @@ func (o *owner) evaluate(now time.Duration) {
 	if tick.Stop {
 		o.requestStop("gate", o.r.cfg.Ticker)
 	}
+
+	// H-HALT-5 on the tick, which is also H-HALT-5 after every accepted frame:
+	// the owner loop runs this function after EVERY event as well as on the
+	// 250 ms tick, so a book that has just moved is priced against the position
+	// before the next quote is decided from it. A loss floor that only woke on a
+	// portfolio poll would be up to `position_poll_s` late on the one input that
+	// moves continuously -- the mark.
+	//
+	// It runs BEFORE `NextMarket` below so that a breach reaches THIS
+	// evaluation's `Stop` term rather than the next one's: `requestStop` sets
+	// `stopHeld`, and §5.2's REDUCING is what actually takes the adding side off
+	// the book.
+	o.evaluatePnL()
 
 	ticker := o.r.cfg.Ticker
 	q := o.r.pf.Q(ticker)

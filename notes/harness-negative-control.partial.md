@@ -11,7 +11,7 @@ the Go compiler is not a gate.
 
 | id | mutation | expected catching test | result | tests that failed |
 |---|---|---|---|---|
-| M-HS-PATHALIAS | accept the same path as both the database and the anomaly journal, so each destroys the other | `TestStoreArtifactsMustBeDistinctFiles` | **caught** | TestStoreArtifactsMustBeDistinctFiles |
+| M-W-REJECTLIVE | a book frame core never accepted leaves an ALREADY-ACTIONABLE market licensed to place -- quoting against a book we know is behind | `TestRejectedBookFrameImmediatelyQuarantinesAnActionableMarket` | **caught** | TestRejectedBookFrameImmediatelyQuarantinesAnActionableMarket |
 
 **1 of 1 mutations produced their expected outcome.**
 

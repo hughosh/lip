@@ -82,7 +82,7 @@ func TestTradingPnLTreatsANoFillAsAShortYesAtTheComplement(t *testing.T) {
 // A fee is realised the moment it is paid and is never part of what the
 // position cost. Folding it into the basis charges it again, a little at a
 // time, on every later revaluation of that position.
-func TestTradingPnLChargesEachFeeExactlyOnce(t *testing.T) {
+func TestTradingPnLIncludesFeesExactlyOnce(t *testing.T) {
 	fee := num.MoneyFromDollars(0.07)
 	p := NewTradingPnL()
 	p.Apply(pnlFill("a", quote.SideYes, 5000, 100, fee, 1))
@@ -108,7 +108,7 @@ func TestTradingPnLChargesEachFeeExactlyOnce(t *testing.T) {
 // is SHORT 2 -- opened at $0.70, which is the only price ever paid for it. The
 // old long's basis has nothing to do with those contracts, and carrying it
 // across the crossing values the new position at a price it never traded at.
-func TestTradingPnLCrossingZeroReopensAtTheIncomingPrice(t *testing.T) {
+func TestTradingPnLCrossingZeroReopensAtTheIncomingCost(t *testing.T) {
 	p := NewTradingPnL()
 	p.Apply(pnlFill("a", quote.SideYes, 2000, 100, 0, 1))
 	p.Apply(pnlFill("b", quote.SideNo, 3000, 300, 0, 2))
@@ -123,6 +123,18 @@ func TestTradingPnLCrossingZeroReopensAtTheIncomingPrice(t *testing.T) {
 			"want $0.50 -- the realised gain on the closed long alone. Any "+
 			"other figure means the residual short is being valued against a "+
 			"basis it did not trade at", got.Total)
+	}
+	// The SPLIT, which `Total` cannot see. `openBasis` cancels out of the total
+	// -- deliberately, so that no rounding inside it can reach the kill -- so a
+	// basis carried across the crossing is invisible there and shows up only
+	// here. $0.50 is the closed long and nothing else; the short that remains is
+	// open and has realised nothing.
+	if got := p.Realised("T"); got != num.MoneyFromDollars(0.50) {
+		t.Fatalf("realised P&L after the crossing is %s, want $0.50.\n\n"+
+			"The old long's basis has nothing to do with the contracts the "+
+			"crossing fill opened. Scaling it across the crossing the way a "+
+			"partial close does reports $1.50 -- it books the residual short's "+
+			"unrealised position as money already made", got)
 	}
 }
 
