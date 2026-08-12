@@ -80,7 +80,14 @@ func TestStartupDoesNotLatchForeignFillWhileReservationsUnresolved(t *testing.T)
 	if err != nil {
 		t.Fatalf("NewForeignGuard: %v", err)
 	}
-	eff, err := conclusive.Classify(PhaseStartup, nil, fills, 99)
+	//
+	// Classified in the LIVE phase, because since `lip-a3s` the startup phase
+	// reports an inherited foreign fill without latching -- the ledger cannot
+	// distinguish a stranger's order from one older than this store, so a
+	// disclaimed fill at startup is not evidence of a third party. The rule
+	// being guarded here is the one about a third party trading the account
+	// WHILE WE RUN, which is where H-ORD-9's claim actually holds.
+	eff, err := conclusive.Classify(PhaseLive, nil, fills, 99)
 	if err != nil {
 		t.Fatalf("classify: %v", err)
 	}
@@ -88,6 +95,15 @@ func TestStartupDoesNotLatchForeignFillWhileReservationsUnresolved(t *testing.T)
 		t.Fatalf("a CONCLUSIVELY foreign fill did not request a global stop "+
 			"(causes %+v, foreign %+v); H-ORD-9's detection of a third party "+
 			"trading the account must still work", eff.Causes, eff.ForeignFills)
+	}
+	// And the startup phase reports the same fill without latching.
+	startupEff, err := conclusive.Classify(PhaseStartup, nil, fills, 99)
+	if err != nil {
+		t.Fatalf("startup classify: %v", err)
+	}
+	if startupEff.Stop() {
+		t.Fatalf("a conclusively foreign fill ALREADY on the account latched "+
+			"at startup: causes %+v", startupEff.Causes)
 	}
 
 	// --- layer 2: what startup does with it ---------------------------------

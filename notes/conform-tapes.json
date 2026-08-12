@@ -1,0 +1,38 @@
+{
+  "ran_at": "2026-08-12T18:08:08Z",
+  "endpoints": null,
+  "failures": null,
+  "balance": "",
+  "tapes": [
+    {
+      "path": "../testdata/gate-tape.jsonl.gz",
+      "frames": 410375,
+      "truncated_tape": true,
+      "frame_kinds": {
+        "orderbook_delta": 274051,
+        "orderbook_snapshot": 200,
+        "other": 2,
+        "trade": 136122
+      },
+      "undeliverable": 0,
+      "granularity_violations": 0,
+      "anomaly_classes": {},
+      "examples": null
+    },
+    {
+      "path": "../archive/raw-20260724T225527Z.jsonl.gz",
+      "frames": 410422,
+      "truncated_tape": true,
+      "frame_kinds": {
+        "orderbook_delta": 274090,
+        "orderbook_snapshot": 200,
+        "other": 2,
+        "trade": 136130
+      },
+      "undeliverable": 0,
+      "granularity_violations": 0,
+      "anomaly_classes": {},
+      "examples": null
+    }
+  ]
+}

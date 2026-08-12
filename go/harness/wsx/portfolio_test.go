@@ -749,3 +749,82 @@ func classes(anoms []risk.Anomaly) []string {
 	}
 	return out
 }
+
+// TestRealSixDecimalFeeConvertsAndFeedsHORD8 is `lip-9tr` at the layer the bug
+// actually lived.
+//
+// The test above uses "0.0000" as its GOOD fee. That is a four-decimal string,
+// and it is not what the exchange sends. Every `fee_cost` on the real account
+// carries exactly six decimals -- including the zero fee, which arrives as
+// "0.000000" -- so the old `rest.ParsePrice4` call refused all fifteen of them,
+// discarded every fills walk, and took the harness to a durable WINDING_DOWN
+// 2.3 seconds after launch. A fixture written by the same hand as the parser
+// could not find that; these two values are copied from the wire.
+//
+// The second half matters as much as the first: the fee is H-ORD-8's
+// INDEPENDENT corroborator, so it is not enough for the walk to be applied. The
+// parsed VALUE has to arrive as a positive Money, or a taker fill that lied in
+// `is_taker` passes unnoticed.
+func TestRealSixDecimalFeeConvertsAndFeedsHORD8(t *testing.T) {
+	p := testParams()
+
+	t.Run("zero fee at the real width", func(t *testing.T) {
+		g, err := NewGate([]string{fxTicker}, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pf := risk.NewPortfolio()
+		tok := g.OnConnect(at(0)).Token
+		read := newRead(tok, at(0), 1, completePositions(nil), completeOrders(nil),
+			completeFills([]rest.Fill{
+				restFill("t1", "o", fxTicker, quote.SideYes, 2, "0.000000", false),
+			}))
+		eff := ApplyPortfolio(g, pf, owns("o"), nil, read, risk.Live, at(0).Mono, p)
+
+		if hasClass(eff.Anomalies, "FILL_UNCONVERTIBLE") {
+			t.Fatalf("a zero fee at the exchange's real width was refused: %v\n\n"+
+				"ParsePrice4 refuses on WIDTH, not magnitude, so \"0.000000\" "+
+				"was just as unreadable as a large fee and no subset of the "+
+				"account's history parsed.", classesOf(eff.Anomalies))
+		}
+		if !eff.Applied[TruthFills] {
+			t.Fatal("the fills walk was not applied despite converting")
+		}
+		if eff.Stop {
+			t.Fatalf("a maker fill with a zero fee requested a global stop: %v",
+				classesOf(eff.Anomalies))
+		}
+	})
+
+	t.Run("non-zero fee still corroborates H-ORD-8", func(t *testing.T) {
+		g, err := NewGate([]string{fxTicker}, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pf := risk.NewPortfolio()
+		tok := g.OnConnect(at(0)).Token
+		// The exact fee_cost of fill 1582884a on the real account, and the one
+		// whose refusal blocked q01. is_taker is deliberately FALSE: the fee is
+		// the independent witness, and it has to work when the flag does not.
+		read := newRead(tok, at(0), 1, completePositions(nil), completeOrders(nil),
+			completeFills([]rest.Fill{
+				restFill("t2", "o", fxTicker, quote.SideYes, 2, "0.017200", false),
+			}))
+		eff := ApplyPortfolio(g, pf, owns("o"), nil, read, risk.Live, at(0).Mono, p)
+
+		if hasClass(eff.Anomalies, "FILL_UNCONVERTIBLE") {
+			t.Fatalf("the real 6-decimal fee was refused: %v",
+				classesOf(eff.Anomalies))
+		}
+		if !hasClass(eff.Anomalies, "TAKER_FILL") {
+			t.Fatalf("a fill with a positive fee did not trip H-ORD-8: %v\n\n"+
+				"S2's corroborator is the FEE, not `is_taker`. If the fee is "+
+				"parsed but arrives as zero, the two detectors collapse into "+
+				"one and a lying flag goes unchallenged.",
+				classesOf(eff.Anomalies))
+		}
+		if !eff.Stop {
+			t.Fatal("a LIVE taker fill did not request a global stop")
+		}
+	})
+}

@@ -1,0 +1,24 @@
+{
+  "ran_at": "2026-08-12T18:10:09Z",
+  "endpoints": null,
+  "failures": null,
+  "balance": "",
+  "tapes": [
+    {
+      "path": "../raw-20260724T231211Z.jsonl.gz",
+      "frames": 2000001,
+      "truncated_tape": false,
+      "envelopes_without_frame": 1,
+      "frame_kinds": {
+        "orderbook_delta": 1030266,
+        "orderbook_snapshot": 204,
+        "other": 2,
+        "trade": 969527
+      },
+      "undeliverable": 0,
+      "granularity_violations": 0,
+      "anomaly_classes": {},
+      "examples": null
+    }
+  ]
+}

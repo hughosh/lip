@@ -556,24 +556,6 @@ func (p *Portfolio) ApplyFills(fills []FillEvent, own OwnershipLookup,
 		delete(p.deferredAt, f.TradeID)
 		delete(p.deferralEscalated, f.TradeID)
 
-		if owned[i] == OwnershipForeign {
-			// H-ORD-9. A foreign fill does not enter our_fill, does not trigger
-			// F14, and does trigger SEV1 plus global WINDING_DOWN -- someone
-			// else is trading the account our position model describes, so that
-			// model is now unreliable EVERYWHERE and not in one market.
-			eff.Foreign = append(eff.Foreign, f)
-			eff.Anomalies = append(eff.Anomalies, Anomaly{
-				Class: "FOREIGN_FILL", Sev: SEV1, Ticker: f.Ticker,
-				Text: fmt.Sprintf("fill %s on order %s is not in the ownership "+
-					"ledger and no reservation is outstanding that could "+
-					"become it; the account is being traded by something other "+
-					"than this harness and every position it models is now "+
-					"suspect", f.TradeID, f.OrderID),
-			})
-			eff.Stop = true
-			continue
-		}
-
 		// H-ORD-6's window is identity, not time. A trade id already on the
 		// account when this process started is HISTORY however new the live
 		// walk's zero `since` makes it look, and the positions walk has already
@@ -583,7 +565,63 @@ func (p *Portfolio) ApplyFills(fills []FillEvent, own OwnershipLookup,
 		// replays the quantity onto q, `M-R-BASELINELIVE` keeps q right and
 		// reports it as live -- `backfilled = false` on a row H-ORD-6's
 		// first-observer-wins makes permanent (`lip-da6`).
+		//
+		// Read BEFORE the ownership branch below, because that branch needs it
+		// too: whether a disclaimed fill is alarming depends entirely on
+		// whether it was already there.
 		_, inherited := p.baseline[f.TradeID]
+
+		if owned[i] == OwnershipForeign {
+			// H-ORD-9. A foreign fill does not enter our_fill, does not trigger
+			// F14, and does trigger SEV1 plus global WINDING_DOWN -- someone
+			// else is trading the account our position model describes, so that
+			// model is now unreliable EVERYWHERE and not in one market.
+			//
+			// `lip-a3s`: the halt is gated on the fill being NEW, for the same
+			// reason the taker halt below is. H-ORD-9's claim is that someone
+			// is trading this account NOW, and the ledger cannot support that
+			// claim about history: `hstore.Ownership` answers from THIS store's
+			// own reservation bookkeeping, so every order id it never reserved
+			// -- which is every order the account carried before this store
+			// existed -- takes the `default: OwnershipForeign` branch
+			// (hstore/ledger.go:128-129). There is no answer meaning "the
+			// ledger has never heard of this order". On a fresh store that
+			// disclaimed all 15 fills on the real account and latched a durable
+			// WINDING_DOWN on the first poll.
+			if mode == Live && !inherited {
+				eff.Foreign = append(eff.Foreign, f)
+				eff.Anomalies = append(eff.Anomalies, Anomaly{
+					Class: "FOREIGN_FILL", Sev: SEV1, Ticker: f.Ticker,
+					Text: fmt.Sprintf("fill %s on order %s is not in the ownership "+
+						"ledger and no reservation is outstanding that could "+
+						"become it; the account is being traded by something other "+
+						"than this harness and every position it models is now "+
+						"suspect", f.TradeID, f.OrderID),
+				})
+				eff.Stop = true
+				continue
+			}
+			// Inherited and disclaimed. Still not ours, so it stays out of
+			// `Owned` and out of our_fill -- the arithmetic is unchanged and q
+			// still comes from the positions walk. What changes is that it is
+			// reported rather than halted on, at a severity q01 tolerates
+			// (qual/q01.go:215-222 fails on any SEV1-labelled anomaly, so
+			// reporting this at SEV1 would fix the halt and still fail the
+			// qualification).
+			eff.Foreign = append(eff.Foreign, f)
+			eff.Anomalies = append(eff.Anomalies, Anomaly{
+				Class: "FOREIGN_FILL_INHERITED", Sev: SEV2, Ticker: f.Ticker,
+				Text: fmt.Sprintf("fill %s on order %s was already on the "+
+					"account when this process started and is not in the "+
+					"ownership ledger; this harness did not place it, and the "+
+					"positions walk has already accounted for it. It is "+
+					"reported rather than halted on because H-ORD-9 is the "+
+					"claim that someone is trading this account NOW, which a "+
+					"fill that predates us cannot establish",
+					f.TradeID, f.OrderID),
+			})
+			continue
+		}
 		if mode == Live && inherited {
 			eff.OwnedBackfilled = append(eff.OwnedBackfilled, f)
 		} else {
@@ -620,14 +658,55 @@ func (p *Portfolio) ApplyFills(fills []FillEvent, own OwnershipLookup,
 		// says about how they were acquired, and a reducer sized from a q that
 		// omitted them is the second failure on top of the first.
 		if f.IsTaker || f.Fee > 0 {
-			eff.Anomalies = append(eff.Anomalies, Anomaly{
-				Class: "TAKER_FILL", Sev: SEV1, Ticker: f.Ticker,
-				Text: fmt.Sprintf("our fill %s reports is_taker=%v and fee %s; "+
-					"H-Q-3 has been violated by something -- a post_only that "+
-					"did not take effect, a marketable price, or an API change",
-					f.TradeID, f.IsTaker, f.Fee),
-			})
-			eff.Stop = true
+			// H-Q-3 is a rule about what THIS incarnation does, so the halt is
+			// gated on the fill being one it CAUSED rather than one it
+			// INHERITED. `lip-jhi`: 8 of the 15 fills already on this account
+			// are takers with non-zero fees, and halting on them made the rule
+			// unsatisfiable by any account that has ever crossed the spread --
+			// which is every real account. The harness went to a durable
+			// WINDING_DOWN on its first portfolio poll and could not return
+			// without an operator (quote/machine.go:451).
+			//
+			// The test is identity, not time, and it is the SAME notion the
+			// baseline already carries above: a Seed walk is history by
+			// definition, and in Live mode an inherited trade id is a fill the
+			// positions walk has already accounted for. This mirrors
+			// `owner.liveOwnedFill` (cmd/harness/run.go:2789), which asks
+			// exactly this question for the canary rung.
+			if mode == Live && !inherited {
+				eff.Anomalies = append(eff.Anomalies, Anomaly{
+					Class: "TAKER_FILL", Sev: SEV1, Ticker: f.Ticker,
+					Text: fmt.Sprintf("our fill %s reports is_taker=%v and fee %s; "+
+						"H-Q-3 has been violated by something -- a post_only that "+
+						"did not take effect, a marketable price, or an API change",
+						f.TradeID, f.IsTaker, f.Fee),
+				})
+				eff.Stop = true
+			} else {
+				// The signal is not discarded. position.go's baseline comment
+				// keeps inherited fills classified precisely so that "this
+				// account has taken liquidity before" survives, and it is worth
+				// knowing: it bounds what H-ORD-8's independent corroborator can
+				// prove about the run that follows.
+				//
+				// A DISTINCT CLASS, and SEV2, both deliberately. Distinct
+				// because "we are taking liquidity right now" and "this account
+				// did once" are different facts and an operator reading the
+				// evidence bundle should not have to infer which one happened
+				// from a severity digit. SEV2 because qual/q01.go:215-222 fails
+				// the qualification on ANY anomaly labelled SEV1 -- so emitting
+				// this at SEV1 would stop the harness halting and still fail
+				// q01, four to six hours later, on 8 forbidden anomalies.
+				eff.Anomalies = append(eff.Anomalies, Anomaly{
+					Class: "TAKER_FILL_INHERITED", Sev: SEV2, Ticker: f.Ticker,
+					Text: fmt.Sprintf("fill %s was already on the account when "+
+						"this process started and reports is_taker=%v with fee "+
+						"%s; H-Q-3 is a rule about what this incarnation does, "+
+						"so this is recorded and not halted on -- but H-ORD-8's "+
+						"corroborator cannot vouch for how it was acquired",
+						f.TradeID, f.IsTaker, f.Fee),
+				})
+			}
 		}
 	}
 	return eff

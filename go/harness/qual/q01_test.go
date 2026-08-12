@@ -30,9 +30,14 @@ func validQ01Evidence() Evidence {
 				EndedAt: &ended, EndReason: "finalized", ActiveNanos: int64(secondActive),
 			},
 		},
-		AttemptedHTTP: []HTTPCount{{
-			HTTPKey: HTTPKey{Method: "POST", Endpoint: "/portfolio/events/orders"}, Count: 1,
-		}},
+		// The two views as a correctly composed chain produces them: the reads
+		// are seen on BOTH sides of the guard, and the refused write is seen
+		// only above it. HTTP is a subset of AttemptedHTTP by construction --
+		// see `assertTransportWasCounted`, which is what caught `lip-b0t`.
+		AttemptedHTTP: []HTTPCount{
+			{HTTPKey: HTTPKey{Method: "GET", Endpoint: "/portfolio/orders"}, Count: 20},
+			{HTTPKey: HTTPKey{Method: "POST", Endpoint: "/portfolio/events/orders"}, Count: 1},
+		},
 		HTTP: []HTTPCount{{
 			HTTPKey: HTTPKey{Method: "GET", Endpoint: "/portfolio/orders"}, Count: 20,
 		}},
@@ -289,7 +294,7 @@ func TestAssessQ01LocalRequiresAttemptsDecisionsHeartbeatsAndDisconnect(t *testi
 func TestAssessQ01LocalAllowsNoAboveGuardNonGETOnCleanAccount(t *testing.T) {
 	e := validQ01Evidence()
 	e.AttemptedHTTP = []HTTPCount{{
-		HTTPKey: HTTPKey{Method: "GET", Endpoint: "/portfolio/orders"}, Count: 1,
+		HTTPKey: HTTPKey{Method: "GET", Endpoint: "/portfolio/orders"}, Count: 20,
 	}}
 	result, err := AssessQ01Local(e)
 	if err != nil {
@@ -297,6 +302,60 @@ func TestAssessQ01LocalAllowsNoAboveGuardNonGETOnCleanAccount(t *testing.T) {
 	}
 	if !result.LocalRequirementsMet || result.AboveGuardNonGET != 0 {
 		t.Fatalf("clean-account q01 required an unreachable non-GET attempt: %+v", result)
+	}
+}
+
+// The `lip-b0t` detector, run against the shape attempt 1's bundle actually had.
+//
+// A REST client composed without the guard shows up as an endpoint that reached
+// the transport and was never observed above it. The assessment has to fail on
+// that rather than merely note it: `AboveGuardNonGET` is computed from
+// AttemptedHTTP, so an unguarded client's writes would be reported as zero
+// writes attempted, and the artifact whose purpose is to prove no write escaped
+// would be certifying a path it cannot see.
+func TestAssessQ01LocalRejectsTransportNotCountedAboveTheGuard(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		attempted []HTTPCount
+	}{
+		{
+			// Exactly q01 attempt 1: /incentive_programs in `http`, absent
+			// from `attempted_http`.
+			name: "endpoint absent above the guard",
+			attempted: []HTTPCount{
+				{HTTPKey: HTTPKey{Method: "GET", Endpoint: "/portfolio/orders"}, Count: 20},
+				{HTTPKey: HTTPKey{Method: "POST", Endpoint: "/portfolio/events/orders"}, Count: 1},
+			},
+		},
+		{
+			// The partial bypass: the endpoint IS counted above, but by fewer
+			// calls than reached the wire, so some of them were issued on a
+			// second client. Presence alone would miss this.
+			name: "endpoint undercounted above the guard",
+			attempted: []HTTPCount{
+				{HTTPKey: HTTPKey{Method: "GET", Endpoint: "/incentive_programs"}, Count: 2},
+				{HTTPKey: HTTPKey{Method: "GET", Endpoint: "/portfolio/orders"}, Count: 20},
+				{HTTPKey: HTTPKey{Method: "POST", Endpoint: "/portfolio/events/orders"}, Count: 1},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := validQ01Evidence()
+			e.HTTP = append(e.HTTP, HTTPCount{
+				HTTPKey: HTTPKey{Method: "GET", Endpoint: "/incentive_programs"},
+				Count:   4,
+			})
+			e.AttemptedHTTP = tc.attempted
+			result, err := AssessQ01Local(e)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.LocalRequirementsMet ||
+				q01FailureCodes(result)[FailureQ01UncountedTransport] == 0 {
+				t.Fatalf("a bundle recording transport that never crossed the "+
+					"write guard was accepted: %+v", result)
+			}
+		})
 	}
 }
 

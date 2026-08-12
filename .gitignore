@@ -52,3 +52,11 @@ loop/run/
 shadow/
 *.db-journal
 *.db-wal
+
+# Per-step gate output (lip-8k3). Full copies of every step, so a truncated
+# tail is never the only record of why a round went RED. Rewritten each run.
+loop/gates-out/
+
+# Stray binaries from `go build ./cmd/...` inside go/. The conform sweep is a
+# diagnostic instrument built on demand; its artifact is never committed.
+/go/conform

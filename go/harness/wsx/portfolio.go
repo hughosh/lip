@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"lip/harness/cfg"
-	"lip/harness/num"
 	"lip/harness/rest"
 	"lip/harness/risk"
 )
@@ -561,7 +560,7 @@ func convertFills(fills []rest.Fill) ([]risk.FillEvent, error) {
 				"corroborator of H-ORD-8 cannot be evaluated without it",
 				f.TradeID)
 		}
-		fee4, err := rest.ParsePrice4(f.FeeCost)
+		fee, err := rest.ParseFee6(f.FeeCost)
 		if err != nil {
 			return nil, fmt.Errorf("fill %s has fee_cost %q: %w",
 				f.TradeID, f.FeeCost, err)
@@ -573,8 +572,12 @@ func convertFills(fills []rest.Fill) ([]risk.FillEvent, error) {
 			Side:    f.Side,
 			Price4:  f.Price4,
 			Count:   f.Count,
-			// Money is 1e-6 dollars and a Price4 is 1e-4 dollars.
-			Fee:          num.Money(fee4 * 100),
+			// `fee_cost` is parsed straight into Money's own 1e-6 quantum by
+			// rest.ParseFee6, which is the measured quantum of the field. This
+			// used to arrive as a Price4 scaled by 100, which is where lip-9tr
+			// lived: a 1e-4 parser refused every 6-decimal fee the exchange
+			// sends, including "0.000000".
+			Fee:          fee,
 			IsTaker:      f.IsTaker,
 			ExchangeTsMs: f.TsMillis,
 		})

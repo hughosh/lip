@@ -730,9 +730,13 @@ MUTATIONS = [
      "a foreign order appearing AFTER startup is handled as a startup "
      "exclusion -- the harness keeps quoting beside a live third party",
      [
+         # Anchored with the comment beneath it: since lip-a3s the FILL loop
+         # has a startup branch too, so the bare condition is ambiguous.
          ("harness/lifecycle/foreign.go",
-          "\t\tif phase == PhaseStartup {\n",
-          "\t\tif phase == PhaseStartup || phase == PhaseLive {\n"),
+          "\t\tif phase == PhaseStartup {\n"
+          "\t\t\t// Pre-existing. SEV2, excluded from new selection, not cancelled,\n",
+          "\t\tif phase == PhaseStartup || phase == PhaseLive {\n"
+          "\t\t\t// Pre-existing. SEV2, excluded from new selection, not cancelled,\n"),
      ],
      "TestLiveForeignActivityRequestsDurableGlobalStop"),
 
@@ -781,12 +785,34 @@ MUTATIONS = [
      "the launchd plan renders KeepAlive false "
      "-- F18's supervision becomes a one-shot launcher",
      [
+         # Written directly rather than through `plistBool`, which lip-83o
+         # removed along with the paired-element rendering it existed for.
          ("harness/lifecycle/launchd.go",
           "\tif err := emitKey(\"KeepAlive\"); err != nil {\n\t\treturn nil, err\n\t}\n"
           "\tif err := emitTrue(); err != nil {\n\t\treturn nil, err\n\t}\n",
           "\tif err := emitKey(\"KeepAlive\"); err != nil {\n\t\treturn nil, err\n\t}\n"
-          "\tif err := enc.Encode(plistBool{XMLName: xml.Name{Local: \"false\"}}); err != nil {\n"
+          "\tif err := enc.Flush(); err != nil {\n\t\treturn nil, err\n\t}\n"
+          "\tif _, err := body.WriteString(\"\\n\\t<false/>\"); err != nil {\n"
           "\t\treturn nil, err\n\t}\n"),
+     ],
+     "TestLaunchdPlanUsesKeepAliveAndCaffeinateIS"),
+
+    # lip-83o. The boolean's TAG FORM, which is a different failure from its
+    # VALUE and fails in a different place. Every plist parser except launchd's
+    # own accepts `<true></true>`, so this is invisible to plutil, to PlistBuddy
+    # and to any decoder round-trip; it shows up only as
+    # `Bootstrap failed: 5: Input/output error` from `launchctl bootstrap`,
+    # which names nothing. The harness's -deploy path never produced a loadable
+    # plist until this was fixed.
+    ("M-L-PAIREDBOOL",
+     "render plist booleans in the PAIRED form <true></true> -- launchd "
+     "accepts only the empty-element form and refuses the whole job, so "
+     "supervision is silently absent and the only diagnostic is an EIO that "
+     "points nowhere (lip-83o)",
+     [
+         ("harness/lifecycle/launchd.go",
+          "\t\t_, err := body.WriteString(\"\\n\\t<true/>\")\n",
+          "\t\t_, err := body.WriteString(\"\\n\\t<true></true>\")\n"),
      ],
      "TestLaunchdPlanUsesKeepAliveAndCaffeinateIS"),
 
@@ -1345,19 +1371,17 @@ MUTATIONS = [
      'exists, is tested, and is on no path the harness actually uses -- the '
      'shape H-CAP-8 already has once in this tree',
      [
+         # Anchored in `clientDoerOver`, which is now the single site where a
+         # production `rest.Client`'s Doer is composed (lip-b0t). Removing the
+         # guard here removes it from the rig's client AND from the startup
+         # universe read at once -- which is the point of there being one site.
          ('cmd/harness/runtime.go',
           '\tarm := rest.WriteArm{Live: c.Live, LiveOKPath: c.Paths.LiveOK}\n'
-          '\tguarded, err := rest.NewWriteGuard(ex.Doer, arm)\n'
+          '\tguarded, err := rest.NewWriteGuard(next, arm)\n'
           '\tif err != nil {\n\t\treturn nil, err\n\t}\n'
-          '\tvar clientDoer rest.Doer = guarded\n'
-          '\tif qrec != nil {\n'
-          '\t\tclientDoer, err = qrec.WrapAttemptDoer(clientDoer)\n'
-          '\t\tif err != nil {\n'
-          '\t\t\treturn nil, fmt.Errorf("installing qualification attempt counter: %w", err)\n'
-          '\t\t}\n'
-          '\t}\n'
-          '\tr.api = rest.NewClient(clientDoer)\n',
-          '\tr.api = rest.NewClient(ex.Doer)\n'),
+          '\tvar clientDoer rest.Doer = guarded\n',
+          '\tvar clientDoer rest.Doer = next\n'
+          '\tvar err error\n'),
      ],
      'TestReadOnlyRigStillGuardsDirectRESTWrites'),
 
@@ -1383,6 +1407,44 @@ MUTATIONS = [
           '\tif live || !live {\n\t\targv = append(argv, "-live")\n\t}\n'),
      ],
      'TestReadOnlyDeployNeverCarriesLive'),
+
+    # ---- lip-b0t: one Doer chain, and an artifact that can see it ---------
+    #
+    # MEASURED from q01 attempt 1's own evidence bundle: /incentive_programs
+    # appeared under `http` with count 4 and was ABSENT from `attempted_http`.
+    # The two views sit either side of WriteGuard, so a request below it that is
+    # missing above it did not cross the guard at all -- there were two REST
+    # clients, and the one issuing the startup universe read was composed over
+    # the raw doer. It was safe only because it happened to send one GET.
+    #
+    # The pair below covers both halves of the fix: the composition, and the
+    # DETECTOR that would have caught it in the artifact rather than in review.
+
+    ('M-B0T-STARTUPRAW',
+     'issue the startup universe read on a rest.Client composed over the raw '
+     'doer, so a second client reaches the exchange without crossing WriteGuard '
+     'and without appearing in the attempted-method evidence -- the exact shape '
+     'q01 attempt 1 shipped, safe only because that client sends one GET today',
+     [
+         ('cmd/harness/runtime.go',
+          '\tstartup, err := clientDoerOver(doer, c, qrec)\n'
+          '\tif err != nil {\n\t\treturn exchange{}, err\n\t}\n'
+          '\tprograms := rest.NewClient(startup).Programs(ctx)\n',
+          '\tprograms := rest.NewClient(doer).Programs(ctx)\n'),
+     ],
+     'TestProductionExchangeCountsTheActiveProgramWalkAboveTheGuard'),
+
+    ('M-B0T-NOSUBSET',
+     'drop the assertion that every endpoint reaching the transport was also '
+     'observed above the guard. The bundle then certifies zero attempted writes '
+     'while an unguarded client could have transmitted one, which is the single '
+     'claim the qualification artifact exists to make',
+     [
+         ('harness/qual/q01.go',
+          '\tassertTransportWasCounted(e, fail)\n',
+          ''),
+     ],
+     'TestAssessQ01LocalRejectsTransportNotCountedAboveTheGuard'),
 
     # ---- lip-da6: the startup baseline -----------------------------------
     #
@@ -1434,6 +1496,186 @@ MUTATIONS = [
           '\t\tif _, seen := p.seenTrade[f.TradeID]; seen {\n\t\t\tcontinue\n\t\t}\n',
           '\t\tif _, seen := p.seenTrade[f.TradeID]; seen {\n\t\t\tcontinue\n\t\t}\n'
           '\t\tif _, base := p.baseline[f.TradeID]; base {\n\t\t\tcontinue\n\t\t}\n'),
+     ],
+     'TestOutOfWindowTakerFillStillRaisesHORD8'),
+
+    # lip-t4n. `finalized` is a MEASURED status (151 of 219 real markets) and
+    # is read as closed silently. Both edges are failures: dropping it makes
+    # every settling market raise an anomaly per poll, and widening it to
+    # accept a finalized market with NO result invents a settlement nobody
+    # published.
+
+    ('M-R-FINALIZEDNOISY',
+     'treat `finalized` as unmeasured again, so the most ordinary event in a '
+     'market s life -- settling -- raises MARKET_STATUS_UNKNOWN on every '
+     'schedule read for the rest of the run, and the canary ticker settles ON '
+     'the day it runs (lip-t4n)',
+     [
+         ('harness/rest/schedule.go',
+          '\tcase status == MarketStatusFinalized && result != "":\n',
+          '\tcase false:\n'),
+     ],
+     'TestFinalizedIsAMeasuredStatus'),
+
+    ('M-R-FINALIZEDNORESULT',
+     'accept a finalized market with NO settlement result as closed, inventing '
+     'a settlement the exchange never published -- that shape was not observed '
+     'once in 219 sampled markets, which is exactly why it belongs with the '
+     'refusals and not with the measured vocabulary',
+     [
+         ('harness/rest/schedule.go',
+          '\tcase status == MarketStatusFinalized && result != "":\n',
+          '\tcase status == MarketStatusFinalized:\n'),
+     ],
+     'TestUnmeasuredStatusesAreStillRefused'),
+
+    # lip-a3s. A disclaimed fill halts only if it APPEARED while we were
+    # running. The ledger answers from this store's own reservation
+    # bookkeeping, so it disclaims every order id it never reserved -- a
+    # stranger's and a merely-older one alike -- and treating that as proof of
+    # a third party latched a durable WINDING_DOWN over all 15 of a real
+    # account's historical fills. Both directions are a real failure.
+
+    ('M-R-FOREIGNBASELINELATCH',
+     'latch on a disclaimed fill that was already on the account, so a fresh '
+     'store on an account with any history commits a durable operator-only '
+     'WINDING_DOWN on its first portfolio poll and q01 halts before it has '
+     'observed anything (lip-a3s)',
+     [
+         ('harness/risk/position.go',
+          '\t\t\tif mode == Live && !inherited {\n\t\t\t\teff.Foreign = append(eff.Foreign, f)\n',
+          '\t\t\tif true {\n\t\t\t\teff.Foreign = append(eff.Foreign, f)\n'),
+     ],
+     'TestBaselineForeignFillStillStopsGlobally'),
+
+    ('M-R-FOREIGNNEVERLATCHES',
+     'never latch on a disclaimed fill, so a third party trading the account '
+     'WHILE WE RUN is recorded at SEV2 and the position model keeps quoting '
+     'against inventory somebody else is moving -- H-ORD-9 detecting nothing',
+     [
+         ('harness/risk/position.go',
+          '\t\t\tif mode == Live && !inherited {\n\t\t\t\teff.Foreign = append(eff.Foreign, f)\n',
+          '\t\t\tif false {\n\t\t\t\teff.Foreign = append(eff.Foreign, f)\n'),
+     ],
+     'TestBaselineForeignFillStillStopsGlobally'),
+
+    ('M-L-FOREIGNSTARTUPLATCH',
+     'drop the startup phase branch from the foreign FILL loop, restoring the '
+     'asymmetry with the foreign ORDER loop directly above it -- an account we '
+     'are adopting is allowed to have been traded before we arrived, and this '
+     'latches on every historical fill it carries (lip-a3s)',
+     [
+         ('harness/lifecycle/foreign.go',
+          '\t\tif phase == PhaseStartup {\n\t\t\t// `lip-a3s`. Pre-existing, and treated exactly as a pre-existing\n',
+          '\t\tif false {\n\t\t\t// `lip-a3s`. Pre-existing, and treated exactly as a pre-existing\n'),
+     ],
+     'TestLiveForeignActivityRequestsDurableGlobalStop'),
+
+    ('M-L-STARTUPFEEISPRICE',
+     'parse fee_cost with the PRICE parser in the STARTUP walk -- the second '
+     'copy of the lip-9tr defect, in lifecycle rather than wsx. Fixing only '
+     'the wsx copy moves the failure from the first live poll to 7.5s startup '
+     'walk, where every 6-decimal fee fails conversion and startup never '
+     'completes',
+     [
+         ('harness/lifecycle/startup.go',
+          '\t\tfee, err := rest.ParseFee6(f.FeeCost)\n',
+          '\t\tfee4, err := rest.ParsePrice4(f.FeeCost)\n'
+          '\t\tfee := num.Money(fee4 * 100)\n'),
+     ],
+     'TestStartupCommitsEveryCauseBeforeReturningDecision'),
+
+    # lip-oqq. The exemption for an already-finalized artifact is narrow on
+    # purpose, and both ways of widening it are a real failure: dropping it
+    # makes every clean run declare itself failed, and widening it to all errors
+    # turns the fail-closed evidence rule into no rule at all.
+
+    ('M-Q01-FINALIZEDFAILS',
+     'let a post-finalize evidence write fail the qualification again -- the '
+     'owner s snapshot publisher outlives Finalize by a tick, so this reports '
+     '"qualification evidence failed" at the end of EVERY run, including one '
+     'that has just qualified cleanly for six hours (lip-oqq)',
+     [
+         ('cmd/harness/qualification.go',
+          '\tif errors.Is(err, qual.ErrFinalized) {\n',
+          '\tif errors.Is(err, qual.ErrFinalized) && false {\n'),
+     ],
+     'TestFinalizedEvidenceDoesNotFailTheQualification'),
+
+    ('M-Q01-NOTHINGFAILS',
+     'swallow EVERY evidence error rather than only the already-finalized one, '
+     'so a qualification whose evidence could not be recorded at all still '
+     'reports success -- the fail-closed hand-off stops being fail-closed',
+     [
+         ('cmd/harness/qualification.go',
+          '\tif errors.Is(err, qual.ErrFinalized) {\n',
+          '\tif errors.Is(err, qual.ErrFinalized) || true {\n'),
+     ],
+     'TestFinalizedEvidenceDoesNotFailTheQualification'),
+
+    # lip-9tr. `fee_cost` is measured at 1e-6 and prices at 1e-4, and the bug
+    # was applying the PRICE parser to the FEE field. Both halves of the fix
+    # need anchoring: the call site must not go back to the price parser, and
+    # the fee parser must keep refusing a quantum finer than the measured one
+    # rather than rounding it away.
+
+    ('M-R-FEEISPRICE',
+     'parse fee_cost with the PRICE parser again -- prices are measured at '
+     'four decimals and every fee_cost on the account carries six, INCLUDING '
+     'the zero fee "0.000000", so this refuses every fill, discards every '
+     'fills walk and takes the harness to a durable WINDING_DOWN 2.3s after '
+     'launch (lip-9tr, the defect that stopped the first q01)',
+     [
+         ('harness/wsx/portfolio.go',
+          '\t\tfee, err := rest.ParseFee6(f.FeeCost)\n',
+          '\t\tfee4, err := rest.ParsePrice4(f.FeeCost)\n'
+          '\t\tfee := num.Money(fee4 * 100)\n'),
+         ('harness/wsx/portfolio.go',
+          '\t"lip/harness/rest"\n',
+          '\t"lip/harness/num"\n\t"lip/harness/rest"\n'),
+     ],
+     'TestRealSixDecimalFeeConvertsAndFeedsHORD8'),
+
+    ('M-R-FEEROUNDS',
+     'let the fee parser ROUND a quantum finer than the measured 1e-6 instead '
+     'of refusing it -- the same silent-precision-loss this parser exists to '
+     'prevent, and the fee is H-ORD-8s independent corroborator, so a fee '
+     'rounded to zero is a taker fill that stops being witnessed',
+     [
+         ('harness/rest/read.go',
+          '\tif len(fracPart) > 6 {\n',
+          '\tif false {\n'),
+     ],
+     'TestParseFee6IsExactAndRefusesUnmeasuredShapes'),
+
+    # lip-jhi. H-ORD-8's halt is gated on the fill being one THIS incarnation
+    # caused. Both directions of that gate are a real failure and each is
+    # anchored on its own: widening it halts on inherited history and the
+    # harness cannot start on any account that has ever crossed the spread;
+    # narrowing it stops halting on a live taker fill, which is H-Q-3 going
+    # silent at the exact moment it is being violated.
+
+    ('M-R-TAKERHALTSINHERITED',
+     'halt on an inherited taker fill as well as a live one -- 8 of the 15 '
+     'fills already on the real account are takers with non-zero fees, so this '
+     'takes the harness to a durable WINDING_DOWN on its FIRST portfolio poll '
+     'and q01 dies at t+2s having qualified nothing (lip-jhi)',
+     [
+         ('harness/risk/position.go',
+          '\t\t\tif mode == Live && !inherited {\n\t\t\t\teff.Anomalies = append(eff.Anomalies, Anomaly{\n',
+          '\t\t\tif true {\n\t\t\t\teff.Anomalies = append(eff.Anomalies, Anomaly{\n'),
+     ],
+     'TestOutOfWindowTakerFillStillRaisesHORD8'),
+
+    ('M-R-TAKERNEVERHALTS',
+     'never halt on a taker fill, so H-Q-3 goes silent at the moment it is '
+     'violated -- a post_only that did not take effect, a marketable price or '
+     'an API change all become invisible, and the fee that is H-ORD-8s '
+     'INDEPENDENT corroborator stops corroborating anything',
+     [
+         ('harness/risk/position.go',
+          '\t\t\tif mode == Live && !inherited {\n\t\t\t\teff.Anomalies = append(eff.Anomalies, Anomaly{\n',
+          '\t\t\tif false {\n\t\t\t\teff.Anomalies = append(eff.Anomalies, Anomaly{\n'),
      ],
      'TestOutOfWindowTakerFillStillRaisesHORD8'),
 
@@ -3647,7 +3889,7 @@ MUTATIONS = [
           '\t\t\treturn nil, fmt.Errorf("installing qualification attempt counter: %w", err)\n'
           '\t\t}\n'
           '\t}\n'
-          '\tr.api = rest.NewClient(clientDoer)\n',
+          '\treturn clientDoer, nil\n',
           '\tvar clientDoer rest.Doer = guarded\n'
           '\tif qrec != nil {\n'
           '\t\tclientDoer, err = qrec.WrapDoer(clientDoer)\n'
@@ -3659,7 +3901,7 @@ MUTATIONS = [
           '\t\t\treturn nil, fmt.Errorf("installing qualification attempt counter: %w", err)\n'
           '\t\t}\n'
           '\t}\n'
-          '\tr.api = rest.NewClient(clientDoer)\n'),
+          '\treturn clientDoer, nil\n'),
      ],
      'TestReadOnlyRigStillGuardsDirectRESTWrites'),
 

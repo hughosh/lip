@@ -157,9 +157,16 @@ func TestInstalledJobExecsCaffeinateAndKeepsAlive(t *testing.T) {
 			"cleanly, and what stops it coming back up is the durable latch on "+
 			"disk, not a supervisor that declined to restart it:\n%s", plist)
 	}
+	// `<true/>` and not `<true>`: launchd accepts ONLY the empty-element form
+	// and rejects the paired one with `Bootstrap failed: 5: Input/output
+	// error`, so the INSTALLED plist is the one place this has to be right
+	// (lip-83o). This assertion previously accepted `<true>`, which matches the
+	// paired form and is why the installed job was never loadable.
 	if after := strings.TrimSpace(plist[k+len(keepAlive):]); !strings.HasPrefix(
-		after, "<true>") {
-		t.Fatalf("KeepAlive is not true; it is followed by %.20q", after)
+		after, "<true/>") {
+		t.Fatalf("KeepAlive is not rendered as the empty element <true/>; it "+
+			"is followed by %.20q. launchd rejects <true></true> outright and "+
+			"reports only `Bootstrap failed: 5: Input/output error`", after)
 	}
 
 	if info, err := os.Stat(path); err != nil {

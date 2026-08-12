@@ -457,3 +457,55 @@ func TestParseWireTimeRequiresAnExplicitOffset(t *testing.T) {
 		}
 	}
 }
+
+// TestFinalizedIsAMeasuredStatus is `lip-t4n`, and the values are measured
+// rather than assumed.
+//
+// `go/cmd/conform` read 219 real market schedules on 2026-08-12, sampled by
+// stride across several months of incentive-programme history. The status
+// vocabulary was exactly two shapes:
+//
+//	active / no result yet     68
+//	finalized / has result    151
+//
+// Before this, every one of those 151 raised SEV2 MARKET_STATUS_UNKNOWN -- on
+// EVERY schedule read, for the rest of the run. The canary ticker is dated for
+// the day it runs on, so a 4-6h session can watch its own market settle and
+// then log an anomaly per poll about the most ordinary event in a market's
+// life.
+func TestFinalizedIsAMeasuredStatus(t *testing.T) {
+	closed, anomalies, err := deriveTradingClosed("KXTEST-A", "finalized", "yes")
+	if err != nil {
+		t.Fatalf("a finalized market with a result was refused: %v", err)
+	}
+	if !closed {
+		t.Fatal("a finalized market with a settlement result is not closed")
+	}
+	if len(anomalies) != 0 {
+		t.Fatalf("a MEASURED status raised %d anomaly/anomalies: %v\n\n"+
+			"151 of 219 sampled markets were in this state. If it is worth an "+
+			"anomaly then the anomaly is worthless.", len(anomalies), anomalies)
+	}
+}
+
+// The refusals that guard the vocabulary must survive adding to it. A status
+// nobody has measured is still refused, and `finalized` WITHOUT a result was
+// never observed -- so it stays refused too, rather than being waved through on
+// the strength of sharing a word with the case above.
+func TestUnmeasuredStatusesAreStillRefused(t *testing.T) {
+	for _, tc := range []struct{ status, result string }{
+		{"finalized", ""}, // never observed in 219 markets
+		{"settled", ""},   // not in the measured vocabulary at all
+		{"closed", ""},    // ditto
+		{"", "yes"},       // no status field
+		{"active", "yes"}, // the contradiction: result before trading stopped
+	} {
+		_, _, err := deriveTradingClosed("KXTEST-A", tc.status, tc.result)
+		if err == nil {
+			t.Fatalf("deriveTradingClosed(status=%q, result=%q) landed; an "+
+				"unmeasured shape must be refused rather than turned into a "+
+				"confident boolean about whether a market is live",
+				tc.status, tc.result)
+		}
+	}
+}

@@ -300,6 +300,42 @@ func productionExchange(ctx context.Context, c config, anom *anomalySink,
 	return exchangeOver(ctx, c, signer, nt, qrec)
 }
 
+// clientDoerOver composes the ONE chain every production `rest.Client` is built
+// on: `WriteGuard`, with the qualification ATTEMPT counter above it.
+//
+// IT IS A FUNCTION, and every client in the process is built by calling it,
+// because H-VER-1's value was never that a guard exists somewhere -- it is that
+// there is no OTHER way to reach the transport. `lip-b0t` is what the
+// alternative looked like: a second `rest.Client`, composed inline over the raw
+// doer for the startup universe read, that reached the network without crossing
+// the guard at all. It was safe only because it happened to call one GET, so any
+// new method on that client, or any later reuse of that doer, wrote straight
+// past H-VER-1. Worse, the request appeared in `Evidence.HTTP` and NOT in
+// `Evidence.AttemptedHTTP`, so the one artifact whose whole purpose is to prove
+// no write escaped was blind over one of the two paths that could emit one.
+//
+// THE ORDER IS LOAD-BEARING. The attempt counter goes ABOVE the guard and
+// `WrapDoer` stays below it, so a refused write is counted as attempted and
+// never as transported; reversing them counts would-writes as network calls and
+// invalidates the evidence (`qual.Recorder.WrapAttemptDoer`). `M-ES6-NOGUARD`
+// removes the guard here -- and with a single construction site, that now
+// removes it from every client at once rather than from one of two.
+func clientDoerOver(next rest.Doer, c config, qrec *qual.Recorder) (rest.Doer, error) {
+	arm := rest.WriteArm{Live: c.Live, LiveOKPath: c.Paths.LiveOK}
+	guarded, err := rest.NewWriteGuard(next, arm)
+	if err != nil {
+		return nil, err
+	}
+	var clientDoer rest.Doer = guarded
+	if qrec != nil {
+		clientDoer, err = qrec.WrapAttemptDoer(clientDoer)
+		if err != nil {
+			return nil, fmt.Errorf("installing qualification attempt counter: %w", err)
+		}
+	}
+	return clientDoer, nil
+}
+
 // exchangeOver builds the exchange over an ALREADY-COMPOSED network layer.
 //
 // This is the production wiring, and it is a separate function only so that a
@@ -325,7 +361,15 @@ func exchangeOver(ctx context.Context, c config, signer *feed.Signer,
 	// transport over a bare dialer, and it reads one page of 200 and never
 	// sends a cursor. It is hash-pinned, so the walk is rebuilt in `rest`
 	// rather than repaired where it was.
-	programs := rest.NewClient(doer).Programs(ctx)
+	//
+	// It is read through `clientDoerOver` and NOT through `doer`, so this
+	// client is guarded and counted above the guard exactly like the rig's
+	// (`lip-b0t`). `M-B0T-STARTUPRAW` puts it back on `doer`.
+	startup, err := clientDoerOver(doer, c, qrec)
+	if err != nil {
+		return exchange{}, err
+	}
+	programs := rest.NewClient(startup).Programs(ctx)
 	if !programs.Replaces() {
 		return exchange{}, fmt.Errorf("reading the active LIP universe: the "+
 			"walk %s after %d pages: %v", programs.Outcome, programs.Pages,
@@ -720,18 +764,14 @@ func newRigWithLock(ctx context.Context, c config, resume bool, ex exchange,
 	// -- and the startup sweep CANCELS orders, so "the dispatcher is guarded"
 	// would still be a process that writes on boot.
 	//
-	// `M-ES6-NOGUARD` removes the wrapper and keeps everything else.
-	arm := rest.WriteArm{Live: c.Live, LiveOKPath: c.Paths.LiveOK}
-	guarded, err := rest.NewWriteGuard(ex.Doer, arm)
+	// The composition itself lives in `clientDoerOver` because `exchangeOver`
+	// builds a client too, and two inline copies is how `lip-b0t` happened: one
+	// of them was missing the guard entirely. `ex.Doer` arrives here counted
+	// below the guard and NOT yet guarded -- the seam rig hands over a bare
+	// fake, so this is still the call that guards every test's client.
+	clientDoer, err := clientDoerOver(ex.Doer, c, qrec)
 	if err != nil {
 		return nil, err
-	}
-	var clientDoer rest.Doer = guarded
-	if qrec != nil {
-		clientDoer, err = qrec.WrapAttemptDoer(clientDoer)
-		if err != nil {
-			return nil, fmt.Errorf("installing qualification attempt counter: %w", err)
-		}
 	}
 	r.api = rest.NewClient(clientDoer)
 

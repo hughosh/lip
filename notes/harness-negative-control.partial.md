@@ -11,9 +11,11 @@ the Go compiler is not a gate.
 
 | id | mutation | expected catching test | result | tests that failed |
 |---|---|---|---|---|
-| M-FY7-WALLELAPSED | derive qualification duration from diagnostic wall timestamps instead of persisted monotonic active time, so a clock jump can qualify a short run or erase a real one | `TestAssessUsesMonotonicActiveDurationNotWallTimestamps` | **caught** | TestAssessCountsPersistedActiveTimeAcrossHistoricalUncleanRestart, TestAssessUsesMonotonicActiveDurationNotWallTimestamps |
+| M-L-FOREIGNLIVE | a foreign order appearing AFTER startup is handled as a startup exclusion -- the harness keeps quoting beside a live third party | `TestLiveForeignActivityRequestsDurableGlobalStop` | **caught** | TestLiveForeignActivityRequestsDurableGlobalStop |
+| M-R-TAKERHALTSINHERITED | halt on an inherited taker fill as well as a live one -- 8 of the 15 fills already on the real account are takers with non-zero fees, so this takes the harness to a durable WINDING_DOWN on its FIRST portfolio poll and q01 dies at t+2s having qualified nothing (lip-jhi) | `TestOutOfWindowTakerFillStillRaisesHORD8` | **caught** | TestOutOfWindowTakerFillStillRaisesHORD8, TestSeedModeRecordsIdentityWithoutReapplyingHistory, TestStartupCommitsEveryCauseBeforeReturningDecision |
+| M-R-TAKERNEVERHALTS | never halt on a taker fill, so H-Q-3 goes silent at the moment it is violated -- a post_only that did not take effect, a marketable price or an API change all become invisible, and the fee that is H-ORD-8s INDEPENDENT corroborator stops corroborating anything | `TestOutOfWindowTakerFillStillRaisesHORD8` | **caught** | TestATakerFillOnTheCanaryKeepsTheStrongerCause, TestFillConversionFailureDiscardsTheWholeWalk, TestOutOfWindowTakerFillStillRaisesHORD8, TestOwnedTakerOrPositiveFeeStopsGlobally, TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary, TestRealSixDecimalFeeConvertsAndFeedsHORD8 |
 
-**1 of 1 mutations produced their expected outcome.**
+**3 of 3 mutations produced their expected outcome.**
 
 A mutation that SURVIVES unexpectedly is a defect in the
 verification and the harness does not ship until the gate is

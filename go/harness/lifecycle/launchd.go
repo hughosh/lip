@@ -51,10 +51,6 @@ type plistEntry struct {
 	Value   string `xml:",chardata"`
 }
 
-type plistBool struct {
-	XMLName xml.Name
-}
-
 type plistArray struct {
 	XMLName xml.Name     `xml:"array"`
 	Items   []plistEntry `xml:"string"`
@@ -142,8 +138,24 @@ func (p LaunchdPlan) Render() ([]byte, error) {
 	emitString := func(v string) error {
 		return enc.Encode(plistEntry{XMLName: xml.Name{Local: "string"}, Value: v})
 	}
+	// `lip-83o`. launchd's own plist parser accepts ONLY the empty-element form
+	// `<true/>` and rejects the paired `<true></true>` outright, failing the
+	// load with the uninformative `Bootstrap failed: 5: Input/output error`.
+	// Go's encoding/xml has no way to emit an empty element -- it always writes
+	// the paired form -- so this one token is written directly, after flushing
+	// the encoder so the two writers stay in order.
+	//
+	// EVERY OTHER PLIST PARSER ACCEPTS THE PAIRED FORM, which is why this
+	// survived: `plutil -lint` reports OK, PlistBuddy reads every key, and any
+	// test that round-trips this output through an XML or plist decoder passes.
+	// The only parser that rejects it is reachable solely by actually calling
+	// `launchctl bootstrap`. So the test for this asserts the rendered BYTES.
 	emitTrue := func() error {
-		return enc.Encode(plistBool{XMLName: xml.Name{Local: "true"}})
+		if err := enc.Flush(); err != nil {
+			return err
+		}
+		_, err := body.WriteString("\n\t<true/>")
+		return err
 	}
 
 	if err := emitKey("Label"); err != nil {

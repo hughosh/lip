@@ -18,26 +18,64 @@
 
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 99
+ROOT="$PWD"
 
 PY=/Users/hugh/kek/.venv/bin/python
 QUICK=0
 [ "${1:-}" = "--quick" ] && QUICK=1
 
+# lip-8k3. run() keeps the TAIL of a failed step, which is only the right half
+# to keep if the stream is in chronological order. Python block-buffers stdout
+# when it is a pipe but never buffers stderr, so an unbuffered script's
+# diagnostic is emitted immediately while the stdout that preceded it sits in a
+# buffer until exit: the merged stream then BEGINS with the explanation and ENDS
+# with the progress chatter, and tail -40 keeps exactly the wrong end. That cost
+# a full ~5h round to diagnose on 2026-08-11 -- the round reported FAIL
+# negative-control with a 40-line tail ending at "preflight: 273 selected
+# mutation(s) compile" and no reason, and the reason had to be recovered by
+# re-running the gate rather than by reading its report.
+#
+# Fixing the ORDERING is preferred over keeping head as well as tail: an
+# interleaved head+tail of a mis-ordered stream is still misleading, it just
+# misleads with more text. With ordering restored the diagnostic is last,
+# which is what tail already keeps.
+export PYTHONUNBUFFERED=1
+
+# Every step's FULL output is also written here, so a truncated tail is never
+# the only copy. Gitignored; the path is printed with the failure.
+GATES_OUT="$ROOT/loop/gates-out"
+rm -rf "$GATES_OUT" && mkdir -p "$GATES_OUT" || exit 99
+
 fail=0
 declare -a results
 
+# lip-8k3 RELATED. A round that runs out of disk looks EXACTLY like a rotted
+# mutation catalogue -- DID-NOT-BUILD cascades and empty failure lists -- and
+# the Go build cache has twice grown past 190GB and killed consecutive rounds.
+# The negative control rebuilds a mutated copy of the tree per mutation, so the
+# free space at the END is the number that matters, not the one at the start;
+# both are reported. This does NOT gate: a full volume is not a defect in the
+# tree, and reporting it as VERDICT: RED would send the loop hunting a phantom
+# code bug. It is reported so the reader can tell the two apart.
+free_gb() { df -k "$ROOT" | awk 'NR==2 {printf "%d", $4/1048576}'; }
+DISK_START="$(free_gb)"
+
 run() {                       # run <name> <cmd...>
     local name="$1"; shift
-    local out rc
+    local out rc log
+    log="$GATES_OUT/$name.log"
     out="$("$@" 2>&1)"; rc=$?
+    printf '%s\n' "$out" > "$log"
     if [ $rc -eq 0 ]; then
         results+=("PASS  $name")
     else
         results+=("FAIL  $name (rc=$rc)")
         # Keep only the tail: a full go test dump is noise the conductor pays
-        # for in tokens on every single iteration.
+        # for in tokens on every single iteration. The full copy is on disk at
+        # the path below when 40 lines is not enough.
         printf '%s\n' "----- $name -----" >&2
         printf '%s\n' "$out" | tail -40 >&2
+        printf '%s\n' "----- full output: $log -----" >&2
         fail=1
     fi
 }
@@ -86,6 +124,9 @@ fi
 
 echo "===GATES==="
 printf '%s\n' "${results[@]}"
+echo "DISK_FREE_GB: ${DISK_START} at start, $(free_gb) at end (a round needs ~15)"
+echo "LOAD: $(uptime | sed 's/.*load averages*: //')"
+echo "STEP_LOGS: $GATES_OUT"
 if [ $fail -eq 0 ]; then
     echo "VERDICT: GREEN"
     [ $QUICK -eq 1 ] && echo "ADVANCE_ELIGIBLE: NO (quick run)" || echo "ADVANCE_ELIGIBLE: YES"

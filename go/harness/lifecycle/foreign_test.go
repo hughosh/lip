@@ -160,9 +160,38 @@ func TestLiveForeignActivityRequestsDurableGlobalStop(t *testing.T) {
 		}
 	}
 
-	// A foreign FILL is global in both phases, including startup.
+	// A foreign FILL is global when it appears while we are RUNNING, and
+	// reported without a latch when it was already there at startup
+	// (`lip-a3s`). The split mirrors the foreign ORDER rule above it: an
+	// account we are adopting is allowed to have been traded before we arrived.
+	//
+	// It has to be this way round because the ledger cannot tell a stranger's
+	// order from an old one. `hstore.Ownership` answers only from THIS store's
+	// reservation bookkeeping, so every order id it never reserved is
+	// disclaimed by `default:` (hstore/ledger.go:128-129) -- which on a real
+	// account meant all 15 historical fills, a durable WINDING_DOWN, and a q01
+	// that halted before it had observed anything.
 	fills := []rest.Fill{makerFill("t1", "not-ours", "M")}
-	for _, phase := range []Phase{PhaseStartup, PhaseLive} {
+
+	startupEff, err := guard.Classify(PhaseStartup, nil, fills, 99)
+	if err != nil {
+		t.Fatalf("startup classify: %v", err)
+	}
+	if startupEff.Stop() {
+		t.Fatalf("a foreign fill already on the account at startup latched a "+
+			"durable global stop: causes %+v", startupEff.Causes)
+	}
+	if sev, _ := sevOf(startupEff.Anomalies, "FOREIGN_FILL_INHERITED"); sev != risk.SEV2 {
+		t.Fatalf("FOREIGN_FILL_INHERITED severity %v, want SEV2. q01 fails on "+
+			"any SEV1-labelled anomaly, so reporting this at SEV1 would fix "+
+			"the halt and still fail the qualification", sev)
+	}
+	if len(startupEff.ForeignFills) != 1 {
+		t.Fatalf("an inherited foreign fill left the foreign set: %+v",
+			startupEff.ForeignFills)
+	}
+
+	for _, phase := range []Phase{PhaseLive} {
 		eff, err := guard.Classify(phase, nil, fills, 99)
 		if err != nil {
 			t.Fatalf("phase %v: classify: %v", phase, err)
@@ -208,14 +237,18 @@ func TestLiveForeignActivityRequestsDurableGlobalStop(t *testing.T) {
 func TestForeignFillAtStartupLatchesBeforeReconciliationCanExposeRunning(t *testing.T) {
 	store := &recordingLatch{}
 	src := okSource()
+	// An OWNED TAKER fill. Since `lip-a3s` a foreign fill already on the
+	// account is reported at startup without latching, so it no longer
+	// exercises the ordering property this test exists for; an owned taker
+	// fill still commits `startup_fill_history` (startup.go:735-745).
 	src.fills = rest.FillsResult{Walk: completeWalk(),
-		Fills: []rest.Fill{makerFill("t1", "not-ours", "M")}}
+		Fills: []rest.Fill{takerFill("t1", "ours", "M")}}
 
 	ctrl, _, err := NewGlobalController(store)
 	if err != nil {
 		t.Fatalf("NewGlobalController: %v", err)
 	}
-	guard, err := NewForeignGuard(ownsAll())
+	guard, err := NewForeignGuard(ownsAll("ours"))
 	if err != nil {
 		t.Fatalf("NewForeignGuard: %v", err)
 	}
@@ -231,7 +264,7 @@ func TestForeignFillAtStartupLatchesBeforeReconciliationCanExposeRunning(t *test
 	}
 	causes := at.Adoption.Causes()
 	if len(causes) == 0 {
-		t.Fatal("a foreign fill in the startup history produced no durable stop cause")
+		t.Fatal("a taker fill in the startup history produced no durable stop cause")
 	}
 
 	// The reconciliation completed, so without the latch this input produces
@@ -252,13 +285,14 @@ func TestForeignFillAtStartupLatchesBeforeReconciliationCanExposeRunning(t *test
 		t.Fatalf("the startup stop was not committed: %v", classesOf(dec.Anomalies))
 	}
 	if dec.State != quote.WindingDown || dec.Trigger != quote.GTLatch {
-		t.Fatalf("a foreign fill found during STARTING produced %v/%v; the "+
+		t.Fatalf("a latching cause found during STARTING produced %v/%v; the "+
 			"market would be quotable until the next tick noticed",
 			dec.State, dec.Trigger)
 	}
-	if len(store.ensures) == 0 || store.ensures[0].Trigger != "foreign_fill" {
-		t.Fatalf("the latch was not written with the foreign-fill trigger: %v",
-			store.ensures)
+	if len(store.ensures) == 0 ||
+		store.ensures[0].Trigger != "startup_fill_history" {
+		t.Fatalf("the latch was not written with the startup-fill-history "+
+			"trigger: %v", store.ensures)
 	}
 }
 

@@ -28,6 +28,7 @@ const (
 	FailureQ01HeartbeatMissing    FailureCode = "q01_heartbeat_missing"
 	FailureQ01DisconnectMissing   FailureCode = "q01_disconnect_cycle_missing"
 	FailureQ01UnexpectedAnomaly   FailureCode = "q01_unexpected_anomaly"
+	FailureQ01UncountedTransport  FailureCode = "q01_uncounted_transport"
 	DeviationQ01AboveTargetWindow             = "q01_above_target_window"
 )
 
@@ -170,6 +171,7 @@ func AssessQ01Local(e Evidence) (Q01LocalAssessment, error) {
 		fail(FailureQ01AttemptEvidence,
 			"above-guard attempted-method evidence is absent; an empty observed list must be encoded explicitly")
 	}
+	assertTransportWasCounted(e, fail)
 	if result.BelowGuardNonGET != 0 {
 		fail(FailureBelowGuardNonGET, fmt.Sprintf(
 			"%d non-GET request(s) crossed the write guard", result.BelowGuardNonGET))
@@ -239,6 +241,56 @@ func AssessQ01Local(e Evidence) (Q01LocalAssessment, error) {
 
 	result.LocalRequirementsMet = len(result.Failures) == 0
 	return result, nil
+}
+
+// assertTransportWasCounted checks that HTTP is a SUBSET of AttemptedHTTP.
+//
+// The two views are the same requests seen from either side of `WriteGuard`, so
+// attempted is a superset of transported BY CONSTRUCTION: the only thing that
+// can appear above and not below is a write the guard refused, and nothing at
+// all can appear below without having passed through above. A key present in
+// HTTP and missing from AttemptedHTTP therefore does not mean a miscount, it
+// means that request never crossed the guard -- there is a second client on the
+// transport.
+//
+// That is `lip-b0t`, measured from q01 attempt 1's own bundle: /incentive_programs
+// had count 4 under `http` and no `attempted_http` entry at all, because the
+// startup universe read was issued on a `rest.Client` composed over the raw
+// doer. The consequence is not merely a gap in the counts. `AboveGuardNonGET`
+// is computed from AttemptedHTTP, so a non-GET on a bypassing client would be
+// reported as ZERO writes attempted while a write had in fact been transmitted
+// -- the artifact whose entire purpose is to prove no write escaped, blind over
+// exactly the path that could emit one.
+//
+// It lives in the assessment rather than only in a unit test because it is
+// checkable against a bundle that already exists. A unit test proves today's
+// composition; this proves the composition that actually ran, which is what
+// stops a THIRD client reintroducing the hole silently.
+func assertTransportWasCounted(e Evidence, fail func(FailureCode, string)) {
+	attempted := make(map[HTTPKey]uint64, len(e.AttemptedHTTP))
+	for _, count := range e.AttemptedHTTP {
+		attempted[count.HTTPKey] = count.Count
+	}
+	for _, count := range e.HTTP {
+		above, counted := attempted[count.HTTPKey]
+		if !counted {
+			fail(FailureQ01UncountedTransport, fmt.Sprintf(
+				"%s %s reached the transport %d time(s) and was never observed "+
+					"above the write guard; a request below the guard that is "+
+					"absent above it did not cross the guard at all, so there "+
+					"is a REST client in this process that H-VER-1 does not sit "+
+					"under", count.Method, count.Endpoint, count.Count))
+			continue
+		}
+		if above < count.Count {
+			fail(FailureQ01UncountedTransport, fmt.Sprintf(
+				"%s %s reached the transport %d time(s) but was observed only "+
+					"%d time(s) above the write guard; the attempted view is a "+
+					"superset of the transported one unless some of those calls "+
+					"were issued on a client that bypasses the guard",
+				count.Method, count.Endpoint, count.Count, above))
+		}
+	}
 }
 
 func nonGETTotal(counts []HTTPCount) uint64 {

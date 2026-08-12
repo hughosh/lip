@@ -62,14 +62,33 @@ func TestLaunchdPlanUsesKeepAliveAndCaffeinateIS(t *testing.T) {
 	// KeepAlive and RunAtLoad are asserted as key-then-true PAIRS, not merely as
 	// keys that exist somewhere: `M-L-KEEPALIVE` renders the key with a false
 	// value, which a key-presence check would pass.
+	//
+	// The EMPTY-ELEMENT form is asserted, and that is `lip-83o`. launchd's plist
+	// parser accepts only `<true/>` and rejects `<true></true>` with
+	// `Bootstrap failed: 5: Input/output error`, so for the whole life of this
+	// code `-deploy` produced a plist that could never be loaded. This
+	// assertion used to require the PAIRED form, which is how the defect was
+	// pinned in place rather than caught.
 	for _, key := range []string{"KeepAlive", "RunAtLoad"} {
-		pair := "<key>" + key + "</key>\n\t<true></true>"
+		pair := "<key>" + key + "</key>\n\t<true/>"
 		if !strings.Contains(text, pair) {
 			t.Fatalf("%s is not rendered true. H-DEP-2 restarts on ANY exit, "+
 				"including exit 0 -- the thing that stops a drained harness "+
 				"coming straight back up is the durable latch on disk, not a "+
 				"supervisor that declined to restart it:\n%s", key, text)
 		}
+	}
+	// The bytes, and nothing but the bytes. Every other plist parser accepts
+	// the paired form -- `plutil -lint` reports OK, PlistBuddy reads every key,
+	// and a Go XML or plist decoder round-trips it -- so a test that decodes
+	// this output passes either way. The only parser that rejects it is reached
+	// by actually calling `launchctl bootstrap`, which no test does.
+	if strings.Contains(text, "<true></true>") {
+		t.Fatalf("the plist emits the PAIRED boolean form. launchd accepts "+
+			"only <true/> and fails the load with `Bootstrap failed: 5: "+
+			"Input/output error`, which names nothing and points nowhere "+
+			"(lip-83o). Do not assert this by decoding the output: every "+
+			"decoder accepts both forms.\n%s", text)
 	}
 	if strings.Contains(text, "<false") {
 		t.Fatalf("the plist contains a false value:\n%s", text)

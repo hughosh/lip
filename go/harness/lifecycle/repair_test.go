@@ -97,10 +97,15 @@ func TestCauselessStopCannotEnterWindingDown(t *testing.T) {
 func TestStartupCommitsEveryCauseBeforeReturningDecision(t *testing.T) {
 	store := &recordingLatch{}
 	src := okSource()
+	// An OWNED TAKER fill, not a foreign one. Since `lip-a3s` a foreign fill
+	// already on the account is reported at startup without latching, so it is
+	// no longer a vehicle for testing the COMMIT ORDERING this test is about.
+	// An owned taker fill still commits `startup_fill_history`
+	// (startup.go:735-745), which exercises the same ordering property.
 	src.fills = rest.FillsResult{Walk: completeWalk(),
-		Fills: []rest.Fill{makerFill("t1", "not-ours", "M")}}
+		Fills: []rest.Fill{takerFill("t1", "ours", "M")}}
 
-	s := newStartup(t, store, src, ownsAll(), keepAll(), newSweeper(true))
+	s := newStartup(t, store, src, ownsAll("ours"), keepAll(), newSweeper(true))
 	at := s.Step(context.Background(), startupNow)
 	if at.Err != nil {
 		t.Fatalf("Run: %v", at.Err)
@@ -110,9 +115,10 @@ func TestStartupCommitsEveryCauseBeforeReturningDecision(t *testing.T) {
 	}
 
 	// The latch is already on disk by the time the licence exists.
-	if len(store.ensures) != 1 || store.ensures[0].Trigger != "foreign_fill" {
-		t.Fatalf("the foreign fill was not latched before the adoption was "+
-			"returned: %+v", store.ensures)
+	if len(store.ensures) != 1 ||
+		store.ensures[0].Trigger != "startup_fill_history" {
+		t.Fatalf("the startup fill history was not latched before the "+
+			"adoption was returned: %+v", store.ensures)
 	}
 	// And the decision is the halted one, not RUNNING.
 	if at.Decision.State != quote.WindingDown ||
@@ -282,11 +288,17 @@ func TestForeignFillWithUnusableFeeStillLatches(t *testing.T) {
 		t.Fatalf("a foreign fill with an unusable fee failed the whole startup "+
 			"as a conversion error instead of latching: %v", at.Err)
 	}
-	if !hasClass(at.Anomalies, "FOREIGN_FILL") {
-		t.Fatalf("no FOREIGN_FILL; got %v", classesOf(at.Anomalies))
+	// Since `lip-a3s` a disclaimed fill already on the account is reported at
+	// SEV2 and does not latch, so the assertion is that it is still CLASSIFIED
+	// -- which is the property this test is actually about. The failure it
+	// guards against is the fill never reaching classification at all, because
+	// conversion ran first and choked on the unreadable fee.
+	if !hasClass(at.Anomalies, "FOREIGN_FILL_INHERITED") {
+		t.Fatalf("no FOREIGN_FILL_INHERITED; got %v", classesOf(at.Anomalies))
 	}
-	if len(store.ensures) != 1 || store.ensures[0].Trigger != "foreign_fill" {
-		t.Fatalf("the foreign fill did not latch: %+v", store.ensures)
+	if len(store.ensures) != 0 {
+		t.Fatalf("a fill already on the account at startup latched: %+v",
+			store.ensures)
 	}
 	if at.Adoption == nil {
 		t.Fatal("no adoption")

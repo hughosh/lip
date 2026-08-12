@@ -546,3 +546,107 @@ func TestScalarHandlesBothWireShapes(t *testing.T) {
 		t.Errorf("scalar(nil) = %q", got)
 	}
 }
+
+// TestParseFee6AcceptsEveryMeasuredFee is `lip-9tr`'s regression test, and the
+// values are not invented: they are every distinct `fee_cost` on the real
+// account, captured by `go/cmd/conform` on 2026-08-12 and pasted verbatim.
+//
+// The defect this pins was not that a parser was too strict. It was that the
+// PRICE parser was applied to a FEE field, and the two have different measured
+// quanta -- prices four decimals, fees six. Every one of these values was
+// refused by ParsePrice4, which discarded every fills walk on the account and
+// took the harness to a durable WINDING_DOWN 2.3 seconds after launch.
+//
+// Note "0.000000". The zero fee is refused by ParsePrice4 too: the refusal is
+// on WIDTH, not magnitude, so there was no subset of this account's history on
+// which the old code succeeded. A fixture of "0.00" -- which is what the tests
+// had -- could never have found this.
+func TestParseFee6AcceptsEveryMeasuredFee(t *testing.T) {
+	measured := []struct {
+		wire string
+		want num.Money
+	}{
+		{"0.000000", 0},
+		{"0.017200", 17200},
+		{"0.017300", 17300},
+		{"0.052500", 52500},
+		{"0.140000", 140000},
+		{"0.396800", 396800},
+		{"0.431200", 431200},
+		{"0.437400", 437400},
+	}
+	for _, c := range measured {
+		got, err := ParseFee6(c.wire)
+		if err != nil {
+			t.Fatalf("ParseFee6(%q) refused a fee the exchange really sent: %v\n\n"+
+				"Every fee_cost on the account carries exactly six decimals. A "+
+				"parser that cannot read them discards the whole fills walk, "+
+				"which is lip-9tr.", c.wire, err)
+		}
+		if got != c.want {
+			t.Fatalf("ParseFee6(%q) = %d, want %d micro-dollars.\n\n"+
+				"Money is 1e-6 USD (num/money.go:8-24), so a six-decimal dollar "+
+				"string maps to it digit for digit with no scaling.",
+				c.wire, got, c.want)
+		}
+	}
+}
+
+// The parser must stay exact rather than merely close: these are the cases a
+// float64 round-trip gets wrong, and a fee feeds H-ORD-8's `Fee > 0` test.
+func TestParseFee6IsExactAndRefusesUnmeasuredShapes(t *testing.T) {
+	exact := map[string]num.Money{
+		"0":         0,
+		"0.0":       0,
+		"1":         1_000_000,
+		"1.5":       1_500_000,
+		"0.1":       100_000,
+		"0.000001":  1,
+		"0.100000":  100_000,
+		"12.345678": 12_345_678,
+	}
+	for wire, want := range exact {
+		got, err := ParseFee6(wire)
+		if err != nil {
+			t.Fatalf("ParseFee6(%q): %v", wire, err)
+		}
+		if got != want {
+			t.Fatalf("ParseFee6(%q) = %d, want %d", wire, got, want)
+		}
+	}
+
+	// Seven decimals is a finer quantum than the one measured. It must surface
+	// as an error rather than round, for exactly the reason ParsePrice4 gives:
+	// truncating discards precision the exchange chose to send.
+	for _, bad := range []string{
+		"0.0000001", // finer than 1e-6
+		"-0.017200", // signed: a rebate is a wire change, not a rounding
+		"+0.017200",
+		"",
+		"abc",
+		"0.01.72",
+		"1e-3", // Go literal syntax the wire does not emit
+	} {
+		if got, err := ParseFee6(bad); err == nil {
+			t.Fatalf("ParseFee6(%q) = %d, want a refusal.\n\n"+
+				"A shape we have not measured must surface rather than be "+
+				"turned into a confident number.", bad, got)
+		}
+	}
+}
+
+// The whole point of giving fees their own parser was to leave the PRICE
+// assertion standing. If ParsePrice4 ever starts accepting six decimals, the
+// fix for lip-9tr has been undone by widening rather than by separating, and a
+// genuine tick-size change would stop being detected.
+func TestParsePrice4StillRefusesTheFeeQuantum(t *testing.T) {
+	for _, s := range []string{"0.000000", "0.017200", "0.437400"} {
+		if got, err := ParsePrice4(s); err == nil {
+			t.Fatalf("ParsePrice4(%q) = %d, want a refusal.\n\n"+
+				"Prices are measured at 1e-4 and fees at 1e-6. Collapsing the "+
+				"two parsers destroys the assertion that makes ParsePrice4 "+
+				"useful: it is what would detect the exchange changing its "+
+				"price quantum (H-CO-3a).", s, got)
+		}
+	}
+}

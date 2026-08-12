@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -323,3 +324,68 @@ func TestWouldWriteFingerprintSortsCancelTargetsAndIncludesRemaining(t *testing.
 }
 
 // confidence: high
+
+// TestFinalizedEvidenceDoesNotFailTheQualification is `lip-oqq`.
+//
+// Shutdown freezes the evidence once the trading store has stopped
+// (shutdown.go:304), but the owner's snapshot publisher is a separate goroutine
+// and gets at least one more tick in afterwards, calling RecordEvent for its
+// state summary (run.go:3086-3091). That call returns ErrFinalized, and until
+// this fix the fail-closed channel turned it into `serve` returning
+// "qualification evidence failed".
+//
+// SIGTERM is the operator's NORMAL stop, so this fired at the end of every run.
+// The first real q01 attempt ended with exactly that line in harness.err, over
+// an evidence file that had finalized correctly and was fully assessable -- a
+// clean four-to-six-hour qualification would have reported FAILED at the moment
+// it completed.
+//
+// The distinction being asserted: a write refused BECAUSE the artifact is
+// already closed is not a failure to record. Every other error still fails
+// closed, which the second half checks.
+func TestFinalizedEvidenceDoesNotFailTheQualification(t *testing.T) {
+	recorder, err := qual.Open(filepath.Join(t.TempDir(), "qualification.json"),
+		qual.Metadata{
+			SchemaVersion: qual.SchemaVersion, ConfigHash: "sha256:finalize-race",
+			BinaryIdentity: "sha256:test", Ticker: "KXTEST-A", Rung: "canary",
+			Live: false,
+		}, qual.SegmentStart{
+			ID: "finalize-race", PID: os.Getpid(), StartedAt: time.Now().UTC(),
+		})
+	if err != nil {
+		t.Fatalf("qual.Open: %v", err)
+	}
+	if err := recorder.Finalize(time.Now().UTC()); err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+
+	// The real post-finalize write, through the real recorder, wrapped exactly
+	// as run.go wraps it.
+	late := recorder.RecordEvent("state", "global=DRAINED;market=IDLE", time.Now().UTC())
+	if late == nil {
+		t.Fatal("RecordEvent after Finalize returned nil; this test is no " +
+			"longer exercising the race it was written for")
+	}
+
+	r := &rig{qualErrors: make(chan error, 1)}
+	r.failQualification(fmt.Errorf("recording state summary: %w", late))
+	select {
+	case got := <-r.qualErrors:
+		t.Fatalf("a post-finalize write failed the qualification: %v\n\n"+
+			"The evidence artifact was closed properly and is assessable. "+
+			"Reporting that as a failure means every clean run ends by "+
+			"declaring itself failed (lip-oqq).", got)
+	default:
+	}
+
+	// Fail-closed is otherwise intact: anything that is NOT the artifact being
+	// closed still invalidates the qualification.
+	r.failQualification(fmt.Errorf("recording state summary: %w",
+		errors.New("disk full")))
+	select {
+	case <-r.qualErrors:
+	default:
+		t.Fatal("a genuine evidence failure was swallowed. Only ErrFinalized " +
+			"is exempt; everything else must still fail the qualification")
+	}
+}

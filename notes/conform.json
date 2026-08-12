@@ -1,0 +1,524 @@
+{
+  "ran_at": "2026-08-12T18:01:50Z",
+  "endpoints": [
+    {
+      "name": "fills",
+      "path": "/portfolio/fills",
+      "latent": false,
+      "walk_outcome": "complete",
+      "pages": 1,
+      "records": 15,
+      "failed": 0,
+      "full_walk_decodes": true
+    },
+    {
+      "name": "orders",
+      "path": "/portfolio/orders",
+      "latent": false,
+      "walk_outcome": "complete",
+      "pages": 1,
+      "records": 8,
+      "failed": 0,
+      "full_walk_decodes": true
+    },
+    {
+      "name": "positions.market",
+      "path": "/portfolio/positions",
+      "latent": false,
+      "walk_outcome": "complete",
+      "pages": 1,
+      "records": 1,
+      "failed": 0,
+      "full_walk_decodes": true
+    },
+    {
+      "name": "positions.event",
+      "path": "/portfolio/positions",
+      "latent": false,
+      "walk_outcome": "complete",
+      "pages": 1,
+      "records": 1,
+      "failed": 0,
+      "full_walk_decodes": true
+    },
+    {
+      "name": "programs",
+      "path": "/incentive_programs",
+      "latent": false,
+      "walk_outcome": "complete",
+      "pages": 4,
+      "records": 3276,
+      "failed": 0,
+      "full_walk_decodes": true
+    },
+    {
+      "name": "programs.unfiltered",
+      "path": "/incentive_programs",
+      "latent": true,
+      "walk_outcome": "complete",
+      "pages": 138,
+      "records": 137616,
+      "failed": 22318,
+      "full_walk_decodes": false,
+      "full_walk_error": "KXB200MS-26AUG-6.000: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record_shapes": {
+        "liquidity / has target_size_fp": 115298,
+        "volume / NO target_size_fp": 22318
+      }
+    }
+  ],
+  "failures": [
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42730,
+      "reason": "KXB200MS-26AUG-6.000: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "ffca0f64-47f3-4b68-8baa-59dbfd45aeb1",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "86cf00ac-dc99-40c5-9ac3-fc9061fc25ee",
+        "market_ticker": "KXB200MS-26AUG-6.000",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42731,
+      "reason": "KXB200MS-26AUG-4.500: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "f47921e5-07aa-452b-94eb-bfd37d9ac64d",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "e729b8ee-346b-40b6-9a8a-a652075adb5a",
+        "market_ticker": "KXB200MS-26AUG-4.500",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42732,
+      "reason": "KXB200MS-26AUG-3.50: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "f2883cd5-0337-4bf6-8006-9f4ddb184a8e",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "e1d9cf9c-2f7e-4207-b234-5b8a058c715d",
+        "market_ticker": "KXB200MS-26AUG-3.50",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42733,
+      "reason": "KXB200MS-27JAN-5.000: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "e39c9bd4-5f7b-4c14-a6ab-9d9ac7392f5e",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "aa931e3c-2b93-408a-8ab5-87380145fc2b",
+        "market_ticker": "KXB200MS-27JAN-5.000",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42734,
+      "reason": "KXB200MS-26AUG-5.500: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "e1fd3b9a-235c-4aed-90af-575a3bd8e7c3",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "fd6b3b5c-2382-4f56-b96c-c478fa862c50",
+        "market_ticker": "KXB200MS-26AUG-5.500",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42735,
+      "reason": "KXB200MS-26DEC-5.500: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "e102e407-fc2f-46f5-8400-666b2a540019",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "412c2122-4511-42c9-b2b2-5a6ae392b23e",
+        "market_ticker": "KXB200MS-26DEC-5.500",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42736,
+      "reason": "KXB200MS-27JAN-4.500: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "da635fda-83da-4724-86a9-a833d31154e6",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "19508b28-ddeb-4d24-a3e3-86975e0270db",
+        "market_ticker": "KXB200MS-27JAN-4.500",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42737,
+      "reason": "KXB200MS-27FEB-4.500: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "d4208a1b-93e0-4847-bd05-9495a19dbdd6",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "222bf1c1-d9fa-42ca-88b8-4e32bd8bd6e2",
+        "market_ticker": "KXB200MS-27FEB-4.500",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42738,
+      "reason": "KXB200MS-27JAN-3.50: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "d360d91c-3143-4301-9435-48c9e792c82f",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "db89e5ee-ed74-40ed-9319-2e409369cbc9",
+        "market_ticker": "KXB200MS-27JAN-3.50",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42739,
+      "reason": "KXB200MS-26DEC-5.000: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "cbb5b822-d684-4bc1-8614-442e8367d3a1",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "09529a64-18d1-4176-8078-8f4cf384fadd",
+        "market_ticker": "KXB200MS-26DEC-5.000",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42740,
+      "reason": "KXB200MS-26DEC-6.000: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "ca60200d-6306-42ad-af79-6f263538e310",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "924b59db-f60e-4d3c-b0ac-85c9f3b679e0",
+        "market_ticker": "KXB200MS-26DEC-6.000",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42741,
+      "reason": "KXB200MS-26SEP-6.500: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "c9b4f29f-7c77-4537-9c19-4cd547d54115",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "42469cd3-9a34-4bf9-9c0a-d6e41b48d860",
+        "market_ticker": "KXB200MS-26SEP-6.500",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42742,
+      "reason": "KXB200MS-26NOV-3.50: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "c6fe240e-48a7-4a2b-9fee-2e51ccceeeb0",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "3c5c7bbe-1c1b-4794-9db0-20109f7d4ad3",
+        "market_ticker": "KXB200MS-26NOV-3.50",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42743,
+      "reason": "KXB200MS-26NOV-5.500: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "c4947334-42c5-4501-abab-2dda8bd9c87e",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "d9473563-a2d0-404c-86d1-442daf4f64c6",
+        "market_ticker": "KXB200MS-26NOV-5.500",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42744,
+      "reason": "KXB200MS-26NOV-4.000: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "bf9e67ec-fabe-4bc4-88b4-3cafafffe7da",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "ecf75642-0bd8-41dc-8779-c9a8f6238e70",
+        "market_ticker": "KXB200MS-26NOV-4.000",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42745,
+      "reason": "KXB200MS-26SEP-6.000: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "be2f010c-9647-45db-bc31-ce2eceaf9caf",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "f1adcae4-d407-47a9-a4ba-7fa68337cb28",
+        "market_ticker": "KXB200MS-26SEP-6.000",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42746,
+      "reason": "KXB200MS-26NOV-3.00: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "b63bbea9-ef72-44dc-96ec-ad12302a7fa4",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "4a64edd8-b857-40b8-ae3f-8aa410c4fddd",
+        "market_ticker": "KXB200MS-26NOV-3.00",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42747,
+      "reason": "KXB200MS-26OCT-4.000: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "b5a9e326-a2f2-4c0a-95cb-ea50ab4178d3",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "c86fe879-e615-44ba-a9c2-4feb4ca4c276",
+        "market_ticker": "KXB200MS-26OCT-4.000",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42748,
+      "reason": "KXB200MS-26NOV-6.000: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "b5977f53-13a4-4965-a3cd-317b4fa552b1",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "a3939a22-3c86-46fb-a05b-c19fa25ca694",
+        "market_ticker": "KXB200MS-26NOV-6.000",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42749,
+      "reason": "KXB200MS-27FEB-6.500: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "b39c0808-0d1e-41b1-bd86-61e6ba985381",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "25450a34-701b-4a40-b6d5-1ae376d14d1f",
+        "market_ticker": "KXB200MS-27FEB-6.500",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42750,
+      "reason": "KXB200MS-26SEP-5.000: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "ac546157-3887-493e-9c4b-c263e00fac83",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "937fe9ce-38fe-4a76-9b49-e0b3c3778a26",
+        "market_ticker": "KXB200MS-26SEP-5.000",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42751,
+      "reason": "KXB200MS-26SEP-4.500: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "a7720bb1-06da-4ec6-9de9-fe7170b3618c",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "a07d3cd0-7024-42bb-a7e0-d1bc04f56aea",
+        "market_ticker": "KXB200MS-26SEP-4.500",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42752,
+      "reason": "KXB200MS-27FEB-5.500: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "a38f7467-1ec9-49c1-b1cf-c333bd2bcfa3",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "f5d02ccd-ac4f-464f-a357-3c69d6d12d58",
+        "market_ticker": "KXB200MS-27FEB-5.500",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42753,
+      "reason": "KXB200MS-26SEP-3.50: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "a341f75f-4477-43b2-8309-68ef7deb01b3",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "62fc404a-415f-40eb-bbde-24f680f4c161",
+        "market_ticker": "KXB200MS-26SEP-3.50",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 42754,
+      "reason": "KXB200MS-26NOV-4.500: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-07-01T03:59:00Z",
+        "id": "97f8cae7-024e-4c2a-ab47-f6932e00e19d",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "0aa407d7-142f-479f-847a-bd5b336caa6b",
+        "market_ticker": "KXB200MS-26NOV-4.500",
+        "paid_out": true,
+        "period_reward": 1000000,
+        "start_date": "2026-06-26T19:39:00Z"
+      }
+    }
+  ],
+  "fees": {
+    "fills": 15,
+    "fee_decimal_places": {
+      "6": 15
+    },
+    "max_decimals": 6,
+    "nonzero_fee": 8,
+    "is_taker_true": 8,
+    "would_trip_taker_fill": 8,
+    "distinct_fee_values": [
+      "0.000000",
+      "0.017200",
+      "0.017300",
+      "0.052500",
+      "0.140000",
+      "0.396800",
+      "0.431200",
+      "0.437400"
+    ],
+    "fee_values_ParsePrice4_refuses": [
+      "0.000000",
+      "0.017200",
+      "0.017300",
+      "0.052500",
+      "0.140000",
+      "0.396800",
+      "0.431200",
+      "0.437400"
+    ]
+  },
+  "prices": {
+    "records_with_both_price_fields": 23,
+    "complement_violations": 0,
+    "examples": null
+  },
+  "markets": {
+    "sampled": 250,
+    "observed": 250,
+    "failed": 0,
+    "status_active_with_result": 0,
+    "close_time_unreadable": 0,
+    "distinct_failure_reasons": [
+      "MARKET_STATUS_UNKNOWN: KXAC-26AUGPLF-83.0: unmeasured market status \"finalized\", read as CLOSED only because result \"yes\" is present; \"active\" is the sole measured status and this one should be added once confirmed",
+      "MARKET_STATUS_UNKNOWN: KXAC-26AUGPLF-83.5: unmeasured market status \"finalized\", read as CLOSED only because result \"yes\" is present; \"active\" is the sole measured status and this one should be added once confirmed",
+      "MARKET_STATUS_UNKNOWN: KXAC-26AUGPLF-84.5: unmeasured market status \"finalized\", read as CLOSED only because result \"yes\" is present; \"active\" is the sole measured status and this one should be added once confirmed",
+      "MARKET_STATUS_UNKNOWN: KXAC-26AUGPLF-85.0: unmeasured market status \"finalized\", read as CLOSED only because result \"yes\" is present; \"active\" is the sole measured status and this one should be added once confirmed",
+      "MARKET_STATUS_UNKNOWN: KXAC-26AUGPLF-85.5: unmeasured market status \"finalized\", read as CLOSED only because result \"yes\" is present; \"active\" is the sole measured status and this one should be added once confirmed",
+      "MARKET_STATUS_UNKNOWN: KXAC-26AUGPLF-86.0: unmeasured market status \"finalized\", read as CLOSED only because result \"yes\" is present; \"active\" is the sole measured status and this one should be added once confirmed",
+      "MARKET_STATUS_UNKNOWN: KXAC-26AUGPLF-86.5: unmeasured market status \"finalized\", read as CLOSED only because result \"yes\" is present; \"active\" is the sole measured status and this one should be added once confirmed"
+    ]
+  },
+  "balance": "9858 cents decoded cleanly"
+}

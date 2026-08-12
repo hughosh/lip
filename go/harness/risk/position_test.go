@@ -225,15 +225,24 @@ func TestSeedModeRecordsIdentityWithoutReapplyingHistory(t *testing.T) {
 			"want 9.00", got.Wire())
 	}
 
-	// A taker fill in our HISTORY is still a fact about the harness.
+	// A taker fill in our HISTORY is still a fact about the harness -- but a
+	// Seed walk is history by definition, so it is recorded and not halted on
+	// (`lip-jhi`). H-Q-3 is a rule about what this incarnation does.
 	seedTaker := NewPortfolio()
 	e2 := seedTaker.ApplyFills([]FillEvent{
 		{TradeID: "h3", OrderID: "ord-2", Ticker: tk, Side: quote.SideYes,
 			Count: contracts(1), IsTaker: true},
 	}, owns("ord-2"), Seed, pollMs)
-	if !e2.Stop || !hasClass(e2.Anomalies, "TAKER_FILL") {
+	if !hasClass(e2.Anomalies, "TAKER_FILL_INHERITED") {
 		t.Fatalf("a historical taker fill was not classified in seed mode: "+
 			"stop=%v classes=%v", e2.Stop, anomalyClasses(e2.Anomalies))
+	}
+	if e2.Stop {
+		t.Fatalf("a taker fill read by the STARTUP walk requested a global "+
+			"stop. Every fill a seed walk sees predates this incarnation, so "+
+			"halting on one makes the rule unsatisfiable by any account with "+
+			"history -- which is what stopped q01 at t+2s (lip-jhi). "+
+			"classes=%v", anomalyClasses(e2.Anomalies))
 	}
 }
 
@@ -874,9 +883,17 @@ func TestOutOfWindowOwnedFillIsSeededNotReplayed(t *testing.T) {
 // Seeding a baseline fill's arithmetic is not the same as ignoring it, and the
 // difference is the whole argument for classifying baseline ids rather than
 // marking them seen. A taker fill in our history is a fact about the harness
-// whenever it happened -- H-Q-3 was violated by a post_only that did not take
-// effect, a marketable price, or an API change -- and it is exactly as true for
-// a fill older than `backfill_h` as for one inside it.
+// whenever it happened, and it is exactly as true for a fill older than
+// `backfill_h` as for one inside it.
+//
+// WHAT IT DOES NOT DO, since `lip-jhi`, is halt. H-Q-3 is a rule about what
+// THIS incarnation does, and 8 of the 15 fills already on the real account are
+// takers with non-zero fees: halting on inherited ones made the rule
+// unsatisfiable by any account that has ever crossed the spread, and took the
+// harness to a durable WINDING_DOWN on its first portfolio poll. So the
+// inherited case raises `TAKER_FILL_INHERITED` at SEV2 and does not stop, while
+// a fill this incarnation CAUSED still raises `TAKER_FILL` at SEV1 and does.
+// Both halves are asserted below; suppressing either is the defect.
 //
 // `M-R-BASELINESILENT` marks the baseline seen instead, which is candidate A on
 // the bead: smaller, and it loses this.
@@ -889,15 +906,43 @@ func TestOutOfWindowTakerFillStillRaisesHORD8(t *testing.T) {
 		Price4: 5000, Count: contracts(3), IsTaker: true,
 	}}, owns("o1"), Live, pollMs)
 
-	if !hasClass(eff.Anomalies, "TAKER_FILL") {
-		t.Fatalf("H-ORD-8 was suppressed for an inherited fill: %v",
+	if !hasClass(eff.Anomalies, "TAKER_FILL_INHERITED") {
+		t.Fatalf("H-ORD-8 was suppressed for an inherited fill: %v\n\n"+
+			"The observation must survive. Marking the baseline seen instead "+
+			"(M-R-BASELINESILENT) is what loses it.",
 			anomalyClasses(eff.Anomalies))
 	}
-	if sev := sevOf(t, eff.Anomalies, "TAKER_FILL"); sev != SEV1 {
-		t.Fatalf("TAKER_FILL sev = %v, want SEV1", sev)
+	// SEV2, and this is load-bearing rather than cosmetic: qual/q01.go:215-222
+	// fails the whole qualification on ANY anomaly labelled SEV1. Raising this
+	// one at SEV1 would stop the harness halting and still fail q01 four to six
+	// hours later, on one forbidden anomaly per inherited taker fill.
+	if sev := sevOf(t, eff.Anomalies, "TAKER_FILL_INHERITED"); sev != SEV2 {
+		t.Fatalf("TAKER_FILL_INHERITED sev = %v, want SEV2: q01 fails on any "+
+			"SEV1-labelled anomaly, so an inherited fill raised at SEV1 "+
+			"converts a fixed halt into a failed qualification", sev)
 	}
-	if !eff.Stop {
-		t.Fatal("a taker fill in our own history did not request a global stop")
+	if eff.Stop {
+		t.Fatal("an inherited taker fill requested a global stop. H-Q-3 is a " +
+			"rule about what THIS incarnation does; 8 such fills already sit " +
+			"on the real account and halting on them made the rule " +
+			"unsatisfiable by any account that has ever crossed the spread " +
+			"(lip-jhi)")
+	}
+	// The other half of the rule: a fill this incarnation actually caused still
+	// halts, at SEV1, exactly as before. Without this assertion the change
+	// above could be over-applied to every taker fill and nothing would notice.
+	live := NewSeededPortfolio(map[string]num.Qty{"M": contracts(3)},
+		baselineOf("t-old"))
+	liveEff := live.ApplyFills([]FillEvent{{
+		TradeID: "t-new", OrderID: "o1", Ticker: "M", Side: quote.SideYes,
+		Price4: 5000, Count: contracts(1), IsTaker: true,
+	}}, owns("o1"), Live, pollMs)
+	if !hasClass(liveEff.Anomalies, "TAKER_FILL") || !liveEff.Stop {
+		t.Fatalf("a LIVE taker fill did not raise H-ORD-8 and halt: stop=%v "+
+			"classes=%v", liveEff.Stop, anomalyClasses(liveEff.Anomalies))
+	}
+	if sev := sevOf(t, liveEff.Anomalies, "TAKER_FILL"); sev != SEV1 {
+		t.Fatalf("live TAKER_FILL sev = %v, want SEV1", sev)
 	}
 	if got := seeded.Q("M"); got != contracts(3) {
 		t.Fatalf("q = %s, want 3.00: classification is not application",
@@ -916,12 +961,20 @@ func TestOutOfWindowTakerFillStillRaisesHORD8(t *testing.T) {
 // never reach §7.5's `ApplyFills`, which is handed only the owned subset, so
 // they are not in `seenTrade` and the first live walk classifies them fresh.
 //
-// Nothing here is softened. A baseline foreign fill still raises SEV1
-// `FOREIGN_FILL` and still requests the global stop: someone other than this
-// harness is trading the account, and that is not less true because it happened
-// before we restarted. Suppressing it would be the F2 catastrophe reached by a
-// bookkeeping change. It never moves `q` in the first place, so there is no
-// arithmetic to seed.
+// Since `lip-a3s` the two halves are split by WHEN the fill appeared. A
+// disclaimed fill already on the account is reported at SEV2 and not halted on;
+// one that appears while we are running still raises SEV1 `FOREIGN_FILL` and
+// still requests the global stop. Both are asserted below, because suppressing
+// the second would be the F2 catastrophe reached by a bookkeeping change.
+//
+// The split is forced by what the ledger can actually answer. `hstore.Ownership`
+// resolves only from THIS store's reservation bookkeeping, so an order id it
+// never reserved is disclaimed by `default:` (hstore/ledger.go:128-129) whether
+// it belongs to a stranger or merely predates the store. Treating that as proof
+// of a third party latched a durable WINDING_DOWN over all 15 of a real
+// account's historical fills.
+//
+// Neither case moves `q`, so there is no arithmetic to seed either way.
 func TestBaselineForeignFillStillStopsGlobally(t *testing.T) {
 	seeded := NewSeededPortfolio(map[string]num.Qty{"M": contracts(2)},
 		baselineOf("t-foreign"))
@@ -931,15 +984,40 @@ func TestBaselineForeignFillStillStopsGlobally(t *testing.T) {
 		Side: quote.SideYes, Price4: 5000, Count: contracts(1),
 	}}, owns("o1"), Live, pollMs)
 
-	if !hasClass(eff.Anomalies, "FOREIGN_FILL") {
-		t.Fatalf("baseline membership suppressed FOREIGN_FILL: %v",
-			anomalyClasses(eff.Anomalies))
+	if !hasClass(eff.Anomalies, "FOREIGN_FILL_INHERITED") {
+		t.Fatalf("a disclaimed baseline fill was not reported at all: %v\n\n"+
+			"It must still be recorded -- it is not ours and never enters "+
+			"our_fill -- it just does not latch.", anomalyClasses(eff.Anomalies))
 	}
-	if sev := sevOf(t, eff.Anomalies, "FOREIGN_FILL"); sev != SEV1 {
+	if sev := sevOf(t, eff.Anomalies, "FOREIGN_FILL_INHERITED"); sev != SEV2 {
+		t.Fatalf("FOREIGN_FILL_INHERITED sev = %v, want SEV2: q01 fails on any "+
+			"SEV1-labelled anomaly, so SEV1 here fixes the halt and still "+
+			"fails the qualification", sev)
+	}
+	if eff.Stop {
+		t.Fatal("a fill already on the account before this process started " +
+			"latched a durable, operator-only WINDING_DOWN (lip-a3s)")
+	}
+
+	// The half that must NOT soften: a disclaimed fill that appears WHILE WE
+	// RUN is exactly what H-ORD-9 is about, and still stops the world.
+	live := NewSeededPortfolio(map[string]num.Qty{"M": contracts(2)},
+		baselineOf("t-foreign"))
+	liveEff := live.ApplyFills([]FillEvent{{
+		TradeID: "t-new-foreign", OrderID: "not-ours", Ticker: "M",
+		Side: quote.SideYes, Price4: 5000, Count: contracts(1),
+	}}, owns("o1"), Live, pollMs)
+
+	if !hasClass(liveEff.Anomalies, "FOREIGN_FILL") {
+		t.Fatalf("a foreign fill that appeared DURING the run was not "+
+			"detected: %v", anomalyClasses(liveEff.Anomalies))
+	}
+	if sev := sevOf(t, liveEff.Anomalies, "FOREIGN_FILL"); sev != SEV1 {
 		t.Fatalf("FOREIGN_FILL sev = %v, want SEV1", sev)
 	}
-	if !eff.Stop {
-		t.Fatal("a foreign fill on the account did not request a global stop")
+	if !liveEff.Stop {
+		t.Fatal("a third party trading the account while we run did not " +
+			"request a global stop")
 	}
 	if len(eff.Foreign) != 1 {
 		t.Fatalf("foreign = %d, want 1", len(eff.Foreign))

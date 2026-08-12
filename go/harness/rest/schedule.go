@@ -42,6 +42,23 @@ import (
 // here a mistyped comparison does not error, it reclassifies a live market.
 const MarketStatusActive = "active"
 
+// MarketStatusFinalized is the settled terminal status, MEASURED 2026-08-12 by
+// `go/cmd/conform` over 219 real markets sampled across several months of
+// history. The vocabulary was exactly two shapes and there was no third:
+//
+//	active / no result yet     68
+//	finalized / has result    151
+//
+// Adding it is what stops a settling market raising SEV2 MARKET_STATUS_UNKNOWN
+// on every schedule read for the rest of the run -- the canary ticker is dated
+// for the run day, so a 4-6h session can watch its own market finalize.
+//
+// `finalized` WITHOUT a result is deliberately NOT accepted here. It was not
+// observed once in 219 markets, so it stays with the refusing default where an
+// unmeasured shape belongs: a settled market that has not said what it settled
+// to is exactly the surprise that rule exists for.
+const MarketStatusFinalized = "finalized"
+
 // ScheduleOutcome is whether a schedule read landed.
 type ScheduleOutcome uint8
 
@@ -404,6 +421,13 @@ func deriveTradingClosed(ticker, status, result string) (bool, []risk.Anomaly, e
 
 	case status == MarketStatusActive:
 		return false, nil, nil
+
+	case status == MarketStatusFinalized && result != "":
+		// Measured, so it lands silently. This is the ordinary end of every
+		// market's life: 151 of the 219 markets sampled were in exactly this
+		// state, and before this case existed each one raised a SEV2 on every
+		// single schedule read.
+		return true, nil, nil
 
 	case result != "":
 		// Unfamiliar status, but the settlement result is itself the

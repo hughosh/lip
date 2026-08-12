@@ -5497,15 +5497,66 @@ func TestProductionExchangeCountsTheActiveProgramWalkBelowTheGuard(t *testing.T)
 	if _, err := exchangeOver(context.Background(), f6Config(t), f6Signer(t), nt, qrec); err != nil {
 		t.Fatalf("exchangeOver: %v", err)
 	}
-	var programGETs uint64
-	for _, count := range qrec.Snapshot().HTTP {
-		if count.Method == http.MethodGet && count.Endpoint == rest.EpPrograms.Path {
-			programGETs += count.Count
-		}
-	}
-	if programGETs != 2 {
+	if programGETs := programWalkGETs(qrec.Snapshot().HTTP); programGETs != 2 {
 		t.Fatalf("counted %d active-program GET(s), want the two-page production walk",
 			programGETs)
+	}
+}
+
+// programWalkGETs totals the active-programme GETs in one of the two views.
+func programWalkGETs(counts []qual.HTTPCount) uint64 {
+	var total uint64
+	for _, count := range counts {
+		if count.Method == http.MethodGet && count.Endpoint == rest.EpPrograms.Path {
+			total += count.Count
+		}
+	}
+	return total
+}
+
+// The ABOVE-guard half, and it is the assertion `lip-b0t` failed.
+//
+// The startup universe read used to be issued on a `rest.Client` composed
+// directly over the raw doer, so it reached the network having crossed neither
+// `WriteGuard` nor the attempt counter. q01 attempt 1's own bundle recorded the
+// consequence exactly: /incentive_programs with count 4 under `http` and no
+// `attempted_http` entry at all. Nothing failed, because the client happened to
+// issue only GETs -- but the property H-VER-1 claims is STRUCTURAL (there is no
+// route to the exchange that misses the guard) held only by luck, and
+// `AboveGuardNonGET` -- the number the evidence bundle exists to report -- was
+// computed over a view that could not see this client's writes.
+//
+// Asserting BOTH sides is what makes the test load-bearing. The below-guard
+// count alone is satisfied by the defect; the above-guard count alone would be
+// satisfied by a client that never reached the transport at all.
+func TestProductionExchangeCountsTheActiveProgramWalkAboveTheGuard(t *testing.T) {
+	f6NoDefaultTransport(t)
+	f := newF6Fixture(t)
+	_, nt := f6Compose(t, f)
+	qrec, err := qual.Open(filepath.Join(t.TempDir(), "qualification.json"),
+		qual.Metadata{
+			SchemaVersion: qual.SchemaVersion, ConfigHash: "sha256:f6-config",
+			BinaryIdentity: "sha256:f6-binary", Ticker: f6Ticker,
+			Rung: "canary", Live: false,
+		}, qual.SegmentStart{
+			ID: "f6", PID: os.Getpid(), StartedAt: time.Now().UTC(),
+		})
+	if err != nil {
+		t.Fatalf("qual.Open: %v", err)
+	}
+	if _, err := exchangeOver(context.Background(), f6Config(t), f6Signer(t), nt, qrec); err != nil {
+		t.Fatalf("exchangeOver: %v", err)
+	}
+	snapshot := qrec.Snapshot()
+	above := programWalkGETs(snapshot.AttemptedHTTP)
+	below := programWalkGETs(snapshot.HTTP)
+	if above != 2 || below != 2 {
+		t.Fatalf("the active-programme walk was counted %d time(s) above the "+
+			"write guard and %d below; both must be the two pages of the "+
+			"production walk. A read that reaches the transport without being "+
+			"counted above the guard is a second REST client that H-VER-1 does "+
+			"not sit under, and the evidence bundle cannot see its writes",
+			above, below)
 	}
 }
 

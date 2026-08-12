@@ -1230,7 +1230,13 @@ func ConvertFills(fills []rest.Fill) ([]risk.FillEvent, error) {
 				"corroborator of H-ORD-8 cannot be evaluated without it",
 				f.TradeID)
 		}
-		fee4, err := rest.ParsePrice4(f.FeeCost)
+		// `lip-9tr`, SECOND CALL SITE. This is a duplicate of `wsx`'s
+		// convertFills and it carried the identical defect: a PRICE parser
+		// applied to a FEE field, refusing every 6-decimal fee_cost the
+		// exchange sends. Fixing only the wsx copy moved the failure from the
+		// first live poll to §7.5's startup walk, where it surfaces as "a
+		// startup fill of ours did not convert" and fails startup outright.
+		fee, err := rest.ParseFee6(f.FeeCost)
 		if err != nil {
 			return nil, fmt.Errorf("fill %s has fee_cost %q: %w",
 				f.TradeID, f.FeeCost, err)
@@ -1242,7 +1248,7 @@ func ConvertFills(fills []rest.Fill) ([]risk.FillEvent, error) {
 			Side:         f.Side,
 			Price4:       f.Price4,
 			Count:        f.Count,
-			Fee:          num.Money(fee4 * 100),
+			Fee:          fee,
 			IsTaker:      f.IsTaker,
 			ExchangeTsMs: f.TsMillis,
 		})

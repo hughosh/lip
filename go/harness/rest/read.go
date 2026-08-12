@@ -76,6 +76,77 @@ func ParsePrice4(s string) (Price4, error) {
 	return v, nil
 }
 
+// ParseFee6 parses a `fee_cost` string exactly, into num.Money's 1e-6 quantum.
+//
+// WHY THIS IS NOT ParsePrice4 WITH A WIDER TOLERANCE. A fee is not a price and
+// the two have different MEASURED quanta. Every one of 79,526 sampled
+// `yes_price_dollars` values carried exactly four decimals, which is what makes
+// ParsePrice4's refusal above a real assertion about the wire. Every one of the
+// 15 `fee_cost` values on this account carries exactly SIX -- the decimal-place
+// histogram is {6: 15}, with no other width present, INCLUDING the zero fee,
+// which arrives as "0.000000" and not as "0.00". Widening ParsePrice4 to six
+// decimals to accommodate that would silently retire the price assertion in
+// order to fix a fee, and a price that started arriving with six decimals would
+// then be a tick-size change nothing detects. Two quanta, two parsers.
+//
+// The destination is num.Money because 1e-6 dollars is exactly what Money is
+// (num/money.go:8-24). convertFills was already converting into it, by way of
+// `num.Money(fee4 * 100)` -- a 1e-4 value scaled up to 1e-6. Parsing straight
+// into Money removes that conversion rather than adding one.
+//
+// `lip-9tr`: this is the bug that discarded every fills walk on the account and
+// took the harness to a durable WINDING_DOWN 2.3 seconds after launch, because
+// a fee we cannot read is one of the two independent witnesses to H-ORD-8 going
+// silent (see convertFills).
+//
+// Non-negative, for the same reason ParsePrice4 is: a rebate is not a shape
+// this account has ever been sent, and inventing a sign convention for one we
+// have not measured is how an unmeasured wire change becomes a confident
+// number. If the exchange starts paying rebates, this must surface here.
+func ParseFee6(s string) (num.Money, error) {
+	if s == "" {
+		return 0, fmt.Errorf("empty fee")
+	}
+	if s[0] == '-' || s[0] == '+' {
+		return 0, fmt.Errorf("fee %q is signed; the measured fee is "+
+			"non-negative and a rebate is a wire change, not a rounding", s)
+	}
+	intPart, fracPart, hasDot := strings.Cut(s, ".")
+	if hasDot && strings.Contains(fracPart, ".") {
+		return 0, fmt.Errorf("fee %q has more than one decimal point", s)
+	}
+	if intPart == "" && fracPart == "" {
+		return 0, fmt.Errorf("fee %q has no digits", s)
+	}
+	if len(fracPart) > 6 {
+		// The same rule ParsePrice4 states, at the quantum that was measured
+		// for THIS field: truncating would discard precision the exchange
+		// chose to send, and a finer quantum must surface rather than round.
+		return 0, fmt.Errorf("fee %q has %d decimals; the measured quantum "+
+			"is 1e-6 dollars and this parser will not round", s, len(fracPart))
+	}
+	var v int64
+	for _, c := range intPart {
+		if c < '0' || c > '9' {
+			return 0, fmt.Errorf("fee %q is not a fixed-point number", s)
+		}
+		v = v*10 + int64(c-'0')
+		if v > 1<<40 {
+			return 0, fmt.Errorf("fee %q is out of range", s)
+		}
+	}
+	v *= num.MoneyScale
+	scale := int64(num.MoneyScale / 10)
+	for _, c := range fracPart {
+		if c < '0' || c > '9' {
+			return 0, fmt.Errorf("fee %q is not a fixed-point number", s)
+		}
+		v += int64(c-'0') * scale
+		scale /= 10
+	}
+	return num.Money(v), nil
+}
+
 // CentsExact converts a Price4 to whole cents, reporting whether it was exact.
 //
 // H-CO-3a: the resting book is integer-cent, and `harness/rest` ASSERTS that

@@ -248,6 +248,38 @@ func (g *ForeignGuard) Classify(phase Phase, orders []rest.Order,
 			continue
 		}
 		eff.ForeignFills = append(eff.ForeignFills, f)
+
+		if phase == PhaseStartup {
+			// `lip-a3s`. Pre-existing, and treated exactly as a pre-existing
+			// foreign ORDER is treated twenty lines above: SEV2, no cause, no
+			// latch. This loop used to have no phase branch at all, which is
+			// why it behaved differently from its sibling.
+			//
+			// The reasoning that justified no exemption -- "a fill tells us
+			// someone is TRADING the account" -- is a claim about the PRESENT,
+			// and the startup walk cannot support it. `hstore.Ownership`
+			// answers only from this store's own reservation bookkeeping, so an
+			// order id it never reserved is disclaimed by `default:`
+			// (hstore/ledger.go:128-129) whether it is a stranger's order or
+			// simply older than this store. On a real account that disclaimed
+			// all 15 historical fills and latched a durable, operator-only
+			// WINDING_DOWN before the run had done anything.
+			//
+			// A fill that appears while we are RUNNING still latches, below.
+			// That is the case H-ORD-9 is actually about.
+			eff.Anomalies = append(eff.Anomalies, risk.Anomaly{
+				Class: "FOREIGN_FILL_INHERITED", Sev: risk.SEV2, Ticker: f.Ticker,
+				Text: fmt.Sprintf("fill %s on order %s carries no coid of ours "+
+					"and was already on the account at startup; it does not "+
+					"enter our_fill and does not trigger F14, and the "+
+					"positions walk has already accounted for its effect. An "+
+					"account we are adopting is allowed to have been traded "+
+					"before we arrived, so this is reported and not latched",
+					f.TradeID, f.OrderID),
+			})
+			continue
+		}
+
 		eff.Anomalies = append(eff.Anomalies, risk.Anomaly{
 			Class: "FOREIGN_FILL", Sev: risk.SEV1, Ticker: f.Ticker,
 			Text: fmt.Sprintf("fill %s on order %s is not in the ownership "+

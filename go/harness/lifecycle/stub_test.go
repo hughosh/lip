@@ -294,6 +294,17 @@ func foreignOrder(id, ticker string) rest.Order {
 }
 
 // makerFill is a fill of ours with the zero fee a maker fill has (S2).
+// takerFill is a fill of OURS that took liquidity. It is the startup-phase
+// latching vehicle since `lip-a3s`: a foreign fill already on the account no
+// longer latches at startup, but an OWNED taker fill in the startup walk still
+// commits `startup_fill_history` (startup.go:735-745).
+func takerFill(trade, order, ticker string) rest.Fill {
+	f := makerFill(trade, order, ticker)
+	f.IsTaker = true
+	f.FeeCost = "0.017200"
+	return f
+}
+
 func makerFill(trade, order, ticker string) rest.Fill {
 	return rest.Fill{
 		FillID: "f-" + trade, TradeID: trade, OrderID: order, Ticker: ticker,

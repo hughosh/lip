@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -232,6 +233,28 @@ func (r *rig) runQualificationCheckpoints(ctx context.Context) {
 
 func (r *rig) failQualification(err error) {
 	if err == nil || r.qualErrors == nil {
+		return
+	}
+	// `lip-oqq`. A write REFUSED BECAUSE THE EVIDENCE IS ALREADY FINALIZED is
+	// not a failure to record; it is the record having been properly closed
+	// first. The two are opposite conditions and only one of them invalidates a
+	// qualification.
+	//
+	// Shutdown freezes the evidence once the trading store has stopped
+	// (shutdown.go:304), but the owner's snapshot publisher is a separate
+	// goroutine and gets at least one more tick in: it calls RecordEvent for
+	// the state summary (run.go:3086-3091), receives ErrFinalized, and without
+	// this the fail-closed channel turns that into `serve` returning
+	// "qualification evidence failed". SIGTERM is the operator's NORMAL stop,
+	// so this fired at the end of every run -- including, in the first real
+	// attempt, one whose evidence file had finalized perfectly well seconds
+	// earlier and was fully assessable.
+	//
+	// This does NOT weaken the fail-closed rule. Every other error still fails
+	// the qualification, including a write refused for any reason other than
+	// the artifact being closed. What changes is that "the artifact is closed"
+	// stops being reported as "the artifact is broken".
+	if errors.Is(err, qual.ErrFinalized) {
 		return
 	}
 	select {
