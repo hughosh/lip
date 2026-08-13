@@ -848,15 +848,25 @@ MUTATIONS = [
     # error is consulted and before any conversion that can fail. This drops
     # that immediate commitment, so a foreign fill discovered during
     # reconciliation becomes a to-do item the caller is trusted to remember.
-    ("M-L-STARTUPCAUSE",
-     "startup returns a completed adoption without committing the causes "
-     "classification found -- a foreign fill becomes a to-do item",
-     [
-         ("harness/lifecycle/startup.go",
-          "\tfor _, c := range fe.Causes {\n",
-          "\tfor _, c := range []StopCause(nil) {\n"),
-     ],
-     "TestStartupCommitsEveryCauseBeforeReturningDecision"),
+    # M-L-STARTUPCAUSE IS RETIRED, and the reason is worth keeping because a
+    # future reader will otherwise re-add it.
+    #
+    # It deleted `for _, c := range fe.Causes` in startup.go and expected
+    # `TestStartupCommitsEveryCauseBeforeReturningDecision` to catch it. It
+    # SURVIVED the round on 91badd2. The cause was not a weak test: the loop had
+    # become unreachable. `Classify` is only ever called with `PhaseStartup`,
+    # and both producers of `ForeignEffects.Causes` sit on the LIVE branch, so
+    # after `lip-a3s` gave the fill loop its startup branch the slice was
+    # unconditionally empty. No test can distinguish a mutated copy of code that
+    # never executes, so this mutation was unkillable by construction rather
+    # than uncaught.
+    #
+    # The loop is deleted; if a startup cause producer is ever added back, that
+    # change must restore BOTH the commit loop and this mutation.
+    #
+    # This is not licence to retire an inconvenient survivor. The bar met here
+    # is that the mutated statement was PROVED unreachable from every caller --
+    # not that no test happened to cover it.
 
     ("M-L-ADOPTIONFORGE",
      "the Adoption interface loses its unexported marker method, so any "

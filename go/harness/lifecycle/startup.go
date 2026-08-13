@@ -716,18 +716,35 @@ func (s *Startup) attempt(ctx context.Context, now time.Time) passResult {
 	}
 	anoms = append(anoms, fe.Anomalies...)
 
-	// §3.3: the foreign-fill cause is durable BEFORE the balance error is
-	// consulted and before any conversion is attempted. Both of those can fail,
-	// and a stop that exists only in a local slice when they do is a stop that
-	// never happened.
+	// §3.3 USED TO COMMIT `fe.Causes` HERE, and the loop is gone because there
+	// is no longer any way for this call to produce one.
+	//
+	// `Classify` is invoked above with `PhaseStartup` and nothing else ever
+	// invokes it, while BOTH producers of `ForeignEffects.Causes`
+	// (foreign.go:223 `foreign_order`, foreign.go:292 `foreign_fill`) sit on the
+	// live branch -- the startup branches report at SEV2 and `continue`. Since
+	// `lip-a3s` gave the fill loop its startup branch, `fe.Causes` at this point
+	// is unconditionally empty, so the loop could not execute. The mutation that
+	// deleted it (`M-L-STARTUPCAUSE`) therefore SURVIVED the negative control:
+	// no test can distinguish a mutated copy of code that never runs, and that
+	// survivor is what found this.
+	//
+	// IF A STARTUP CAUSE PRODUCER IS EVER ADDED BACK, RESTORE THE COMMIT HERE
+	// AND ITS MUTATION WITH IT. The ordering this loop expressed is real and is
+	// still asserted by `TestStartupCommitsEveryCauseBeforeReturningDecision`
+	// over the owned-taker path below: every cause discovered by classification
+	// must be DURABLE before the balance error is consulted, before any
+	// conversion is attempted, and before the adoption licence is returned.
+	// Both of those steps can fail, and a stop that exists only in a local slice
+	// when they do is a stop that never happened.
+	//
+	// The live half of `Classify` is deliberately left in place. It is not dead
+	// by intent but UNWIRED: H-ORD-9 requires that foreign activity appearing
+	// after startup latch global WINDING_DOWN, `risk.ReplaceOrders` explicitly
+	// defers that judgement to this package, and nothing yet calls `Classify`
+	// with `PhaseLive`. Deleting it would remove the only implementation of that
+	// requirement. Tracked separately; it blocks the live canary, not q01.
 	latchFailed := false
-	for _, c := range fe.Causes {
-		causeAnoms, ok := s.commitCause(c)
-		anoms = append(anoms, causeAnoms...)
-		if !ok {
-			latchFailed = true
-		}
-	}
 
 	// §3.4: known owned-taker evidence, from the RAW `is_taker` flag, committed
 	// before the fee conversion that can fail on it. H-ORD-8's two detectors
