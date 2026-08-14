@@ -62,6 +62,24 @@ type CancelResult struct {
 	OrderID string
 	Coid    string
 	Status  int
+	// RejectReason is the exchange's own `error.code` from an ordinary 4xx that
+	// is not a 404. It is populated on CancelRejected and on nothing else, and
+	// it carries the same meaning, and the same emptiness rules, as
+	// CreateResult.RejectReason: `error.code`, never `error.message`, never the
+	// formatted `Err`, and empty rather than guessed.
+	//
+	// A cancel is a write, so it is rate-limited and rejected through the same
+	// mechanism a create is — a 429 on a DELETE is F8's detection condition
+	// arriving on the one write that only ever reduces exposure, and a harness
+	// that could not tell it from an ordinary refusal would be unable to tell
+	// "slow down" from "this order cannot be cancelled".
+	//
+	// It is NOT populated for CancelGone. A 404 is the exchange answering about
+	// the ORDER — there is no such open order — rather than rejecting our
+	// request, and it is not a fill report either (H-ORD-4a). Nor is it
+	// populated for the local empty-order-id refusal, where no exchange was
+	// involved at all.
+	RejectReason string
 	// ReducedBy is what THIS delete removed. It is not a fill report.
 	ReducedBy num.Qty
 	Err       error
@@ -144,7 +162,10 @@ func (c *Client) Cancel(ctx context.Context, orderID string) CancelResult {
 		return res
 
 	case resp.Status >= 400 && resp.Status < 500:
+		// Definite, and the reason leaves here structurally rather than as
+		// prose inside `Err`, for the reason `Create`'s 4xx branch gives.
 		res.Outcome = CancelRejected
+		res.RejectReason = errorCode(resp.Body)
 		res.Err = fmt.Errorf("HTTP %d: %s", resp.Status, snippet(resp.Body))
 		return res
 

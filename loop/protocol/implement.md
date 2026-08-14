@@ -25,7 +25,13 @@ Implement the directive below. Nothing else.
 
 ## Before you report
 
-Run `loop/gates.sh` and read the output.
+Run `loop/gates.sh --quick` and read the output.
+
+Use `--quick` (~9 min), NOT a full run. The full gate's negative control takes
+~105 minutes, which is longer than your own turn timeout, so a full run cannot
+finish inside your turn -- it can only consume it and lose your work
+unadjudicated. The conductor runs the authoritative full gate itself after you
+return, and that run, not yours, is what advances the unit.
 
 ## Report
 

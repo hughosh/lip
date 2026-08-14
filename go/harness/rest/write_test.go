@@ -154,6 +154,233 @@ func TestDefiniteRejectionClearsMaxLive(t *testing.T) {
 	}
 }
 
+// TestOrdinaryRejectionCarriesTheExchangeErrorCode is the seam F8, F9, F10 and
+// F11 all read from, asserted at the only place it can be produced.
+//
+// §11's wording is precise about what each detector keys on: F8 is detected by
+// HTTP 429, F9 by "HTTP 4xx with a parseable reason", F10 and F11 by "reject
+// reason". So the status and the code have to survive together, and the code
+// has to be the exchange's own `error.code` — not `error.message`, not the
+// formatted `Err`, not a snippet of the body.
+//
+// The classification is unchanged throughout: every row here is CreateRejected
+// with MaxLive cleared and no ambiguous retry, exactly as §7.2 already had it.
+// Carrying the reason may not turn a definite rejection into anything else.
+func TestOrdinaryRejectionCarriesTheExchangeErrorCode(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+		body   string
+		want   string
+	}{
+		// The three §11 rows this field exists for.
+		{"429 rate limit (F8)", 429,
+			`{"error":{"code":"rate_limited","message":"too many requests"}}`,
+			"rate_limited"},
+		{"insufficient balance (F10)", 400,
+			`{"error":{"code":"insufficient_balance","message":"not enough"}}`,
+			"insufficient_balance"},
+		{"post_only would cross (F11)", 400,
+			`{"error":{"code":"post_only_would_cross","message":"would cross"}}`,
+			"post_only_would_cross"},
+
+		// And every shape that does NOT name a reason. Empty is the safe value:
+		// a consumer that cannot name the reason must be handed nothing rather
+		// than a guess, and none of these may change the classification either.
+		{"body is not json", 400, `<html>bad request</html>`, ""},
+		{"no error object", 400, `{"message":"nope"}`, ""},
+		{"error carries no code", 400, `{"error":{"message":"nope"}}`, ""},
+		{"code is empty", 400, `{"error":{"code":""}}`, ""},
+		{"null body", 400, `null`, ""},
+		{"empty body", 400, ``, ""},
+		{"message only, on a 429", 429, `{"error":{"message":"slow down"}}`, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+				if n > 0 {
+					t.Fatal("a definite rejection must not be retried as though " +
+						"it were ambiguous")
+				}
+				return Response{Status: tc.status, Body: []byte(tc.body)}, nil
+			}}
+			res := NewClient(d).Create(context.Background(),
+				testOrder(t, "lipH-run1-000-yes-00000021"), cfg.Default())
+
+			if res.Outcome != CreateRejected {
+				t.Fatalf("outcome = %s, want REJECTED (%v)", res.Outcome, res.Err)
+			}
+			if res.Status != tc.status {
+				t.Fatalf("status = %d, want %d: F8 is detected by HTTP 429, so "+
+					"the status is half the signal", res.Status, tc.status)
+			}
+			if res.RejectReason != tc.want {
+				t.Fatalf("reject reason = %q, want %q: the reason is the "+
+					"exchange's error.code and nothing else",
+					res.RejectReason, tc.want)
+			}
+			if res.MaxLive != 0 {
+				t.Fatalf("a rejected order is not live; MaxLive = %v", res.MaxLive)
+			}
+			if res.ReconcileNow() {
+				t.Fatal("a definite rejection needs no reconciliation")
+			}
+			if len(d.Calls()) != 1 {
+				t.Fatalf("%d requests were sent; a definite 4xx is answered once",
+					len(d.Calls()))
+			}
+		})
+	}
+}
+
+// TestNamedRejectReasonsAreDistinguishable states the falsification target
+// directly: a 429 and an `insufficient_balance` must not be the same event.
+//
+// They demand opposite responses. F8 halves the token bucket and retries with
+// backoff, because the order was refused by a load control and the market is
+// fine. F10 is H-CAP-5: an `insufficient_balance` means OUR ACCOUNTING IS
+// WRONG, which is a SEV1 and a global WINDING_DOWN. A harness that could not
+// tell them apart would either wind down on a rate limit or keep quoting while
+// its own capital arithmetic was broken.
+func TestNamedRejectReasonsAreDistinguishable(t *testing.T) {
+	reject := func(t *testing.T, status int, body string) CreateResult {
+		t.Helper()
+		d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+			return Response{Status: status, Body: []byte(body)}, nil
+		}}
+		res := NewClient(d).Create(context.Background(),
+			testOrder(t, "lipH-run1-000-yes-00000022"), cfg.Default())
+		if res.Outcome != CreateRejected {
+			t.Fatalf("HTTP %d %s produced %s, want REJECTED", status, body, res.Outcome)
+		}
+		return res
+	}
+
+	seen := map[string]string{}
+	for _, tc := range []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{"F8 rate limit", 429, `{"error":{"code":"rate_limited"}}`},
+		{"F10 insufficient balance", 400, `{"error":{"code":"insufficient_balance"}}`},
+		{"F11 post_only cross", 400, `{"error":{"code":"post_only_would_cross"}}`},
+		{"an ordinary rejection naming no reason", 400, `{"error":{}}`},
+	} {
+		res := reject(t, tc.status, tc.body)
+		key := fmt.Sprintf("%d/%s", res.Status, res.RejectReason)
+		if prior, dup := seen[key]; dup {
+			t.Fatalf("%q and %q both arrive at the owner as %q; they are "+
+				"indistinguishable generic rejections and no §11 rule can act "+
+				"on either", prior, tc.name, key)
+		}
+		seen[key] = tc.name
+	}
+}
+
+// TestOnlyADefiniteRejectionCarriesARejectReason is the other half, and it is
+// the half that keeps the field honest.
+//
+// A reject reason on anything but an ordinary 4xx would be a fabricated fact.
+// The 409 cases matter most: `order_already_exists` is a POSITIVE
+// IDENTIFICATION that the order landed (H-ORD-2b) and an uncharacterised 409 is
+// ambiguous, so `errorCode` is read on both paths — for the discrimination, not
+// as a rejection reason. Surfacing either as a RejectReason would hand F9 a
+// definite reject that never happened, and F10 a code from a create that may be
+// resting on the exchange right now.
+func TestOnlyADefiniteRejectionCarriesARejectReason(t *testing.T) {
+	const coid = "lipH-run1-000-yes-00000023"
+
+	for name, run := range map[string]func(t *testing.T) CreateResult{
+		"clean ack": func(t *testing.T) CreateResult {
+			d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+				return Response{Status: 200, Body: ackBody("o1", coid, "1.00", "0.00")}, nil
+			}}
+			return NewClient(d).Create(context.Background(), testOrder(t, coid),
+				cfg.Default())
+		},
+		"409 order_already_exists": func(t *testing.T) CreateResult {
+			d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+				if req.Method == "POST" {
+					return Response{Status: 409, Body: alreadyExistsBody}, nil
+				}
+				return jsonPage(EpOrders, "", map[string][]any{
+					"orders": {order("o1", coid, "T1", "yes", 0.58, "1.00")},
+				}), nil
+			}}
+			return NewClient(d).Create(context.Background(), testOrder(t, coid),
+				cfg.Default())
+		},
+		"uncharacterised 409": func(t *testing.T) CreateResult {
+			d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+				return Response{Status: 409,
+					Body: []byte(`{"error":{"code":"market_closed"}}`)}, nil
+			}}
+			return NewClient(d).Create(context.Background(), testOrder(t, coid),
+				cfg.Default())
+		},
+		"5xx": func(t *testing.T) CreateResult {
+			d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+				return Response{Status: 503,
+					Body: []byte(`{"error":{"code":"unavailable"}}`)}, nil
+			}}
+			return NewClient(d).Create(context.Background(), testOrder(t, coid),
+				cfg.Default())
+		},
+		"unobserved 2xx": func(t *testing.T) CreateResult {
+			d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+				return Response{Status: 202, Body: []byte(`{}`)}, nil
+			}}
+			return NewClient(d).Create(context.Background(), testOrder(t, coid),
+				cfg.Default())
+		},
+		"dropped response": func(t *testing.T) CreateResult {
+			d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+				return Response{}, errors.New("connection reset")
+			}}
+			return NewClient(d).Create(context.Background(), testOrder(t, coid),
+				cfg.Default())
+		},
+		"never sent": func(t *testing.T) CreateResult {
+			d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+				return Response{}, &NotSent{Err: errors.New("no signing key")}
+			}}
+			return NewClient(d).Create(context.Background(), testOrder(t, coid),
+				cfg.Default())
+		},
+		"guarded refusal": func(t *testing.T) CreateResult {
+			inner := &scriptedDoer{t: t, handle: func(int, Request) (Response, error) {
+				t.Fatal("a refused create reached the transport")
+				return Response{}, nil
+			}}
+			g, err := NewWriteGuard(inner, WriteArm{}) // zero value: read-only
+			if err != nil {
+				t.Fatalf("NewWriteGuard: %v", err)
+			}
+			return NewClient(g).Create(context.Background(), testOrder(t, coid),
+				cfg.Default())
+		},
+		"local validation": func(t *testing.T) CreateResult {
+			d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+				t.Fatalf("an undispatchable order reached the exchange: %+v", req)
+				return Response{}, nil
+			}}
+			var zero CreateOrder
+			return NewClient(d).Create(context.Background(), zero, cfg.Default())
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			res := run(t)
+			if res.RejectReason != "" {
+				t.Fatalf("%s produced outcome %s carrying reject reason %q; only "+
+					"an ordinary 4xx is the exchange rejecting an order and "+
+					"saying why, and a fabricated reason would be acted on by "+
+					"F9, F10 and F11 as though it were one",
+					name, res.Outcome, res.RejectReason)
+			}
+		})
+	}
+}
+
 // M4 / M17 — the retry budget is finite, and exhausting it leaves the order
 // UNKNOWN rather than resolving it in either direction. "Not found" is not a
 // resolution; the branch that declared it never landed stays deleted.

@@ -230,6 +230,131 @@ func TestCancelOf404IsGoneNotFilled(t *testing.T) {
 	}
 }
 
+// TestRejectedCancelCarriesTheExchangeErrorCode is the cancel half of the same
+// seam.
+//
+// A cancel is a write and the exchange refuses it through the same mechanism it
+// refuses a create, so a 429 on a DELETE is F8's detection condition arriving on
+// the one write that only ever reduces exposure. The status and the code must
+// survive together, and the classification is unchanged: every row here stays
+// CancelRejected, which is what §7.4 already said.
+func TestRejectedCancelCarriesTheExchangeErrorCode(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+		body   string
+		want   string
+	}{
+		{"429 rate limit", 429,
+			`{"error":{"code":"rate_limited","message":"too many requests"}}`,
+			"rate_limited"},
+		{"not cancelable", 400,
+			`{"error":{"code":"order_not_cancelable","message":"terminal"}}`,
+			"order_not_cancelable"},
+
+		// Malformed or code-less: empty, and the classification does not move.
+		{"body is not json", 400, `<html>bad request</html>`, ""},
+		{"error carries no code", 400, `{"error":{"message":"nope"}}`, ""},
+		{"no error object", 403, `{}`, ""},
+		{"code is empty", 400, `{"error":{"code":""}}`, ""},
+		{"null body", 400, `null`, ""},
+		{"empty body", 400, ``, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+				return Response{Status: tc.status, Body: []byte(tc.body)}, nil
+			}}
+			res := NewClient(d).Cancel(context.Background(), "o1")
+
+			if res.Outcome != CancelRejected {
+				t.Fatalf("outcome = %s, want REJECTED (%v)", res.Outcome, res.Err)
+			}
+			if res.Status != tc.status {
+				t.Fatalf("status = %d, want %d", res.Status, tc.status)
+			}
+			if res.RejectReason != tc.want {
+				t.Fatalf("reject reason = %q, want %q: the reason is the "+
+					"exchange's error.code and nothing else",
+					res.RejectReason, tc.want)
+			}
+			if !res.Sent {
+				t.Fatal("a DELETE the exchange answered was not reported sent")
+			}
+			if res.ReducedBy != 0 {
+				t.Fatalf("a rejected cancel removed nothing, got reduced_by %v",
+					res.ReducedBy)
+			}
+		})
+	}
+}
+
+// TestOnlyARejectedCancelCarriesAReason keeps the field from inventing facts.
+//
+// The 404 row is the one with teeth. `CancelGone` is the exchange answering
+// about the ORDER — there is no such open order — rather than rejecting our
+// request, and it is not a fill report either (H-ORD-4a). A 404 body naming a
+// code must not become a reject reason: it would feed F9's definite-reject
+// count with an event that was not a reject at all.
+func TestOnlyARejectedCancelCarriesAReason(t *testing.T) {
+	const coid = "lipH-run1-000-yes-00000010"
+
+	for name, run := range map[string]func(t *testing.T) CancelResult{
+		"accepted": func(t *testing.T) CancelResult {
+			d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+				return Response{Status: 200, Body: cancelBody("o1", coid, "1.00")}, nil
+			}}
+			return NewClient(d).Cancel(context.Background(), "o1")
+		},
+		"404 gone, with a code in the body": func(t *testing.T) CancelResult {
+			d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+				return Response{Status: 404,
+					Body: []byte(`{"error":{"code":"order_not_found"}}`)}, nil
+			}}
+			return NewClient(d).Cancel(context.Background(), "o1")
+		},
+		"5xx": func(t *testing.T) CancelResult {
+			d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+				return Response{Status: 503,
+					Body: []byte(`{"error":{"code":"unavailable"}}`)}, nil
+			}}
+			return NewClient(d).Cancel(context.Background(), "o1")
+		},
+		"dropped response": func(t *testing.T) CancelResult {
+			d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+				return Response{}, errors.New("timeout")
+			}}
+			return NewClient(d).Cancel(context.Background(), "o1")
+		},
+		"guarded refusal": func(t *testing.T) CancelResult {
+			inner := &scriptedDoer{t: t, handle: func(int, Request) (Response, error) {
+				t.Fatal("a refused cancel reached the transport")
+				return Response{}, nil
+			}}
+			g, err := NewWriteGuard(inner, WriteArm{}) // read-only
+			if err != nil {
+				t.Fatalf("NewWriteGuard: %v", err)
+			}
+			return NewClient(g).Cancel(context.Background(), "o1")
+		},
+		"empty order id": func(t *testing.T) CancelResult {
+			d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
+				t.Fatalf("a cancel with no order id reached the exchange: %+v", req)
+				return Response{}, nil
+			}}
+			return NewClient(d).Cancel(context.Background(), "")
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			res := run(t)
+			if res.RejectReason != "" {
+				t.Fatalf("%s produced outcome %s carrying reject reason %q; only "+
+					"an ordinary 4xx is the exchange rejecting the request and "+
+					"saying why", name, res.Outcome, res.RejectReason)
+			}
+		})
+	}
+}
+
 // A dropped DELETE response leaves the order live, not cancelled.
 func TestAmbiguousCancelStaysUnknown(t *testing.T) {
 	d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {

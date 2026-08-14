@@ -68,6 +68,13 @@ type fakeExchange struct {
 	// createBody overrides the acknowledgement body when non-nil.
 	createBody []byte
 
+	// cancelStatus is the status a DELETE is answered with. 0 means 200 and the
+	// measured flat acknowledgement, which is what every test written before
+	// this field existed expects.
+	cancelStatus int
+	// cancelBody overrides the DELETE response body when non-nil.
+	cancelBody []byte
+
 	// resting is what the verifying orders walk reports.
 	resting []map[string]any
 }
@@ -134,7 +141,15 @@ func (f *fakeExchange) create(req rest.Request) (rest.Response, error) {
 func (f *fakeExchange) cancel(req rest.Request) (rest.Response, error) {
 	f.mu.Lock()
 	f.deletes = append(f.deletes, req.Path)
+	status, custom := f.cancelStatus, f.cancelBody
 	f.mu.Unlock()
+
+	if status != 0 {
+		if custom == nil {
+			custom = []byte(`{"error":{"code":"bad_request"}}`)
+		}
+		return rest.Response{Status: status, Body: custom}, nil
+	}
 	body, err := json.Marshal(map[string]any{
 		"order_id": req.Path, "client_order_id": "", "reduced_by": "1.00",
 		"ts_ms": 1,
@@ -980,4 +995,138 @@ func TestDispatchLoopExecutesOneWriteAtATime(t *testing.T) {
 				"input", i, got[i], want[i])
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// The reject reason, carried to the boundary the owner actually reads
+// ---------------------------------------------------------------------------
+
+// TestRejectReasonReachesTheOwnerBoundary is the transport half of lip-4ak, and
+// it is asserted at the channel rather than at the call.
+//
+// `rest.Create` and `rest.Cancel` are unit-tested in their own package, so
+// re-testing their parsing here would produce green that means nothing. What has
+// never been exercised is whether the reason SURVIVES the trip: `writeResult` is
+// what the owner reads off `out`, and a status and a code that were extracted
+// correctly and then dropped, flattened into `Err`, or overwritten by the
+// dispatcher's own bookkeeping are worth exactly as much as never having
+// extracted them. F8 keys on HTTP 429, F9 on a 4xx with a parseable reason, F10
+// and F11 on the reason itself — all four read this struct and nothing else.
+//
+// The values are asserted against literal constants and are never reconstructed
+// from `Err`. A test that parsed the reason back out of the error text would
+// pass with the structured field deleted, which is the mutation this exists to
+// catch.
+func TestRejectReasonReachesTheOwnerBoundary(t *testing.T) {
+	const (
+		createReason = "insufficient_balance"
+		cancelReason = "order_not_cancelable"
+	)
+	ex := &fakeExchange{
+		// F10, and H-CAP-5 calls it a correctness failure rather than a market
+		// condition: it is a SEV1 and a global WINDING_DOWN. It cannot be that
+		// if it arrives as an anonymous 4xx.
+		createStatus: 400,
+		createBody: []byte(`{"error":{"code":"` + createReason +
+			`","message":"not enough balance"}}`),
+		cancelStatus: 400,
+		cancelBody: []byte(`{"error":{"code":"` + cancelReason +
+			`","message":"order is terminal"}}`),
+	}
+	r, reserves := newDispatchRig(t, ex)
+
+	in := make(chan writeRequest)
+	out := make(chan writeResult)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		r.dispatchLoop(ctx, in, reserves, out)
+	}()
+	defer func() {
+		close(in)
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Errorf("the writer did not return when the owner closed its input")
+		}
+	}()
+
+	t.Run("create", func(t *testing.T) {
+		in <- placement(t, r, quote.SideYes, quote.RoleAdding, 42, 1)
+		res := <-out
+
+		if res.Create.Outcome != rest.CreateRejected {
+			t.Fatalf("outcome = %s, want REJECTED (%v)", res.Create.Outcome,
+				res.Create.Err)
+		}
+		if res.Create.Status != 400 {
+			t.Fatalf("status = %d at the owner boundary, want 400: F8 is detected "+
+				"by HTTP 429 and F9 by a 4xx, so a status lost in transit is two "+
+				"detectors lost", res.Create.Status)
+		}
+		if res.Create.RejectReason != createReason {
+			t.Fatalf("reject reason = %q at the owner boundary, want %q: the "+
+				"owner is the only consumer, and a reason that does not reach it "+
+				"is a reason that was never extracted",
+				res.Create.RejectReason, createReason)
+		}
+		if res.Create.MaxLive != 0 {
+			t.Fatalf("a rejected create is not live; MaxLive = %v",
+				res.Create.MaxLive)
+		}
+	})
+
+	t.Run("cancel", func(t *testing.T) {
+		// Two targets, and the verifying read still lists both, so the sweep
+		// runs its one retry (H-ORD-4) and every round's CancelResult is
+		// checked. `Cancels` is the whole slice across every round: a reason
+		// preserved on the first DELETE and dropped on the retry would be a
+		// reason the owner sees only sometimes.
+		ex.mu.Lock()
+		ex.resting = []map[string]any{
+			restingOrder("EX-1", "lipH-notours-1", "yes", 0.42),
+			restingOrder("EX-2", "lipH-notours-2", "yes", 0.43),
+		}
+		ex.mu.Unlock()
+
+		in <- writeRequest{
+			IDs: []uint64{2}, Market: dispatchTicker, Side: quote.SideYes,
+			Role: quote.RoleAdding, Op: quote.OpCancel,
+			Orders: []rest.Order{
+				{OrderID: "EX-1", Ticker: dispatchTicker, Side: quote.SideYes,
+					Remaining: num.QtyFromFloat(1)},
+				{OrderID: "EX-2", Ticker: dispatchTicker, Side: quote.SideYes,
+					Remaining: num.QtyFromFloat(1)},
+			},
+		}
+		res := <-out
+
+		if len(res.Sweep.Cancels) == 0 {
+			t.Fatal("no cancel was attempted at all")
+		}
+		for i, c := range res.Sweep.Cancels {
+			if c.Outcome != rest.CancelRejected {
+				t.Fatalf("cancel %d: outcome = %s, want REJECTED (%v)", i,
+					c.Outcome, c.Err)
+			}
+			if c.Status != 400 {
+				t.Fatalf("cancel %d: status = %d at the owner boundary, want 400",
+					i, c.Status)
+			}
+			if c.RejectReason != cancelReason {
+				t.Fatalf("cancel %d: reject reason = %q at the owner boundary, "+
+					"want %q", i, c.RejectReason, cancelReason)
+			}
+		}
+		// The reason changes nothing about absence. A rejected cancel plus a
+		// complete read that still lists the order is a LIVE order (H-FAIL-3),
+		// and no amount of knowing why it was rejected makes it off.
+		if res.Absent || res.Sweep.Clean {
+			t.Fatal("the verifying read still lists both orders and the sweep " +
+				"reported them gone")
+		}
+	})
 }

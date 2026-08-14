@@ -85,7 +85,13 @@ MAX_ROUNDS = 3               # implementation attempts per unit, then park
 MAX_ITERATIONS = 200         # backstop, not a plan
 DEADLINE_HOURS = 7.5         # absolute; the operator expects to wake to a stop
 TURN_TIMEOUT = 45 * 60
-CLAUDE_TIMEOUT = 30 * 60
+# Measured 2026-08-14 on lip-357: the implementer exhausted 120 turns at 26.2
+# min and returned NOTHING (subtype error_max_turns), losing ~2,275 lines of
+# compiling work to a budget rather than to a defect. Both limits were near
+# binding at once, so raising turns alone would only move the wall to the clock.
+# 2725 = ceil(1572.325s observed x 168/120 turns + 523s), where 523s is the
+# measured cost of the one `gates.sh --quick` the implementer is now asked for.
+CLAUDE_TIMEOUT = 2725
 MIN_FREE_GB = 5
 
 # Session policy. Fresh-per-unit is the limiting case of rotation and needs no
@@ -242,7 +248,7 @@ def run_claude(prompt: str, art: Path, st: dict,
         # could destroy evidence or rewrite history faster than those checks
         # would notice.
         argv = [CLAUDE, "-p", prompt, "--output-format", "json",
-                "--permission-mode", "bypassPermissions", "--max-turns", "120",
+                "--permission-mode", "bypassPermissions", "--max-turns", "168",
                 "--disallowedTools",
                 "Bash(git push),Bash(git reset),Bash(git clean),"
                 "Bash(git checkout),Bash(git commit),Bash(git rebase),"
@@ -616,6 +622,9 @@ def main() -> int:
                        f"{sym!r}, which does not exist. Not closed.")
                     ledger(f"## {now()} — {unit} unverifiable "
                            f"ALREADY_SATISFIED claim (`{sym}`) — left open")
+                    # skip is consulted by next_unit(); `pending` bypasses it
+                    # entirely, so without this the unit is re-picked forever.
+                    st["pending"] = {}
                     skip.add(unit)
                 save_state(st); continue
 
@@ -627,6 +636,8 @@ def main() -> int:
                    f"OPERATOR_ONLY at iteration {it}: {directive.get('scope','')}")
                 bd("tag", unit, "operator-only")
                 ledger(f"## {now()} — {unit} OPERATOR_ONLY — parked, still owed")
+                st["pending"] = {}      # see SPEC_CONFLICT below: a pending
+                                        # unit outranks bd and un-parks itself
                 park(unit, skip); st["parked"] += 1; save_state(st); continue
 
             if dec0 == "SPEC_CONFLICT":
@@ -635,6 +646,16 @@ def main() -> int:
                    f"SPEC_CONFLICT at iteration {it}: {directive.get('scope','')}")
                 bd("tag", unit, "spec-patch")
                 ledger(f"## {now()} — {unit} SPEC_CONFLICT — needs a human")
+                # Clearing `pending` is what makes the park STICK. `pending` is
+                # consulted BEFORE next_unit() (:546), so a parked unit that is
+                # still pending is re-selected on the very next iteration --
+                # `bd defer` cannot hide it, because the pending path never asks
+                # bd. Observed 2026-08-14: lip-357 was SPEC_CONFLICTed and
+                # parked at iteration 21, then immediately re-picked at 22 for
+                # round 3/3, and would have spun ~14 min per iteration (quick
+                # gate + driver) for the rest of the night, parking a
+                # already-parked unit each time.
+                st["pending"] = {}
                 park(unit, skip); st["parked"] += 1; save_state(st); continue
 
             allowed = set(directive.get("allowed_paths") or [])
@@ -657,6 +678,7 @@ def main() -> int:
                 bd("tag", unit, "operator-only")
                 ledger(f"## {now()} — {unit} needs a control-plane edit "
                        f"({sorted(undirectable)}) — operator-only, parked")
+                st["pending"] = {}      # as SPEC_CONFLICT
                 park(unit, skip); st["parked"] += 1; save_state(st); continue
 
             # ---- implement ----------------------------------------------

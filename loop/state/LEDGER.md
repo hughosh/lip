@@ -47,3 +47,81 @@ Append-only. Conductor-owned. A finding already disposed of here is closed on si
 - reachability: Section 10.3 deploys six markets posting S=12.00 contracts per side, and V2-FILL explicitly includes a legal full fill. From flat, one full YES fill therefore produces q=Qty(1200). The mutation narrows the fixed-point quantum count before comparing it; int8(1200) is -80, so Sign reports -1 and section 6.2 selects YES instead of the required NO reducer. The market is already beyond inv_hard=7 and enters REDUCING, yet its supposed reducer is an adding-side order: A4 has no true reducer, A8 is violated, and a fill grows q from +12 to +24 instead of strictly decreasing |q| as H-Q-5a requires. The symmetric -12.00 fill is reversed likewise. The new test's 0 and plus-or-minus-one-quanta inputs, and the older incidental plus-or-minus-seven-quanta inputs, all survive int8 conversion, so they do not expose this reachable fixed-point-width defect.
 - mutation: `harness/num/qty.go`
 
+## 2026-08-13 — OPERATOR: control plane re-pinned before the overnight run
+
+- `loop/gates.sh` pin updated `f5af1b9b` -> `1cb15acb`. The worktree copy matches
+  `HEAD` exactly; it changed in committed operator work (`91badd2` the q01 fix
+  batch, `5bd7679` lip-xl7 compile-every-mutation), not by an agent. Left stale,
+  the drift check at conductor.py:526 would have halted iteration 1 with
+  BLOCKED (control plane mutated).
+- Stale `LOCK` (pid 24569, 2026-08-05) removed; no conductor process exists.
+- `.codex-handoff/` and `probe-archive-20260813/` moved to `/Users/hugh/kek/`.
+  Untracked-but-unignored, they appeared in `git status --porcelain`, which
+  `changed_paths()` reads, and would have been scored a SCOPE VIOLATION on every
+  iteration -- discarding each attempt and burning all three rounds per unit.
+  `changed_paths()` now returns `[]`.
+
+## 2026-08-14 — OPERATOR: iteration 20 halted on an implement-budget defect
+
+lip-357 round 1 died as `subtype: error_max_turns`, 121 turns against
+`--max-turns 120`, 26.2 min, $18.87, returning NO report. Two budget facts, both
+near-binding at once:
+
+- 120 turns was insufficient for a 7-file / 9-criterion directive.
+- `implement.md` told the implementer to run `loop/gates.sh`, whose full
+  negative control is ~105 min, against a 30-min `CLAUDE_TIMEOUT`. The child was
+  instructed to run a gate it could not finish inside its own turn.
+
+The conductor was killed rather than STOPped: with STOP set, a successful retry
+would have reached the audit/adjudicate codex calls, which return None while
+STOP exists, defaulting `adj` to PARK (:768) -- which would have reverted the
+work and `bd defer`red lip-357 out of the ready queue. An orphaned implementer
+child survived the first kill and ran a further ~11 min unsupervised before
+being killed; the tree was re-measured afterwards and is stable.
+
+Codex (driver, xhigh) ruled: RAISE_BUDGETS, not decompose -- decomposition would
+charge the ~105-min authoritative gate per seam. Applied:
+
+- `--max-turns` 120 -> 168, `CLAUDE_TIMEOUT` 1800 -> 2725s
+  = ceil(1572.325 x 168/120 + 523), 523s being tonight's measured `--quick` cost.
+- `implement.md` now requires `loop/gates.sh --quick`. Accepted risk, in codex's
+  words: "A defect detectable only by the full negative-control suite may waste
+  the conductor's 105-minute run and require repair." The conductor still runs
+  the authoritative full gate at :678.
+- Control hashes re-pinned for both files.
+- The ~2,275-line partial tree is KEPT as an UNTRUSTED repair base; the round
+  debit STANDS, so the continuation is round 2 of 3.
+- lip-357 annotated in bd with the seven paths any directive must keep in
+  allowed_paths, so a fresh driver cannot scope them out and destroy the work.
+
+## 2026-08-14T08:19:26Z — lip-357 SPEC_CONFLICT — needs a human
+
+## 2026-08-14 — OPERATOR: lip-357 SPEC_CONFLICT, and the park that would not stick
+
+The round-2 driver (301KB reasoning) ruled SPEC_CONFLICT on lip-357 and it looks
+right: it is the second half of the bead's own title. F5's disagree branch
+quarantines the book; A13 then forbids every placement decision from a
+quarantined book; A4/§5.2/§12 require a live or in-flight reducer whenever q is
+nonzero. No F5 resubscription or bounded quarantine-exit exists in the spec, so
+option (a) leaves the disagree hazard, (b) is unspecified, (c) contradicts A13.
+This needs an operator spec patch and cannot be resolved unattended.
+
+CONDUCTOR DEFECT FOUND AND FIXED. The three driver-branch parks (SPEC_CONFLICT,
+OPERATOR_ONLY, control-plane-undirectable) and the unverifiable
+ALREADY_SATISFIED branch called park() WITHOUT clearing `st["pending"]`. Since
+`pending` is consulted before next_unit() (:546), a parked unit that is still
+pending is re-selected immediately -- `bd defer` cannot hide it because the
+pending path never asks bd. Observed live: lip-357 parked at iteration 21 and
+was re-picked at iteration 22 for round 3/3. Left alone it would have burned
+~14 min per iteration (quick gate + driver) for the rest of the night, parking
+an already-parked unit each time. All four sites now clear pending; re-pinned.
+
+lip-357's ~2,275 green lines are in `git stash` (stash@{0}), NOT in the tree,
+so they cannot contaminate the next unit's audit diff or commit. The loop was
+relaunched on lip-4ak with a 14:10Z deadline.
+
+## 2026-08-14T15:02:36Z — it23 lip-4ak — Retry rejection loses its reason
+- **refuted**: CAUGHT by ['TestTheShippedExampleConfigLoads']
+- reachability: Under §10.3, six live markets use retry_same_coid_max=3. A concrete H-ORD-2b sequence is attempt 1 receiving HTTP 503 before validation, followed by the same-coid attempt 2 receiving HTTP 400 with error.code insufficient_balance. F12 makes the first response ambiguous; H-CAP-5/F10 requires the second response to trigger SEV1 and global WINDING_DOWN. This compiling mutant still reports REJECTED and status 400, but leaves RejectReason empty because Attempts is 2, so the owner cannot identify F10 and may continue six-market quoting while its capital accounting is wrong. Every current nonempty-reason assertion uses a first-attempt 4xx; the multi-attempt test terminates with 409 instead.
+- mutation: `go/harness/rest/write.go`
+

@@ -78,6 +78,31 @@ type CreateResult struct {
 	// Status is the last HTTP status seen, 0 if no response ever arrived.
 	Status int
 
+	// RejectReason is the exchange's own `error.code` from an ordinary 4xx. It
+	// is populated on CreateRejected and on nothing else.
+	//
+	// F8, F9, F10 and F11 are four consumers of this one string, and without it
+	// every ordinary 4xx collapses into a single indistinguishable "no": a 429
+	// rate limit (F8), an `insufficient_balance` (F10, which H-CAP-5 calls a
+	// correctness failure rather than a market condition, worth a SEV1 and a
+	// global WINDING_DOWN) and a `post_only` that would cross (F11, our book
+	// view disagreeing with the exchange's) all read the same. No downstream
+	// rule can act on a reason it cannot name.
+	//
+	// It is `error.code` and NOTHING ELSE — not `error.message`, not the
+	// formatted `Err`, not a snippet of the raw body. A code is a value the
+	// exchange controls and keeps stable; a message is prose that can be
+	// reworded without notice, and a detector keyed on prose is a detector that
+	// silently stops detecting.
+	//
+	// EMPTY IS THE SAFE VALUE and it is used whenever the code is missing,
+	// malformed or unparseable: a consumer that cannot name the reason must be
+	// handed nothing rather than a guess. It is therefore also empty for
+	// everything that is not the exchange rejecting an order and saying why — a
+	// local validation failure, a guarded refusal, a request that never left the
+	// process, any ambiguous outcome, either kind of 409, and every 2xx.
+	RejectReason string
+
 	// OrderID and the counts are populated on CreateAcked only. A 409 tells us
 	// the order exists but says nothing about its id or its fill state — that
 	// is what the confirming read is for.
@@ -277,8 +302,16 @@ func (c *Client) Create(ctx context.Context, body CreateOrder, p cfg.Params) Cre
 			// A definite answer, and the answer is no. Retrying would not be
 			// dangerous, but it would also not be a retry of an ambiguous
 			// write — a rejected order is the requote ladder's problem.
+			//
+			// The reason leaves here STRUCTURALLY, as the exchange's own
+			// `error.code`. `Err` below is a bounded snippet of whatever the
+			// body happened to contain, built for a human reading a log line;
+			// recovering `insufficient_balance` from it would mean each of
+			// F8/F9/F10/F11 re-parsing truncated prose, and the one that got it
+			// wrong would fail silently.
 			res.Outcome = CreateRejected
 			res.MaxLive = 0
+			res.RejectReason = errorCode(resp.Body)
 			res.Err = fmt.Errorf("HTTP %d: %s", resp.Status, snippet(resp.Body))
 			return res
 
