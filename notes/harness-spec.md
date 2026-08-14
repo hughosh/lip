@@ -1493,7 +1493,7 @@ no risk" always means the reducing quote survives.
 | F2 | **Clean disconnect** (close 1000/1001) | `IsCleanClose` | reconnect immediately; **book is quarantined as non-actionable until resnapshot + portfolio reconcile complete** (H-FAIL-5) | none |
 | F3 | **Abnormal disconnect** | any other close/error | backoff, then reset book state and resnapshot | `SEV2` if > 60s |
 | F4 | **Disconnect > `disconnect_halt_s` (60s)** | wall clock since last connected | affected markets → `REDUCING`; **cancels are still attempted over REST**, which is a separate transport | `SEV1` |
-| F5 | **Wedged feed, single market** | book silent > 60s while socket healthy → `GET /markets/{t}/orderbook`, compare **prices *and sizes* through the full Target Size walk on both sides**, including our own expected resting size (H-FAIL-6) | agree → reset the staleness clock, keep quoting. Disagree → that market's book is replaced and quarantined; market → `REDUCING` | `SEV2` on disagree |
+| F5 | **Wedged feed, single market** | book silent > 60s while socket healthy → `GET /markets/{t}/orderbook`, compare **prices *and sizes* through the full Target Size walk on both sides**, including our own expected resting size (H-FAIL-6) | agree → reset the staleness clock, keep quoting. Disagree → that market's book is replaced and quarantined; market → `REDUCING`; the fetched REST book is **retained as the reducer's pricing source** and an in-session resubscription is requested immediately (H-FAIL-7) | `SEV2` on disagree |
 | F6 | **macOS DNS wedge** (system-wide, ~every 2.5h; `nslookup` still works and masks it) | any resolution failure to a host that resolved before | fall back to **last-known-good IP with SNI preserved**; cached resolutions have a floor TTL of 1h | `SEV2`, queued |
 | F7 | **Host sleep / process stall** | per tick, compare wall-clock delta against monotonic delta; divergence > 5s | treat the gap as downtime, force resnapshot + `RECONCILE_NOW`, record the interval in `uptime` | `SEV2` |
 | F8 | **429 rate limit** | HTTP 429 | halve the token bucket rate, exponential retry with jitter, restore rate after 60s clean | `SEV2` if sustained > 60s |
@@ -1536,6 +1536,11 @@ After **any** disconnect, clean or not, the book is quarantined: it may be read
 for diagnostics but **no placement decision may be taken from it** until a fresh
 snapshot and a portfolio reconciliation have both completed.
 
+An F5 quarantine additionally keeps its reducer live from the **retained REST
+cross-check book** (H-FAIL-7). That is a different book, independently fetched,
+so it is not an exception to this rule: the quarantined book remains a source
+for nothing.
+
 > Red-team HR-016. F2 previously retained state across a clean close "to match
 > P25a". **P25a is a fidelity rule binding `cmd/rig`, whose job is to reproduce
 > Python's measurement behaviour — it is not a safety property for a trader.**
@@ -1560,6 +1565,45 @@ where we believe it is.
 > Everything F5 exists to protect depends on size, and F5 was not looking at size.
 > V4.5 passed only because its injected fault happened to move a price, leaving
 > the literal defect untested.
+
+**H-FAIL-7 — An F5 quarantine keeps the reducer live from REST, and it ends.**
+
+F5's disagree branch leaves a market holding risk with no trustworthy websocket
+book. Two things follow, and this document previously stated neither.
+
+**The reducer is priced from the REST book, not the quarantined one.** The
+cross-check of H-FAIL-6 has already fetched a full-depth `GET
+/markets/{t}/orderbook`. That response is **retained** as the market's
+reducer-pricing source for the duration of the quarantine, and refreshed on the
+cross-check's own cadence. While a market's book is quarantined by F5:
+
+- the **reducing** side may be placed, resized and requoted under §6.5 from the
+  retained REST book — including after the resting reducer fills, after `|q|`
+  moves, and after a cancel-confirm cycle;
+- the **adding** side may not be placed at all. A8 and A13 both forbid it and
+  neither changes;
+- every cap in A7, A11 and A12 is evaluated exactly as it is when quoting from
+  the websocket book. The pricing source changes; nothing else does.
+
+This is what makes A4 and §12's "reducing quote: live" continuously true for an
+F5-disagreeing market, without taking any decision from the book F5 has just
+proved wrong.
+
+**The quarantine ends.** On disagree the harness requests an in-session
+resubscription for that market immediately; it does not wait for the socket to
+cycle for some unrelated reason, which on a one-market pilot may never happen at
+all. The quarantine lifts exactly as F2's does — when a fresh snapshot and a
+portfolio reconciliation have both completed (H-FAIL-5) — and the market returns
+to `QUOTING` through the ordinary §5.2 path. A quarantine still unlifted after
+`disconnect_halt_s` escalates to `SEV1`, on F4's reasoning: that is how long this
+system tolerates a market whose feed it cannot use.
+
+> Why not price the reducer from the last accepted websocket book: it is the
+> exact book the cross-check just refuted. HR-015's failure is a book that is
+> price-correct and size-stale, so the refuted book can be wrong in precisely the
+> dimension A12's `|q|` cap depends on. Why not leave A13 absolute and halt
+> instead: a halt does not flatten inventory, so it converts an unbounded silent
+> breach of A4 into a bounded loud one without ever satisfying §12's "live".
 
 **H-FAIL-4 — Portfolio truth has a maximum age.**
 
@@ -1600,7 +1644,7 @@ snapshots in 6.14 hours*.
 | `inv_kill` breach | **global** | off everywhere | **live** | **full** | alive |
 | P&L ≤ `pnl_kill` (H-HALT-5) | **global** | off everywhere | **live** | **full** | alive |
 | Reject rate > 10%/50 | market | off | **live** | **full** | alive |
-| Feed wedge (F5) | market | off | **live** | **full** | alive |
+| Feed wedge (F5) | market | off | **live** (priced from the retained REST book) | **full** | alive |
 | Disconnect > 60s | affected markets | off | **live** (cancels over REST) | **full** | alive |
 | Taker fill detected | **global** | off everywhere | **live** | **full** | alive |
 | `insufficient_balance` | **global** | off everywhere | **live** | **full** | alive |
@@ -1974,7 +2018,7 @@ it emits `SEV1` and forces `WINDING_DOWN`.
 | A10 | No **create** is retried while its outcome is `UNKNOWN` (cancels are exempt — H-ORD-4a) |
 | A11 | Every size cap is evaluated against **aggregate** `RESTING + SENDING + UNKNOWN + unconfirmed-cancel` quantity, never a single order (H-Q-5b) |
 | A12 | No reducing order's aggregate quantity exceeds `\|q\|`; no fill sequence can change the sign of `q` via a reducer (H-Q-5a) |
-| A13 | No placement decision is taken from a book that is quarantined or stale, or from portfolio truth older than `truth_max_age_s` (H-FAIL-4, H-FAIL-5) |
+| A13 | No placement decision is taken from a book that is quarantined or stale, or from portfolio truth older than `truth_max_age_s` (H-FAIL-4, H-FAIL-5). In an F5 quarantine the **reducing** side is priced from the retained REST cross-check book, which is a different, independently fetched book and not the quarantined one (H-FAIL-7); the adding side stays off under A8. |
 | A14 | A global halt latch on disk implies global state is `WINDING_DOWN` or `DRAINED` (H-HALT-4) |
 
 **A4 and A5 are the two that encode the probe's defect directly.** A5 in

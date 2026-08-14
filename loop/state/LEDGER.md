@@ -125,3 +125,85 @@ relaunched on lip-4ak with a 14:10Z deadline.
 - reachability: Under §10.3, six live markets use retry_same_coid_max=3. A concrete H-ORD-2b sequence is attempt 1 receiving HTTP 503 before validation, followed by the same-coid attempt 2 receiving HTTP 400 with error.code insufficient_balance. F12 makes the first response ambiguous; H-CAP-5/F10 requires the second response to trigger SEV1 and global WINDING_DOWN. This compiling mutant still reports REJECTED and status 400, but leaves RejectReason empty because Attempts is 2, so the owner cannot identify F10 and may continue six-market quoting while its capital accounting is wrong. Every current nonempty-reason assertion uses a first-attempt 4xx; the multi-attempt test terminates with 409 instead.
 - mutation: `go/harness/rest/write.go`
 
+
+
+## 2026-08-14 — OPERATOR: lip-357 SPEC_CONFLICT RESOLVED — the F5 quarantine invariant
+
+The conductor was NOT running for any of this. Tree was clean, control drift
+NONE, iteration 23, terminal DEADLINE_REACHED.
+
+THE CONFLICT, RESTATED AND VERIFIED. F5's disagree branch (harness-spec.md:1496)
+quarantines the book; A13 (:1977) forbids every placement decision from a
+quarantined book; A4 (:1968), section 5.2 (:443-446) and section 12 (:1603) all
+require a live reducer whenever q is nonzero. All six citations were checked
+against the file, not taken from the driver's summary.
+
+Two findings sharpened the fix beyond what the SPEC_CONFLICT directive said:
+
+1. F2 ALREADY CARRIES THE CLAUSE F5 IS MISSING. F2 (:1493) quarantines "until
+   resnapshot + portfolio reconcile complete". F5's disagree branch had no
+   release clause at all. Half the gap was an omission, not a design hole.
+2. THE GATE ALREADY LIFTS QUARANTINE. harness/wsx/gate.go:419-422 sets
+   quarantined = false on a snapshot, commented "The snapshot is what lifts the
+   quarantine". The missing half is the RESUBSCRIPTION REQUEST: run.go:980-992
+   raises RESNAPSHOT_DEFERRED SEV2 and waits for the socket to cycle, which on a
+   one-market pilot may never happen.
+
+Also corrected a stale belief carried in the handoff: harness-spec.md is NOT
+pinned in testdata/FROZEN.sha256 (that file pins rig.py, replay.py, score.py,
+auth.py and the testdata TSVs). It is pinned ONLY in conductor.py CONTROL_FILES.
+scripts/check.py passes unchanged after the patch; all four section 9 checks ok.
+
+WHY section 12's "live" could not be read as "merely uncancelled". The table is
+titled "the inversion" and qualifies "live" per row where it needs to
+(Disconnect > 60s is "live (cancels over REST)"; Close lead is "live, capped at
+|q|"). F5's row was a bare "live" with Process: alive. Section 5.2 sizes the
+reducing side "at touch" in every state and section 6.4:601 says the reducing
+quote "is requoted to follow the touch under section 6.5 like any other quote".
+So section 12 demands a MAINTAINED reducer. That is what made halt-and-escalate
+a non-resolution: a halt does not flatten inventory, so it converts an unbounded
+silent breach of A4 into a bounded loud one and still never satisfies "live".
+
+THE DECISION. Of three coherent options put to the operator -- reducer priced
+from the retained REST book, reducer priced from the last accepted websocket
+book plus bounded escalation, or bound the quarantine and formally concede the
+section 12 gap -- the operator chose the FIRST.
+
+THE PATCH (5 edits, +47/-3):
+- F5 row (:1496): the fetched REST book is retained as the reducer's pricing
+  source; in-session resubscription requested immediately.
+- H-FAIL-5 (:1539-1542, new para): names H-FAIL-7 and states that the REST book
+  is a DIFFERENT book, so this is not an exception to the quarantine rule.
+- H-FAIL-7 (:1569-1606, NEW RULE): the substance. Reducing side may be placed,
+  resized and requoted under section 6.5 from the retained REST book including
+  after the reducer fills or |q| moves; adding side off under A8 and A13; A7,
+  A11, A12 evaluated identically. Quarantine ends on snapshot + reconcile as
+  F2's does; unlifted after disconnect_halt_s escalates to SEV1.
+- section 12 F5 row (:1647): "live (priced from the retained REST book)",
+  matching the existing per-row qualification idiom.
+- A13 (:2021): records that the F5 reducer's source is the REST book, not the
+  quarantined one.
+
+NO NEW CONFIG PARAMETER. The escalation bound reuses disconnect_halt_s, which
+F4 already defines for the analogous condition. This matters because the config
+hash is pinned into any qualification bundle's Metadata.
+
+A13 IS NOT WEAKENED. The quarantined websocket book remains a source for
+nothing. The spec never glossed "placement decision", but every usage attaches
+it to an act of checking or sending (H-CO-6, A7, H-Q-10) and H-FAIL-4 says "all
+new dispatch stops" -- so passive persistence of a resting order was never one,
+which is exactly how run.go:1944-1949 already reads it.
+
+BEAD. lip-357 un-deferred, spec-patch label removed, still P1 so it sits behind
+the two P0s in bd ready and cannot be selected ahead of lip-732. Its SCOPE
+section, which said "Do not implement from this bead without deciding which",
+was rewritten to say the fork is CLOSED -- otherwise a fresh driver would
+re-rule SPEC_CONFLICT and burn a round. unit_rounds["lip-357"] reset 3 -> 0:
+rounds 1-3 were spent against a contract that could not be satisfied.
+
+STASH KEPT. stash@{0} still holds the ~2,275-line unaudited partial. Under
+H-FAIL-7 its H-FAIL-6 REST cross-check work is MORE relevant, not less, since
+the cross-check is what fetches the book the reducer is now priced from. It
+remains an untrusted repair base and does not satisfy the unit.
+
+Control hashes re-pinned after the commit.

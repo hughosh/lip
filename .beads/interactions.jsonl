@@ -84,3 +84,5 @@
 {"id":"int-c599bba704ccdd9ce8418c050b41d927","kind":"field_change","created_at":"2026-08-14T07:02:57.536252Z","actor":"Hugh","issue_id":"lip-732","extra":{"field":"priority","new_value":"0","old_value":"1"}}
 {"id":"int-ffd8762950d50134580f2a9cecc09a3c","kind":"field_change","created_at":"2026-08-14T07:02:58.771586Z","actor":"Hugh","issue_id":"lip-4ak","extra":{"field":"priority","new_value":"0","old_value":"1"}}
 {"id":"int-31703b20dc125987b59f56a33acb645c","kind":"field_change","created_at":"2026-08-14T07:03:14.551026Z","actor":"Hugh","issue_id":"lip-q6r","extra":{"field":"priority","new_value":"0","old_value":"1"}}
+{"id":"int-c461ef83959cd632a1c1769513409af6","kind":"field_change","created_at":"2026-08-14T15:03:15.592104Z","actor":"Hugh","issue_id":"lip-4ak","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Closed"}}
+{"id":"int-120056b626914c76805929c575b32b77","kind":"field_change","created_at":"2026-08-14T16:55:40.413165Z","actor":"Hugh","issue_id":"lip-357","extra":{"field":"status","new_value":"open","old_value":"deferred"}}
