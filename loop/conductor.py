@@ -91,7 +91,22 @@ TURN_TIMEOUT = 45 * 60
 # binding at once, so raising turns alone would only move the wall to the clock.
 # 2725 = ceil(1572.325s observed x 168/120 turns + 523s), where 523s is the
 # measured cost of the one `gates.sh --quick` the implementer is now asked for.
-CLAUDE_TIMEOUT = 2725
+#
+# 2026-08-15: 2725 BOUND on the very next unit. lip-732 round 1 attempt 1 ran
+# the full 2725s and died at the clock having WRITTEN the implementation and
+# never reported it. It survived only because the TimeoutExpired path below
+# `continue`s without resetting the tree, so attempt 2 inherited the files and
+# spent a further 1290s (82 turns) verifying and gating them -- 4015s of model
+# time for ONE logical turn, and attempt 1 was still short of reporting. 2725
+# was extrapolated from lip-357 and had never been measured at this scale.
+#
+# 5400 gives ~35% headroom over that observed 4015s. --max-turns rises with it
+# (168 -> 220) because this file's own history is that raising one budget alone
+# just relocates the wall to the other: at attempt 2's measured 15.7 s/turn a
+# 5400s clock admits ~344 turns, so leaving 168 in place would make the turn
+# budget the new binding wall for anything verification-heavy. 220 keeps the
+# clock binding while still bounding a runaway.
+CLAUDE_TIMEOUT = 5400
 MIN_FREE_GB = 5
 
 # Session policy. Fresh-per-unit is the limiting case of rotation and needs no
@@ -248,7 +263,7 @@ def run_claude(prompt: str, art: Path, st: dict,
         # could destroy evidence or rewrite history faster than those checks
         # would notice.
         argv = [CLAUDE, "-p", prompt, "--output-format", "json",
-                "--permission-mode", "bypassPermissions", "--max-turns", "168",
+                "--permission-mode", "bypassPermissions", "--max-turns", "220",
                 "--disallowedTools",
                 "Bash(git push),Bash(git reset),Bash(git clean),"
                 "Bash(git checkout),Bash(git commit),Bash(git rebase),"
@@ -258,8 +273,19 @@ def run_claude(prompt: str, art: Path, st: dict,
         try:
             p = subprocess.run(argv, capture_output=True, text=True, cwd=LIP,
                                timeout=CLAUDE_TIMEOUT)
-        except subprocess.TimeoutExpired:
-            log(f"    claude TIMEOUT (attempt {attempt+1})")
+        except subprocess.TimeoutExpired as e:
+            # Python populates .stdout/.stderr on the exception and this handler
+            # used to discard both. That is why lip-732 attempt 1's turn count
+            # is unrecoverable: the .raw.json write below never runs on this
+            # path, so a timeout left NO artifact at all, and there was no way
+            # to tell whether the turn was seconds from reporting or nowhere
+            # near it -- exactly the number needed to size CLAUDE_TIMEOUT.
+            partial = e.stdout or ""
+            if isinstance(partial, bytes):
+                partial = partial.decode("utf-8", "replace")
+            art.with_suffix(f".timeout{attempt+1}.txt").write_text(partial)
+            log(f"    claude TIMEOUT (attempt {attempt+1}); kept "
+                f"{len(partial)} bytes of partial output")
             continue
         art.with_suffix(".raw.json").write_text(p.stdout or "")
         try:

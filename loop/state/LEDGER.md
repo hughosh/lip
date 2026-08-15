@@ -207,3 +207,162 @@ the cross-check is what fetches the book the reducer is now priced from. It
 remains an untrusted repair base and does not satisfy the unit.
 
 Control hashes re-pinned after the commit.
+## 2026-08-15T00:43:33Z — it24 lip-732 — Delta gate failure never starts
+- **refuted**: CAUGHT by ['TestTheShippedExampleConfigLoads']
+- reachability: Section 10.3 runs six live markets at S=12, and after the initial snapshot their books advance through orderbook_delta frames. Use HR-012's concrete book shape: Target Size is 1,000, an accepted snapshot contains 1,300 contracts per side, and our 12-contract adding quotes rest. External cancellations then arrive as accepted current-generation deltas removing 900 per side, leaving 400 and making core.Book.Qualifies() return 0. Portfolio polls can remain healthy and deltas can keep arriving, so neither A13 nor the quiet-feed detector forces a resnapshot. This mutant ignores those deltas in noteBookGate, gateFailSince never opens, and after 30 seconds the owner remains QUOTING with adding orders live and fillable throughout a reward-zero interval—the exact HR-012 failure. Every current gate-failure test starts the failing interval with an orderbook_snapshot, so this deployed transition is untested.
+- mutation: `go/cmd/harness/run.go`
+
+## 2026-08-15 — OPERATOR: CLAUDE_TIMEOUT 2725s is undersized, and the retry hid it
+
+One iteration after `CLAUDE_TIMEOUT` was raised 1800 -> 2725s, it bound again.
+lip-732 round 1 attempt 1 ran the full 2725s and died at the clock
+(`claude TIMEOUT (attempt 1)`, 18:03Z), having WRITTEN the implementation but
+never reported it. Nothing in the run.log says the unit nearly died; the loop
+appeared to proceed normally.
+
+WHY IT RECOVERED, AND WHY THAT IS NOT REASSURING. `run_claude` (:234,
+`attempts: int = 4`) handles `TimeoutExpired` (:261-263) with a bare `continue`
+-- no tree reset, and, uniquely among its retry paths, no backoff sleep. Attempt
+2 therefore INHERITED attempt 1's files, verified them against all 13 acceptance
+criteria, ran `gates.sh --quick` and reported: 82 turns, 21.5 min, $4.68, 11
+tests added, 7/7 quick steps GREEN, 287/287 mutations still compiling. The
+recovery is real but incidental -- it depends on the absence of a reset that no
+comment claims is deliberate. Cost of the save: 2725 + 1290 = 4015s of model
+time, ~67 min, for one logical turn.
+
+THE 2725 WAS NEVER VALIDATED AT THIS SCALE. Per its own derivation comment
+(:88-93) it is `ceil(1572.325 x 168/120 + 523)`, extrapolated entirely from
+lip-357 -- a different unit, and one measured on a turn that itself died on
+budget rather than completing. lip-732 is the first unit to test the figure, and
+it exceeded it.
+
+THE PROMPT STRUCTURALLY CANNOT WARN A RETRY. Wording for an inherited tree does
+exist (:686-691, "Your previous attempt is already in the working tree"), but it
+is keyed to a repair ROUND: `repair` is read from `st["pending"]` (:553), which
+is written only by an adjudication (:826). The prompt string is built ONCE at
+:692, before `run_claude`'s attempt loop, so every attempt within a round
+receives a byte-identical prompt. `implement.md` (54 lines) says nothing about
+tree state either. Attempt 2 was therefore never told that attempt 1 had written
+to the tree -- it had to DEDUCE it. It deduced correctly this time; a retry that
+instead started over would have produced duplicated or conflicting edits inside
+the unit's own diff.
+
+ATTEMPT 1'S TURN COUNT IS UNRECOVERABLE. The `.raw.json` write is at :264, after
+`subprocess.run` returns, so the timeout path writes no artifact. Python's
+`TimeoutExpired` does carry `.stdout`/`.stderr`, and the handler discards both.
+We consequently cannot say whether attempt 1 was seconds from reporting or far
+from it -- which is exactly the number needed to size the replacement value.
+Capturing `e.stdout` costs one line and would make the next such event
+measurable rather than inferential.
+
+DO NOT RAISE THE CLOCK ALONE. That is the failure mode :88-91 already names for
+lip-357: "raising turns alone would only move the wall to the clock", and the
+converse now applies. At attempt 2's measured rate (82 turns / 1290s = 15.7
+s/turn), `--max-turns 168` binds at ~2643s -- within 3% of the 2725s clock. Which
+wall binds first depends on the turn mix, and a writing-heavy attempt is slower
+per turn than attempt 2's verifying one, so the clock probably binds first here.
+But the two are close enough that raising either alone just relocates the wall.
+
+NOT APPLIED. This entry records the measurement only. No file under `loop/` was
+edited while the conductor was running, because its ADVANCE commit is `git add
+-A` and an operator edit would ride along inside the unit's commit under the
+unit's message.
+
+BEARING ON THE NEXT RUN. iteration 24 ended REVISE, so the next launch resumes
+lip-732 round 2/3 against a pending repair -- one `run.go` change plus two test
+cases, a smaller turn than round 1, on which 2725s is less likely to bind. The
+figure nonetheless remains unvalidated rather than vindicated. When lip-q6r is
+eventually reached it is LARGER than lip-732, not comparable to it: 429 handling
+across every REST method, ten named acceptance areas, four new
+compiling-mutation families, and genuinely new concurrency machinery -- a
+bounded transport pool with at least one slot reserved for P1 reducers, capital
+reservation kept atomic across workers, and a proven hard upper bound from P1
+readiness to network dispatch. If 2725s bound on lip-732 it will bind there.
+
+## 2026-08-15 — OPERATOR: it24 lip-732 REVISEd, and M26's RED is a FALSE POSITIVE
+
+Iteration 24 ended REVISE, not ADVANCE, and the conductor exited
+DEADLINE_REACHED at 00:47Z with no commit. Its own ledger entry records only the
+refuted challenge finding, so what follows is the part the loop did not record.
+
+THE AUDIT CONFIRMED THE IMPLEMENTER'S OWN CAVEAT, AND THIS IS THE REAL FINDING.
+Round 1 reported honestly that acceptance criterion 6 -- oversized aggregate uses
+cancel-confirm-place -- was covered structurally (`AllowPlaceThenCancel: false`,
+H-Q-9 off) and asserted only at-cap via `targetSize`, with no dedicated oversized
+scenario. The audit returned DRIFT on exactly that and made it concrete:
+`run.go:2305-2336` resizes only when `quote.Decide` reports a price move;
+`quote/requote.go:262-265` reports no move for an order already at the touch,
+without considering `OurSize`; and `run.go:2669-2676` only clamps a negative
+placement remainder to zero. So section 10.3's 12-contract symmetric order can
+enter REDUCING at q=+1 and remain 12 contracts, violating H-Q-5a/A12 and able to
+drive q to -11 -- an overshoot straight through flat into the opposite sign.
+`gate_failure_test.go:1541-1613` exercises only an aggregate exactly equal to |q|.
+A self-reported caveat that a fresh xhigh auditor independently reaches is worth
+more than either alone. This finding stands on its own and is the sound reason
+to REVISE.
+
+THE CHALLENGE IS SPENT. It raised one finding, "Delta gate failure never starts",
+and the mutation was REFUTED -- caught by `TestTheShippedExampleConfigLoads`.
+lip-732 is now in `unit_challenged`, and the challenge is never renewed for a
+repair (conductor.py:736-737). Rounds 2 and 3 run with audit only.
+
+M26 IS PROVABLY EQUIVALENT, SO THE RED GATE IS A FALSE POSITIVE. The gate failed
+one step only -- `negative-control`, 1 of 287 -- with `M26: NOT INERT ->
+['TestSEV2IsLimitedPerClassMarketAndReportsSuppression']`. M26 replaces
+`q == 0` with `q.Float() == 0.0` in `Qty.IsFlat`. Read the three lines it depends
+on: `type Qty int64` (qty.go:37), `const QtyScale = 100` (:20), and
+`func (q Qty) Float() float64 { return float64(q) / QtyScale }` (:130). For q = 0
+both forms are true. For any q != 0, |float64(q)| >= 1 -- exact below 2^53, and
+rounding never produces zero above it -- so dividing by 100 gives magnitude
+>= 0.01, nowhere near underflow, and both forms are false. The two expressions
+agree on EVERY representable Qty. No test can distinguish them, and therefore no
+code change, lip-732's or anyone's, can make M26 observable. The catalogue's
+inert claim at :100-106 is not merely plausible; it is provable.
+
+THE TEMPTING FIRST READING WAS TESTED AND REFUTED. Because the only Go delta
+since iteration 23's GREEN full gate is lip-732's diff -- 27f61b7 in between
+touched `notes/harness-spec.md` and no code -- it is natural to conclude that
+lip-732 made the no-op observable, and that `--quick` was blind to it.
+Reproduction refuses that. Applying M26 by hand and running the named test
+passes. The whole `harness/ping` package passes 12 of 12 mutated runs, once more
+mutated under `-race`, and 8 of 8 plus `-count=20` unmutated. Nothing about the
+mutation is detectable on this tree.
+
+THE MECHANISM IS THE RUNNER'S ATTRIBUTION.
+`scripts/harness_negative_control.py:4402-4404` sets `caught = code != 0` from the
+exit status of ONE `go test -count=1 <PKGS>` run across the whole package set,
+and takes the catcher names from parsing which tests failed in that output. So
+any flaky failure anywhere in PKGS during a mutation's single run marks that
+mutation caught -- and for an inert-expected row, `ok = not caught` reports it as
+NOT INERT, naming whichever test happened to fail. With 287 mutations each
+running the full suite exactly once, a per-run flake probability of a few tenths
+of a percent produces about one spurious row per gate. That is precisely the
+observed shape: 286 correct, 1 anomalous.
+
+`harness/ping` supplies a plausible flake. `stub_test.go:213-225` (`awaitHealthy`)
+waits out the store's REAL retry ladder against a 30-second WALL-CLOCK deadline.
+Under the load of a 287x full-suite sweep that is exactly the kind of bound that
+breaks; on an idle machine it passes comfortably, which is what was measured
+above.
+
+CONSEQUENCES.
+- The RED gate is not evidence about lip-732. The DRIFT finding is, and it is
+  sufficient on its own to justify REVISE.
+- The adjudicator's repair says "Keep M26 classified as inert -- do not relabel
+  it or add retries -- and require the full negative-control rerun to show it
+  inert and every gate GREEN." Refusing a catalogue relabel is right: relabelling
+  would convert a signal into a recorded expectation and lose it. But the
+  instruction treats a flake as a defect. A rerun will most likely show M26
+  inert, which will read as though the reducer fix cured it and will bury the
+  real problem.
+- The flake is not specific to M26. Expect roughly one spurious row per full
+  gate, on a different mutation each time. Round 2 therefore carries a standing
+  chance of another spurious RED costing another six hours.
+- This bears directly on the promotion gate. lip-8hn.1's acceptance requires the
+  complete catalogue green with "no survivor, did-not-build, wrong catcher or
+  unexplained inert result". A runner that emits about one spurious row per run
+  cannot certify that criterion. Needs a bead: attribute per-test rather than by
+  whole-suite exit code, or re-run a failing mutation once before recording it.
+  `scripts/harness_negative_control.py` is NOT in conductor CONTROL_FILES, so
+  such a fix needs no control re-pin; the `nc_ratchet` check at conductor.py:715
+  only forbids removing mutation IDs, which a runner-logic fix does not do.

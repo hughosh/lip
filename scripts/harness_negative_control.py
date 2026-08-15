@@ -4399,22 +4399,60 @@ def main() -> int:
                 print(f"!! {mid}: DID NOT BUILD (does not count as caught)")
                 continue
 
-            code, out = run([GO_BIN, "test", "-count=1", *PKGS], dst)
-            fails = failed_tests(out)
-            caught = code != 0
+            # A real verdict is DETERMINISTIC: the mutation either changes an
+            # asserted behaviour or it does not. A disagreement with the
+            # catalogue is therefore CONFIRMED by a second run before it is
+            # recorded, because in a single sample a flaky test anywhere in
+            # PKGS is indistinguishable from a real verdict.
+            #
+            # Measured 2026-08-15, iteration 24: M26 was reported NOT INERT,
+            # naming TestSEV2IsLimitedPerClassMarketAndReportsSuppression. M26
+            # rewrites `q == 0` as `q.Float() == 0.0` on an int64-backed Qty
+            # scaled by 100, and those agree on EVERY representable value -- so
+            # no test can distinguish them and the row could not have been a
+            # real catch. `caught` is the exit status of ONE `go test` across
+            # all of PKGS, so a flake anywhere in the suite is attributed to
+            # whichever mutation was in flight. At 287 mutations x one run each,
+            # a per-run flake rate of a few tenths of a percent yields about one
+            # spurious row per gate -- and one spurious row costs a six-hour
+            # authoritative run and one of a unit's three rounds.
+            #
+            # This strictly removes single-sample noise without weakening
+            # detection: a real survivor is green twice, a real catch fails
+            # twice. Only the flapping row pays the second run. The flap is
+            # REPORTED, never silently swallowed -- a suite that flakes is
+            # itself a defect, and hiding it here would trade a loud wrong
+            # answer for a quiet one.
+            flapped = False
+            for attempt in (0, 1):
+                code, out = run([GO_BIN, "test", "-count=1", *PKGS], dst)
+                fails = failed_tests(out)
+                caught = code != 0
+                ok = ((not caught) if expected == "inert"
+                      else (caught and expected in fails))
+                if ok:
+                    break
+                if attempt == 0:
+                    flapped = True
+                    print(f"?? {mid}: disagreed with the catalogue -- "
+                          f"confirming with a second run")
+            else:
+                # It disagreed twice. The verdict stands on its own.
+                flapped = False
+
             if expected == "inert":
                 # An inert mutation is CORRECT to survive. It is kept in the
                 # suite because "we checked, and it genuinely cannot matter" is
                 # a finding worth re-verifying whenever the code around it
                 # changes -- and because an inert declaration is exactly how a
                 # real gate hole would hide.
-                ok = not caught
                 status = "inert, as expected" if ok else "NOT INERT"
             else:
-                ok = caught and expected in fails
                 status = "caught" if caught else "SURVIVED"
                 if caught and not ok:
                     status = "caught, but NOT by the named test"
+            if flapped:
+                status += " (FLAKED once, confirmed by re-run)"
             rows.append((mid, name, expected, status, fails, ok))
             print(f"{'ok' if ok else '!!'} {mid}: {status} -> {fails}")
 
@@ -4471,6 +4509,20 @@ def main() -> int:
     # because "a gate that has never been shown to fail is not evidence", and
     # the gate on the gate could not fail. Found by an independent model reading
     # the source, not by any test here.
+    # A flap does not fail the gate -- the confirming run settled what the
+    # mutation actually does -- but it is a defect in the ORACLE and must not
+    # vanish just because the row ended up correct. This is the only place a
+    # reader of gates.txt would ever learn the suite is unstable.
+    flaked = [r for r in rows if "FLAKED" in r[3]]
+    if flaked:
+        print(f"\n{len(flaked)} mutation(s) disagreed with the catalogue on the "
+              f"first run and agreed on a second:", file=sys.stderr)
+        for mid, _, _, status, _, _ in flaked:
+            print(f"  {mid}: {status}", file=sys.stderr)
+        print("A flap is a FLAKY TEST somewhere in PKGS, not a verdict about "
+              "the mutation named. The gate still passes, but the flake is "
+              "real and belongs in bd.", file=sys.stderr)
+
     bad = [r for r in rows if not r[5]]
     if bad:
         print(f"\n{len(bad)} of {len(rows)} mutations did NOT produce their "
