@@ -1,0 +1,87 @@
+gui/501/com.lip.q01.shutdown.20260928 = {
+	active count = 1
+	path = /Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair/supervisor.plist
+	type = LaunchAgent
+	state = running
+
+	program = /usr/bin/caffeinate
+	arguments = {
+		/usr/bin/caffeinate
+		-is
+		/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/candidate-2/harness
+		-supervised
+		-config
+		/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair/config.json
+		-rung
+		sizing
+		-qualification
+		/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair/evidence.json
+	}
+
+	working directory = /Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair/runtime
+
+	stdout path = /Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair/supervised.out
+	stderr path = /Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair/supervised.err
+	inherited environment = {
+		SSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		NO_PROXY => api.elections.kalshi.com,external-api.kalshi.com,ntfy.sh,hc-ping.com,localhost,127.0.0.1
+		HTTPS_PROXY => http://127.0.0.1:57819
+		XPC_SERVICE_NAME => com.lip.q01.shutdown.20260928
+	}
+
+	domain = gui/501 [100002]
+	asid = 100002
+	minimum runtime = 3
+	exit timeout = 5
+	runs = 1
+	pid = 63443
+	immediate reason = speculative
+	forks = 1
+	execs = 2
+	initialized = 1
+	trampolined = 1
+	started suspended = 0
+	proxy started suspended = 0
+	checked allocations = 0 (queried = 1)
+	checked allocations reason = no host
+	checked allocations flags = 0x0
+	last exit code = (never exited)
+
+	semaphores = {
+		successful exit => 0
+	}
+
+	resource coalition = {
+		ID = 243239
+		type = resource
+		state = active
+		active count = 1
+		name = com.lip.q01.shutdown.20260928
+	}
+
+	jetsam coalition = {
+		ID = 243240
+		type = jetsam
+		state = active
+		active count = 1
+		name = com.lip.q01.shutdown.20260928
+	}
+
+	spawn type = daemon (3)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	jetsam thread limit = 32
+	cpumon = default
+
+	properties = runatload | inferred program
+}

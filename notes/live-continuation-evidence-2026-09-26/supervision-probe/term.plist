@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>Label</key>
+	<string>com.lip.supervision.probe.term.3a0c5d5bdc</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/bin/caffeinate</string>
+		<string>-is</string>
+		<string>/usr/bin/python3</string>
+		<string>/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py</string>
+		<string>term</string>
+		<string>/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stderr</string>
+	<key>StandardOutPath</key>
+	<string>/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stdout</string>
+	<key>ThrottleInterval</key>
+	<integer>3</integer>
+</dict>
+</plist>

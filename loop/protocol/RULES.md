@@ -1,97 +1,43 @@
-# The loop protocol — binding on both agents
+# Supervised work protocol
 
-You are one of two agents implementing `notes/harness-spec.md` under an
-unattended conductor. The operator is asleep. Nobody will catch your mistake
-tonight; the gates will, and only if you leave them able to.
+[AGENTS.md](../../AGENTS.md) governs repository work;
+[verification-workflow.md](../../notes/verification-workflow.md) governs evidence.
+This replaces the historical unattended two-model protocol. The conductor is
+disabled; these instructions do not authorize launching it or the trading client.
 
-## Roles
+The active agent owns synthesis, implementation decisions, review, and honest
+handoff. Delegate only independent questions or contained edits that improve
+elapsed time, usage, or quality. Keep short dependent steps with the driver.
 
-| | Codex (`gpt-5.6-sol`) | Claude Code |
-|---|---|---|
-| Authors decisions | **yes** — direction, adjudication, what advances | no |
-| Writes code | no | **yes** |
-| Writes the mutation that gates a unit | **yes** (adversarial turn) | no |
-| Runs gates | either | **yes** |
+For this audit and subsequent similarly scoped work:
 
-Codex holds the intellectual lead. Claude implements exactly what it is
-directed to implement, and reports what it observes — including failures,
-especially failures.
+1. Give each worker one question/change, explicit input paths, owned output
+   paths if editing, required deliverable, and a stop condition.
+2. Size work for about ten minutes. Request partial findings if it grows;
+   split the remainder. Do not allow thirty minutes without a useful result.
+3. Use Luna/Sol when sufficient; Astra owns synthesis and decisions. Record
+   elapsed time and available usage rather than assuming extra agents are free.
+4. Finish an assignment when its deliverable arrives. Use a fresh worker with
+   relevant context for a new task; do not keep standing roles for an epic.
+5. Run resource-heavy verification serially. Workers may read logs while a gate
+   runs, but must not compete with it for test/build resources.
+6. Each worker invocation is single-shot. Finish and observe any required check
+   before returning; a promise to report a background result later is incomplete
+   work. Return the observed outcome and receipt, or the concrete blocker. The
+   active agent must not accept a missing outcome as successful verification.
 
-## The spec outranks both of you
+Review findings on their merits. A reproducible current failure, a missing
+production connection, or a contract contradiction can be actionable without
+inventing a hypothetical mutant. Separate a production defect, a test gap, and
+an operational evidence gap. A surviving mutant requires reachability/equivalence
+review; a killed mutant demonstrates only its named catcher's sampled coverage.
+Reopen an old conclusion when code, configuration, contracts, or evidence change.
 
-`notes/harness-spec.md` is the contract. It is 2,233 lines and it has already
-survived one hostile cross-model pass that produced 24 material findings. You
-are not smarter than that document about what this harness should do.
+Use bounded repair attempts to control cost, not to hide new risk. A repaired
+safety-sensitive path gets an affected review and regression check; there is no
+absolute ban on another challenge. If progress stalls, retain the edits and
+receipts, record the blocker, and hand off. Never discard work to enforce scope.
 
-**SPEC-PATCH QUARANTINE.** The spec permits patching itself when implementation
-finds a rule wrong. That is a redesign vector when nobody is watching, and it is
-this loop's single most dangerous failure mode: *editing the contract until the
-code passes*. Therefore:
-
-- No implementation turn may modify `notes/harness-spec.md`. Not one character.
-- A believed spec defect is filed as a `bd` issue tagged `spec-patch` and
-  **stops that unit**. It is worked only in a dedicated spec-patch unit, whose
-  diff is audited against the *original* rule and the argument for changing it.
-- The spec file is SHA-pinned. The conductor checks it every iteration.
-
-## The gates are the oracle, not each other
-
-`loop/gates.sh` decides whether the tree is green. Two agents can agree on
-something false; `go test -race` cannot be talked round.
-
-- **Never weaken a gate to make a unit pass.** Gates ratchet: they are added,
-  never removed, never loosened. Deleting a test, relaxing an assertion,
-  narrowing a table, or adding a `t.Skip` is a protocol violation, not a fix.
-  `scripts/check.py` already refuses `t.Skip`, `testing.Short`, stub panics and
-  discarded errors — do not look for a way around it, that check exists because
-  faking progress is the failure mode it was written for.
-- Never edit a frozen artifact or a read-only Go tree (`go/core`, `go/feed`,
-  `go/store`, `go/cmd/rig`). Both are checksummed.
-- Never touch `rig.db`, `lip.db`, or any `*.db` — two collector processes are
-  writing them right now and they are the evidence base for everything.
-
-## Findings are settled by mutation, not by argument
-
-This is the rule that makes the loop converge. Read it twice.
-
-A claimed defect is **inadmissible** unless it states both:
-
-1. **A concrete code mutation** — an exact text change to a named file that
-   would introduce the defect, and that COMPILES.
-2. **A reachability argument** — why it is reachable in the deployed
-   configuration of §10.3, in writing. "It could in principle" is not an
-   argument. The spec rejected finding HR-002 on 14.8 million measured price
-   strings under exactly this standard, and accepted HR-001 under it.
-
-An admissible finding is then **tested before it is believed**:
-
-- Its mutation is applied to a pristine tree and run against the *existing*
-  gates.
-- **Caught by a named test → the finding is refuted by evidence.** Close it.
-  Keep the mutation in `scripts/harness_negative_control.py` forever; the class
-  can never be re-litigated.
-- **Survives every gate → the finding is real.** It becomes a work unit, and
-  the mutation stays as its permanent gate.
-
-Only a surviving mutation becomes work. This is what stops the loop from
-fixing things forever.
-
-**The mutation is authored by the adversarial turn, never by the agent that
-wrote the code.** A gate whose failure case was written by its own author is
-barely evidence.
-
-## Bounds
-
-- **3 rounds per unit.** Then park it with a written blocker note and move on.
-  Parking one unit must never block the queue.
-- **No invented work.** Units come from `bd` — seeded from §17's verification
-  ladder — or from a surviving mutation. Not from imagination, not from
-  "while I was in there".
-- Anything you notice but are not working on: file it in `bd`, do not chase it.
-
-## Reporting
-
-Report what happened, not what was supposed to happen. If tests fail, say so
-and paste the output. If you could not finish, say what is unfinished. A turn
-that claims success it did not achieve poisons every downstream turn, and the
-operator is asleep and cannot correct it.
+Process/spec changes are allowed when authorized by the active task. Delete needless ceremony outright. Explain any actual loss of safety evidence
+and its remaining risk; do not invent a replacement for an unnecessary rule. A safety-envelope change
+needs its own explicit scope; process authorization alone does not permit it.

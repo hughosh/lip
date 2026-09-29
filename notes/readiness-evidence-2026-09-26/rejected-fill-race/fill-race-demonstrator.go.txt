@@ -1,0 +1,95 @@
+package main
+
+import (
+	"testing"
+	"os"
+
+	"lip/harness/num"
+	"lip/harness/quote"
+	"lip/harness/rest"
+)
+
+// This is an offline reproducer in a temporary source copy. The exchange has
+// actually matched one contract on the old NO reducer and reports position 0,
+// while the owner has not yet run its next portfolio poll.
+func TestDemoFillBeforeCancelVerificationUsesStaleQ(t *testing.T) {
+	one := num.QtyFromFloat(1)
+	twelve := num.QtyFromFloat(12)
+	g := newGateFailOwner(t, one)
+	const oldID = "EX-OVERSIZED-EXIT"
+	coid, err := rest.Coid("SEAMPRIOR", 0, quote.SideNo, 1)
+	if err != nil { t.Fatal(err) }
+	g.h.seamOwnedOrderOn(oldID, 7, quote.SideNo, 55, twelve)
+	g.h.ex.mu.Lock()
+	g.h.ex.resting = []map[string]any{seamRestingOrder(seamCreate{
+		Ticker: seamTicker, WireSide: string(rest.Ask), Price: "0.4500",
+		Count: twelve.Wire(), Coid: coid, OrderID: oldID,
+	})}
+	g.h.ex.mu.Unlock()
+	g.h.ex.setPosition(seamTicker, one.Wire())
+	reducerConfirmationPoll(t, g)
+	g.snapshot(gateFailThinBook())
+	if !g.stopped(gateFailDebounce) { t.Fatal("did not enter REDUCING") }
+	writes := make(chan writeRequest, 1)
+	g.o.pump(gateFailDebounce, writes)
+	var cancel writeRequest
+	select { case cancel = <-writes: default: t.Fatal("no cancel dispatched") }
+	if cancel.Op != quote.OpCancel || cancel.Side != quote.SideNo { t.Fatalf("cancel=%+v", cancel) }
+
+	// Model the exchange match before DELETE: one owned NO fill against a
+	// long-YES position closes it; 11 of the original 12-contract order remain.
+	g.h.ex.mu.Lock()
+	g.h.ex.positions[seamTicker] = "0.00"
+	g.h.ex.fills = append(g.h.ex.fills, seamMakerFill(
+		"DEMO-EXIT-FILL", oldID, "no", "0.4500", "0.5500", "1.00", 2))
+	for _, order := range g.h.ex.resting {
+		if order["order_id"] == oldID { order["remaining_count"] = "11.00" }
+	}
+	g.h.ex.mu.Unlock()
+	if got := g.h.rig.pf.Q(seamTicker); got != one { t.Fatalf("owner q unexpectedly refreshed before poll: %s", got.Wire()) }
+
+	// Run production cancel+complete verifying walk against that fake exchange.
+	res := g.h.rig.cancelWrite(g.h.ctx, cancel)
+	if res.Err != nil || !res.Absent { t.Fatalf("cancel sweep: absent=%v err=%v sweep=%+v", res.Absent, res.Err, res.Sweep) }
+	g.o.applyWriteResult(res)
+	if os.Getenv("DEMO_LEGACY") != "" {
+		// Semantic overlay of the pre-repair owner bookkeeping: no absent-id
+		// tombstone and no side-wide cancel confirmation.
+		delete(g.o.absentOrders, oldID)
+		g.o.cancelConfirmed[quote.SideNo] = false
+		g.o.pump(gateFailDebounce, writes)
+		select { case got := <-writes: t.Fatalf("legacy overlay dispatched before position walk: %+v", got); default: }
+		if got := g.o.atRisk(quote.SideNo); got != twelve { t.Fatalf("legacy stale aggregate=%s, want original 12", got.Wire()) }
+		if g.h.ex.createCount() != 0 { t.Fatal("legacy overlay reached exchange before position poll") }
+		g.connect() // issue a fresh reconciliation token for this second poll
+		reducerConfirmationPoll(t, g)
+		if got := g.h.rig.pf.Q(seamTicker); got != 0 { t.Fatalf("complete poll failed to discover filled-flat position: %s", got.Wire()) }
+		g.o.evaluate(gateFailDebounce)
+		select { case got := <-writes: t.Fatalf("flat position still emitted a write: %+v", got); default: }
+		return
+	}
+	g.o.pump(gateFailDebounce, writes)
+	var place writeRequest
+	select { case place = <-writes: default: t.Fatal("replacement did not dispatch before positions poll") }
+	if place.Op != quote.OpPlace { t.Fatalf("got %s, want replacement placement", place.Op) }
+	if place.Side != quote.SideNo || place.Order.Count() != one {
+		t.Fatalf("stale-q replacement=%s/%s, want NO/1", place.Side, place.Order.Count().Wire())
+	}
+	if got := g.h.rig.pf.Q(seamTicker); got != one { t.Fatalf("owner q changed without poll: %s", got.Wire()) }
+	g.h.ex.mu.Lock()
+	actualPosition := g.h.ex.positions[seamTicker]
+	g.h.ex.mu.Unlock()
+	if actualPosition != "0.00" { t.Fatalf("fake exchange position=%q, want flat", actualPosition) }
+	if g.h.ex.restingCount() != 0 { t.Fatal("old order should have been removed before replacement POST") }
+	// Execute the emitted order through the real REST client and fake exchange
+	// so the demonstration proves a create reaches the venue at actual q=0.
+	created := g.h.rig.api.Create(g.h.ctx, place.Order, g.o.p)
+	if created.Outcome != rest.CreateAcked { t.Fatalf("replacement create outcome=%v anomalies=%+v", created.Outcome, created.Anomalies) }
+	if g.h.ex.createCount() != 1 { t.Fatalf("fake exchange did not receive replacement: creates=%d", g.h.ex.createCount()) }
+	actual, ok := g.h.ex.createAt(0)
+	if !ok || actual.WireSide != string(rest.Ask) || actual.Count != one.Wire() { t.Fatalf("exchange create=%+v, want NO/1", actual) }
+	g.h.ex.mu.Lock()
+	actualPosition = g.h.ex.positions[seamTicker]
+	g.h.ex.mu.Unlock()
+	if actualPosition != "0.00" { t.Fatalf("replacement changed demonstration position: %q", actualPosition) }
+}

@@ -1,0 +1,6 @@
+{
+  "sha256": "48b8edb308b824cacfac4b161d5e125bf7bad03bb0d804c1c2269f99877f18f6",
+  "changes_from_smoke": "isolated store, journal, latch, lock, sentinel, stop paths only",
+  "live_flag": false,
+  "live_sentinel_exists": false
+}

@@ -1,0 +1,297 @@
+[
+  {
+    "id": "lip-8hn",
+    "title": "EPIC CR-1: one-market continuous runtime",
+    "description": "CR-1 means one operator-selected active-program market at S=12 may repeat\nmaker-entry, reduction, flat and requote cycles without synchronous operator\ninvolvement during one declared market assignment. It runs under launchd and\ncaffeinate, survives process and websocket restarts through safe adoption, and\neither continues safely or durably enters WINDING_DOWN while reduction,\nmonitoring, heartbeat and alert retry remain alive.\n\nThe closed operating envelope is: one selected ticker; dedicated account with\nonly declared capital and no unrelated cash, positions, orders or manual\nactivity; manual market replacement; no claim of automatic programme rotation.\nRequired evidence is a event-complete read-only qualification, clean balance-derived S\u003c=12 first-fill\nstage, clean attended repeated-cycle evidence, final scenario/invariant and operational\nreadiness, exact candidate checks under the faster verification workflow, active external dead man, and explicit\noperator review.\n\nNew work blocks CR-1 only after adjudication that its failure is reachable in\nthis operating envelope or that CR-1 acceptance cannot be evidenced without it.\nPriority labels alone do not move the finish line. Dynamic selection, rotation\nand automatic management of unrelated held markets belong to CR-2; CR-1 instead\nrefuses a dirty account and stops on foreign activity.\n\nAcceptance: record exact commit, config/rung, assignment window, dedicated-\naccount check, supervision state, runbook/drill evidence and links to all three\npromotion rungs. After closure, repeated cycles are authorised only inside that\nassignment.\n",
+    "notes": "Current target is CR2 continuous participation across turnover (user decision); CR1 alone insufficient. Final candidate gate PASS23:29:37Z, balance-derived limits observed and lip-wif closed; observed WS snapshot defect lip-bup repaired/closed. Primary and independent backup missed-deadman receipts acknowledged. Short read-only sizing, retained-latch and crash/restart observations recorded; q01 remains incomplete and no financial write occurred. Final complete accountflat23:28:58Z with98.580200 USD. Remaining: complete q01, operator-executed first-fill/reduction/repeated-cycle, acknowledgment-aware SEV1 escalation and operational recovery, CR2 managed-market selection/turnover, economics. No continuous operation started.\nContinuation closed lip-82l, lip-q01, lip-8hn.1 and lip-3d2 with exact evidence. Archived v3 read-only qualification passed23m37.914s; fresh account was complete and flat. New supervision source passes its separate integration/race/affected controls, not a new live qualification. Real first-owned-fill/reduction/repeated-cycle behavior, exposure/store recovery, acknowledgment-aware SEV1 primary/backup escalation and CR2 remain unqualified. No financial writes or continuous trader started. Current assistant policy blocks execution of financial activities despite explicit user authorization. See notes/live-continuation-evidence-2026-09-26/report.md.\nContinuation now retains tested CR2 accounting/durable-state module (not runtime-connected), production store failure stop, account-free SQLite recovery/escalation drills, exact changed candidate/code gate and90sGET-only smoke, fresh flat account/fees/depth, and executable operator first-fill/R2 handoff. No financial writes or continuous trader activated. No Beads closed this continuation; archived v3 q01/R1 remain untouched. Production CR2 wiring, external acknowledgment-aware backup drill and actual attended financial evidence remain open. Final report: notes/active-continuation-2026-09-26/report.md.",
+    "status": "blocked",
+    "priority": 0,
+    "issue_type": "epic",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-09T22:29:26Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-27T02:02:11Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-yca",
+    "title": "Revalidate LIP economics under July 30 terms and current per-series fees",
+    "description": "Revival verified current July 15 amendment effective July 30 and July 30 clean terms: reference at one fifth of target; per-side scores capped at full credit above reference; payout scaled by non-excluded/total snapshots. notes/economics.md assumes old intact pool and frozen core/score.py are historical. Active rewards verified Sept 26; no net profitable edge established. Build a separately versioned offline reward/EV analysis against timestamped data without altering frozen trees or harness-spec. Include attributable realized payouts, true private fills, round-trip fees, executable exit prices, inventory and settlement, and chronological held-out policy comparison.",
+    "acceptance_criteria": "Reproduce updated scoring on fixtures; reconcile estimated vs observed payout for bounded eligible account; report net EV and uncertainty for simple touch/offset quotes and immediate-vs-maker exits; momentum adds value only on timestamped out-of-sample data after latency and queue effects.",
+    "notes": "2026-09-26 authenticated complete retained fills walk:15 historical fills; fees retained separately. Visible logged-in portfolio Rewards popover showed July31 liquidity incentive credit $7.65 for event KXGENERICBALLOTVOTEHUB-26JUL31, lifetime$7.65 and Sep$0. No payment-ledger corroboration or chronological held-out net-EV attribution established. Current $200 selected-market pool is not personal earnings. No new fills/reward credit from this session.\nFresh authenticated GET /portfolio/settlements plus fills at00:20:38Z returned1settlement and15fills, terminal-cursorcomplete for liveendpoint scope. Bounded paired-fill reconstruction implies -$9.1198 historical trading P\u0026L including $1.9298 fees; ballot settlement corroborates side costs/counts/fees. Older historical-cutoff scope, independent cash ledger, paid reward ledger and current-policy/out-of-sample attribution remain unavailable; no currentEV claim. Existing logged-in browser reused through original task: Sep$0/lifetime$7.65 July31 reward entry unchanged; no personal provisional estimate. Evidence notes/live-continuation-evidence-2026-09-26/economics/historical-cashflow.md and notes/live-continuation-2026-09-26/browser-rewards-alarm.md. Remains open.\nReview qualification to preceding economic note: -$9.1198 is conditional complementary-price/netting arithmetic, NOT independently verified realized account cashflow; legacy ballot sell/no field semantics leave a cash-sign ambiguity. Settlement confirms costs/counts/fees, not pair-credit mapping. Additional authenticated complete positions walk00:27:04Z directly reports HOODA realized_pnl_dollars +0.200000, fees0, flat; closed ballot absent. Preserve original/reviewed reports and review.md under economics/. Exact recorded historical fill fees remain1.929800; lifetime/current-policy net profitability unestablished.\nContinuation has no new attributable owned fills, actual fees, executable exit executions or reward ledger evidence. Fresh hypothetical bid-depth/taker-fee calculations are a preflight aid only, not P\u0026L. Shared pool size and historical $7.65 credit are not attributed profit. Economics and momentum expansion remain blocked/deferred pending required actual evidence. See notes/active-continuation-2026-09-26/fresh-economics.json and operator handoff.",
+    "status": "blocked",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-09-26T17:48:41Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-27T01:44:29Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-1in",
+    "title": "CR-2: manage held non-selected markets across rotation",
+    "description": "CR-2, not the one-market pilot, owns dynamic management when complete account\ntruth contains positions or live orders outside the currently selected ticker.\nImplement the H-ORD-5b expansion only with selection/rotation semantics: derive\nthe managed set from authoritative truth, subscribe and maintain required books,\nmark every non-flat position honestly, reduce owned exposure, and never cancel a\nforeign order.\n\nCR-1 instead binds a dedicated clean-account precondition and refuses startup\nor durably stops on foreign activity. Do not pull this work back onto the CR-1\npath without a new operating-envelope decision.\n",
+    "acceptance_criteria": "On the future CR-2 tree, a held non-selected market is subscribed, marked and\nreduced from complete truth across restart and rotation, while foreign orders\nremain untouched. Multi-market caps, P\u0026L, schedule and monitor evidence remain\ncomplete. A selected-only mutation is caught by a composed scenario. This bead\ndoes not block q01, the S=1 canary, S=12 burn-in or one-market CR-1.",
+    "notes": "2026-09-26 user explicitly selected continuous participation across market/program turnover. CR-2 scope decision is resolved. Implementation remains open: managed set must include inherited exposure across rotation, per-market books/shard funding and caps, account-wide truth and clean exits, and restart/turnover qualification. Current one-market candidate refuses nonselected exposure; it is not continuous participation. Evidence: notes/live-readiness-2026-09-26; no trading started.\n2026-09-27 continuation: added go/harness/turnover managed-set/accounting coordinator and locked atomic disk state. Offline regressions cover A→B plus restart retaining A position/UNKNOWN, all required marks/schedules/shard cash, frozen and aggregate caps, persist-before-admit, foreign exclusion, and selected-reducing adding-order cancellation. Named CR2 mutations caught these guards. This module is NOT connected to the production owner: live runtime is still one market and refuses nonselected exposure. Remaining implementation: per-market owner/schedule/order state, dynamic feed/gate universe, per-shard polling/dispatch, aggregate P\u0026L/monitor publication and selection/rotation; then production-seam turnover/restart/cleanup scenarios. Do not close from isolated module tests. See notes/active-continuation-2026-09-26 and prior cr2-map.md.\nFinal continuation code evidence: candidate gate PASS including module/race/16 sentinels, plus 5 CR2 named controls across two receipts. Disk restart and accounting collaborator verified offline; production owner/feed/funding/selection wiring is still absent. Module evidence does not close CR2. Exact candidate and next wiring work: notes/active-continuation-2026-09-26/report.md.",
+    "status": "in_progress",
+    "priority": 1,
+    "issue_type": "feature",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-11T20:00:37Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-27T02:02:08Z",
+    "started_at": "2026-09-27T01:44:23Z",
+    "labels": [
+      "cr2"
+    ],
+    "dependencies": [
+      {
+        "issue_id": "lip-1in",
+        "depends_on_id": "lip-dgg",
+        "type": "discovered-from",
+        "created_at": "2026-08-11T13:07:38Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-8hn.2",
+    "title": "R2 promotion gate: exact balance-derived repeated-cycle candidate",
+    "description": "Nominate the exact repeated-cycle candidate after the attended balance-derived first-fill stage. Preserve retained fault scenarios, reject policies, foreign-order stop, host-sleep/stuck-inventory handling, active-program membership and external operations readiness. Use affected checks and candidate safety controls under notes/verification-workflow.md; no full-catalogue prerequisite. CR-1 remains one assigned market. Requested CR-2 participation across turnover additionally depends on lip-1in implementation and observed cleanup/recovery.",
+    "acceptance_criteria": "Record exact source/working-tree/binary and config/rung identity plus account/funding/runbook evidence. Resolve relevant failed or inconclusive checks. Retain event-complete q01 and attended balance-derived S\u003c=12 first-fill/reduction/clean-exit evidence, then collect repeated-cycle/restart evidence. This gate does not establish CR-2 or authorize the assistant to execute financial trades.",
+    "notes": "2026-09-26 R2 retains real repeated-cycle/restart/recovery evidence and external alarms; superseded historical S1/$2 gate replaced with new sizing first-fill stage. No burn-in performed. Current requested outcome extends to CR2 turnover management; code/read evidence does not grant unattended readiness.\nChanged-code candidate preparation and affected qualification are in notes/active-continuation-2026-09-26; candidate gate final result will be in its report. R2 still lacks real first-fill/reduction/repeated-cycle/operator alarm receipts. Local tests and receipt-shape validation are not financial-stage evidence; CR2 accounting module remains unconnected to production runtime.\nPrepared changed candidate binary2d8de985f4fa5204fdac0021a98121ae6a2436f8c288bd70e797f1e7130aba7c (Go manifestc9b5101a87ec4c55d26f925ef9c5c0290c16b089e038511e3a28d68d5c4f2490), candidate gate PASS and targeted GET-only smoke. Fresh complete account flat01:56:14Z, selected cash98.580200, DON program/book/fees/12-contract exit arithmetic retained. Exact operator preparation commands/config archived; no live stage, sentinel or writer activation. R2 remains blocked; see notes/active-continuation-2026-09-26/operator-handoff.md.",
+    "status": "blocked",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-11T20:00:34Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-27T02:02:09Z",
+    "labels": [
+      "cr1",
+      "promotion"
+    ],
+    "dependencies": [
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-2v0",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:57Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-34l",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:45Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-xp3",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:47Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-2gn",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:49Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-8qv",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:51Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-b7r",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:53Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-9vc",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:59Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-8hn",
+        "type": "parent-child",
+        "created_at": "2026-08-11T13:00:34Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-2da",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:55Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 8,
+    "dependent_count": 1,
+    "comment_count": 0,
+    "parent": "lip-8hn"
+  },
+  {
+    "id": "lip-9vc",
+    "title": "CR-1 operations: recovery, disk headroom, runbook, and alert escalation",
+    "description": "CR-1 is authorised for unattended repeated cycles inside one declared market\nassignment. Before that authorization, make the operational recovery boundary\nexecutable rather than implicit.\n\nDeliver one concise operator runbook and its tested software checks: dedicated\naccount cleanliness; config/commit/rung confirmation; disk headroom and bounded\nstore/evidence growth; durable-latch stop/resume; recovery when the harness\nstore is unreadable while exchange orders or inventory may exist; disposition\nof every SEV1/SEV2; and escalation when a SEV1 or missed heartbeat is not\nacknowledged. No procedure may clear a latch or infer flatness from unavailable\ntruth.\n\nThis is one operational-readiness unit, not one bead per checklist row. It does\nnot run the live harness; operator drills and evidence remain operator actions.\n",
+    "acceptance_criteria": "The runbook names exact commands, preconditions, stop conditions and evidence\nfor normal start, planned stop, latched restart, corrupt/unreadable store,\ninsufficient disk headroom, missed heartbeat and unacknowledged SEV1. Automated\ntests prove unsafe states refuse or enter durable WINDING_DOWN while reduction\nand observation continue wherever authoritative truth permits. The final CR-1\nevidence links a completed operator drill for the external escalation path.",
+    "notes": "Healthchecks drill and acknowledgment details preserved in notes/live-readiness-2026-09-26/alarm-drill.json. Primary ntfy test received; actual missed-check-in DOWN email received and operator confirmed independent backup. Original1h/20m schedule restored, recovery UP observed. Real read-only latched restart stayed DRAINED with zero would-writes; crash/restart rebuilt fresh complete truth; all observers stopped. Still missing acknowledgment-aware SEV1 escalation/backup on primary nonack, deployed launchd recovery and store-loss recovery with real exposure. No continuous runtime claimed.\nFresh browser00:09-00:12Z: Healthchecks UP,1h period+20m grace, one enabledemailroute; primary/backup identity and acknowledgment escalation notestablishedbyUI. Real v2/v3 read-only launchd SIGKILL recovery observed. Obsolete com.lip.harness was retried327862times with inactive historicalmarket; unloaded23:49:39Z after fresh completeflatproof, preservedplist/config/store. Actual account-free conditionalKeepAlive/caffeinate probe verified zeroexitstop, nonzero/SIGKILL restart, SIGTERMdelivery/delayeddrain; alltemporaryprobejobsremoved. Runtime alert ack/escalation and realexposurestoreloss recovery remain unproved. Supervision code repair underway; evidence notes/live-continuation-evidence-2026-09-26/supervision-probe/report.md.\nContinuation evidence: real v3 SIGKILL/restart, planned SIGTERM, retained-latch restart and complete account-wide flat exits; current working-tree conditional supervisor repair and account-free macOS exit/signal drill are separately evidenced. Store growth sampled and final DB 118784 bytes, owned_order/our_fill zero, 292 balance polls; disk available about105GB, not a long-run growth proof. Still blocked: recovery under actual orders/inventory and corrupt/unreadable store; acknowledgment-aware unacknowledged SEV1 primary/backup escalation; attended repeated cycles. Existing Healthchecks period1h/grace20m preserved. No permanent trading job loaded. See notes/live-continuation-evidence-2026-09-26/report.md.\n2026-09-27 continuation: owner now durably stops on real writer exit, failed attempts and observed stalls even after transient recovery. Focused/race tests and named store mutations retained; new real SQLite contention→failed INSERT→durable stop→retry→restart refusal drill passed. Standalone durable acknowledgment watchdog plus read-only hstore SEV1 adapter implemented; 17 tests and 5 named Python mutations passed. No independent service installed; actual primary/backup route identities, operator nonack escalation receipts, and real-exposure unreadable/full-store cleanup remain blockers. Healthchecks accepted explicit failure signal at 01:04:05Z for stopped monitored process/heartbeat source (HTTP200 exact OK); dashboard and new human acknowledgment not verified. See operations handoff and receipts under notes/active-continuation-2026-09-26.\nFinal candidate gate PASS and real changed-runtime GET-only 90.343s process /88.098s linked-active smoke completed with zero exchange non-GET, 88 fresh monitor slots,18 complete/fresh portfolio slots,3 actual heartbeat/deadman sends,no SEV1,clean SIGTERM exit. No harness or com.lip job left. Healthchecks accepted stopped/failure signal01:55:27Z; no dashboard/human ack claimed. Exact source/binary and all failed/passing receipts in notes/active-continuation-2026-09-26/report.md. External acknowledgment routes/scheduler and exposure/store-loss cleanup still blocked.",
+    "status": "blocked",
+    "priority": 1,
+    "issue_type": "task",
+    "assignee": "Hugh",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-11T19:54:38Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-27T02:02:08Z",
+    "started_at": "2026-09-26T21:23:36Z",
+    "labels": [
+      "cr1",
+      "operations"
+    ],
+    "dependencies": [
+      {
+        "issue_id": "lip-9vc",
+        "depends_on_id": "lip-8hn",
+        "type": "parent-child",
+        "created_at": "2026-08-11T13:02:39Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0,
+    "parent": "lip-8hn"
+  },
+  {
+    "id": "lip-9j3",
+    "title": "Pilot: attended balance-derived repeated-cycle test",
+    "description": "After an attended balance-derived first-fill stage, run a bounded attended S\u003c=12 repeated cycle using the same tested risk controls and a fresh selected-shard cap. Preserve external alerts, complete account-wide truth, placement/fill attribution, actual fees, cancellation, aggregate-capped reduction, reconciliation, restart/adoption and cleanup. End every stage with new adds stopped and fresh complete account-wide no-open-order/no-position evidence. A no-fill run is inconclusive for fill handling; incomplete flatness keeps the test attended. No continuous participation claim without CR-2 turnover evidence.",
+    "notes": "2026-09-26 historical prerequisite profile superseded: first writer is attended balance-derived sizing S\u003c=12 with first-fill stop and complete accountwide exit. Burn-in remains blocked by unobserved real placement/fill/reduction/restart and clean-exit evidence, not lack of user authorization.\nContinuation adds R2 operator preparation bound to exact first-stage config/identity, hashed artifacts and timestamped operator observations, plus fresh full-account/program/book/funding reads. Artifact contents remain explicitly unverified by software and require actual order/fill/fee/reduction/clean-exit/restart/alarm evidence. No financial stage executed. R2 stays blocked until actual first-fill and repeated-cycle evidence; runtime CR2 integration still unfinished. See notes/active-continuation-2026-09-26/operator-handoff.md.",
+    "status": "blocked",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-09T22:29:24Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-27T01:44:27Z",
+    "dependencies": [
+      {
+        "issue_id": "lip-9j3",
+        "depends_on_id": "lip-dwf",
+        "type": "blocks",
+        "created_at": "2026-08-09T15:30:34Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-9j3",
+        "depends_on_id": "lip-8hn.2",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:43Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-9j3",
+        "depends_on_id": "lip-8hn",
+        "type": "parent-child",
+        "created_at": "2026-08-09T17:58:22Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 2,
+    "dependent_count": 0,
+    "comment_count": 0,
+    "parent": "lip-8hn"
+  },
+  {
+    "id": "lip-dwf",
+    "title": "Attended balance-derived sizing and first-fill clean exit",
+    "description": "Run the attended first-owned-fill stage after q01 using one currently eligible market, the implemented selected_shard_balance capital source, fresh authenticated cash and complete account-wide exposure. The sizing rung allows S\u003c=12 with existing reserve, inventory and loss limits; there is no historical $2 or one-contract prerequisite.\n\nObserve actual order placement, structural post-only behavior, owned fill attribution and actual fees, durable first-fill WINDING_DOWN, complete cancellation, quantity-capped funded reduction, authoritative reconciliation, restart retaining the latch, and fresh complete account-wide no-open-order/no-position exit. A no-fill run is inconclusive for fill handling. Unknown or nonflat truth keeps the stage attended with cancellation/reduction available.\n\nPreserve exact binary/config/source identity, run/order/fill IDs, transition causes, anomaly and alarm evidence, fees, final complete exchange scope and restart result. This first-fill stage does not by itself prove repeated cycles, turnover or profitability. User live authorization is already present. Execution constraints of a particular assistant session are recorded separately from these behavioral prerequisites.",
+    "acceptance_criteria": "After code and read-only evidence, operator executes first sizing stage with authenticated selected-shard cap, S\u003c=12, existing reserve/inventory/loss stop, first-owned-fill durable stop, actual order/fill/reduce/restart observations and fresh complete account-wide no-orders/no-positions exit. No-fill stage inconclusive. See notes/attended-stages-2026-09-26.md.",
+    "notes": "2026-09-26 old S1/$2/one-contract prerequisite explicitly superseded by user. Balance-derived sizing path implemented and under candidate validation. No orders placed; actual sizing fills/reduction remain operator-executed evidence. Authorization is no longer the blocker.\nq01 and R1 now closed for archived exact v3 candidate; latest complete flat account 00:44:49Z, cash98.580200, no orders/positions, unchanged15 historical fills. DON remains active with current program/fees/depth re-read at00:45-46Z (q01-v3/program-final.json, market-book-series-final.json). User authorization is present. Current assistant system policy prohibits executing financial trading actions or launching an autonomous trader; this session restriction is not an added Bead prerequisite. No placement, fill, cancel, reduction, fee or live-exposure recovery was performed.\nContinuation prepares a distinct changed-code candidate and executable GET-only operator_stage helper: fresh program/book/fees/account scope, balance-derived S\u003c=12, exact source/binary/config identity, first-owned-fill stop, drain, retained-latch restart and fresh account truth. Actual financial execution remains barred by this assistant session despite existing user authorization; no orders/fills/reductions/restart-with-owned-fill evidence fabricated. Operator handoff: notes/active-continuation-2026-09-26/operator-handoff.md. Archived lip-q01/lip-8hn.1 remain exact-v3 evidence, not automatic qualification of new code.",
+    "status": "blocked",
+    "priority": 1,
+    "issue_type": "task",
+    "created_at": "2026-08-05T07:08:29Z",
+    "updated_at": "2026-09-27T01:44:27Z",
+    "dependencies": [
+      {
+        "issue_id": "lip-dwf",
+        "depends_on_id": "lip-q01",
+        "type": "blocks",
+        "created_at": "2026-08-05T00:08:59Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-dwf",
+        "depends_on_id": "lip-8hn.1",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:36Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-dwf",
+        "depends_on_id": "lip-8hn",
+        "type": "parent-child",
+        "created_at": "2026-08-11T13:02:49Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 2,
+    "dependent_count": 1,
+    "comment_count": 0,
+    "parent": "lip-8hn"
+  },
+  {
+    "id": "lip-0ns",
+    "title": "rest: Fills() walks all account history every call; backfill_h is client-side",
+    "description": "harness/rest/read.go Fills() does a COMPLETE cursor walk then filters by `since` client-side. That is correct per H-PAGE-1 clause 2 (a server-side early stop on timestamp would make the walk incomplete, and only a complete walk may replace state), and it is fine for the pilot: 15 fills on the account, one market, days. It does not scale — at a 5s poll over months the walk grows without bound. Options when it matters: (a) measure whether /portfolio/fills honours min_ts and whether a bounded read still counts as complete for its window, (b) keep a durable high-water mark in harness.db and walk only until the first already-seen fill_id, treating THAT as the completeness criterion. Neither is safe to assume; both need the V1.8a treatment (measure, record, then code).",
+    "notes": "2026-09-26 authenticated min_ts experiment over15 retained fills/one page matched inclusive boundaries at oldest and newest exact timestamp and +/-1s (nine probes); complete evidence account-selected.json. Small single-page retained history cannot establish boundary-tie/multi-page/concurrent-arrival or historical-retention completeness. Exhaustive production walk preserved; performance optimization remains deferred evidence work, not a blocker for this small account.\nContinuation measured unchanged15retainedfills/1page across fresh account probes23:44:25Z through00:20:38Z, no newfills; all actual q01 account walks fresh/complete. No growth pressure observed in this bounded interval. Authenticated min_ts boundary probes still single-page scope only; official live endpoint historical cutoff means terminal cursor is not automatically lifetime completeness. Exhaustive currentproduction walk retained; multi-page/tie/concurrent-arrival/historical reconciliation proof remains open.\nCurrent full live fill walk still15 records/1page, exact rows unchanged between00:18 preflight and00:44:49 final; no measured growth pressure this session. Repeated complete portfolio cadence passed q01. Inclusive min_ts boundary observations remain limited to this small retained dataset; official live fills endpoint has a historical cutoff, so terminal cursor is not lifetime completeness. No unsafe early-stop optimization introduced. Long history/cursor ties/concurrent arrivals remain unqualified.\n2026-09-27 01:06:07Z measurement: current full fills walk still 15 rows/1 page, 7,996 response bytes, 102.394537ms (~2.05% of 5s poll budget), identical rows to prior handoff. No material fill-history pressure observed; no production completeness/retention optimization made. Endpoint lifetime completeness remains unproven. Latency/response-byte instrumentation added to read-only accountcheck. Receipt notes/active-continuation-2026-09-26/fill-growth-measurement.json. Revisit only with measurable growth.\nFresh comparison01:56:14Z: still15 identical fills,1 full page,7996 bytes,103.314680ms (2.0663% of5s); no material current pressure and no production optimization. notes/active-continuation-2026-09-26/fill-growth-final.json.",
+    "status": "open",
+    "priority": 4,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-05T21:08:40Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-27T02:02:10Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  }
+]

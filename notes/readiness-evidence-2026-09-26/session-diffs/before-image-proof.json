@@ -1,0 +1,19 @@
+{
+  "go/cmd/harness/run.go": {
+    "before_sha256": "954ffbe0cffd21b449e7b8258f7a33eabefa769bd07f3ea7c9b7f3dafbe578a6",
+    "matches_start": true
+  },
+  "go/cmd/harness/seam_test.go": {
+    "before_sha256": "9792b83dee6d16cd2c60b898e271a9bd618958a9bfee52eca2528755a553d251",
+    "matches_start": true
+  },
+  "go/cmd/harness/gate_failure_test.go": {
+    "before_sha256": "3d07296128aa412696dbf0efd4370f0909b7e7c3bb809bc0c17c9865bd56459e",
+    "matches_start": true
+  },
+  "scripts/harness_negative_control.py": {
+    "before_sha256": "0bc52d72267667ee1cc8b2e8c5f55a054e1d316f498e44805aecc3693e54d796",
+    "matches_start": true,
+    "method": "Reconstructed HEAD plus pre-existing M-R-PROGRAMTYPE block; exact hash equals start-manifest."
+  }
+}

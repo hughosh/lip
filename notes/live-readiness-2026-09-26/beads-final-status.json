@@ -1,0 +1,98 @@
+[
+  {
+    "id": "lip-8hn",
+    "title": "EPIC CR-1: one-market continuous runtime",
+    "status": "blocked",
+    "updated_at": "2026-09-26T23:34:20Z",
+    "closed_at": null,
+    "close_reason": null
+  },
+  {
+    "id": "lip-wif",
+    "title": "Qualify selected-shard funding before client promotion",
+    "status": "closed",
+    "updated_at": "2026-09-26T23:32:45Z",
+    "closed_at": "2026-09-26T23:32:45Z",
+    "close_reason": "Authenticated selected-shard funding and account scope established; balance-derived cap implemented and observed; composed wrong-shard regression/mutation and candidate verification passed within one-market primary-account envelope."
+  },
+  {
+    "id": "lip-yca",
+    "title": "Revalidate LIP economics under July 30 terms and current per-series fees",
+    "status": "blocked",
+    "updated_at": "2026-09-26T22:59:39Z",
+    "closed_at": null,
+    "close_reason": null
+  },
+  {
+    "id": "lip-8hn.2",
+    "title": "R2 promotion gate: exact balance-derived repeated-cycle candidate",
+    "status": "blocked",
+    "updated_at": "2026-09-26T23:18:04Z",
+    "closed_at": null,
+    "close_reason": null
+  },
+  {
+    "id": "lip-8hn.1",
+    "title": "R1 promotion gate: exact balance-derived first-fill candidate",
+    "status": "blocked",
+    "updated_at": "2026-09-26T23:34:16Z",
+    "closed_at": null,
+    "close_reason": null
+  },
+  {
+    "id": "lip-9vc",
+    "title": "CR-1 operations: recovery, disk headroom, runbook, and alert escalation",
+    "status": "blocked",
+    "updated_at": "2026-09-26T23:34:17Z",
+    "closed_at": null,
+    "close_reason": null
+  },
+  {
+    "id": "lip-9j3",
+    "title": "Pilot: attended balance-derived repeated-cycle test",
+    "status": "blocked",
+    "updated_at": "2026-09-26T23:18:05Z",
+    "closed_at": null,
+    "close_reason": null
+  },
+  {
+    "id": "lip-dwf",
+    "title": "Attended balance-derived sizing and first-fill clean exit",
+    "status": "blocked",
+    "updated_at": "2026-09-26T22:59:37Z",
+    "closed_at": null,
+    "close_reason": null
+  },
+  {
+    "id": "lip-q01",
+    "title": "Read-only qualification: staged event-complete real process, zero writes",
+    "status": "blocked",
+    "updated_at": "2026-09-26T23:34:14Z",
+    "closed_at": null,
+    "close_reason": null
+  },
+  {
+    "id": "lip-1in",
+    "title": "CR-2: manage held non-selected markets across rotation",
+    "status": "open",
+    "updated_at": "2026-09-26T22:57:44Z",
+    "closed_at": null,
+    "close_reason": null
+  },
+  {
+    "id": "lip-0ns",
+    "title": "rest: Fills() walks all account history every call; backfill_h is client-side",
+    "status": "open",
+    "updated_at": "2026-09-26T23:32:39Z",
+    "closed_at": null,
+    "close_reason": null
+  },
+  {
+    "id": "lip-bup",
+    "title": "WebSocket recovery snapshots must target exactly the orderbook subscription",
+    "status": "closed",
+    "updated_at": "2026-09-26T23:32:42Z",
+    "closed_at": "2026-09-26T23:32:42Z",
+    "close_reason": "Snapshot command defect repaired; focused recovery tests, stable candidate gate and authenticated data-only snapshot/reconnect observation passed."
+  }
+]

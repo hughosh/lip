@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-27T18:27:07.875298+00:00",
+  "exit": 0,
+  "stdout": "",
+  "stderr": "",
+  "live": false,
+  "live_ok_present": false,
+  "target": "gui/501/com.lip.q01.cr2.attempt2.20260927",
+  "binary_sha256": "ecf16ea19c4f0e05dad8cce0c261d6e6f2204eeb8f9615913a79b54816b311c6",
+  "config_sha256": "c837f27045061a7d9ac908702f23ad037430518325851834fecd51ccba5a96de",
+  "plist_sha256": "cd74660881ad5f0f1988fcf9c9352d8eb19a4c1a6b9fea6f26a89d4dc3ddbf03",
+  "fresh_account_receipt": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-2026-09-27/account-after-failed-attempt.json"
+}

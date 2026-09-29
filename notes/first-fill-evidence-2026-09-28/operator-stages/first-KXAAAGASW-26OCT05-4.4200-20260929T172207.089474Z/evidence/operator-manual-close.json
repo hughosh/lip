@@ -1,0 +1,16 @@
+{
+  "reported_by": "Hugh (account owner), in the live Claude Code conversation, ~17:45Z 2026-09-29",
+  "statement": "I sold out of the position myself",
+  "exchange_evidence": {
+    "fill_id": "0723573e-e589-a158-f331-5f44a8010c85",
+    "order_id": "01a0ee44-7920-77d4-92d2-bae201f4f7c8",
+    "created_time": "2026-09-29T17:44:20.250464Z",
+    "price": "NO 0.96 (YES 0.04)",
+    "count": 12,
+    "is_taker": true,
+    "fee_cost": "0.032300",
+    "source": "account-after-drain.json fills; harness SEV1 FOREIGN_FILL a23 and POSITION_DRIFT a24"
+  },
+  "consequence": "The harness's funded reducer (YES 12 @3c, order 01a0ee36-82e8-75ed-b1d5-9be14d6ab639) never filled; the harness cancelled it (DELETE 200 reduced_by 12 at 17:44:25.1) and drained. Exposure was closed by the operator, not by the harness's reduction; the harness-reduction fill is NOT demonstrated by this stage.",
+  "net_pnl_usd": "-0.1523 (buy 12 NO @0.97 maker $0 fee; sell 12 NO @0.96 taker $0.0323 fee); funding 98.5802 -> 98.4279"
+}

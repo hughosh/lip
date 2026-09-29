@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strconv"
 )
 
 // caffeinatePath and caffeinateFlags are H-DEP-3, pinned.
@@ -157,6 +158,13 @@ func (p LaunchdPlan) Render() ([]byte, error) {
 		_, err := body.WriteString("\n\t<true/>")
 		return err
 	}
+	emitFalse := func() error {
+		if err := enc.Flush(); err != nil {
+			return err
+		}
+		_, err := body.WriteString("\n\t<false/>")
+		return err
+	}
 
 	if err := emitKey("Label"); err != nil {
 		return nil, err
@@ -177,14 +185,27 @@ func (p LaunchdPlan) Render() ([]byte, error) {
 		return nil, err
 	}
 
-	// KeepAlive true: "Restart on any exit, including exit 0" (H-DEP-2). Exit 0
-	// matters more than it looks -- a drained harness exits cleanly, and the
-	// thing that stops it coming straight back up is the durable latch on disk,
-	// not a supervisor that declined to restart it.
+	// Restart failed/crashed runs, but leave planned drains and supervised
+	// structural refusals stopped (H-DEP-2).
 	if err := emitKey("KeepAlive"); err != nil {
 		return nil, err
 	}
-	if err := emitTrue(); err != nil {
+	if err := enc.Flush(); err != nil {
+		return nil, err
+	}
+	if _, err := body.WriteString("\n\t<dict>"); err != nil {
+		return nil, err
+	}
+	if err := emitKey("SuccessfulExit"); err != nil {
+		return nil, err
+	}
+	if err := emitFalse(); err != nil {
+		return nil, err
+	}
+	if err := enc.Flush(); err != nil {
+		return nil, err
+	}
+	if _, err := body.WriteString("\n\t</dict>"); err != nil {
 		return nil, err
 	}
 
@@ -192,6 +213,12 @@ func (p LaunchdPlan) Render() ([]byte, error) {
 		return nil, err
 	}
 	if err := emitTrue(); err != nil {
+		return nil, err
+	}
+	if err := emitKey("ThrottleInterval"); err != nil {
+		return nil, err
+	}
+	if err := enc.Encode(plistEntry{XMLName: xml.Name{Local: "integer"}, Value: strconv.Itoa(60)}); err != nil {
 		return nil, err
 	}
 

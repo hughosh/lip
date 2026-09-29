@@ -1,0 +1,45 @@
+{
+  "scope": "local_evidence_only",
+  "local_requirements_met": false,
+  "elapsed": 136569627290,
+  "above_guard_non_get": 0,
+  "below_guard_non_get": 0,
+  "would_write_observations": 34802,
+  "historical_unclean_segments": 0,
+  "expected_monitor_slots": 137,
+  "observed_monitor_slots": 136,
+  "fresh_monitor_slots": 135,
+  "monitor_fresh_slot_ratio": 0.9854014598540146,
+  "expected_portfolio_slots": 28,
+  "observed_portfolio_slots": 27,
+  "fresh_complete_portfolio_slots": 27,
+  "portfolio_fresh_complete_slot_ratio": 0.9642857142857143,
+  "protocol_deviations": [],
+  "external_outstanding": [
+    "real-account, real-feed, launchd, and caffeinate provenance",
+    "operator provenance and timestamps for forced qualification actions",
+    "alert-provider receipt and proof that a missed-heartbeat alarm fired"
+  ],
+  "failures": [
+    {
+      "code": "q01_restart_missing",
+      "detail": "no linked historical unclean segment is followed by a linked resumed segment"
+    },
+    {
+      "code": "elapsed_too_short",
+      "detail": "linked monotonic active time 2m16.56962729s is below fixed q01 minimum 20m0s"
+    },
+    {
+      "code": "q01_monitor_slot_coverage",
+      "detail": "fresh monitor slots 135/137 are below fixed q01 minimum 99% (136 distinct slots observed)"
+    },
+    {
+      "code": "q01_portfolio_slot_coverage",
+      "detail": "fresh+complete portfolio slots 27/28 are below fixed q01 minimum 99% (27 distinct slots observed)"
+    },
+    {
+      "code": "q01_portfolio_bad_walk",
+      "detail": "q01 observed 1 stale and 1 incomplete portfolio walk(s)"
+    }
+  ]
+}

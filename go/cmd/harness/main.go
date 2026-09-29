@@ -48,20 +48,16 @@ import (
 	"lip/harness/num"
 )
 
-// The exit codes, and they are a contract rather than a convention: `launchd`
-// KeepAlive restarts this process, so what it exits WITH is what decides whether
-// a bad configuration restarts forever.
+// The exit codes are a supervisor contract: launchd restarts nonzero exits and
+// leaves zero exits stopped.
 const (
-	// exitDrained is the one clean end: a signal whose durable stop reached the
-	// disk, followed by an account that went flat with nothing of ours resting.
+	// exitDrained ends a planned, verified flat drain. Supervised structural
+	// refusals also use zero so an obsolete deployed argv does not retry forever.
 	exitDrained = 0
 	// exitFailed is an operational failure -- the store would not open, the
 	// credentials would not load, the startup walk's context ended.
 	exitFailed = 1
-	// exitRefused is the structural refusal above. It is DISTINCT from
-	// exitFailed because the two want opposite responses from a supervisor: a
-	// failure may be transient and worth restarting into, and a refusal is a
-	// statement that this invocation should not run at all.
+	// exitRefused preserves the manual CLI's structural-refusal status.
 	exitRefused = 2
 )
 
@@ -86,6 +82,7 @@ type cmdline struct {
 	doDeploy      bool
 	force         bool
 	live          bool
+	supervised    bool
 }
 
 // newFlagSet registers the command line and returns the destination it parses
@@ -94,8 +91,8 @@ type cmdline struct {
 // `errorHandling` is a parameter rather than the constant `main` wants because
 // `flag.ExitOnError` calls `os.Exit` from inside `Parse`, and a test that parsed
 // a bad argv under it would take the whole suite down instead of reporting.
-// Production passes `ExitOnError`; a test passes `ContinueOnError`. Nothing else
-// about the set differs between them.
+// Production uses ContinueOnError too, so a malformed deployed argv can be
+// classified as a terminal structural refusal.
 func newFlagSet(errorHandling flag.ErrorHandling) (*flag.FlagSet, *cmdline) {
 	fs := flag.NewFlagSet("harness", errorHandling)
 	var cl cmdline
@@ -120,6 +117,7 @@ func newFlagSet(errorHandling flag.ErrorHandling) (*flag.FlagSet, *cmdline) {
 	fs.BoolVar(&cl.doDeploy, "deploy", false, "render and install the launchd job, "+
 		"then exit. Prints the launchctl lines; does not run them")
 	fs.BoolVar(&cl.force, "force", false, "with -deploy, overwrite an installed plist")
+	fs.BoolVar(&cl.supervised, "supervised", false, "deployed launchd invocation; structural refusals stop the job")
 
 	// H-VER-1's FIRST key. A flag and never a JSON field: a config that armed
 	// itself would arm every process that read it, including one an operator
@@ -133,10 +131,16 @@ func newFlagSet(errorHandling flag.ErrorHandling) (*flag.FlagSet, *cmdline) {
 }
 
 func main() {
-	fs, cl := newFlagSet(flag.ExitOnError)
+	// The exact first argument is pinned by agentArgs. A later argument that
+	// happens to contain this spelling must not turn a parse error into success.
+	supervisedInvocation := len(os.Args) > 1 && os.Args[1] == "-supervised"
+	fs, cl := newFlagSet(flag.ContinueOnError)
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
-		os.Exit(exitRefused)
+		if errors.Is(err, flag.ErrHelp) {
+			os.Exit(exitDrained)
+		}
+		os.Exit(refusalStatus(supervisedInvocation))
 	}
 
 	if err := run(fs, cl.configPath, cl.qualification, cl.assess, cl.resume,
@@ -145,19 +149,24 @@ func main() {
 		fmt.Fprintf(os.Stderr, "harness: %v\n", err)
 		var ref *refusal
 		if errors.As(err, &ref) {
-			os.Exit(exitRefused)
+			os.Exit(refusalStatus(supervisedInvocation && cl.supervised))
 		}
 		os.Exit(exitFailed)
 	}
 	os.Exit(exitDrained)
 }
 
+func refusalStatus(supervised bool) int {
+	if supervised {
+		return exitDrained
+	}
+	return exitRefused
+}
+
 // refusal is a start this binary declines, as distinct from one that failed.
 //
-// The distinction is for `launchd`, not for the reader. `KeepAlive` restarts on
-// exit, so a configuration error that exited like a transient failure would be
-// retried forever at whatever cadence launchd chooses -- and a harness that
-// cannot start is one nobody is watching restart.
+// A supervised refusal maps to zero at the process boundary so launchd leaves
+// the job stopped. The same refusal retains status 2 for a manual invocation.
 type refusal struct{ err error }
 
 func (r *refusal) Error() string { return r.err.Error() }
@@ -229,6 +238,10 @@ func run(fs *flag.FlagSet, configPath, qualification, assess, resume, rung strin
 
 	c, err := loadConfig(configPath)
 	if err != nil {
+		var pathErr *os.PathError
+		if errors.As(err, &pathErr) {
+			return err
+		}
 		return &refusal{err: err}
 	}
 
@@ -245,7 +258,7 @@ func run(fs *flag.FlagSet, configPath, qualification, assess, resume, rung strin
 		// plist is written; this loads no exchange credential and makes no
 		// network request.
 		if _, err := productionAlertFactory(c.Paths.Env); err != nil {
-			return &refusal{err: err}
+			return err
 		}
 		// `rung` is carried into the deployed argv rather than dropped here.
 		// It used to be dropped, and the result was a plist for any S above
@@ -276,7 +289,14 @@ func run(fs *flag.FlagSet, configPath, qualification, assess, resume, rung strin
 	// refuses without touching the account.
 	makeAlerts, err := productionAlertFactory(c.Paths.Env)
 	if err != nil {
-		return &refusal{err: err}
+		return err
+	}
+
+	// Refuse a new run before exchange construction when the volumes holding
+	// the store, WAL, anomaly journal or qualification evidence have no recovery
+	// headroom. A running process uses the same check to request a durable stop.
+	if _, err := checkOperationsDisk(c.Paths.DB, c.Paths.AnomalyLog, qualification); err != nil {
+		return err
 	}
 
 	// H-DEP-5 begins here, before either the active-program GET below or the
@@ -284,7 +304,7 @@ func run(fs *flag.FlagSet, configPath, qualification, assess, resume, rung strin
 	// composition begins; until then this deferred close owns every error path.
 	heldLock, qrec, err := lockThenOpenQualification(qualification, c)
 	if err != nil {
-		return &refusal{err: err}
+		return err
 	}
 	defer func() {
 		if heldLock != nil {
@@ -319,17 +339,27 @@ func run(fs *flag.FlagSet, configPath, qualification, assess, resume, rung strin
 	if err != nil {
 		return err
 	}
+	// Resolve selected-shard capital after the authenticated exchange exists,
+	// while the instance lock is held and before rig construction or any write.
+	if c.CapitalSource == "selected_shard_balance" {
+		readDoer, err := clientDoerOver(ex.Doer, c, qrec)
+		if err != nil {
+			return err
+		}
+		c, err = resolveFundingCap(ctx, c, readDoer)
+		if err != nil {
+			return err
+		}
+	}
 
 	r, err := newRigWithLock(ctx, c, resume != "", ex, makeAlerts, anom, qrec, heldLock)
 	// Ownership transfers at function entry, including its refusal paths.
 	heldLock = nil
 	if err != nil {
-		// Every refusal `newRig` makes is structural: the lock is held, the
-		// latch is set, the store does not exist. None of them is retryable by
-		// restarting into the same state.
-		return &refusal{err: err}
+		return err
 	}
 
+	r.qualificationPath = qualification
 	if resume != "" {
 		fmt.Fprintf(os.Stderr, "harness: starting with the halt latch SET at %s, "+
 			"on the operator's authority: %s\n"+

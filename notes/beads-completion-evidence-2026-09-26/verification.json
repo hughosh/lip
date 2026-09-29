@@ -1,0 +1,331 @@
+{
+  "recorded_at": "2026-09-26T22:21:55.603081+00:00",
+  "session_start_manifest_at": "2026-09-26T20:29:14.852208+00:00",
+  "elapsed_minutes": 112.68,
+  "head": "f7e9571547bb948418b7a27adc9c30ae38314b00",
+  "closed": [
+    {
+      "id": "lip-048",
+      "title": "Implementer can end its turn waiting on a background task, and the loop scores it as success",
+      "closed_at": "2026-09-26T20:30:41Z"
+    },
+    {
+      "id": "lip-12d",
+      "title": "FromWire is dead code while its doc claims it guards 7.5 adoption",
+      "closed_at": "2026-09-26T20:30:40Z"
+    },
+    {
+      "id": "lip-1m5",
+      "title": "go/cmd/conform: the read-only conformance sweep",
+      "closed_at": "2026-09-26T20:31:39Z"
+    },
+    {
+      "id": "lip-2da",
+      "title": "F16: sustained inventory-stuck detection and alert",
+      "closed_at": "2026-09-26T22:20:43Z"
+    },
+    {
+      "id": "lip-2gn",
+      "title": "F9/F11 unproven: no detector or consumer found for reject-rate REDUCING or post_only-cross cross-check",
+      "closed_at": "2026-09-26T22:20:36Z"
+    },
+    {
+      "id": "lip-2v0",
+      "title": "H-CLOSE-1: stop adding when the ticker leaves the active LIP programme set",
+      "closed_at": "2026-09-26T22:20:45Z"
+    },
+    {
+      "id": "lip-34l",
+      "title": "Eight retained pilot release scenarios end to end",
+      "closed_at": "2026-09-26T22:21:40Z"
+    },
+    {
+      "id": "lip-357",
+      "title": "F5: H-FAIL-6's REST cross-check does not exist, and quarantine strands the reducer",
+      "closed_at": "2026-09-26T22:20:29Z"
+    },
+    {
+      "id": "lip-428",
+      "title": "SPEC PATCH: rename disconnect_halt_s -> disconnect_reduce_s (H-HALT-1 forbids the identifier)",
+      "closed_at": "2026-09-26T22:10:26Z"
+    },
+    {
+      "id": "lip-44s",
+      "title": "Programs() refuses volume-type incentive programmes; one active volume programme stops the harness booting",
+      "closed_at": "2026-09-26T22:20:25Z"
+    },
+    {
+      "id": "lip-4nb",
+      "title": "Three files cite harness-spec \u00a73.8, a section the spec does not contain",
+      "closed_at": "2026-09-26T20:34:46Z"
+    },
+    {
+      "id": "lip-52l",
+      "title": "[loop] parked units are re-picked after every restart -- skip set is in-memory only",
+      "closed_at": "2026-09-26T22:03:27Z"
+    },
+    {
+      "id": "lip-63b",
+      "title": "SPEC PATCH: reconcile stale post-red-team clauses",
+      "closed_at": "2026-09-26T22:10:28Z"
+    },
+    {
+      "id": "lip-732",
+      "title": "H-Q-4a: sustained gate-failure cancel and sweep",
+      "closed_at": "2026-09-26T22:20:17Z"
+    },
+    {
+      "id": "lip-7k2",
+      "title": "quote: cancel-group class when one (market,side) group mixes adding and reducing cancels",
+      "closed_at": "2026-09-26T20:48:15Z"
+    },
+    {
+      "id": "lip-7vq",
+      "title": "EPIC LOOP \u2014 the unattended two-agent orchestration harness itself",
+      "closed_at": "2026-09-26T20:30:43Z"
+    },
+    {
+      "id": "lip-7we",
+      "title": "Ping test fixture durability wait is sensitive to CPU contention",
+      "closed_at": "2026-09-26T20:31:42Z"
+    },
+    {
+      "id": "lip-8qv",
+      "title": "F15/H-ORD-9: live foreign orders do not reach the durable global stop",
+      "closed_at": "2026-09-26T22:20:32Z"
+    },
+    {
+      "id": "lip-9h1",
+      "title": "The scale rung permits an S that H-CAP-8 now refuses at its own described capital",
+      "closed_at": "2026-09-26T20:36:56Z"
+    },
+    {
+      "id": "lip-9r3",
+      "title": "check.py: mechanically enforce H-HALT-1 (no identifier named 'halt')",
+      "closed_at": "2026-09-26T22:09:07Z"
+    },
+    {
+      "id": "lip-b1r",
+      "title": "Scenario exchange replacing V2 (pilot-plan \u00a73)",
+      "closed_at": "2026-09-26T22:20:46Z"
+    },
+    {
+      "id": "lip-b7r",
+      "title": "F7: SleepDetector has no runtime caller, so host-sleep detection cannot fire in production",
+      "closed_at": "2026-09-26T22:20:39Z"
+    },
+    {
+      "id": "lip-bca",
+      "title": "Negative control attributes any suite flake to the mutation in flight",
+      "closed_at": "2026-09-26T22:20:24Z"
+    },
+    {
+      "id": "lip-cb0",
+      "title": "RED-TEAM FIRST (do not implement): depth-depletion requote hypothesis",
+      "closed_at": "2026-09-26T21:07:09Z"
+    },
+    {
+      "id": "lip-dgg",
+      "title": "Production invariants A1-A14: compose remaining enforcement",
+      "closed_at": "2026-09-26T22:20:48Z"
+    },
+    {
+      "id": "lip-ghg",
+      "title": "Route event-market cancellation by ticker across exchange shards",
+      "closed_at": "2026-09-26T22:20:20Z"
+    },
+    {
+      "id": "lip-ivz",
+      "title": "Revival: offline baseline, current program evidence, and bounded client repairs",
+      "closed_at": "2026-09-26T20:31:40Z"
+    },
+    {
+      "id": "lip-jw1",
+      "title": "F21 partial: the general deadline recompute after a clock step is unproven",
+      "closed_at": "2026-09-26T22:21:38Z"
+    },
+    {
+      "id": "lip-ld9",
+      "title": "Side is duplicated between harness/quote and harness/risk",
+      "closed_at": "2026-09-26T20:47:15Z"
+    },
+    {
+      "id": "lip-o7a",
+      "title": "\u00a715: restore 60s balance-poll telemetry",
+      "closed_at": "2026-09-26T22:21:35Z"
+    },
+    {
+      "id": "lip-one",
+      "title": "Shutdown composition and mutation ratchet",
+      "closed_at": "2026-09-26T22:20:27Z"
+    },
+    {
+      "id": "lip-q6r",
+      "title": "F8/H-QUE-3: 429 recovery with reserved P1 dispatch",
+      "closed_at": "2026-09-26T22:20:19Z"
+    },
+    {
+      "id": "lip-qhi",
+      "title": "requote_interval_s is a dead parameter and a spec inconsistency - record, do not implement",
+      "closed_at": "2026-09-26T20:30:45Z"
+    },
+    {
+      "id": "lip-r90",
+      "title": "F13 relay unproven: no composed test shows position drift reaching market REDUCING or a hard global stop",
+      "closed_at": "2026-09-26T22:20:38Z"
+    },
+    {
+      "id": "lip-t9u",
+      "title": "F12 partial: the \u00a77.2 UNKNOWN protocol has no composed final-consumer test",
+      "closed_at": "2026-09-26T22:21:36Z"
+    },
+    {
+      "id": "lip-xp3",
+      "title": "F10 unproven: no composed test shows insufficient_balance reaching a durable global WINDING_DOWN",
+      "closed_at": "2026-09-26T22:20:34Z"
+    },
+    {
+      "id": "lip-y3q",
+      "title": "Add a negative-control mutation for the gateStopped-restricted reducer aggregate check",
+      "closed_at": "2026-09-26T22:20:22Z"
+    },
+    {
+      "id": "lip-ytr",
+      "title": "F1-F3: disconnect and half-open composed recovery",
+      "closed_at": "2026-09-26T22:20:41Z"
+    },
+    {
+      "id": "lip-zpo",
+      "title": "\u00a712 inv_hard relay unproven: no composed test shows the market-scoped adding-off/reducer-live pair",
+      "closed_at": "2026-09-26T22:20:31Z"
+    }
+  ],
+  "blocked": [
+    {
+      "id": "lip-8hn",
+      "title": "EPIC CR-1: one-market continuous runtime",
+      "blocker": "2026-09-26: CR-1 continuous-operation acceptance is externally blocked on operator-reviewed q01, selected-shard/dedicated-account evidence, the attended S=1/$2 clean-exit canary, S=12 burn-in, supervision/assignment evidence and external alarm acknowledgement drill. Local actionable software work is being completed and verified in this session; no trading authority is inferred from code or Bead status."
+    },
+    {
+      "id": "lip-wif",
+      "title": "Qualify selected-shard funding before client promotion",
+      "blocker": "Session blocker (2026-09-26): current authoritative exchange_index and selected-shard balance semantics must be established with read-only conformance on a nominated market/account before implementing a trusted fundability rule. No current market/account nomination or authorized private evidence is available; aggregate balance is explicitly insufficient. Wrong-shard funding must remain an R1 blocker, never waived by local tests. Need operator-provided scoped balance/market routing responses with timestamps, then composed refusal regression and implementation; no account access or writes performed."
+    },
+    {
+      "id": "lip-yca",
+      "title": "Revalidate LIP economics under July 30 terms and current per-series fees",
+      "blocker": "Session blocker (2026-09-26): acceptance requires attributable realized LIP payouts and true private fills/fees/exit prices for a bounded eligible account plus chronological held-out comparison. Available public reward/program snapshots and historical frozen corpus cannot supply private payout attribution or observed net EV; prior revival already records updated terms. Need operator-provided timestamped private fills, reward credits, inventory/cash-transfer boundaries and executable exit observations. No speculative strategy, fabricated profitability, collector edits or account access."
+    },
+    {
+      "id": "lip-8hn.2",
+      "title": "R2 promotion gate: exact S=12 CR-1 candidate",
+      "blocker": "2026-09-26: Local repairs and scenario evidence use the updated faster workflow. External blockers are the R1/current-funding/read-only prerequisites, completed attended S=1 first-fill canary, real S=12 candidate/account/rung evidence, and lip-9vc external escalation drill. No S=12 or canary execution is authorized by local issue closure."
+    },
+    {
+      "id": "lip-8hn.1",
+      "title": "R1 promotion gate: exact S=1 first-writer candidate",
+      "blocker": "2026-09-26: The current faster workflow governs local code evidence; the full catalogue is not required. External blockers remain lip-wif (current selected-shard spendable funds), lip-q01 (attended real read-only operational evidence), dedicated-account/current-market preflight, and explicit operator authorization for the one-market S=1, one-contract, $2 attended canary with verified flat/no-open-orders exit. No live operation was performed."
+    },
+    {
+      "id": "lip-9vc",
+      "title": "CR-1 operations: recovery, disk headroom, runbook, and alert escalation",
+      "blocker": "2026-09-26: Implemented tested startup and periodic 1 GiB operational headroom refusal/durable-stop checks, preserving reducer and observation paths; added notes/cr1-operations-runbook.md with normal start, drain, latch, corrupt store, growth, heartbeat and SEV1 escalation procedures. External blocker remains: no configured primary/backup acknowledgement drill receipts demonstrating missed dead-man check-in and unacknowledged SEV1 escalation. This session has no authorization to operate those live/provider paths. Local gate evidence is recorded in notes/beads-completion-evidence-2026-09-26; a passing local fake cannot satisfy that operator drill."
+    },
+    {
+      "id": "lip-9j3",
+      "title": "Pilot: attended S=12 burn-in",
+      "blocker": "Session blocker (2026-09-26): attended S=12 burn-in depends on the agreed S=1 one-market/one-contract/$2 canary and R2 evidence. Operator authorization, account truth and completed clean exit are unavailable in this local session; do not skip the canary or infer authorization from local checks."
+    },
+    {
+      "id": "lip-dwf",
+      "title": "Attended S=1 first-fill canary",
+      "blocker": "Session blocker (2026-09-26): attended live execution is outside routine issue closure. Requires completed q01 and repaired R1 code/funding dependencies, then explicit operator authorization and attendance for one market, S=1, one contract, $2 cap, first-fill stop and verified zero open orders/positions at end. No writes or arming performed."
+    },
+    {
+      "id": "lip-q01",
+      "title": "Read-only qualification: 4-6h real process, zero writes",
+      "blocker": "Session blocker (2026-09-26): acceptance requires an operator-run 4\u20136h real-account process, forced restart/disconnect and externally observed dead-man alarm. No agent executes this issue by its own contract; this session authorizes repository issue repair, not account access or launch. Old August ticker/candidate are stale. Operator must nominate current ticker/config/binary, perform the window and preserve zero-write/clean-exit evidence."
+    },
+    {
+      "id": "lip-1in",
+      "title": "CR-2: manage held non-selected markets across rotation",
+      "blocker": "Session blocker (2026-09-26): explicitly future CR-2, requires a new selection/rotation operating-envelope decision; issue forbids pulling multi-market management into current one-market CR-1 without that decision. Current user forbids speculative strategy expansion. Need approved managed-market/rotation semantics and account/market envelope; preserve dedicated-account refusal rather than silently expand trading scope."
+    },
+    {
+      "id": "lip-0ns",
+      "title": "rest: Fills() walks all account history every call; backfill_h is client-side",
+      "blocker": "Session blocker (2026-09-26): issue requires measured min_ts/window completeness or a proved durable high-water contract before changing exhaustive fills walks. Existing account has a small bounded historical sample; no authorized authenticated conformance experiment or complete timestamp-boundary/page fixture establishes current behavior. Preserve complete client-side backfill and require operator-provided/current read-only contract evidence before optimization."
+    }
+  ],
+  "open_count": 0,
+  "in_progress_count": 0,
+  "deferred_count": 0,
+  "ready_count": 0,
+  "verification": {
+    "candidate_receipt": "loop/gates-out/20260926T215920445758Z-9c202850/receipt.json",
+    "candidate_seconds": 415.063,
+    "candidate_source": "1ea60b46869f630138e990bbca9163a993cbcd02dd41993cd4cdc460ffd1cec2",
+    "affected_controls_receipt": "notes/beads-completion-evidence-2026-09-26/negative-control-20260926T220734862926Z/receipt.json",
+    "affected_seconds": 615.629,
+    "initial_affected_run_status": "FAIL",
+    "repaired_control_receipt": "notes/beads-completion-evidence-2026-09-26/negative-control-20260926T221931156437Z/receipt.json",
+    "repair_seconds": 12.338,
+    "affected_controls": 44,
+    "affected_source": "a29b26e2624a06c37138d7c74f92968f8185705c7521d559005b7151778a7bec",
+    "final_static_receipt": "loop/gates-out/20260926T221948805112Z-f93096d1/receipt.json",
+    "final_source": "08be5e64603960220e62daccb96471b136d4b59257cfc2d1b439246d3f42010b",
+    "safety_controls": 16,
+    "full_catalogue_run": false,
+    "post_candidate_changes": "Spec/checker edits plus bounded receive in one Go test and a narrowed M-F2 mutation; no production Go/runtime changes. Retained patch; 4 checker tests, fresh single-control baseline/catch and final static gate pass. Unchanged integration/race/safety evidence reused.",
+    "runner_tests": "24 tests passed on frozen inputs in runner-frozen-tests.log; current catalogue anchors and classifier/command tests also pass in final gate.",
+    "preserved_failures": [
+      "candidate-gate.log: missing confidence trailers",
+      "candidate-gate-2.log: F5 fixture blocked on obsolete direct token send; fixed fixture to offerToken",
+      "candidate-gate-3.log: signal composition exposed duplicate accounting of listed in-flight order; production deduplication and deterministic regression added",
+      "Focused signal race exposed concurrent DrainTracker access; mutex and concurrent regression added; final race suite passes",
+      "runner-final-tests.log: source changed during preflight; invalid result retained, subsequently rerun on frozen inputs",
+      "affected-controls.log: M-F2 suppressed initial token and hung an unbounded test receive; targeted test process terminated, recorded inconclusive, test bounded and mutation narrowed; only repaired control rerun"
+    ]
+  },
+  "parallel_work": {
+    "description": "Successive bounded Luna/Sol/Astra assignments for triage, contained subsystem changes, integration-failure diagnosis, regressions and final inventories. Shared owner integration stayed with root; expensive verification serialized. Final deferred work was also reassessed and completed.",
+    "usage_tokens": null,
+    "counterfactual_time_saved_seconds": null,
+    "limitation": "Per-agent token usage and a serial baseline were unavailable; no numerical savings claimed."
+  },
+  "preservation": {
+    "starting_paths": 340,
+    "unchanged": 293,
+    "changed": 47,
+    "missing": 0,
+    "new": 52,
+    "frozen_subsystems": {
+      "go/core": {
+        "starting_count": 10,
+        "unchanged_count": 10,
+        "changed_paths": [],
+        "missing_paths": []
+      },
+      "go/feed": {
+        "starting_count": 5,
+        "unchanged_count": 5,
+        "changed_paths": [],
+        "missing_paths": []
+      },
+      "go/store": {
+        "starting_count": 3,
+        "unchanged_count": 3,
+        "changed_paths": [],
+        "missing_paths": []
+      },
+      "go/cmd/rig": {
+        "starting_count": 2,
+        "unchanged_count": 2,
+        "changed_paths": [],
+        "missing_paths": []
+      }
+    }
+  },
+  "live_operations": false,
+  "committed_or_pushed": false
+}

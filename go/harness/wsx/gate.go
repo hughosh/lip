@@ -51,6 +51,33 @@ type ReconcileToken struct {
 // Valid reports whether the token was issued by a Gate. The zero value is not.
 func (t ReconcileToken) Valid() bool { return t.valid }
 
+// CrossCheckToken identifies one outstanding F5 REST cross-check.
+//
+// It is opaque for the same reason ReconcileToken is, and against a sharper
+// race. The cross-check is a REST read issued because a book went silent; it
+// completes tens or hundreds of milliseconds later, and in that window the
+// websocket may have delivered a snapshot, the socket may have cycled, or an
+// earlier check may already have replaced the book. A result carrying a token
+// from before any of those describes a book that no longer exists -- and F5's
+// two outcomes are "reset the staleness clock" and "replace the book and reduce
+// the market", so crediting a stale one either blesses a book nobody checked or
+// overwrites a fresh book with an older one. A caller that could construct a
+// token could do both.
+type CrossCheckToken struct {
+	requestedAt time.Duration
+	ticker      string
+	gen         uint64
+	seq         uint64
+	valid       bool
+}
+
+// Valid reports whether the token was issued by a Gate. The zero value is not.
+func (t CrossCheckToken) Valid() bool { return t.valid }
+
+// Ticker is the market this check was issued for. It is exposed because the
+// caller has to know which book to read; it authorises nothing on its own.
+func (t CrossCheckToken) Ticker() string { return t.ticker }
+
 // marketGate is one market's half of the gate.
 type marketGate struct {
 	// snapGen is the connection generation that delivered this market's most
@@ -87,7 +114,75 @@ type marketGate struct {
 	// and a market that silently resumed quoting on reconnect would be the
 	// harness deciding that for itself.
 	reducing bool
+
+	// --- F5's cross-check episode -------------------------------------------
+
+	// quietHold is F5's TEMPORARY closure, and it is deliberately not
+	// `quarantined`.
+	//
+	// A market whose feed has gone silent past `quiet_s` is one we are about to
+	// ask the exchange about over REST, and until the answer lands we do not
+	// know whether its book is stale or merely quiet. Placement stops for the
+	// length of that round trip -- `Actionable` reads this -- because an order
+	// priced from a book we have just decided to check is an order priced from
+	// evidence we have said we do not trust.
+	//
+	// It is a separate field because AGREEMENT clears it and must clear NOTHING
+	// ELSE: a market carrying a sequence-gap quarantine or a sticky REDUCING
+	// from an earlier outage stays exactly as closed as it was, and a single
+	// `quarantined` flag would have made a successful cross-check silently lift
+	// both.
+	quietHold bool
+	// phase is where this market's F5 episode has got to. See quietPhase.
+	phase quietPhase
+	// checkSeq identifies the outstanding cross-check WITHIN a generation. A
+	// result carrying an older seq describes a book we have already replaced or
+	// re-snapshotted, and crediting it would reset the staleness clock of a book
+	// it never looked at.
+	checkSeq uint64
+	// checkTries counts the requests made in THIS episode, and it is what bounds
+	// the retry. An unanswerable endpoint must not produce one request per owner
+	// tick for the life of the process.
+	checkTries  int
+	f5          bool
+	f5At        time.Duration
+	f5Escalated bool
+	restAt      time.Duration
+	restOK      bool
+	refreshAt   time.Duration
 }
+
+// quietPhase is where one market's F5 episode has got to.
+//
+// It exists so that "one outstanding check" is a state and not a convention. A
+// bare boolean would have to mean both "a check is in flight" and "this episode
+// is over", and the two behave oppositely at the next Tick: the first must not
+// re-request, and the second must not re-request EVER, and a single flag that
+// gets cleared on a result makes the settled case re-request on the following
+// tick forever.
+type quietPhase uint8
+
+const (
+	// quietNone is no episode, or an episode whose next request is due.
+	quietNone quietPhase = iota
+	// quietChecking is one cross-check outstanding.
+	quietChecking
+	// quietSettled is an episode that has been decided against the book: it has
+	// already quarantined and reduced, so there is nothing left for another
+	// round trip to establish.
+	quietSettled
+)
+
+// quietCheckMaxTries bounds F5's retry within one silent episode.
+//
+// Three, and small on purpose. The retry is for a transport that dropped one
+// answer, not for an endpoint that is down: a shared DNS, routing, TLS or
+// credential failure takes REST out along with the websocket (H-FAIL-2), and in
+// that world every further request is a request nobody will answer. What the
+// harness does when the tries run out is what a market whose book cannot be
+// verified deserves -- quarantine and REDUCING -- and it should reach that in
+// seconds rather than after an unbounded argument with the network.
+const quietCheckMaxTries = 3
 
 // Gate is A13, evaluated: "no placement decision is taken from a book that is
 // quarantined or stale, or from portfolio truth older than truth_max_age_s".
@@ -100,6 +195,9 @@ type Gate struct {
 	p       cfg.Params
 	tickers []string
 	markets map[string]*marketGate
+	// universeRevision matches Supervisor's revision for a subscribed socket.
+	universeRevision uint64
+	dynamicUniverse  bool
 
 	// gen advances on every connection. Everything the previous connection
 	// established is identified by an older generation and is therefore
@@ -118,7 +216,7 @@ type Gate struct {
 	truthOK  [truthCount]bool
 }
 
-// NewGate builds the gate for a fixed market set.
+// NewGate builds the gate for an initial market set.
 //
 // It starts DISCONNECTED and non-actionable. That is not a formality: a gate
 // that defaulted to open would authorise placement in the window between
@@ -129,9 +227,10 @@ func NewGate(tickers []string, p cfg.Params) (*Gate, error) {
 		return nil, err
 	}
 	g := &Gate{
-		p:       p,
-		tickers: append([]string(nil), tickers...),
-		markets: make(map[string]*marketGate, len(tickers)),
+		p:                p,
+		tickers:          append([]string(nil), tickers...),
+		markets:          make(map[string]*marketGate, len(tickers)),
+		universeRevision: 1,
 	}
 	for _, t := range tickers {
 		g.markets[t] = &marketGate{}
@@ -141,6 +240,69 @@ func NewGate(tickers []string, p cfg.Params) (*Gate, error) {
 
 // Tickers returns the market set, in subscription order.
 func (g *Gate) Tickers() []string { return append([]string(nil), g.tickers...) }
+
+// AddMarkets extends the managed universe without retiring held markets.
+// The owner must pass the same additions to Supervisor.AddMarkets. Any actual
+// addition retires the current generation immediately: frames and REST reads
+// from the old subscription cannot certify the expanded universe. The new
+// markets remain closed until a new connection snapshots them and all three
+// portfolio truths reconcile under that connection's token. An addition
+// returns RefreshUniverse's token; no addition returns an invalid one.
+func (g *Gate) AddMarkets(now Stamp, tickers []string) (ReconcileToken, error) {
+	if err := ValidateTickers(tickers); err != nil {
+		return ReconcileToken{}, err
+	}
+	added := false
+	for _, ticker := range tickers {
+		if _, ok := g.markets[ticker]; ok {
+			continue
+		}
+		g.markets[ticker] = &marketGate{lastFrame: now.Mono}
+		g.tickers = append(g.tickers, ticker)
+		added = true
+	}
+	if added {
+		return g.RefreshUniverse(now), nil
+	}
+	return ReconcileToken{}, nil
+}
+
+// RefreshUniverse retires all book and portfolio authority when the owner
+// rebuilds core for changed target sizes while the ticker set is unchanged.
+// The owner must call Supervisor.RefreshUniverse in the same owner turn.
+//
+// The returned token is for the new generation, and the owner relays it to the
+// poller as it relays ApplyDisconnect's. The gate is left disconnected, so a
+// failed re-dial reports a disconnect that mints nothing; without this token
+// the poller keeps the retired one and every read is discarded as stale until
+// a connection succeeds. Like the disconnect token, it cannot make anything
+// actionable: that needs a new connection and its snapshot.
+func (g *Gate) RefreshUniverse(now Stamp) ReconcileToken {
+	g.gen++
+	g.universeRevision++
+	g.dynamicUniverse = true
+	g.connected = false
+	for _, m := range g.markets {
+		m.clearQuietEpisode()
+		m.lastFrame = now.Mono
+	}
+	return ReconcileToken{gen: g.gen, valid: true}
+}
+
+// UniverseRevision identifies the market set, independently of socket
+// generations. Events from an earlier subscription must be dropped before
+// their frame handler reaches core.
+func (g *Gate) UniverseRevision() uint64 { return g.universeRevision }
+
+// AcceptsUniverse reports whether an event belongs to the current market set.
+func (g *Gate) AcceptsUniverse(revision uint64) bool {
+	// Existing single-market callers construct Event values without a
+	// revision. That legacy zero is accepted only before dynamic turnover.
+	if revision == 0 && !g.dynamicUniverse {
+		return true
+	}
+	return revision == g.universeRevision
+}
 
 // Generation is the current connection generation. Exposed for diagnostics and
 // for tests that need to assert a token was invalidated rather than merely
@@ -179,6 +341,26 @@ type ConnectEffects struct {
 // be equivalent and would have a failure mode this does not: a field that
 // someone later forgets to clear.
 func (g *Gate) OnConnect(now Stamp) ConnectEffects {
+	if g.dynamicUniverse {
+		// After expansion the caller must use the revision-bearing event API.
+		// A buffered connection event for the prior subscription can no
+		// longer certify any book.
+		return ConnectEffects{}
+	}
+	return g.onConnect(now)
+}
+
+// OnConnectForUniverse accepts only a connection carrying this gate's current
+// subscription revision. The owner should check every EventFrame with
+// AcceptsUniverse before passing its bytes to core or ApplyFrame.
+func (g *Gate) OnConnectForUniverse(now Stamp, revision uint64) (ConnectEffects, bool) {
+	if !g.AcceptsUniverse(revision) {
+		return ConnectEffects{}, false
+	}
+	return g.onConnect(now), true
+}
+
+func (g *Gate) onConnect(now Stamp) ConnectEffects {
 	g.gen++
 	g.connected = true
 	g.downReduced = false
@@ -189,6 +371,13 @@ func (g *Gate) OnConnect(now Stamp) ConnectEffects {
 		// reconnect.
 		m.lastFrame = now.Mono
 		m.quietPinged = false
+		// So does F5's episode. Any cross-check outstanding across the gap was
+		// issued about the previous connection's book, and the generation bump
+		// above has already retired its token; clearing the phase is what lets a
+		// market that goes silent on THIS connection ask again.
+		m.clearQuietEpisode()
+		m.f5 = false
+		m.restOK = false
 	}
 	return ConnectEffects{
 		Token:      ReconcileToken{gen: g.gen, valid: true},
@@ -350,6 +539,24 @@ type FrameEffects struct {
 // reduces it on the existing path rather than on a second, parallel one.
 func (g *Gate) ApplyFrame(info FrameInfo, handle func() error,
 	now Stamp) FrameEffects {
+	if g.dynamicUniverse {
+		return FrameEffects{}
+	}
+	return g.applyFrame(info, handle, now)
+}
+
+// ApplyFrameForUniverse refuses old subscribed frames before their handler can
+// mutate core's books. It is required after the first dynamic addition.
+func (g *Gate) ApplyFrameForUniverse(info FrameInfo, handle func() error,
+	now Stamp, revision uint64) FrameEffects {
+	if !g.AcceptsUniverse(revision) || !g.connected {
+		return FrameEffects{}
+	}
+	return g.applyFrame(info, handle, now)
+}
+
+func (g *Gate) applyFrame(info FrameInfo, handle func() error,
+	now Stamp) FrameEffects {
 
 	var eff FrameEffects
 	eff.Anomalies = append(eff.Anomalies, info.Anomalies...)
@@ -416,10 +623,17 @@ func (g *Gate) ApplyFrame(info FrameInfo, handle func() error,
 	case FrameSnapshot:
 		m.lastFrame = now.Mono
 		m.quietPinged = false
+		// An ACCEPTED book frame ends the silence, so it ends F5's episode and
+		// invalidates any cross-check outstanding for it. A REST answer that
+		// lands after this describes the book as it was BEFORE this frame, and
+		// F5 would either reset a staleness clock this frame has already reset
+		// or replace a fresh book with an older one.
+		m.clearQuietEpisode()
 		// The snapshot is what lifts the quarantine, and only for the
 		// connection that delivered it -- and only now that core has it.
 		m.snapGen = g.gen
 		m.quarantined = false
+		g.finishF5(m)
 		// A snapshot is a whole book, so it ESTABLISHES the mark clock
 		// (H-HALT-5). This is reachable only past `handle()` returning nil,
 		// which is the one moment a frame is known to have been accepted.
@@ -428,6 +642,12 @@ func (g *Gate) ApplyFrame(info FrameInfo, handle func() error,
 	case FrameDelta:
 		m.lastFrame = now.Mono
 		m.quietPinged = false
+		// The same invalidation a snapshot performs, and for the same reason:
+		// the market is talking again, which is the whole of the condition F5
+		// opened its episode on.
+		if !m.f5 {
+			m.clearQuietEpisode()
+		}
 		// A delta REFRESHES the mark, and only against a book this generation
 		// has already snapshotted. An increment applied to a book we never
 		// received in full does not make the resulting price current; it makes
@@ -460,6 +680,22 @@ func (g *Gate) ApplyFrame(info FrameInfo, handle func() error,
 // refuses is not publishing anything we can use, and its silence clock must
 // keep running so F5 reduces it on the existing path rather than on a second,
 // parallel one.
+// clearQuietEpisode ends this market's F5 episode and invalidates whatever
+// cross-check it had outstanding.
+//
+// It clears the TEMPORARY closure and nothing else. `quarantined`, `snapGen`,
+// `pnlMarkGen` and the sticky `reducing` are all untouched: they record
+// conclusions reached about the book and about the risk, and the fact that a
+// market has started talking again is not evidence against any of them.
+func (m *marketGate) clearQuietEpisode() {
+	m.phase = quietNone
+	m.quietHold = false
+	m.checkTries = 0
+	// The seq is NOT reset. It only ever advances, so a token issued before this
+	// call can never be matched by a later episode's -- which is the property
+	// that makes a late REST answer unusable rather than merely unlikely.
+}
+
 func quarantineRejectedBook(m *marketGate, kind FrameKind) {
 	if m == nil || !isBookFrame(kind) {
 		return
@@ -530,6 +766,9 @@ func (g *Gate) noteTruth(kind Truth, tok ReconcileToken, now Stamp) bool {
 	g.truthGen[kind] = g.gen
 	g.truthAt[kind] = now.Mono
 	g.truthOK[kind] = true
+	for _, m := range g.markets {
+		g.finishF5(m)
+	}
 	return true
 }
 
@@ -554,6 +793,11 @@ func (g *Gate) TruthAge(kind Truth, now Stamp) time.Duration {
 //     from a book nothing is updating;
 //   - not quarantined, which covers the fractional-price and sequence-gap
 //     cases;
+//   - not under F5's quiet hold, which is the window between a book going
+//     silent past `quiet_s` and the REST cross-check answering. The book has
+//     not been shown wrong yet, and it has not been shown right either, and
+//     the one thing that must not happen in between is a new order priced from
+//     it;
 //   - a snapshot from THIS connection, so a book carried across a gap cannot
 //     authorise anything (H-FAIL-5);
 //   - positions, orders AND fills each reconciled after this connection began,
@@ -570,7 +814,7 @@ func (g *Gate) TruthAge(kind Truth, now Stamp) time.Duration {
 // CANCELLING IS NOT GATED BY THIS. See CancelPermitted.
 func (g *Gate) Actionable(ticker string, now Stamp) bool {
 	m := g.markets[ticker]
-	if m == nil || !g.connected || m.quarantined {
+	if m == nil || !g.connected || m.quarantined || m.quietHold || m.f5 {
 		return false
 	}
 	if m.snapGen != g.gen {
@@ -585,6 +829,82 @@ func (g *Gate) Actionable(ticker string, now Stamp) bool {
 		}
 	}
 	return true
+}
+
+// BookCurrent reports whether this market's BOOK is the one THIS connection
+// published: connected, not quarantined, and snapshotted on this generation.
+//
+// It is deliberately NOT `Actionable`, and the difference is the whole reason it
+// exists. `Actionable` answers "may a PLACEMENT decision be taken", which folds
+// in H-ORD-5's reconciliation and H-FAIL-4's `truth_max_age_s`. This answers a
+// narrower question -- "is the depth I am about to judge the depth this
+// connection published" -- and H-Q-4a needs exactly that one, because it times a
+// continuous gate failure from BOOK EVIDENCE.
+//
+// Conflating the two fails in both directions, and the second is the dangerous
+// one:
+//
+//   - A portfolio endpoint that has been erroring for a minute makes `Actionable`
+//     false while the socket keeps delivering perfectly good depth. Charging that
+//     interval to the qualifying walk would start an H-Q-4a episode -- and cancel
+//     an adding order -- for a reason that has nothing to do with the book.
+//   - Worse, a truth outage would CLEAR one. If book evidence stopped arriving in
+//     the gate's judgement the moment the positions walk went stale, the episode's
+//     clock would stop with it, and the adding order H-Q-4a exists to retire would
+//     rest through BOTH conditions at once -- the one interval in which nothing is
+//     watching either the book or the position.
+//
+// A13 and H-FAIL-4 are not weakened by this: DISPATCH authority is still
+// `Actionable`'s, and this predicate authorises nothing. It only says which book
+// the caller is looking at.
+//
+// It reads no clock. Every input is a generation comparison or a flag, so a
+// clock step (F21) cannot move the answer, and nothing here can be aged out.
+func (g *Gate) BookCurrent(ticker string) bool {
+	m := g.markets[ticker]
+	if m == nil || !g.connected || m.quarantined {
+		return false
+	}
+	// Zero is never the current generation -- `NewGate` starts there and
+	// `quarantineRejectedBook` and `NoteSeqGap` both clear the field back to it
+	// -- so "never snapshotted" and "the snapshot was revoked" answer the same
+	// way without a second flag that has to be kept in step with this one.
+	return m.snapGen == g.gen
+}
+
+// F5Quarantined includes the interval after a replacement snapshot but before
+// all portfolio endpoints have reconciled. The owner keeps adding off throughout.
+func (g *Gate) F5Quarantined(ticker string) bool {
+	m := g.markets[ticker]
+	return m != nil && g.connected && m.f5
+}
+
+// RESTReducerActionable authorizes only the independently retained REST source.
+// The caller must still enforce reducing role, inventory and every ordinary cap.
+func (g *Gate) RESTReducerActionable(ticker string, now Stamp) bool {
+	m := g.markets[ticker]
+	if m == nil || !g.connected || !m.f5 || !m.restOK || now.Mono < m.restAt || now.Mono-m.restAt > g.p.Quiet {
+		return false
+	}
+	for k := Truth(0); k < truthCount; k++ {
+		if !g.truthOK[k] || g.truthGen[k] != g.gen || now.Mono < g.truthAt[k] || now.Mono-g.truthAt[k] > g.p.TruthMaxAge {
+			return false
+		}
+	}
+	return true
+}
+
+func (g *Gate) finishF5(m *marketGate) {
+	if !m.f5 || m.quarantined || m.snapGen != g.gen {
+		return
+	}
+	for k := Truth(0); k < truthCount; k++ {
+		if !g.truthOK[k] || g.truthGen[k] != g.gen || g.truthAt[k] <= m.f5At {
+			return
+		}
+	}
+	m.f5, m.restOK = false, false
+	m.clearQuietEpisode()
 }
 
 // PnLMarkState is what the gate can say about one market's H-HALT-5 mark.
@@ -663,6 +983,23 @@ type TickEffects struct {
 	// Stop requests global WINDING_DOWN. Nothing in this file sets it; it
 	// exists so the caller's effect handling is uniform across the package.
 	Stop bool
+	// CrossCheck is F5's REST reads to issue, at most one per market and at
+	// most one outstanding at a time.
+	//
+	// It is a REQUEST and not an action, for the reason every other effect in
+	// this package is: this type reads no clock, performs no I/O and starts no
+	// goroutine, and a gate that could issue an HTTP request would be a gate the
+	// owner goroutine blocks inside.
+	CrossCheck []CrossCheckRequest
+}
+
+// CrossCheckRequest is one market's F5 read, addressed and bound to the
+// connection that asked for it.
+type CrossCheckRequest struct {
+	Ticker string
+	Token  CrossCheckToken
+	// Refresh retains independent reducer depth; it never compares the quarantined book.
+	Refresh bool
 }
 
 // Tick runs the ONE clock-driven check this type owns: per-market silence (F5).
@@ -687,32 +1024,288 @@ func (g *Gate) Tick(now Stamp) TickEffects {
 	if g.connected {
 		for _, t := range g.tickers {
 			m := g.markets[t]
+			if m.f5 {
+				if !m.f5Escalated && now.Mono-m.f5At > g.p.DisconnectReduce {
+					m.f5Escalated = true
+					eff.Anomalies = append(eff.Anomalies, risk.Anomaly{Class: "BOOK_QUARANTINE_SUSTAINED", Sev: risk.SEV1, Ticker: t, Text: "F5 quarantine exceeded disconnect_halt_s; reducer remains live only from fresh REST depth"})
+				}
+				if m.phase != quietChecking && now.Mono-m.refreshAt >= g.p.Quiet {
+					m.phase = quietChecking
+					m.checkSeq++
+					m.refreshAt = now.Mono
+					eff.CrossCheck = append(eff.CrossCheck, CrossCheckRequest{Ticker: t, Token: CrossCheckToken{ticker: t, gen: g.gen, seq: m.checkSeq, valid: true, requestedAt: now.Mono}, Refresh: true})
+				}
+				continue
+			}
 			if now.Mono-m.lastFrame <= g.p.Quiet {
 				continue
 			}
-			eff.Resnapshot = true
-			if !m.reducing {
-				m.reducing = true
-				eff.Reduce = append(eff.Reduce, t)
+			if m.quarantined {
+				// A market that is ALREADY closed for another reason -- a book
+				// frame core refused, a subscription-wide sequence gap -- has no
+				// placement licence for a cross-check to protect, and its
+				// silence means the resnapshot that would repair it has not
+				// arrived either. There is nothing for F5 to establish here:
+				// proving the REST book agrees with a book we have already
+				// decided not to trust would license nothing, and the silence
+				// itself is now the wedged feed. This is the pre-cross-check
+				// behaviour, kept exactly, for exactly this case.
+				eff.Resnapshot = true
+				if !m.reducing {
+					m.reducing = true
+					eff.Reduce = append(eff.Reduce, t)
+				}
+				g.pingQuiet(m, t, now, &eff, "the book was already quarantined, "+
+					"so there is nothing a cross-check could re-license; the "+
+					"market is sent to REDUCING")
+				continue
 			}
-			m.quarantined = true
-			if !m.quietPinged {
-				m.quietPinged = true
-				eff.Anomalies = append(eff.Anomalies, risk.Anomaly{
-					Class: "BOOK_QUIET", Sev: risk.SEV2, Ticker: t,
-					Text: fmt.Sprintf("no book frame for %v while the socket "+
-						"is healthy, past quiet_s %v; the book is quarantined "+
-						"and a resnapshot is requested. H-FAIL-6's full-depth "+
-						"comparison is deferred, so this reduces rather than "+
-						"trying to prove the book right",
-						now.Mono-m.lastFrame, g.p.Quiet),
-				})
+			// Silence ASKS A QUESTION; it does not answer one. F5's response to
+			// a wedged single market is `GET /markets/{t}/orderbook`, and the
+			// two outcomes are opposite: agree and the market keeps quoting,
+			// disagree and its book is replaced and it goes to REDUCING.
+			// Reducing here, before the read, would delete the agree branch --
+			// which is exactly the state lip-357 found: with no cross-check
+			// there is no way back to quoting, so a market that went quiet for a
+			// minute stayed quarantined and reducing until the socket happened
+			// to cycle for some unrelated reason.
+			if m.phase != quietNone {
+				// One outstanding check per market, and none at all once the
+				// episode has been decided against the book.
+				continue
 			}
+			m.phase = quietChecking
+			m.checkSeq++
+			m.checkTries++
+			// Placement stops for the round trip. The book has not been shown
+			// wrong, and it has not been shown right either.
+			m.quietHold = true
+			eff.CrossCheck = append(eff.CrossCheck, CrossCheckRequest{
+				Ticker: t,
+				Token: CrossCheckToken{
+					ticker: t, gen: g.gen, seq: m.checkSeq, valid: true, requestedAt: now.Mono,
+				},
+			})
+			g.pingQuiet(m, t, now, &eff, "F5's REST cross-check is requested and "+
+				"no placement decision is taken from this market until it "+
+				"answers. Agreement resets the staleness clock and the market "+
+				"keeps quoting; disagreement replaces the book, quarantines it "+
+				"and sends the market to REDUCING")
 		}
 	}
 
 	sort.Strings(eff.Reduce)
 	return eff
+}
+
+// pingQuiet raises BOOK_QUIET once per silent episode.
+//
+// Once, because a market that closed for the night is silent for hours: an alert
+// that fires four times a second into a 256-slot buffer evicts every other
+// anomaly in it, including the one the operator needs. `quietPinged` re-arms on
+// the next accepted frame and on the next connection.
+func (g *Gate) pingQuiet(m *marketGate, ticker string, now Stamp,
+	eff *TickEffects, what string) {
+
+	if m.quietPinged {
+		return
+	}
+	m.quietPinged = true
+	eff.Anomalies = append(eff.Anomalies, risk.Anomaly{
+		Class: "BOOK_QUIET", Sev: risk.SEV2, Ticker: ticker,
+		Text: fmt.Sprintf("no book frame for %v while the socket is healthy, "+
+			"past quiet_s %v; %s", now.Mono-m.lastFrame, g.p.Quiet, what),
+	})
+}
+
+// CrossCheckOutcome is what one completed F5 read established. It is the
+// caller's CONCLUSION, not its data: this package holds no book and cannot
+// compare one.
+type CrossCheckOutcome uint8
+
+const (
+	// CrossCheckUnavailable is the zero value, and it is the safe one: a
+	// transport error, a non-200, a body that did not decode, a request that
+	// was never dispatched. It is never agreement, and it never advances the
+	// staleness clock -- "we could not ask" is not "the book is right".
+	CrossCheckUnavailable CrossCheckOutcome = iota
+	// CrossCheckAgree is a COMPLETE H-FAIL-6 walk that matched: both sides
+	// through Target Size, price and size at every level, and our own resting
+	// size where we believe it is.
+	CrossCheckAgree
+	// CrossCheckDisagree is a valid REST book that differs from ours anywhere
+	// H-FAIL-6 looks.
+	CrossCheckDisagree
+	// CrossCheckGranularity is H-CO-3a on the REST book: a resting price that is
+	// not an integer cent. The read landed and what it says is that the tick
+	// size has changed, so this book may not replace ours -- but it is
+	// emphatically not agreement either.
+	CrossCheckGranularity
+)
+
+// CrossCheckEffects is what folding one cross-check result into the gate
+// requires of the caller.
+type CrossCheckEffects struct {
+	// Accepted is whether the token was current. A false here means NOTHING
+	// happened: no clock moved, no book may be replaced, no market reduced.
+	Accepted bool
+	// ReplaceBook asks the owner to install the REST snapshot wholesale. It is
+	// set only for a disagreement over a valid book, because that is the one
+	// case where we hold a complete book we have proven is better than ours.
+	ReplaceBook bool
+	// RetainRESTBook installs a separate reducer-only pricing source.
+	RetainRESTBook bool
+	Reduce         []string
+	Resnapshot     bool
+	Anomalies      []risk.Anomaly
+}
+
+// NoteCrossCheck folds one F5 cross-check result into the gate.
+//
+// The gate decides what the outcome MEANS; the caller decided what the outcome
+// IS. That split is deliberate: comparing two books needs `core.Rig` and
+// `risk.Portfolio`, both of which belong to the owner goroutine and neither of
+// which this package may hold, while deciding whether a market may still quote
+// is A13 and belongs here.
+//
+// # What each outcome does
+//
+//	Agree         -> reset the staleness clock, clear the quiet hold ONLY.
+//	Disagree      -> replace the book, quarantine, resnapshot, REDUCING, SEV2.
+//	Granularity   -> quarantine and REDUCING, and replace NOTHING (H-CO-3a).
+//	Unavailable   -> retry, up to quietCheckMaxTries; then quarantine + REDUCING.
+//
+// Agreement is the only outcome that touches the clock, and it touches nothing
+// else. A market that was already quarantined by a sequence gap, or already
+// latched REDUCING by an earlier outage, is left exactly as it was: F5 asked one
+// question -- "is this silent book still right?" -- and a yes is not evidence
+// about anything else that closed the market.
+func (g *Gate) NoteCrossCheck(tok CrossCheckToken, out CrossCheckOutcome,
+	why string, now Stamp) CrossCheckEffects {
+
+	var eff CrossCheckEffects
+	m := g.markets[tok.ticker]
+	if m == nil || !tok.valid || tok.gen != g.gen ||
+		m.phase != quietChecking || m.checkSeq != tok.seq {
+		// A result about a book that no longer exists: the socket cycled, a
+		// snapshot landed, or an earlier check already settled this episode.
+		// Discarded WHOLESALE -- not half-credited, not used for its timestamp
+		// -- for the reason `noteTruth` discards a stale reconciliation.
+		return eff
+	}
+	eff.Accepted = true
+	if m.f5 {
+		m.phase = quietSettled
+		if out == CrossCheckAgree || out == CrossCheckDisagree {
+			m.restAt, m.restOK = tok.requestedAt, true
+			eff.RetainRESTBook = true
+		} else {
+			m.restOK = false
+			eff.Anomalies = append(eff.Anomalies, risk.Anomaly{Class: "BOOK_REDUCER_REFRESH_FAILED", Sev: risk.SEV2, Ticker: tok.ticker, Text: why})
+		}
+		return eff
+	}
+
+	switch out {
+	case CrossCheckAgree:
+		// F5: "agree -> reset the staleness clock, keep quoting." The clock is
+		// reset at RESULT time and not at request time, because the interval we
+		// have evidence about ends when the exchange answered.
+		m.lastFrame = now.Mono
+		m.quietPinged = false
+		m.clearQuietEpisode()
+		eff.Anomalies = append(eff.Anomalies, risk.Anomaly{
+			Class: "BOOK_CROSSCHECK_AGREED", Sev: risk.SEV3, Ticker: tok.ticker,
+			Text: "F5's REST cross-check matched the websocket book through " +
+				"Target Size on both sides, including our own resting size " +
+				"(H-FAIL-6); the staleness clock is reset and the market keeps " +
+				"quoting. Nothing else about the market is changed by this",
+		})
+		return eff
+
+	case CrossCheckDisagree:
+		m.phase = quietSettled
+		m.quietHold = false
+		eff.ReplaceBook = true
+		eff.RetainRESTBook = true
+		m.f5, m.f5Escalated = true, false
+		m.f5At, m.restAt, m.refreshAt = now.Mono, tok.requestedAt, now.Mono
+		m.restOK = true
+		eff.Resnapshot = true
+		g.quarantineCrossChecked(m, tok.ticker, &eff)
+		eff.Anomalies = append(eff.Anomalies, risk.Anomaly{
+			Class: "BOOK_CROSSCHECK_MISMATCH", Sev: risk.SEV2, Ticker: tok.ticker,
+			Text: "F5's REST cross-check disagrees with the websocket book: " +
+				why + ". The complete REST book replaces ours, the market is " +
+				"quarantined until a fresh websocket snapshot lands, and it is " +
+				"sent to REDUCING",
+		})
+		return eff
+
+	case CrossCheckGranularity:
+		m.phase = quietSettled
+		m.quietHold = false
+		g.quarantineCrossChecked(m, tok.ticker, &eff)
+		eff.Anomalies = append(eff.Anomalies, risk.Anomaly{
+			Class: "BOOK_PRICE_GRANULARITY", Sev: risk.SEV2, Ticker: tok.ticker,
+			Text: "F5's REST cross-check read a resting price that is not an " +
+				"integer cent (" + why + "); H-CO-3a sends this market to " +
+				"REDUCING. The REST book replaces nothing, because a book whose " +
+				"prices this harness cannot represent is not a repair",
+		})
+		return eff
+	}
+
+	// Unavailable. The endpoint did not answer, or did not answer usably.
+	if m.checkTries < quietCheckMaxTries {
+		// Ask again on a later tick. The phase goes back to `quietNone` and the
+		// HOLD STAYS SET: no placement while we still do not know.
+		m.phase = quietNone
+		eff.Anomalies = append(eff.Anomalies, risk.Anomaly{
+			Class: "BOOK_CROSSCHECK_FAILED", Sev: risk.SEV2, Ticker: tok.ticker,
+			Text: fmt.Sprintf("F5's REST cross-check did not land (attempt %d of "+
+				"%d): %s. The market stays non-actionable and the staleness "+
+				"clock is NOT advanced -- a read we could not make is not "+
+				"evidence that the book is right",
+				m.checkTries, quietCheckMaxTries, why),
+		})
+		return eff
+	}
+	m.phase = quietSettled
+	m.quietHold = false
+	g.quarantineCrossChecked(m, tok.ticker, &eff)
+	eff.Resnapshot = true
+	eff.Anomalies = append(eff.Anomalies, risk.Anomaly{
+		Class: "BOOK_CROSSCHECK_UNAVAILABLE", Sev: risk.SEV2, Ticker: tok.ticker,
+		Text: fmt.Sprintf("F5's REST cross-check did not land in %d attempts "+
+			"(%s), so nothing can establish that this silent book is right. The "+
+			"market is quarantined and sent to REDUCING, which is where a "+
+			"wedged feed that cannot be checked belongs -- REST and the "+
+			"websocket are distinct transports but they share DNS, routing, TLS "+
+			"and credentials (H-FAIL-2), so both failing at once is a state and "+
+			"not a contradiction", quietCheckMaxTries, why),
+	})
+	return eff
+}
+
+// quarantineCrossChecked closes a market that F5 has decided against.
+//
+// It clears `snapGen` as well as setting `quarantined`, so that only an accepted
+// SNAPSHOT can reopen the market -- the same rule `quarantineRejectedBook`
+// applies, and for the same reason: what we hold is a book we have been told is
+// wrong, and replaying increments onto it cannot make it right. The mark goes
+// with it (H-HALT-5): a price the cross-check has just refuted is not a price to
+// value inventory against.
+func (g *Gate) quarantineCrossChecked(m *marketGate, ticker string,
+	eff *CrossCheckEffects) {
+
+	m.quarantined = true
+	m.snapGen = 0
+	m.pnlMarkGen = 0
+	if !m.reducing {
+		m.reducing = true
+		eff.Reduce = append(eff.Reduce, ticker)
+	}
 }
 
 // NoteDisconnectSustained records F4: the socket has been down for

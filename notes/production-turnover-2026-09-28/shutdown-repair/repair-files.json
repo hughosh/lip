@@ -1,0 +1,18 @@
+{
+  "source_manifest_sha256": "6047b85a4306c70bd7048c8ed15e41e2ab87b8a21075a8a550747a8c13e1c709",
+  "files": [
+    "go/cmd/harness/alerts.go",
+    "go/cmd/harness/close_barrier_composition_test.go",
+    "go/cmd/harness/close_refusal_test.go",
+    "go/cmd/harness/dial_barrier.go",
+    "go/cmd/harness/dial_barrier_test.go",
+    "go/cmd/harness/final_delivery_test.go",
+    "go/cmd/harness/run.go",
+    "go/cmd/harness/runtime.go",
+    "go/cmd/harness/runtime_group.go",
+    "go/cmd/harness/serving_close_test.go",
+    "go/cmd/harness/shutdown.go",
+    "scripts/harness_negative_control.py"
+  ],
+  "note": "Diff against preserved starting dirty tree, not HEAD. Starting contents reconstructed from HEAD plus starting.patch; original Go hashes checked."
+}

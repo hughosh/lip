@@ -1,0 +1,21 @@
+{
+  "at_utc": "2026-09-28T19:31:17.049642+00:00",
+  "decision": "technical evidence accepted for operator-run attended first-owned-fill stage only; operator must review current inputs before activation",
+  "review": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/continuation-review/first-writer-review.md",
+  "review_sha256": "3ab476af29ce4165b23991d57f446a17086894cd90f66c4daa7ccc1b2a51c16e",
+  "binary_sha256": "e3f8a697a20c3153f5c2a8650094b949ff57b985f94b154a7defdad22e9ef361",
+  "source_manifest_sha256": "6047b85a4306c70bd7048c8ed15e41e2ab87b8a21075a8a550747a8c13e1c709",
+  "config_sha256": "d2e621fd810dbe9c6a885593a62a480e800fd35d55228bf003138458bb5d562b",
+  "config_path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/continuation-review/operator-stages/first-KXBROSFT-26OCT08-T110-20260928T193111.232608Z/config.json",
+  "identity_path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/continuation-review/operator-stages/first-KXBROSFT-26OCT08-T110-20260928T193111.232608Z/evidence/identity.json",
+  "identity_sha256": "614ef2f096c66b925d7f25675b5de64efff5bd7f5468a686aa262f2cd6bcbc26",
+  "operator": "Hugh; attendance confirmed in current conversation",
+  "operator_launch_observed": false,
+  "preparation_max_age_seconds": 60,
+  "prepared_account_ended_at": "2026-09-28T19:31:16.904132Z",
+  "no_financial_action_by_assistant": true,
+  "prior_r1_not_rebound": true,
+  "q01_config_sha256": "47b3b73244755998afab6d6d27376a15b96c6eb7d99fd680eafcef776ae67135",
+  "primary_ntfy_only": true,
+  "unattended_permitted": false
+}

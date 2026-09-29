@@ -1,0 +1,135 @@
+{
+  "started_at": "2026-09-26T23:23:15.637004Z",
+  "ended_at": "2026-09-26T23:23:16.78172Z",
+  "requests": [
+    {
+      "at": "2026-09-26T23:23:15.637009Z",
+      "path": "/portfolio/balance",
+      "status": 200
+    },
+    {
+      "at": "2026-09-26T23:23:15.853898Z",
+      "path": "/portfolio/subaccounts/balances",
+      "status": 200
+    },
+    {
+      "at": "2026-09-26T23:23:15.951106Z",
+      "path": "/markets/KXTOKENUSE-26SEP28-T146",
+      "status": 200
+    },
+    {
+      "at": "2026-09-26T23:23:16.048608Z",
+      "path": "/markets/KXTOKENUSE-26SEP28-T146",
+      "status": 200
+    },
+    {
+      "at": "2026-09-26T23:23:16.145378Z",
+      "path": "/portfolio/balance",
+      "query": {
+        "exchange_index": "0",
+        "subaccount": "0"
+      },
+      "status": 200
+    },
+    {
+      "at": "2026-09-26T23:23:16.258474Z",
+      "path": "/portfolio/balance",
+      "query": {
+        "exchange_index": "0",
+        "subaccount": "0"
+      },
+      "status": 200
+    },
+    {
+      "at": "2026-09-26T23:23:16.369466Z",
+      "path": "/portfolio/orders",
+      "query": {
+        "status": "resting"
+      },
+      "status": 200
+    },
+    {
+      "at": "2026-09-26T23:23:16.477792Z",
+      "path": "/portfolio/positions",
+      "query": {
+        "subaccount": "0"
+      },
+      "status": 200
+    },
+    {
+      "at": "2026-09-26T23:23:16.57452Z",
+      "path": "/portfolio/orders",
+      "query": {
+        "status": "resting"
+      },
+      "status": 200
+    },
+    {
+      "at": "2026-09-26T23:23:16.677294Z",
+      "path": "/portfolio/positions",
+      "status": 200
+    }
+  ],
+  "aggregate_balance_status": {
+    "outcome": "complete",
+    "count": 1
+  },
+  "aggregate_balance": "9858",
+  "subaccount_balances_status": {
+    "outcome": "complete",
+    "count": 1
+  },
+  "subaccount_balances": [
+    {
+      "subaccount": 0,
+      "exchange_index": 0,
+      "balance": "98.5802",
+      "updated_ts": "1785564786"
+    }
+  ],
+  "selected_ticker": "KXTOKENUSE-26SEP28-T146",
+  "market_status": {
+    "outcome": "complete",
+    "count": 1
+  },
+  "exchange_index": 0,
+  "selected_balance_status": {
+    "outcome": "complete",
+    "count": 1
+  },
+  "selected_balance": "9858",
+  "market_funding_status": {
+    "outcome": "complete",
+    "count": 1
+  },
+  "market_funding_available_micro": "98580200",
+  "market_funding_observed_at": "2026-09-26T23:23:16.258422Z",
+  "market_funding_updated_ts": 1790464996,
+  "fills_status": {
+    "outcome": ""
+  },
+  "resting_orders_status": {
+    "outcome": "complete",
+    "pages": 1
+  },
+  "positions_by_subaccount": {
+    "0": {
+      "outcome": "complete",
+      "pages": 1,
+      "count": 2
+    }
+  },
+  "account_scope_complete": true,
+  "flat": true,
+  "production_decoder": {
+    "orders": {
+      "outcome": "complete",
+      "pages": 1
+    },
+    "primary_positions": {
+      "outcome": "complete",
+      "pages": 1,
+      "count": 1
+    }
+  }
+}

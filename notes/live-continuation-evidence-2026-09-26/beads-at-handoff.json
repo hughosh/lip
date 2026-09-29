@@ -1,0 +1,79 @@
+[
+  {
+    "id": "lip-82l",
+    "title": "Funding health can falsely stop on a newer concurrent cash observation",
+    "status": "closed",
+    "closed_at": "2026-09-27T00:44:50Z",
+    "close_reason": "Clock-order regression reproduced and repaired; missing/invalid/stale/future cash guards retained, once-only SEV1 diagnostic verified under latch failure. Focused race tests and exact v3 candidate gate PASS (loop/gates-out/20260927T001728253755Z-11a1a2b2/receipt.json). Final real read-only v3 observation passed 23m37.914s without unexpected funding stop; notes/live-continuation-evidence-2026-09-26/q01-v3/final-review.md. Earlier v2 failure retained, exact causation not overstated."
+  },
+  {
+    "id": "lip-q01",
+    "title": "Read-only qualification: staged event-complete real process, zero writes",
+    "status": "closed",
+    "closed_at": "2026-09-27T00:44:51Z",
+    "close_reason": "Finalized real composed v3 event observation passed revised q01:23m37.914s linked active;1417/1419 freshmonitor and284/285 freshcompleteportfolio slots;zero attempted/transmitted nonGET;actual forcedWSdisconnect,freshreconciliation and launchdSIGKILLrestart;cleanSIGTERM finalization and freshcompleteflat account at00:42:46Z;jobunloaded00:42:58Z. Exact binary69622c0e..., config/source/archive and candidategate linked. notes/live-continuation-evidence-2026-09-26/q01-v3/assessment.json and final-review.md. Prior providerDOWN/humanreceipt independentlyreviewed; ack-aware backup escalation remains9vc, no trading/profit claim. v2failedobservation remainsfailure."
+  },
+  {
+    "id": "lip-8hn.1",
+    "title": "R1 promotion gate: exact balance-derived first-fill candidate",
+    "status": "closed",
+    "closed_at": "2026-09-27T00:47:47Z",
+    "close_reason": "R1 acceptance met for the exact archived v3 manual attended candidate only: binary SHA256 69622c0eb4d3787dd25351109e2ed05e79b073ef1c0e87a851a6e7276ee3392b; config SHA256 1ee3ce26d67e4e599f58d8976c4e5ca932a1b00f219041f1d5e961c59bc70b8a; source-v3.tgz hashes match. Candidate integration/race/16 controls passed; q01 finalized and closed; fresh complete flat account and balance-derived limits recorded. See notes/live-continuation-evidence-2026-09-26/r1-review.md. Later supervision source changes are a separate candidate. Actual placement, owned fill, fees, reduction and exit remain lip-dwf; no financial write occurred."
+  },
+  {
+    "id": "lip-3d2",
+    "title": "Supervision retries terminal refusals and clean drains indefinitely",
+    "status": "closed",
+    "closed_at": "2026-09-27T00:52:24Z",
+    "close_reason": "Conditional launchd KeepAlive retries failures and stops clean/terminal exits; generated argv uses first-position -supervised, manual refusal2 preserved, operational failures1 retried, planned drain0 stops. Startup error classification preserves transient I/O and typed semantic refusals; constructor unwind releases locks/store resources. Actual account-free macOS exit/SIGTERM/SIGKILL probe plus entrypoint regressions, independent review, default integration PASS (loop/gates-out/20260927T004849872902Z-6ee426f4/receipt.json), focused race PASS18.645s, M-L-KEEPALIVE and M-6W5-NODEPLOYPREFLIGHT/M-3AF-NOLOCK caught. Earlier failed/inconclusive receipts preserved. See notes/live-continuation-evidence-2026-09-26/report.md and supervision-final-review.md. No new permanent job installed; source is distinct from q01-v3; recovery under real exposure remains9vc."
+  },
+  {
+    "id": "lip-dwf",
+    "title": "Attended balance-derived sizing and first-fill clean exit",
+    "status": "blocked",
+    "closed_at": null,
+    "close_reason": null
+  },
+  {
+    "id": "lip-9j3",
+    "title": "Pilot: attended balance-derived repeated-cycle test",
+    "status": "blocked",
+    "closed_at": null,
+    "close_reason": null
+  },
+  {
+    "id": "lip-8hn.2",
+    "title": "R2 promotion gate: exact balance-derived repeated-cycle candidate",
+    "status": "blocked",
+    "closed_at": null,
+    "close_reason": null
+  },
+  {
+    "id": "lip-9vc",
+    "title": "CR-1 operations: recovery, disk headroom, runbook, and alert escalation",
+    "status": "blocked",
+    "closed_at": null,
+    "close_reason": null
+  },
+  {
+    "id": "lip-1in",
+    "title": "CR-2: manage held non-selected markets across rotation",
+    "status": "open",
+    "closed_at": null,
+    "close_reason": null
+  },
+  {
+    "id": "lip-0ns",
+    "title": "rest: Fills() walks all account history every call; backfill_h is client-side",
+    "status": "open",
+    "closed_at": null,
+    "close_reason": null
+  },
+  {
+    "id": "lip-yca",
+    "title": "Revalidate LIP economics under July 30 terms and current per-series fees",
+    "status": "blocked",
+    "closed_at": null,
+    "close_reason": null
+  }
+]

@@ -1,0 +1,45 @@
+{
+  "at": "2026-09-27T18:36:48.490041+00:00",
+  "active_seconds": 570.003555593,
+  "slots": {
+    "monitor": {
+      "expected": 572,
+      "fresh": 567,
+      "ratio": 0.9912587412587412
+    },
+    "portfolio": {
+      "expected": 116,
+      "fresh": 114,
+      "ratio": 0.9827586206896551
+    }
+  },
+  "transport_GETs": 1806,
+  "transport_non_GETs": 0,
+  "attempts_match_transport": true,
+  "portfolio_stale": 0,
+  "portfolio_incomplete": 0,
+  "heartbeat": [
+    {
+      "category": "heartbeat",
+      "name": "deadman_checkin_sent",
+      "count": 20,
+      "first_at": "2026-09-27T18:27:10.897419Z",
+      "last_at": "2026-09-27T18:36:29.510097Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "sent",
+      "count": 20,
+      "first_at": "2026-09-27T18:27:10.897407Z",
+      "last_at": "2026-09-27T18:36:29.510095Z"
+    }
+  ],
+  "disk_available_bytes": 104008593408,
+  "files": {
+    "anomaly.jsonl": 40676,
+    "harness.lock": 6,
+    "harness.db-wal": 2055912,
+    "harness.db": 57344,
+    "harness.db-shm": 32768
+  }
+}

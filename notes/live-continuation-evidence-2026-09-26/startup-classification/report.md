@@ -1,0 +1,9 @@
+# Startup exit classification — 2026-09-26
+
+Scoped repair in `go/cmd/harness/main.go`, `runtime.go`, `funding_cap.go`, `qualification.go`, and `startup_classification_test.go`. The supervised exit marker remains unchanged: typed structural refusals exit 0, manual refusals exit 2, and untyped operational failures exit 1.
+
+The command no longer labels the complete funding preflight, qualification opening, alert setup, disk check, or rig construction as a refusal merely because it failed during startup. Known policy rejections are typed where established: invalid decoded config and rung, held instance lock, incompatible qualification evidence, missing operational DB, latched start without resume, absent market after a complete active-program walk, nonselected exposure after complete account truth, and insufficient selected-shard funding. Incomplete reads and I/O remain operational errors. `newRigWithLock` uses a named error result so its deferred unwind sees wrapped errors from alert, store, run, and qualification construction paths.
+
+Focused validation from `go/` passed: `go test ./cmd/harness -run 'TestStartup|TestEntrypointExitPolicy|TestFunding|TestSelectedShard|TestAlertFactoryAndStepperAreRequired' -count=1`. New regressions distinguish incomplete funding truth from confirmed nonselected exposure, verify an alert initialization error is retryable and releases the instance lock, verify absent DB is terminal, and exercise missing-config status 1 through the actual supervised entry point. `git diff --check` passed. No full suite, candidate gate, live process, account, credential, browser, job, or Beads operation was run.
+
+Scope limit: this patch does not add an offline entry-point fixture for the active-program GET or force a SQLite open/commit failure. Their source branches now return untyped operational errors unless a complete program walk confirms the selected market is absent.

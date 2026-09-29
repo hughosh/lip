@@ -1,0 +1,34 @@
+{
+  "lip-q01": {
+    "title": "Read-only qualification: staged event-complete real process, zero writes",
+    "description": "Revised 2026-09-26 under user direction. Use the current staged operational qualification in notes/attended-stages-2026-09-26.md. Minimum20min linked monotonic active observation, planned stop by45min, exact binary/config identity, zero transported non-GET, complete fresh account scope, >=99% cadence coverage, genuine WS disconnect/reconcile and durable process restart. Preserve external provider missed-heartbeat and human primary/backup escalation evidence as separate required evidence before unattended operation. Short observation does not establish multi-hour soak, long-tail reliability or positive EV. Historical 4-6h design is superseded, not retroactively reinterpreted.",
+    "acceptance": "Current staged assessor passes with real evidence, zero writes, forced disconnect and restart, complete fresh account-wide exit; external alarm/escalation receipts separately reviewed. All other safety assertions retained. See notes/attended-stages-2026-09-26.md.",
+    "notes": "2026-09-26 account/API reads and writes authorized by user; platform limitation prevents assistant trade execution. Authenticated GET-only conformance and selected funding read completed; real q01 observer segment not yet completed. New candidate prepared with selected_shard_balance, sizing rung, S12. Historical $2/S1 profile superseded. No live qualification claimed."
+  },
+  "lip-dwf": {
+    "title": "Attended balance-derived sizing and first-fill clean exit",
+    "acceptance": "After code and read-only evidence, operator executes first sizing stage with authenticated selected-shard cap, S<=12, existing reserve/inventory/loss stop, first-owned-fill durable stop, actual order/fill/reduce/restart observations and fresh complete account-wide no-orders/no-positions exit. No-fill stage inconclusive. See notes/attended-stages-2026-09-26.md.",
+    "notes": "2026-09-26 old S1/$2/one-contract prerequisite explicitly superseded by user. Balance-derived sizing path implemented and under candidate validation. No orders placed; actual sizing fills/reduction remain operator-executed evidence. Authorization is no longer the blocker."
+  },
+  "lip-9vc": {
+    "notes": "2026-09-26 configured NTFY_TOPIC and DEADMAN_URL validated without disclosure. Test LIP20260926A provider accepted at22:55:55Z and primary human receipt acknowledged in chat. Healthchecks.io confirmed by user; dashboard login requested. Backup delivery/ack and missed-check-in/unacknowledged escalation receipts still outstanding. See alarm-config.json and alarm-send-test.json in notes/live-readiness-2026-09-26."
+  },
+  "lip-yca": {
+    "notes": "2026-09-26 authenticated complete retained fills walk:15 historical fills; fees retained separately. Visible logged-in portfolio Rewards popover showed July31 liquidity incentive credit $7.65 for event KXGENERICBALLOTVOTEHUB-26JUL31, lifetime$7.65 and Sep$0. No payment-ledger corroboration or chronological held-out net-EV attribution established. Current $200 selected-market pool is not personal earnings. No new fills/reward credit from this session."
+  },
+  "lip-0ns": {
+    "notes": "2026-09-26 authenticated min_ts experiment over15 retained fills/one page matched inclusive boundaries at oldest and newest exact timestamp and +/-1s (nine probes); complete evidence account-selected.json. Small single-page retained history cannot establish boundary-tie/multi-page/concurrent-arrival or historical-retention completeness. Exhaustive production walk preserved; performance optimization remains deferred evidence work, not a blocker for this small account."
+  },
+  "lip-8hn": {
+    "notes": "2026-09-26 current user authorized account interactions and selected continuous participation across turnover; CR2 lip-1in is now in-scope/open. CR1 alone insufficient for requested end state. Current initial scope proof: primary0 shard0 $98.580200, no open orders/nonzero positions. Await candidate verification, staged q01 and operator-executed sizing/fill/reduce/restart/cleanup plus external recovery/escalation. Old S1/$2 and4-6h design superseded in current staged plan. No continuous process started."
+  },
+  "lip-8hn.1": {
+    "notes": "2026-09-26 R1 now uses staged q01 and balance-derived sizing plan; no renewed authorization prerequisite. Authenticated scope/funding read established at22:45:48Z, cap implementation under verification. Writer stage requires observed first-fill/reduce/flat/restart, complete fresh accountwide exit and exact candidate evidence; no live writer executed."
+  },
+  "lip-8hn.2": {
+    "notes": "2026-09-26 R2 retains real repeated-cycle/restart/recovery evidence and external alarms; superseded historical S1/$2 gate replaced with new sizing first-fill stage. No burn-in performed. Current requested outcome extends to CR2 turnover management; code/read evidence does not grant unattended readiness."
+  },
+  "lip-9j3": {
+    "notes": "2026-09-26 historical prerequisite profile superseded: first writer is attended balance-derived sizing S<=12 with first-fill stop and complete accountwide exit. Burn-in remains blocked by unobserved real placement/fill/reduction/restart and clean-exit evidence, not lack of user authorization."
+  }
+}

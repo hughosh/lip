@@ -1,0 +1,282 @@
+{
+  "reviewed_at_utc": "2026-09-27T17:29:39.257807+00:00",
+  "process_receipt": "process-receipt.json",
+  "assessment_receipt": "assessment.json",
+  "assessment_exit_code": 1,
+  "exchange_http_counts": [
+    {
+      "method": "GET",
+      "endpoint": "/incentive_programs",
+      "count": 42
+    },
+    {
+      "method": "GET",
+      "endpoint": "/markets/{ticker}",
+      "count": 60
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/balance",
+      "count": 40
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/fills",
+      "count": 20
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/orders",
+      "count": 58
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/positions",
+      "count": 40
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/subaccounts/balances",
+      "count": 40
+    }
+  ],
+  "total_exchange_gets": 300,
+  "total_exchange_non_gets": 0,
+  "would_writes": [
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXOPENSOURCESHARE-26SEP29-T70",
+        "side": "yes",
+        "price": "2",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=4"
+      },
+      "segment_id": "ccb73a1aca8f94790164031352a97304",
+      "first_at": "2026-09-27T17:21:28.7373Z",
+      "last_at": "2026-09-27T17:22:53.339489Z",
+      "observations": 8372
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXOPENSOURCESHARE-26SEP29-T70",
+        "side": "no",
+        "price": "2",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=4"
+      },
+      "segment_id": "ccb73a1aca8f94790164031352a97304",
+      "first_at": "2026-09-27T17:21:28.753776Z",
+      "last_at": "2026-09-27T17:22:53.361764Z",
+      "observations": 8371
+    }
+  ],
+  "would_write_observations": 16743,
+  "monitor": {
+    "checks": 89,
+    "fresh": 88,
+    "stale": 1,
+    "last_check_at": "2026-09-27T17:22:54.247113Z",
+    "last_fresh_at": "2026-09-27T17:22:54.247113Z"
+  },
+  "portfolio": {
+    "walks": 19,
+    "fresh": 19,
+    "stale": 0,
+    "complete": 19,
+    "incomplete": 0,
+    "fresh_complete": 19,
+    "last_walk_at": "2026-09-27T17:22:54.555105Z",
+    "last_fresh_at": "2026-09-27T17:22:54.555105Z",
+    "last_complete_at": "2026-09-27T17:22:54.555105Z"
+  },
+  "owned_order_rows": 0,
+  "our_fill_rows": 0,
+  "anomalies": [
+    {
+      "class": "FUNDING_LIMITS",
+      "sev": 0,
+      "ticker": "KXOPENSOURCESHARE-26OCT01-T81",
+      "text": "run=20260927T172125D28SH source=selected_shard_balance turnover=true subaccount=0 exchange_index=0 observed_at=2026-09-27T17:21:25.006292Z cash_micro_usd=98580200 commitments_micro_usd=0 frozen_shard_cap_micro_usd=98580200 aggregate_cap_micro_usd=98580200 recovery_only=false; cash polling cannot raise a frozen shard cap",
+      "first_ms": 1790529686503
+    },
+    {
+      "class": "TURNOVER_MANAGED",
+      "sev": 0,
+      "ticker": "",
+      "text": "managed=[KXOPENSOURCESHARE-26OCT01-T81 KXOPENSOURCESHARE-26SEP29-T70] universe_revision=2; all books require a new generation",
+      "first_ms": 1790529686503
+    },
+    {
+      "class": "STARTUP",
+      "sev": 0,
+      "ticker": "KXOPENSOURCESHARE-26OCT01-T81",
+      "text": "run 20260927T172125D28SH adopted 0 order(s), cancelled 0 stale, saw 0 foreign order(s) and 0 foreign fill(s); balance $98.58, managed [KXOPENSOURCESHARE-26OCT01-T81], excluded [], reducing []. Global state is RUNNING and KXOPENSOURCESHARE-26OCT01-T81 is IDLE",
+      "first_ms": 1790529686503
+    },
+    {
+      "class": "FOREIGN_FILL_INHERITED",
+      "sev": 1,
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "text": "fill 1582884a-1f64-7c20-fab4-b40468ad5df6 on order 0f0a2cee-ab64-4c1f-9814-50e5fb4f22a3 was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish",
+      "first_ms": 1790529687225
+    },
+    {
+      "class": "FOREIGN_FILL_INHERITED",
+      "sev": 1,
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "text": "fill 937bcde3-4a7c-51e8-c775-dee94d2c6391 on order 48fb1c82-91f0-4731-971c-9babc0c303b7 was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish",
+      "first_ms": 1790529687225
+    },
+    {
+      "class": "FOREIGN_FILL_INHERITED",
+      "sev": 1,
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "text": "fill 4b0f371c-c24c-5286-ccf8-6d0e6939df1d on order 48fb1c82-91f0-4731-971c-9babc0c303b7 was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish",
+      "first_ms": 1790529687225
+    },
+    {
+      "class": "FOREIGN_FILL_INHERITED",
+      "sev": 1,
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "text": "fill 11040975-6912-5717-d8c1-0f71defe7d78 on order 48fb1c82-91f0-4731-971c-9babc0c303b7 was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish",
+      "first_ms": 1790529687225
+    },
+    {
+      "class": "FOREIGN_FILL_INHERITED",
+      "sev": 1,
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "text": "fill 44a8554f-f708-4a5e-f0b5-248d7d8c97bb on order 1069cb11-62fd-4a98-9964-762b2070a39f was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish",
+      "first_ms": 1790529687225
+    },
+    {
+      "class": "FOREIGN_FILL_INHERITED",
+      "sev": 1,
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "text": "fill b93cb31d-825b-4d90-ea56-33d315ec1ad8 on order 869962c8-5f5a-4275-95a5-81dd15e969e6 was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish",
+      "first_ms": 1790529687225
+    },
+    {
+      "class": "FOREIGN_FILL_INHERITED",
+      "sev": 1,
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "text": "fill 80ab9782-28b7-4f61-f3b0-0499141d63b0 on order 869962c8-5f5a-4275-95a5-81dd15e969e6 was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish",
+      "first_ms": 1790529687225
+    },
+    {
+      "class": "FOREIGN_FILL_INHERITED",
+      "sev": 1,
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "text": "fill 3045dfce-6fc9-41d6-c942-0d7820732386 on order 869962c8-5f5a-4275-95a5-81dd15e969e6 was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish",
+      "first_ms": 1790529687225
+    },
+    {
+      "class": "FOREIGN_FILL_INHERITED",
+      "sev": 1,
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "text": "fill 146ba78b-57bb-4255-e97d-d0bbb8ec22e6 on order 869962c8-5f5a-4275-95a5-81dd15e969e6 was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish",
+      "first_ms": 1790529687225
+    },
+    {
+      "class": "FOREIGN_FILL_INHERITED",
+      "sev": 1,
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "text": "fill bb3177d2-a321-46f6-06e8-857bbaa2977b on order 7eb91978-dafc-4b18-a5c3-2cbab2a67493 was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish",
+      "first_ms": 1790529687225
+    },
+    {
+      "class": "FOREIGN_FILL_INHERITED",
+      "sev": 1,
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "text": "fill df852ff4-63c7-6dd3-566b-e463aaa45720 on order 19c01d12-1e4e-4d09-ab29-14ed96fd2cec was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish",
+      "first_ms": 1790529687225
+    },
+    {
+      "class": "FOREIGN_FILL_INHERITED",
+      "sev": 1,
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "text": "fill e53b4e27-f8d3-7543-767e-24d2b0d81f90 on order 19c01d12-1e4e-4d09-ab29-14ed96fd2cec was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish",
+      "first_ms": 1790529687225
+    },
+    {
+      "class": "FOREIGN_FILL_INHERITED",
+      "sev": 1,
+      "ticker": "KXHOODA-28JANFUNDED-33000000",
+      "text": "fill c34ffc9a-8134-64c8-5e3b-45cb21b74a89 on order 09577398-c959-4716-bd32-880d0240f20d was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish",
+      "first_ms": 1790529687225
+    },
+    {
+      "class": "FOREIGN_FILL_INHERITED",
+      "sev": 1,
+      "ticker": "KXHOODA-28JANFUNDED-33000000",
+      "text": "fill 952cc2ad-6564-4fcc-a126-a5052485c0f1 on order 09577398-c959-4716-bd32-880d0240f20d was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish",
+      "first_ms": 1790529687225
+    },
+    {
+      "class": "FOREIGN_FILL_INHERITED",
+      "sev": 1,
+      "ticker": "KXHOODA-28JANFUNDED-33000000",
+      "text": "fill 2f499f0d-5e63-71d1-4079-7764afe9fd08 on order 5bfe088b-eca2-4427-ab33-5e8a0e744aac was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish",
+      "first_ms": 1790529687225
+    },
+    {
+      "class": "TURNOVER_SELECTION",
+      "sev": 0,
+      "ticker": "",
+      "text": "selected=[KXOPENSOURCESHARE-26SEP29-T70] managed=[KXOPENSOURCESHARE-26OCT01-T81 KXOPENSOURCESHARE-26SEP29-T70]; rotation preserves held and possibly-live obligations",
+      "first_ms": 1790529688067
+    },
+    {
+      "class": "BOOK_QUIET",
+      "sev": 1,
+      "ticker": "KXOPENSOURCESHARE-26OCT01-T81",
+      "text": "no book frame for 1m0.030000935s while the socket is healthy, past quiet_s 1m0s; F5's REST cross-check is requested and no placement decision is taken from this market until it answers. Agreement resets the staleness clock and the market keeps quoting; disagreement replaces the book, quarantines it and sends the market to REDUCING",
+      "first_ms": 1790529748416
+    },
+    {
+      "class": "BOOK_QUIET",
+      "sev": 1,
+      "ticker": "KXOPENSOURCESHARE-26SEP29-T70",
+      "text": "no book frame for 1m0.029969227s while the socket is healthy, past quiet_s 1m0s; F5's REST cross-check is requested and no placement decision is taken from this market until it answers. Agreement resets the staleness clock and the market keeps quoting; disagreement replaces the book, quarantines it and sends the market to REDUCING",
+      "first_ms": 1790529748416
+    },
+    {
+      "class": "BOOK_CROSSCHECK_AGREED",
+      "sev": 0,
+      "ticker": "KXOPENSOURCESHARE-26OCT01-T81",
+      "text": "F5's REST cross-check matched the websocket book through Target Size on both sides, including our own resting size (H-FAIL-6); the staleness clock is reset and the market keeps quoting. Nothing else about the market is changed by this",
+      "first_ms": 1790529748525
+    },
+    {
+      "class": "BOOK_CROSSCHECK_AGREED",
+      "sev": 0,
+      "ticker": "KXOPENSOURCESHARE-26SEP29-T70",
+      "text": "F5's REST cross-check matched the websocket book through Target Size on both sides, including our own resting size (H-FAIL-6); the staleness clock is reset and the market keeps quoting. Nothing else about the market is changed by this",
+      "first_ms": 1790529748622
+    },
+    {
+      "class": "SIGNAL_DRAIN",
+      "sev": 1,
+      "ticker": "",
+      "text": "sigterm received after 1m28.997325503s of uptime with inventory=false and live orders=false; the process does NOT exit. It stops adding, keeps the reducing quote alive, keeps monitoring, and exits only once every market is flat and no order of ours rests (H-HALT-3). Durable stop committed: true",
+      "first_ms": 1790529773384
+    },
+    {
+      "class": "WRITE_NOT_BUILDABLE",
+      "sev": 1,
+      "ticker": "KXOPENSOURCESHARE-26SEP29-T70",
+      "text": "a place on KXOPENSOURCESHARE-26SEP29-T70/yes was selected but could not be built: the side is already carrying its aggregate target, so the remainder is 0.00",
+      "first_ms": 1790529773384
+    }
+  ],
+  "dispositions": {
+    "monitor_nonfresh": "One slot was already nonfresh in the early observation, with no OWNER_STALLED/SEV1 anomaly, and did not recur. Source records fresh only with a nonempty sample. Startup before first sample is consistent with this result, not established by per-slot timestamps. Preserve as a limitation; q01 monitor coverage failed.",
+    "book_quiet": "Both retained markets crossed the 60-second quiet threshold. Owner paused decisions and actual REST crosschecks agreed; two BOOK_CROSSCHECK_AGREED records retained.",
+    "write_not_buildable": "At planned SIGTERM the adding target became zero, so the existing place intent could not build a positive remainder (0.00). No exchange non-GET and no owned-order reservation resulted.",
+    "historical_fills": "15 FOREIGN_FILL_INHERITED events predate this process and are not current owned fills.",
+    "q01": "Bounded observation only. Assessment fails elapsed minimum, monitor slot coverage, forced disconnect and linked restart. No new q01 qualification claimed.",
+    "diagnostic_query": "Prior ad hoc read-only SELECT from snap failed: no such table. Runtime deliberately publishes atomic snapshots instead of a snap table; corrected inspection queried actual schema. No store mutation or missing durable snapshot is inferred."
+  },
+  "scope": "Actual authenticated GET-only/feed observation of exact candidate; not live placement, production financial turnover, q01, R1, R2, or a human acknowledgment."
+}

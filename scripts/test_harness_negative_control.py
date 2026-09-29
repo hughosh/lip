@@ -24,6 +24,8 @@ Run: `python -m unittest scripts.test_harness_negative_control` from `lip/`.
 from __future__ import annotations
 
 import shutil
+import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -136,6 +138,88 @@ class TestRealCatalogueAnchors(unittest.TestCase):
         )
 
 
+class TestJSONVerdicts(unittest.TestCase):
+    def stream(self, *events):
+        return "\n".join(json.dumps({"Package": "fixture/p", **event})
+                         for event in events) + "\n"
+
+    def test_named_failure_is_a_catch(self):
+        output = self.stream({"Action": "run", "Test": "TestCatch"},
+                             {"Action": "fail", "Test": "TestCatch"},
+                             {"Action": "fail"})
+        self.assertEqual(h.classify_test_json(1, output, "TestCatch")[0], "CAUGHT")
+
+    def test_additional_failure_does_not_credit_mutation(self):
+        output = self.stream({"Action": "run", "Test": "TestCatch"},
+                             {"Action": "fail", "Test": "TestCatch"},
+                             {"Action": "run", "Test": "TestAlsoCatch"},
+                             {"Action": "fail", "Test": "TestAlsoCatch"},
+                             {"Action": "fail"})
+        verdict, names, _ = h.classify_test_json(1, output, "TestCatch")
+        self.assertEqual(verdict, "INCONCLUSIVE")
+        self.assertEqual(names, ["TestAlsoCatch", "TestCatch"])
+        self.assertEqual(h.classify_test_json(-9, output, "TestCatch")[0], "INCONCLUSIVE")
+
+    def test_other_package_flake_does_not_credit_mutation(self):
+        output = (self.stream({"Action": "run", "Test": "TestCatch"},
+                              {"Action": "fail", "Test": "TestCatch"},
+                              {"Action": "fail"}) +
+                  "\n".join(json.dumps({"Package": "fixture/q", **event})
+                            for event in ({"Action": "run", "Test": "TestFlake"},
+                                          {"Action": "fail", "Test": "TestFlake"},
+                                          {"Action": "fail"})) + "\n")
+        verdict, names, reason = h.classify_test_json(1, output, "TestCatch")
+        self.assertEqual(verdict, "INCONCLUSIVE")
+        self.assertEqual(names, ["TestCatch", "TestFlake"])
+        self.assertIn("additional test", reason)
+
+    def test_missing_or_unfinished_catcher_is_not_survival(self):
+        for events in [
+            ({"Action": "run", "Test": "TestOther"},
+             {"Action": "pass", "Test": "TestOther"}, {"Action": "pass"}),
+            ({"Action": "run", "Test": "TestCatch"}, {"Action": "pass"}),
+            ({"Action": "run", "Test": "TestCatch"},
+             {"Action": "skip", "Test": "TestCatch"}, {"Action": "pass"})]:
+            self.assertEqual(h.classify_test_json(0, self.stream(*events), "TestCatch")[0],
+                             "INCONCLUSIVE")
+
+    def test_unrelated_failure_cannot_credit_mutation(self):
+        output = self.stream({"Action": "run", "Test": "TestOther"},
+                             {"Action": "fail", "Test": "TestOther"},
+                             {"Action": "fail"})
+        self.assertEqual(h.classify_test_json(1, output, "TestCatch")[0],
+                         "INCONCLUSIVE")
+
+    def test_empty_green_is_not_baseline_evidence(self):
+        self.assertEqual(h.classify_test_json(0, self.stream({"Action": "pass"}))[0],
+                         "INCONCLUSIVE")
+
+    def test_completed_package_without_tests_is_permitted(self):
+        output = (self.stream({"Action": "run", "Test": "TestCatch"},
+                              {"Action": "pass", "Test": "TestCatch"},
+                              {"Action": "pass"}) +
+                  json.dumps({"Action": "skip", "Package": "fixture/empty"}) + "\n")
+        self.assertEqual(h.classify_test_json(0, output)[0], "GREEN")
+
+    def test_incomplete_or_malformed_runs_are_inconclusive(self):
+        output = self.stream({"Action": "run", "Test": "TestCatch"},
+                             {"Action": "fail", "Test": "TestCatch"})
+        self.assertEqual(h.classify_test_json(1, output, "TestCatch")[0],
+                         "INCONCLUSIVE")
+        self.assertEqual(h.classify_test_json(1, output + "garbage", "TestCatch")[0],
+                         "INCONCLUSIVE")
+
+    def test_timeout_and_panic_are_inconclusive(self):
+        output = self.stream({"Action": "run", "Test": "TestCatch"},
+                             {"Action": "output", "Output": "panic: broken"},
+                             {"Action": "fail", "Test": "TestCatch"},
+                             {"Action": "fail"})
+        self.assertEqual(h.classify_test_json(1, output, "TestCatch")[0],
+                         "INCONCLUSIVE")
+        self.assertEqual(h.classify_test_json(124, h.TIMEOUT_MARKER, "TestCatch")[0],
+                         "INCONCLUSIVE")
+
+
 class PreflightFixture(unittest.TestCase):
     """A throwaway Go module plus a catalogue that patches it."""
 
@@ -217,9 +301,13 @@ class TestBuildOnlyMode(unittest.TestCase):
         self.addCleanup(self.td.cleanup)
 
     def run_script(self, *args) -> subprocess.CompletedProcess:
+        env = os.environ.copy()
+        env["GOCACHE"] = str(Path(self.td.name) / "go-cache")
         return subprocess.run(
             [sys.executable, str(h.HERE / "harness_negative_control.py"), *args],
-            capture_output=True, text=True, cwd=str(h.LIP))
+            capture_output=True, text=True, cwd=str(h.LIP), env=env,
+            pass_fds=((int(os.environ["LIP_VERIFY_LOCK_FD"]),)
+                      if os.environ.get("LIP_VERIFY_LOCK_FD", "").isdigit() else ()))
 
     def test_build_only_runs_no_go_test_and_writes_no_report(self):
         """It compiles and stops. No report, canonical or partial.
@@ -244,45 +332,129 @@ class TestBuildOnlyMode(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertIn("unknown mutation id", r.stderr)
 
-    def test_normal_mode_preflights_before_any_go_test(self):
-        """Ordering, which is the entire value of the preflight.
+class TestExecutionCommands(unittest.TestCase):
+    """Small synthetic catalogue; no Go process is launched."""
 
-        A preflight that ran AFTER the baseline suite would still report the
-        stale replacement -- a minute late in the cheap case and ninety-five
-        minutes late in the expensive one. So the assertion is not "it detects
-        the defect" but "no Go test had run when it did".
+    def setUp(self):
+        self.td = tempfile.TemporaryDirectory()
+        self.addCleanup(self.td.cleanup)
+        self.root = Path(self.td.name)
+        self.go = self.root / "go"
+        for package, catcher in (("p", "TestCatchP"), ("q", "TestCatchQ")):
+            folder = self.go / package
+            folder.mkdir(parents=True)
+            (folder / "sample_test.go").write_text(
+                f"package {package}\nimport \"testing\"\n"
+                f"func {catcher}(t *testing.T) {{}}\n")
+        (self.go / "source.go").write_text("old\n")
+        self.muts = [
+            ("M-P", "first", [("source.go", "old", "new-p")], "TestCatchP"),
+            ("M-Q", "second", [("source.go", "old", "new-q")], "TestCatchQ"),
+            ("M-I", "inert", [("source.go", "old", "new-i")], "inert"),
+        ]
+        self.calls = []
 
-        Driven in-process against a patched catalogue, because proving this
-        needs a mutation that genuinely does not compile, and such an entry must
-        never exist in the real `MUTATIONS`.
-        """
-        calls: list[list[str]] = []
-        real_run = h.run
+    def fake_run(self, cmd, cwd):
+        self.calls.append(list(cmd))
+        if "build" in cmd:
+            return 0, ""
+        source = (cwd / "source.go").read_text()
+        pattern = cmd[cmd.index("-run") + 1] if "-run" in cmd else None
+        tests = [("fixture/p", "TestCatchP"), ("fixture/q", "TestCatchQ")]
+        if pattern:
+            import re
+            tests = [(pkg, name) for pkg, name in tests if re.search(pattern, name)]
+        events = []
+        failed = False
+        for pkg, name in tests:
+            fail = source == "new-p\n" and name == "TestCatchP" or source == "new-q\n" and name == "TestCatchQ"
+            failed |= fail
+            events.extend([{"Package": pkg, "Action": "run", "Test": name},
+                           {"Package": pkg, "Action": "fail" if fail else "pass", "Test": name},
+                           {"Package": pkg, "Action": "fail" if fail else "pass"}])
+        return int(failed), "\n".join(json.dumps(e) for e in events) + "\n"
 
-        def recording_run(cmd, cwd):
-            calls.append(cmd)
-            return real_run(cmd, cwd)
-
-        stale = ("M-FIXTURE-STALE", "a replacement with obsolete arity",
-                 [("harness/lifecycle/startup.go",
-                   "\tportfolio := risk.NewSeededPortfolio(pos.ByTicker, s.baseline)\n",
-                   "\tportfolio := risk.NewSeededPortfolio(pos.ByTicker)\n")],
-                 "TestTheAdoptedPortfolioCarriesTheBaseline")
-
-        argv = ["harness_negative_control.py", "--only", "M-FIXTURE-STALE"]
-        with unittest.mock.patch.object(h, "MUTATIONS", [stale]), \
-                unittest.mock.patch.object(h, "run", recording_run), \
+    def execute(self, *args):
+        out = self.root / "out" / "report.md"
+        out.parent.mkdir(exist_ok=True)
+        argv = ["harness_negative_control.py", "--out", str(out), *args]
+        with unittest.mock.patch.object(h, "GO_SRC", self.go), \
+                unittest.mock.patch.object(h, "LIP", self.root), \
+                unittest.mock.patch.object(h, "ROOT_ARTIFACTS", ()), \
+                unittest.mock.patch.object(h, "MUTATIONS", self.muts), \
+                unittest.mock.patch.object(h, "run", self.fake_run), \
                 unittest.mock.patch.object(sys, "argv", argv):
-            rc = h.main()
+            rc = h.main_locked()
+        return rc, out
 
-        self.assertEqual(rc, 1, "a non-compiling replacement must fail the run")
-        self.assertFalse(
-            [c for c in calls if "test" in c],
-            "a Go test ran before the preflight rejected a replacement that "
-            "does not compile; the preflight exists to spend seconds on this "
-            "rather than the ~105 minutes a full round costs")
-        self.assertTrue([c for c in calls if "build" in c],
-                        "the preflight did not compile anything")
+    def test_missing_and_ambiguous_catcher_fail_inventory(self):
+        self.assertEqual(h.catcher_packages(self.muts[:1], self.go),
+                         {"TestCatchP": "./p"})
+        with self.assertRaisesRegex(ValueError, "missing"):
+            h.catcher_packages([("X", "x", [], "TestMissing")], self.go)
+        (self.go / "q" / "duplicate_test.go").write_text(
+            "package q\nimport \"testing\"\nfunc TestCatchP(t *testing.T) {}\n")
+        with self.assertRaisesRegex(ValueError, "ambiguous"):
+            h.catcher_packages(self.muts[:1], self.go)
+
+    def test_full_default_builds_once_per_mutant_and_only_inert_runs_full_suite(self):
+        rc, out = self.execute()
+        self.assertEqual(rc, 0)
+        builds = [c for c in self.calls if "build" in c]
+        tests = [c for c in self.calls if "test" in c]
+        self.assertEqual(len(builds), 3)
+        self.assertEqual(len(tests), 4)
+        self.assertEqual(sum("-run" not in c for c in tests), 2)
+        self.assertEqual(tests[1][-1], "./p")
+        self.assertEqual(tests[2][-1], "./q")
+        self.assertTrue(out.exists())
+
+    def test_subset_baseline_and_focused_alias_use_named_package(self):
+        rc, out = self.execute("--only", "M-P", "--focused")
+        self.assertEqual(rc, 0)
+        self.assertEqual(len([c for c in self.calls if "build" in c]), 1)
+        tests = [c for c in self.calls if "test" in c]
+        self.assertEqual(len(tests), 2)
+        self.assertTrue(all(c[-1] == "./p" and "-run" in c for c in tests))
+        self.assertFalse(out.exists())
+        self.assertTrue(out.with_suffix(".partial.md").exists())
+
+    def test_survivor_fails_without_retrying_into_green(self):
+        self.muts[0] = ("M-P", "survivor", [("source.go", "old", "still-valid")], "TestCatchP")
+        rc, _ = self.execute("--only", "M-P")
+        self.assertEqual(rc, 1)
+        self.assertEqual(len([c for c in self.calls if "test" in c]), 2)
+
+    def test_compile_failure_never_reaches_catcher(self):
+        good_runner = self.fake_run
+        def failed_build(cmd, cwd):
+            if "build" in cmd:
+                self.calls.append(list(cmd))
+                return 1, "compiler rejected fixture"
+            return good_runner(cmd, cwd)
+        self.fake_run = failed_build
+        rc, _ = self.execute("--only", "M-P")
+        self.assertEqual(rc, 1)
+        self.assertEqual(len([c for c in self.calls if "test" in c]), 1)
+
+    def test_suite_runs_full_packages_without_duplicate_builds(self):
+        rc, _ = self.execute("--only", "M-P", "--suite")
+        self.assertEqual(rc, 0)
+        self.assertEqual(len([c for c in self.calls if "build" in c]), 1)
+        self.assertEqual(len([c for c in self.calls if "test" in c and "-run" not in c]), 2)
+
+    def test_plan_is_read_only(self):
+        import contextlib
+        import io
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            rc, _ = self.execute("--only", "M-P", "--plan")
+        self.assertEqual(rc, 0)
+        plan = json.loads(output.getvalue())
+        self.assertEqual((plan["build_runs"], plan["named_test_runs"],
+                          plan["full_suite_runs"]), (1, 2, 0))
+        self.assertEqual(self.calls, [])
+        self.assertFalse((self.root / "out" / "report.md").exists())
 
 
 if __name__ == "__main__":

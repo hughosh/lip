@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"syscall"
 	"time"
 
@@ -247,6 +248,7 @@ type DrainEffects struct {
 // quieter: an operator who has not responded in twelve hours is an operator the
 // alert is failing to reach.
 type DrainTracker struct {
+	mu      sync.Mutex
 	p       cfg.Params
 	started bool
 	// permit is the issued authority, held rather than a bool. An earlier
@@ -299,6 +301,9 @@ func (d *DrainTracker) BeginUnplanned(mono time.Duration) {
 }
 
 func (d *DrainTracker) start(permit DrainPermit, mono time.Duration) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	if d.started {
 		// A second signal during a drain does not restart the escalation clock.
 		// An impatient operator pressing Ctrl-C again would otherwise push the
@@ -320,7 +325,11 @@ func (d *DrainTracker) start(permit DrainPermit, mono time.Duration) {
 }
 
 // Started reports whether a drain is in progress.
-func (d *DrainTracker) Started() bool { return d.started }
+func (d *DrainTracker) Started() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.started
+}
 
 // Observe is one drain tick.
 //
@@ -329,6 +338,9 @@ func (d *DrainTracker) Started() bool { return d.started }
 // DRAINED rule: "an account that is flat but still has fillable orders on the
 // book is not drained: it is one ignored cancel away from being long again."
 func (d *DrainTracker) Observe(obs DrainObservation, mono time.Duration) DrainEffects {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	var eff DrainEffects
 	if !d.started {
 		return eff

@@ -1,0 +1,26 @@
+{
+  "at": "2026-09-27T18:30:54.622380+00:00",
+  "updated_at": "2026-09-27T18:30:53.820047Z",
+  "active_seconds": 220.001880219,
+  "monitor": {
+    "checks": 220,
+    "fresh": 218,
+    "stale": 2,
+    "last_check_at": "2026-09-27T18:30:53.820047Z",
+    "last_fresh_at": "2026-09-27T18:30:53.820047Z"
+  },
+  "portfolio": {
+    "walks": 47,
+    "fresh": 47,
+    "stale": 0,
+    "complete": 47,
+    "incomplete": 0,
+    "fresh_complete": 47,
+    "last_walk_at": "2026-09-27T18:30:52.167407Z",
+    "last_fresh_at": "2026-09-27T18:30:52.167407Z",
+    "last_complete_at": "2026-09-27T18:30:52.167407Z"
+  },
+  "non_get": 0,
+  "sev1": [],
+  "sentinel_exists": false
+}

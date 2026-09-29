@@ -1,0 +1,10 @@
+{
+  "at": "2026-09-27T18:30:54.622055+00:00",
+  "files": {
+    "anomaly.jsonl": 28797,
+    "harness.lock": 6,
+    "harness.db-wal": 1277232,
+    "harness.db": 57344,
+    "harness.db-shm": 32768
+  }
+}

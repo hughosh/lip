@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HTTPS_PROXY</key>
+		<string>http://127.0.0.1:58065</string>
+		<key>NO_PROXY</key>
+		<string>api.elections.kalshi.com,external-api.kalshi.com,ntfy.sh,hc-ping.com,localhost,127.0.0.1</string>
+	</dict>
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>Label</key>
+	<string>com.lip.q01.shutdown.attempt2.20260928</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/bin/caffeinate</string>
+		<string>-is</string>
+		<string>/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/candidate-2/harness</string>
+		<string>-supervised</string>
+		<string>-config</string>
+		<string>/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/config.json</string>
+		<string>-rung</string>
+		<string>sizing</string>
+		<string>-qualification</string>
+		<string>/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/evidence.json</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/supervised.err</string>
+	<key>StandardOutPath</key>
+	<string>/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/supervised.out</string>
+	<key>ThrottleInterval</key>
+	<integer>3</integer>
+	<key>WorkingDirectory</key>
+	<string>/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/runtime</string>
+</dict>
+</plist>

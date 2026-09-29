@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-27T01:56:14.582286Z",
+  "full_walk_pages": 1,
+  "retained_fills": 15,
+  "duration_ms": 103.31468,
+  "response_bytes": 7996,
+  "unchanged_rows_since_0106": true,
+  "material_pressure_observed": false,
+  "historical_endpoint_lifetime_completeness": false,
+  "production_optimization": "none",
+  "scope": "Complete current-endpoint cursor walk only; min_ts experiment requests excluded; not a long-history or long-run growth forecast",
+  "fraction_of_5s_poll_budget": 0.020662936
+}

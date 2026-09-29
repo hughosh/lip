@@ -1,0 +1,55 @@
+{
+  "recorded_at": "2026-09-27T00:53:36.301736+00:00",
+  "receipts": [
+    {
+      "scope": "archived_v3_candidate",
+      "path": "loop/gates-out/20260927T001728253755Z-11a1a2b2/receipt.json",
+      "sha256": "47fbd2c92c7ffbbaa0ec5c2e70ec431583fd822af02adefd37c23345fdbe4629",
+      "verdict": "PASS"
+    },
+    {
+      "scope": "stale_catalogue_anchors_failure",
+      "path": "loop/gates-out/20260927T003756222496Z-f22e000e/receipt.json",
+      "sha256": "5131bc04525eebcb36d3b9bca4260ded1e6c2711d7430eff462197c02e2ca88c",
+      "verdict": "FAIL"
+    },
+    {
+      "scope": "alert_contract_failure",
+      "path": "loop/gates-out/20260927T004319019583Z-90779e5c/receipt.json",
+      "sha256": "c2914672762522bd5381f0bd37b1083506e46da95a15570ff1ec30e343063a7f",
+      "verdict": "FAIL"
+    },
+    {
+      "scope": "current_source_integration",
+      "path": "loop/gates-out/20260927T004849872902Z-6ee426f4/receipt.json",
+      "sha256": "2237f34c6273aacad1b6b7bba99544cbccfc1dcfd77d71e672e945cd5fdd36fb",
+      "verdict": "PASS"
+    },
+    {
+      "scope": "keepalive_mutation",
+      "path": "loop/gates-out/negative-control-20260927T002807295439Z/receipt.json",
+      "sha256": "7b893febfa0fb69844e2f64085711a00bf9a28cb27f84483fee2b3a6f1ae4d48",
+      "verdict": null
+    },
+    {
+      "scope": "alert_and_lock_mutations",
+      "path": "loop/gates-out/negative-control-20260927T005035959198Z/receipt.json",
+      "sha256": "9ee3908a4aa323d7f680d3b0be583a247954a93685a555baf0f49a76407a7cb5",
+      "verdict": null
+    },
+    {
+      "scope": "current_source_focused_race",
+      "path": "notes/live-continuation-evidence-2026-09-26/focused-race-final.json",
+      "sha256": "523f09d0106de7eaf4f61f9cbde5ed2140219d22dbb6a7a5dc4e40c3f0f7d51e",
+      "verdict": 0
+    }
+  ],
+  "archived_v3_is_distinct_from_current_source": true,
+  "notes": [
+    "Stale anchors repaired without weakening alert preflight or instance-lock mutations.",
+    "Module failure was old missing-env refusal expectation; fixed semantic/transient classification, then focused and integration passed.",
+    "KeepAlive initial mutant build failure was repaired before a caught result; prior report preserves the inconclusive attempt.",
+    "A mutation-runner --help query while the integration lock was held was refused by serialization; no mutation or test ran during it.",
+    "No full mutation catalogue or new-source live qualification claimed."
+  ]
+}

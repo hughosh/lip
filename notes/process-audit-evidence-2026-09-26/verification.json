@@ -1,0 +1,98 @@
+{
+  "recorded_at_utc": "2026-09-26T20:23:50.231593+00:00",
+  "head": "f7e9571547bb948418b7a27adc9c30ae38314b00",
+  "task": "process audit; personal-project quick iteration",
+  "source_preservation": "preservation.json",
+  "source_fingerprints": "final-process-sha256.json",
+  "live_orders": false,
+  "authenticated_exchange_probes": false,
+  "conductor_invoked": false,
+  "trading_feature_implementation": false,
+  "commit_or_remote_sync": false,
+  "checks": [
+    {
+      "name": "initial quick gate attempt",
+      "exit_code": 143,
+      "scope": "initial fingerprint only; stopped",
+      "details": "interrupted-gate.json"
+    },
+    {
+      "name": "default quick gate",
+      "exit_code": 0,
+      "seconds": 78.394,
+      "receipt": "quick-gates-out/receipt.json",
+      "scope": "full module build/vet/format/test plus static checks; no race or mutation catalogue"
+    },
+    {
+      "name": "final static gate",
+      "exit_code": 0,
+      "receipt": "static-gates-out/receipt.json",
+      "scope": "integrity, 10 gate tests, 3 isolation tests, anchor/JSON/execution fixtures"
+    },
+    {
+      "name": "complete mutation-tool unit suite",
+      "exit_code": 0,
+      "tests": 23,
+      "seconds": 27.683,
+      "log": "final-catalogue-tests.log"
+    },
+    {
+      "name": "four real guard mutations, first revision",
+      "exit_code": 0,
+      "seconds": 70.065,
+      "receipt": "negative-control-20260926T195606900444Z/receipt.json"
+    },
+    {
+      "name": "same four real guard mutations with package selection",
+      "exit_code": 0,
+      "seconds": 24.151,
+      "receipt": "negative-control-20260926T200536908371Z/receipt.json"
+    },
+    {
+      "name": "16 selected real safety mutations",
+      "exit_code": 0,
+      "seconds": 154.592,
+      "receipt": "negative-control-20260926T200639366924Z/receipt.json",
+      "result": "16 compiling mutations caught by named tests, green selected baseline; partial only"
+    },
+    {
+      "name": "CGO=1 race positive and intentional negative; timeout negative",
+      "receipt": "race-and-timeout-probes.json",
+      "expected_exit_codes": [
+        0,
+        1,
+        124
+      ]
+    },
+    {
+      "name": "full catalogue dry plan",
+      "exit_code": 0,
+      "receipt": "full-plan.json",
+      "scope": "300 anchors, 238 catcher locations; no Go execution"
+    },
+    {
+      "name": "preservation and whitespace",
+      "exit_code": 0,
+      "receipt": "preservation.json",
+      "catalogue": "catalogue-preservation.json"
+    }
+  ],
+  "version_limits": [
+    "The quick module receipt predates the final addition of cheap execution-fixture self-tests and final policy wording. Full Go source hashes are identical; the final static gate covers those process changes.",
+    "The 16-control receipt predates the lock path correction and output wording cleanup; the classifier/selection/catcher logic is unchanged. Final tooling tests exercise the corrected lock/runner. No claim of exact final candidate promotion is made."
+  ],
+  "not_run": [
+    "All 300 mutation outcomes in either new or legacy --suite mode",
+    "Full harness race suite or complete --candidate bundle (only a synthetic race detector probe; mode composition tested)",
+    "Real q01 4\u20136-hour operational qualification, provider alarm, or account/shard probe",
+    "Any live canary, unattended trading, or conductor invocation"
+  ],
+  "timing_model": "timings.json",
+  "remaining_risks": [
+    "Affected-set selection can miss a dependency; full catalogue remains optional rather than falsely credited.",
+    "Named kills are sampled and not proof of full behavioral safety or determinism.",
+    "Collector tape hashing failure was caught and fixed; manual raw Go commands are outside entry-point locking.",
+    "Full optional catalogue estimate is about 32 minutes; unmeasured mutant-induced waits may increase it.",
+    "Existing transport/429, feed recovery, shard funding and operational qualification gaps remain open."
+  ]
+}

@@ -1,0 +1,257 @@
+{
+  "metadata": {
+    "schema_version": 4,
+    "config_hash": "sha256:47b3b73244755998afab6d6d27376a15b96c6eb7d99fd680eafcef776ae67135",
+    "binary_identity": "sha256:e3f8a697a20c3153f5c2a8650094b949ff57b985f94b154a7defdad22e9ef361;vcs.revision=f7e9571547bb948418b7a27adc9c30ae38314b00;vcs.modified=true",
+    "ticker": "KXTOKENUSE-26OCT05-T168",
+    "rung": "sizing",
+    "live": false
+  },
+  "created_at": "2026-09-28T17:41:31.971845Z",
+  "updated_at": "2026-09-28T17:42:33.688178Z",
+  "segments": [
+    {
+      "id": "75f5710242c3e1d55969c4b485a67511",
+      "run_id": "20260928T174133SC1H2",
+      "pid": 64020,
+      "started_at": "2026-09-28T17:41:31.971845Z",
+      "active_nanos": 60001078708,
+      "monitor_slots": {
+        "observed": 59,
+        "fresh": 58
+      },
+      "portfolio_slots": {
+        "observed": 12,
+        "fresh_complete": 12,
+        "stale_walks": 0,
+        "incomplete_walks": 0
+      }
+    }
+  ],
+  "attempted_http": [
+    {
+      "method": "GET",
+      "endpoint": "/incentive_programs",
+      "count": 25
+    },
+    {
+      "method": "GET",
+      "endpoint": "/markets/{ticker}",
+      "count": 40
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/balance",
+      "count": 28
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/fills",
+      "count": 14
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/orders",
+      "count": 40
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/positions",
+      "count": 28
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/subaccounts/balances",
+      "count": 28
+    }
+  ],
+  "http": [
+    {
+      "method": "GET",
+      "endpoint": "/incentive_programs",
+      "count": 25
+    },
+    {
+      "method": "GET",
+      "endpoint": "/markets/{ticker}",
+      "count": 40
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/balance",
+      "count": 28
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/fills",
+      "count": 14
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/orders",
+      "count": 40
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/positions",
+      "count": 28
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/subaccounts/balances",
+      "count": 28
+    }
+  ],
+  "would_writes": [
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXBROSFT-26OCT08-T110",
+        "side": "yes",
+        "price": "23",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=4"
+      },
+      "segment_id": "75f5710242c3e1d55969c4b485a67511",
+      "first_at": "2026-09-28T17:41:36.984795Z",
+      "last_at": "2026-09-28T17:42:33.688172Z",
+      "observations": 6786
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXBROSFT-26OCT08-T110",
+        "side": "no",
+        "price": "39",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=4"
+      },
+      "segment_id": "75f5710242c3e1d55969c4b485a67511",
+      "first_at": "2026-09-28T17:41:36.988678Z",
+      "last_at": "2026-09-28T17:42:33.6881Z",
+      "observations": 6785
+    }
+  ],
+  "would_write_overflow": {
+    "episodes": 0,
+    "observations": 0
+  },
+  "monitor": {
+    "checks": 59,
+    "fresh": 58,
+    "stale": 1,
+    "last_check_at": "2026-09-28T17:42:32.707757Z",
+    "last_fresh_at": "2026-09-28T17:42:32.707757Z"
+  },
+  "portfolio": {
+    "walks": 13,
+    "fresh": 13,
+    "stale": 0,
+    "complete": 13,
+    "incomplete": 0,
+    "fresh_complete": 13,
+    "last_walk_at": "2026-09-28T17:42:32.008355Z",
+    "last_fresh_at": "2026-09-28T17:42:32.008355Z",
+    "last_complete_at": "2026-09-28T17:42:32.008355Z"
+  },
+  "events": [
+    {
+      "category": "anomaly",
+      "name": "SEV2:FOREIGN_FILL_INHERITED",
+      "count": 15,
+      "first_at": "2026-09-28T17:41:35.548018Z",
+      "last_at": "2026-09-28T17:41:35.548076Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:FUNDING_LIMITS",
+      "count": 1,
+      "first_at": "2026-09-28T17:41:34.838933Z",
+      "last_at": "2026-09-28T17:41:34.838933Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:STARTUP",
+      "count": 1,
+      "first_at": "2026-09-28T17:41:34.838951Z",
+      "last_at": "2026-09-28T17:41:34.838951Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:TURNOVER_MANAGED",
+      "count": 1,
+      "first_at": "2026-09-28T17:41:34.838948Z",
+      "last_at": "2026-09-28T17:41:34.838948Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:TURNOVER_SELECTION",
+      "count": 1,
+      "first_at": "2026-09-28T17:41:36.321678Z",
+      "last_at": "2026-09-28T17:41:36.321678Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "deadman_checkin_sent",
+      "count": 2,
+      "first_at": "2026-09-28T17:41:34.583661Z",
+      "last_at": "2026-09-28T17:42:04.599743Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "sent",
+      "count": 2,
+      "first_at": "2026-09-28T17:41:34.583648Z",
+      "last_at": "2026-09-28T17:42:04.599742Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=1",
+      "count": 4,
+      "first_at": "2026-09-28T17:41:34.943254Z",
+      "last_at": "2026-09-28T17:41:35.091118Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=2",
+      "count": 90,
+      "first_at": "2026-09-28T17:41:35.124707Z",
+      "last_at": "2026-09-28T17:41:35.532435Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=3",
+      "count": 5,
+      "first_at": "2026-09-28T17:41:36.3217Z",
+      "last_at": "2026-09-28T17:41:36.340141Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=4",
+      "count": 83,
+      "first_at": "2026-09-28T17:41:36.582718Z",
+      "last_at": "2026-09-28T17:41:36.978875Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=2",
+      "count": 145,
+      "first_at": "2026-09-28T17:41:35.548047Z",
+      "last_at": "2026-09-28T17:41:36.306805Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=4",
+      "count": 13571,
+      "first_at": "2026-09-28T17:41:36.984809Z",
+      "last_at": "2026-09-28T17:42:33.688178Z"
+    },
+    {
+      "category": "state",
+      "name": "websocket:connected",
+      "count": 2,
+      "first_at": "2026-09-28T17:41:35.124598Z",
+      "last_at": "2026-09-28T17:41:36.582599Z"
+    }
+  ]
+}

@@ -1,0 +1,1460 @@
+--- starting/go/cmd/harness/alerts.go
++++ repaired/go/cmd/harness/alerts.go
+@@ -68,13 +68,26 @@
+ 	}
+ 	r.alertMu.Lock()
+ 	defer r.alertMu.Unlock()
+-	if r.alertDone != nil {
++	if r.alertDone != nil && !r.alertStopped {
+ 		return errors.New("the alert loop was started more than once")
+ 	}
++	previous := r.alertDone
++	r.alertParent = ctx
++	r.alertStopped = false
+ 	alertCtx, cancel := context.WithCancel(ctx)
+ 	r.alertCancel = cancel
+ 	r.alertDone = make(chan struct{})
+-	go r.runAlerts(alertCtx, r.alertDone)
++	done := r.alertDone
++	go func() {
++		if previous != nil {
++			<-previous
++		}
++		if alertCtx.Err() != nil {
++			close(done)
++			return
++		}
++		r.runAlerts(alertCtx, done)
++	}()
+ 	return nil
+ }
+ 
+@@ -201,6 +214,22 @@
+ 	}
+ }
+ 
++// resumeAlerts preserves the service's retry/suppression state on a refused
++// close. A canceled step must join before a new sole owner can use that state.
++func (r *rig) resumeAlerts() {
++	r.alertMu.Lock()
++	parent, stopped := r.alertParent, r.alertStopped
++	r.alertMu.Unlock()
++	if parent == nil || !stopped {
++		return
++	}
++	if parent.Err() == nil {
++		if err := r.startAlerts(parent); err != nil {
++			fmt.Fprintf(os.Stderr, "harness: restoring alert delivery after refused stop: %v\n", err)
++		}
++	}
++}
++
+ func (r *rig) heartbeat() ping.Heartbeat {
+ 	hb := ping.Heartbeat{
+ 		Global:  quote.Starting,
+--- starting/go/cmd/harness/close_barrier_composition_test.go
++++ repaired/go/cmd/harness/close_barrier_composition_test.go
+@@ -0,0 +1,167 @@
++package main
++
++import (
++	"context"
++	"database/sql"
++	"strings"
++	"sync"
++	"sync/atomic"
++	"testing"
++	"time"
++
++	"lip/harness/rest"
++	"lip/harness/risk"
++)
++
++// The exchange seam deliberately ignores the canceled request context after
++// entering this callback. A real transport can finish just as cancellation is
++// delivered, and its balance row still belongs to the running store writer.
++type heldBalanceCallback struct {
++	armed   atomic.Bool
++	claimed atomic.Bool
++	calls   atomic.Int32
++	entered chan struct{}
++	release chan struct{}
++	once    sync.Once
++}
++
++func newHeldBalanceCallback() *heldBalanceCallback {
++	return &heldBalanceCallback{
++		entered: make(chan struct{}), release: make(chan struct{}),
++	}
++}
++
++func (b *heldBalanceCallback) beforeDo(req rest.Request) {
++	if req.Method != "GET" || req.Path != "/portfolio/balance" || !b.armed.Load() {
++		return
++	}
++	b.calls.Add(1)
++	if b.claimed.CompareAndSwap(false, true) {
++		close(b.entered)
++		<-b.release
++	}
++}
++
++func (b *heldBalanceCallback) unblock() { b.once.Do(func() { close(b.release) }) }
++
++func heldBalanceRig(t *testing.T) (*seamHarness, *servingCloseStepper, *shutdown, *heldBalanceCallback, *atomic.Int32) {
++	t.Helper()
++	h := newSeamHarness(t, seamOptions{ReadOnly: true})
++	// Change only the fixture's telemetry cadence. Startup keeps the ordinary
++	// balance read; the callback is armed once startup truth is actionable.
++	h.rig.cfg.Params.BalancePoll = 25 * time.Millisecond
++	monitorSamples := new(atomic.Int32)
++	emit := h.rig.mon.emit
++	h.rig.mon.emit = func(now time.Duration, result risk.StepResult) {
++		monitorSamples.Add(1)
++		emit(now, result)
++	}
++	b := newHeldBalanceCallback()
++	h.ex.beforeDo = b.beforeDo
++	stepper := &servingCloseStepper{}
++	sd := startServingClose(t, h, stepper)
++	t.Cleanup(b.unblock) // LIFO: release the callback before stopServe.
++	h.awaitActionable()
++	b.armed.Store(true)
++	h.await("post-startup balance callback", func() bool {
++		select {
++		case <-b.entered:
++			return true
++		default:
++			return false
++		}
++	})
++	h.clk.Advance(time.Second)
++	// The held request reads this distinct valid balance only after release.
++	h.ex.mu.Lock()
++	h.ex.balanceCents = 123_456
++	h.ex.mu.Unlock()
++	return h, stepper, sd, b, monitorSamples
++}
++
++func servingCloseBalanceValueCount(t *testing.T, path string, cents int64) int {
++	t.Helper()
++	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(0)")
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer db.Close()
++	var count int
++	if err := db.QueryRow(`SELECT count(*) FROM balance_poll WHERE balance_cents=?`, cents).Scan(&count); err != nil {
++		t.Fatal(err)
++	}
++	return count
++}
++
++func waitCloseResult(t *testing.T, ch <-chan error, timeout time.Duration) error {
++	t.Helper()
++	select {
++	case err := <-ch:
++		return err
++	case <-time.After(timeout):
++		t.Fatalf("serving close did not return within %v", timeout)
++		return nil
++	}
++}
++
++func TestServingCloseJoinsCanceledBalanceCallbackBeforeStoreClose(t *testing.T) {
++	h, _, sd, held, _ := heldBalanceRig(t)
++	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
++	defer cancel()
++	closed := make(chan error, 1)
++	go func() { closed <- sd.stop(ctx) }()
++
++	// The callback is still inside exchange.Do. The final close cannot report
++	// success or close the writer until that producer has submitted its row.
++	select {
++	case err := <-closed:
++		t.Fatalf("close returned with balance callback still active: %v", err)
++	case <-time.After(100 * time.Millisecond):
++	}
++	held.unblock()
++	if err := waitCloseResult(t, closed, 5*time.Second); err != nil {
++		t.Fatalf("serving close after balance callback: %v", err)
++	}
++	if _, err := h.rig.store.Reader().BalancePolls(); err == nil {
++		t.Fatal("store reader remained open after successful close")
++	}
++	if got := servingCloseBalanceValueCount(t, h.cfg.Paths.DB, 123_456); got != 1 {
++		t.Fatalf("balance callback rows persisted after close = %d, want 1", got)
++	}
++}
++
++func TestServingCloseTimeoutKeepsOwnerAndObserversUntilBalanceCallbackJoins(t *testing.T) {
++	h, stepper, sd, held, monitorSamples := heldBalanceRig(t)
++	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
++	defer cancel()
++	started := time.Now()
++	err := sd.stop(ctx)
++	if err == nil || !strings.Contains(err.Error(), "joining runtime producers") {
++		t.Fatalf("close with held callback = %v, want producer-join refusal", err)
++	}
++	if elapsed := time.Since(started); elapsed > finalCloseTimeout+time.Second {
++		t.Fatalf("close refusal took %v, want prompt %v budget", elapsed, finalCloseTimeout)
++	}
++	if _, err := seamNewRig(t, h.ctx, h.cfg, false, h.xch); err == nil || !strings.Contains(err.Error(), "lock") {
++		t.Fatalf("refused close released instance ownership: %v", err)
++	}
++	seq, steps, samples := h.snapSeq(), stepper.calls.Load(), monitorSamples.Load()
++	h.await("owner, monitor, and alerts after refused close", func() bool {
++		return h.snapSeq() > seq && stepper.calls.Load() > steps && monitorSamples.Load() > samples
++	})
++	if got := held.calls.Load(); got != 1 {
++		t.Fatalf("replacement balance callback entered before prior callback joined: %d calls", got)
++	}
++	held.unblock()
++	h.await("held balance row to be accepted by the original store", func() bool {
++		return servingCloseBalanceValueCount(t, h.cfg.Paths.DB, 123_456) == 1
++	})
++	retryCtx, retryCancel := context.WithTimeout(context.Background(), 5*time.Second)
++	defer retryCancel()
++	if err := sd.stop(retryCtx); err != nil {
++		t.Fatalf("retrying close after balance callback joined: %v", err)
++	}
++	if got := servingCloseBalanceValueCount(t, h.cfg.Paths.DB, 123_456); got != 1 {
++		t.Fatalf("accepted balance rows after retry = %d, want 1", got)
++	}
++}
+--- starting/go/cmd/harness/close_refusal_test.go
++++ repaired/go/cmd/harness/close_refusal_test.go
+@@ -0,0 +1,71 @@
++package main
++
++import (
++	"context"
++	"database/sql"
++	"testing"
++	"time"
++
++	"lip/harness/lifecycle"
++)
++
++// Exercise rig.close itself: a refusal after alert cancellation must restore
++// that exact service and must not release the account's instance lock.
++func TestRigCloseRefusalRetainsLockAndAlerts(t *testing.T) {
++	h := newSeamHarness(t, seamOptions{ReadOnly: true})
++	stepper := &servingCloseStepper{}
++	h.rig.alerts = stepper
++	if err := h.rig.startAlerts(h.ctx); err != nil {
++		t.Fatal(err)
++	}
++	db, err := sql.Open("sqlite", "file:"+h.cfg.Paths.DB+"?_pragma=busy_timeout(0)")
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer db.Close()
++	conn, err := db.Conn(context.Background())
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer conn.Close()
++	if _, err = conn.ExecContext(context.Background(), "BEGIN IMMEDIATE"); err != nil {
++		t.Fatal(err)
++	}
++	defer conn.ExecContext(context.Background(), "ROLLBACK")
++	const at = 1_700_000_070_321
++	if _, err = h.rig.store.RecordBalancePoll(h.rig.run, at, 12000); err != nil {
++		t.Fatal(err)
++	}
++	h.await("SQLite pending record", func() bool { return h.rig.store.Health().Failures() > 0 })
++	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
++	defer cancel()
++	if err = h.rig.close(ctx); err == nil {
++		t.Fatal("close crossed accepted pending record")
++	}
++	lock, err := lifecycle.AcquireInstanceLock(h.cfg.Paths.Lock)
++	if err == nil {
++		_ = lock.Close()
++		t.Fatal("refused close released instance lock")
++	}
++	before := stepper.calls.Load()
++	h.await("alert service after refused close", func() bool { return stepper.calls.Load() > before })
++	select {
++	case <-h.rig.storeDone:
++		t.Fatal("refused close stopped writer")
++	default:
++	}
++	if _, err = conn.ExecContext(context.Background(), "ROLLBACK"); err != nil {
++		t.Fatal(err)
++	}
++	if err = h.rig.close(context.Background()); err != nil {
++		t.Fatalf("recovered close: %v", err)
++	}
++	if got := servingCloseBalanceCount(t, h.cfg.Paths.DB, at); got != 1 {
++		t.Fatalf("lost accepted row: %d", got)
++	}
++	lock, err = lifecycle.AcquireInstanceLock(h.cfg.Paths.Lock)
++	if err != nil {
++		t.Fatalf("successful retry retained lock: %v", err)
++	}
++	_ = lock.Close()
++}
+--- starting/go/cmd/harness/dial_barrier.go
++++ repaired/go/cmd/harness/dial_barrier.go
+@@ -0,0 +1,68 @@
++package main
++
++import (
++	"context"
++	"errors"
++	"net"
++	"sync"
++)
++
++// net/http can detach a dial from its requesting goroutine. Registration at
++// DialContext entry fences callbacks scheduled even after all request loops
++// have joined, while already registered fallbacks can still report normally.
++type dialBarrier struct {
++	mu     sync.Mutex
++	paused bool
++	active int
++	idle   chan struct{}
++}
++
++func (b *dialBarrier) enter() bool {
++	b.mu.Lock()
++	defer b.mu.Unlock()
++	if b.paused {
++		return false
++	}
++	if b.active == 0 {
++		b.idle = make(chan struct{})
++	}
++	b.active++
++	return true
++}
++func (b *dialBarrier) leave() {
++	b.mu.Lock()
++	defer b.mu.Unlock()
++	b.active--
++	if b.active == 0 {
++		close(b.idle)
++	}
++}
++func (b *dialBarrier) pause(ctx context.Context) error {
++	b.mu.Lock()
++	b.paused = true
++	idle, active := b.idle, b.active
++	b.mu.Unlock()
++	if active == 0 {
++		return nil
++	}
++	select {
++	case <-idle:
++		return nil
++	case <-ctx.Done():
++		return ctx.Err()
++	}
++}
++func (b *dialBarrier) resume() {
++	b.mu.Lock()
++	b.paused = false
++	b.mu.Unlock()
++}
++func (nt *f6Net) dialContext(ctx context.Context, network, address string) (net.Conn, error) {
++	if !nt.dials.enter() {
++		return nil, errors.New("runtime transport is quiescing for final close")
++	}
++	defer nt.dials.leave()
++	return nt.dialer.DialContext(ctx, network, address)
++}
++
++// confidence: high
+--- starting/go/cmd/harness/dial_barrier_test.go
++++ repaired/go/cmd/harness/dial_barrier_test.go
+@@ -0,0 +1,139 @@
++package main
++
++import (
++	"context"
++	"errors"
++	"net"
++	"sync"
++	"sync/atomic"
++	"testing"
++	"time"
++)
++
++type closeDialResolver struct {
++	failed atomic.Bool
++	calls  atomic.Int32
++}
++
++func (r *closeDialResolver) LookupHost(context.Context, string) ([]string, error) {
++	r.calls.Add(1)
++	if r.failed.Load() {
++		return nil, errors.New("injected resolver failure")
++	}
++	return []string{"192.0.2.10"}, nil
++}
++
++func TestServingCloseWaitsForDetachedDialReport(t *testing.T) {
++	h := newSeamHarness(t, seamOptions{ReadOnly: true})
++	resolver := &closeDialResolver{}
++	var advanced atomic.Bool
++	var block atomic.Bool
++	entered, release := make(chan struct{}), make(chan struct{})
++	var releaseOnce sync.Once
++	defer releaseOnce.Do(func() { close(release) })
++	nt, err := newF6Net(h.rig.anom, resolver, func(context.Context, string, string) (net.Conn, error) {
++		if block.Load() {
++			close(entered)
++			<-release
++		}
++		client, server := net.Pipe()
++		_ = server.Close()
++		return client, nil
++	}, func() time.Time {
++		at := time.Unix(1_700_000_000, 0)
++		if advanced.Load() {
++			return at.Add(2 * time.Hour)
++		}
++		return at
++	})
++	if err != nil {
++		t.Fatal(err)
++	}
++	// Populate the actual shared resolver cache. The next, expired lookup fails
++	// and reports through the production fallback reporter only after dial ends.
++	conn, err := nt.rest.DialContext(context.Background(), "tcp", "example.test:443")
++	if err != nil {
++		t.Fatal(err)
++	}
++	_ = conn.Close()
++	advanced.Store(true)
++	resolver.failed.Store(true)
++	block.Store(true)
++	quiesceReturned := make(chan struct{})
++	h.rig.ex.quiesce = func(ctx context.Context) error {
++		err := nt.dials.pause(ctx)
++		close(quiesceReturned)
++		return err
++	}
++	h.rig.ex.resume = nt.dials.resume
++	sd := startServingClose(t, h, &servingCloseStepper{})
++	h.awaitActionable()
++	dialDone := make(chan error, 1)
++	go func() {
++		conn, err := nt.rest.DialContext(context.Background(), "tcp", "example.test:443")
++		if conn != nil {
++			_ = conn.Close()
++		}
++		dialDone <- err
++	}()
++	<-entered
++	stopDone := make(chan error, 1)
++	go func() { stopDone <- sd.stop(context.Background()) }()
++	h.await("transport final-close fence", func() bool { nt.dials.mu.Lock(); defer nt.dials.mu.Unlock(); return nt.dials.paused })
++	select {
++	case err := <-stopDone:
++		t.Fatalf("close overtook detached fallback: %v", err)
++	default:
++	}
++	// A Transport goroutine scheduled after the fence may not reach the dialer.
++	calls := resolver.calls.Load()
++	if conn, err := nt.ws.DialContext(context.Background(), "tcp", "late.test:443"); err == nil {
++		_ = conn.Close()
++		t.Fatal("late scheduled dial crossed final-close fence")
++	}
++	if resolver.calls.Load() != calls {
++		t.Fatal("late dial invoked resolver after pause")
++	}
++	// Keep the accepted callback outstanding long enough to observe the
++	// barrier itself. An immediate stopDone poll only tests scheduler order;
++	// final alert/store work can conceal a missing transport join.
++	select {
++	case <-quiesceReturned:
++		t.Fatal("transport quiesce returned with a detached reporter outstanding")
++	case <-time.After(100 * time.Millisecond):
++	}
++	releaseOnce.Do(func() { close(release) })
++	if err := <-dialDone; err != nil {
++		t.Fatal(err)
++	}
++	if err := <-stopDone; err != nil {
++		t.Fatal(err)
++	}
++	if got := servingCloseAnomalyCount(t, h.cfg.Paths.DB, "DNS_FALLBACK"); got != 1 {
++		t.Fatalf("detached fallback durable rows=%d, want 1", got)
++	}
++}
++
++func TestDialFenceRefusalResumesWithoutOverlappingActiveDial(t *testing.T) {
++	var b dialBarrier
++	if !b.enter() {
++		t.Fatal("initial registration refused")
++	}
++	ctx, cancel := context.WithCancel(context.Background())
++	cancel()
++	if err := b.pause(ctx); err == nil {
++		t.Fatal("pause claimed outstanding dial joined")
++	}
++	if b.enter() {
++		t.Fatal("pause allowed another dial")
++	}
++	b.resume()
++	if !b.enter() {
++		t.Fatal("refused pause did not restore admission")
++	}
++	b.leave()
++	b.leave()
++	if err := b.pause(context.Background()); err != nil {
++		t.Fatal(err)
++	}
++}
+--- starting/go/cmd/harness/final_delivery_test.go
++++ repaired/go/cmd/harness/final_delivery_test.go
+@@ -0,0 +1,59 @@
++package main
++
++import (
++	"context"
++	"strings"
++	"sync/atomic"
++	"testing"
++	"time"
++
++	"lip/harness/hstore"
++	"lip/harness/ping"
++)
++
++type finalDeliveryStepper struct {
++	store *hstore.Store
++	calls atomic.Int32
++	errs  chan error
++}
++
++func (s *finalDeliveryStepper) Step(_ context.Context, now int64, _ ping.Heartbeat) ping.Effects {
++	if s.calls.Add(1) == 2 {
++		// Valid submission shape but a nonexistent durable anomaly. SQLite must
++		// terminally reject the accepted delivery record on the final alert pass.
++		_, err := s.store.RecordDeliveryAttempt(hstore.DeliveryAttempt{AnomalyIDs: []string{"missing-anomaly"}, AttemptMs: now, Delivered: true, DeliveredMs: now})
++		s.errs <- err
++	}
++	return ping.Effects{NextStepMs: now + int64(time.Hour/time.Millisecond)}
++}
++func TestFinalAlertResultFailureIsDrainedBeforeClose(t *testing.T) {
++	h := newSeamHarness(t, seamOptions{ReadOnly: true})
++	stepper := &finalDeliveryStepper{store: h.rig.store, errs: make(chan error, 1)}
++	h.rig.alerts = stepper
++	if err := h.rig.startAlerts(h.ctx); err != nil {
++		t.Fatal(err)
++	}
++	h.await("initial alert pass", func() bool { return stepper.calls.Load() == 1 })
++	sd := newShutdown(h.rig)
++	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
++	defer cancel()
++	err := sd.stop(ctx)
++	if err == nil || !strings.Contains(err.Error(), "final delivery produced new record-failure evidence") {
++		t.Fatalf("final delivery lost-result refusal: %v", err)
++	}
++	if err := <-stepper.errs; err != nil {
++		t.Fatalf("fixture record was not accepted: %v", err)
++	}
++	if got := servingCloseAnomalyCount(t, h.cfg.Paths.DB, hstore.RecordRejectedClass); got != 1 {
++		t.Fatalf("terminal delivery rejection records=%d, want 1", got)
++	}
++	select {
++	case <-h.rig.storeDone:
++		t.Fatal("writer closed before late failure could be alerted")
++	default:
++	}
++	h.await("alert service restored for late failure", func() bool { return stepper.calls.Load() > 2 })
++	if err := sd.stop(ctx); err != nil {
++		t.Fatalf("retry after final failure evidence: %v", err)
++	}
++}
+--- starting/go/cmd/harness/run.go
++++ repaired/go/cmd/harness/run.go
+@@ -603,8 +603,15 @@
+ func (r *rig) serveWithShutdown(ctx context.Context, sd *shutdown, signals <-chan os.Signal) error {
+ 	ctx, cancel := context.WithCancel(ctx)
+ 	defer cancel()
++	var checkpoints, monitorLoop, resultLoop, inputs runtimeGroup
++	defer func() {
++		inputs.stop()
++		monitorLoop.stop()
++		resultLoop.stop()
++		checkpoints.stop()
++	}()
+ 	if r.qual != nil {
+-		go r.runQualificationCheckpoints(ctx)
++		checkpoints.start(ctx, r.runQualificationCheckpoints)
+ 	}
+ 
+ 	o := newOwner(r, sd)
+@@ -615,21 +622,27 @@
+ 	// the one where it is deciding what it inherited.
+ 	monTick := time.NewTicker(time.Second)
+ 	defer monTick.Stop()
+-	go r.mon.run(ctx, monTick.C)
++	startMonitor := func() {
++		monitorLoop.start(ctx, func(ctx context.Context) { r.mon.run(ctx, monTick.C) })
++	}
++	startMonitor()
+ 
+ 	// The result loop starts before the first submission that is not the run
+ 	// row, so no record's outcome sits unclaimed. It also drains `r.deferred` --
+ 	// results that arrived while construction was waiting for the run handle.
+-	go func() {
+-		if err := sd.runResults(ctx); err != nil && ctx.Err() == nil {
+-			r.anom.raise(risk.Anomaly{
+-				Class: "RESULT_LOOP_EXIT", Sev: risk.SEV1,
+-				Text: fmt.Sprintf("the store result loop returned %v; from here "+
+-					"no lost record raises its SEV1 and no anomaly reaches "+
+-					"either journal", err),
+-			})
+-		}
+-	}()
++	startResults := func() {
++		resultLoop.start(ctx, func(ctx context.Context) {
++			if err := sd.runResults(ctx); err != nil && ctx.Err() == nil {
++				r.anom.raise(risk.Anomaly{
++					Class: "RESULT_LOOP_EXIT", Sev: risk.SEV1,
++					Text: fmt.Sprintf("the store result loop returned %v; from here "+
++						"no lost record raises its SEV1 and no anomaly reaches "+
++						"either journal", err),
++				})
++			}
++		})
++	}
++	startResults()
+ 
+ 	// Alerting is independent of startup and begins with an immediate Step.
+ 	// In particular, a startup walk which stalls or fails must not prevent a
+@@ -644,67 +657,84 @@
+ 	}
+ 	o.install(adoption)
+ 
+-	events := make(chan wsx.Event, eventBuffer)
+-	reads := make(chan wsx.PortfolioRead, readBuffer)
+-	tokens := make(chan wsx.ReconcileToken, 1)
+-	commands := make(chan wsx.Command, 1)
+-	o.wsCommands = commands
+-	writes := make(chan writeRequest, dispatchWorkers)
+-	results := make(chan writeResult, dispatchWorkers)
+-
+-	go func() {
+-		// The supervisor never returns because of a socket; only the process
+-		// context ends it. Its error is therefore always the context's.
+-		if err := r.sup.Run(ctx, commands, events); err != nil && ctx.Err() == nil {
+-			r.anom.raise(risk.Anomaly{
+-				Class: "WS_SUPERVISOR_EXIT", Sev: risk.SEV1,
+-				Text: fmt.Sprintf("the websocket supervisor returned %v while "+
+-					"the process context was still live; the book feed is gone "+
+-					"and every market is non-actionable until it comes back", err),
+-			})
+-		}
+-	}()
+-	go func() {
+-		if err := r.poll.Run(ctx, tokens, reads); err != nil && ctx.Err() == nil {
+-			r.anom.raise(risk.Anomaly{
+-				Class: "PORTFOLIO_POLLER_EXIT", Sev: risk.SEV1,
+-				Text: fmt.Sprintf("the portfolio poller returned %v; position "+
+-					"truth stops advancing from here, so it ages out and "+
+-					"H-FAIL-4 stops all dispatch, which is the correct end "+
+-					"state but not a recoverable one", err),
+-			})
+-		}
+-	}()
+-	// The dispatcher is handed the RESERVATION OUTCOMES it needs and never the
+-	// store's FIFO itself. `runResults` is the sole consumer of `TakeResults`,
+-	// because it is the only thing that must see every result: a second consumer
+-	// racing it would sometimes take a terminal outcome belonging to another
+-	// record, and that record's SEV1 `STORE_RECORD_REJECTED` would never be
+-	// raised -- `reject.go`'s whole argument is that the loss is observable
+-	// exactly once, per record, from `Result.Err`.
+-	go r.dispatchLoop(ctx, writes, sd.Permits(), results)
+-
+-	// §9's schedule poll. It is a SEPARATE goroutine for the same reason the
+-	// portfolio poller is: it is a REST read that must keep answering while the
+-	// socket is down, and it must not be able to park the owner. Its cadence is
+-	// `schedule_poll_s`, which `cfg.Validate` has already asserted is at least
+-	// twice per `final_lead` -- H-CLOSE-0's sampling rule, checked as arithmetic
+-	// rather than discovered at the close (HR-017).
+-	schedules := make(chan rest.ScheduleResult, scheduleBuffer)
+-	go r.scheduleLoop(ctx, schedules)
+-	programs := make(chan rest.ProgramsResult, 1)
+-	go r.programLoop(ctx, programs)
+-	selectionReads := make(chan turnoverSelectionRead, 1)
+-	go r.turnoverSelectionLoop(ctx, selectionReads)
+-	terminalReads := make(chan turnoverTerminalRead, 1)
+-	go r.turnoverTerminalLoop(ctx, terminalReads)
+-	balanceThrottles := make(chan *rest.RateLimitError, 1)
+-	go r.balanceLoop(ctx, balanceThrottles)
+-
+-	crossChecks := make(chan wsx.CrossCheckRequest, crossCheckBuffer)
+-	crossResults := make(chan crossCheckResult, crossCheckBuffer)
+-	o.crossChecks = crossChecks
+-	go r.crossCheckLoop(ctx, crossChecks, crossResults)
++	var events chan wsx.Event
++	var reads chan wsx.PortfolioRead
++	var tokens chan wsx.ReconcileToken
++	var commands chan wsx.Command
++	var writes chan writeRequest
++	var results chan writeResult
++	var schedules chan rest.ScheduleResult
++	var programs chan rest.ProgramsResult
++	var selectionReads chan turnoverSelectionRead
++	var terminalReads chan turnoverTerminalRead
++	var balanceThrottles chan *rest.RateLimitError
++	var crossChecks chan wsx.CrossCheckRequest
++	var crossResults chan crossCheckResult
++	startInputs := func() {
++		events = make(chan wsx.Event, eventBuffer)
++		reads = make(chan wsx.PortfolioRead, readBuffer)
++		tokens = make(chan wsx.ReconcileToken, 1)
++		commands = make(chan wsx.Command, 1)
++		o.wsCommands = commands
++		writes = make(chan writeRequest, dispatchWorkers)
++		results = make(chan writeResult, dispatchWorkers)
++
++		inputs.start(ctx, func(ctx context.Context) {
++			// The supervisor never returns because of a socket; only the process
++			// context ends it. Its error is therefore always the context's.
++			if err := r.sup.Run(ctx, commands, events); err != nil && ctx.Err() == nil {
++				r.anom.raise(risk.Anomaly{
++					Class: "WS_SUPERVISOR_EXIT", Sev: risk.SEV1,
++					Text: fmt.Sprintf("the websocket supervisor returned %v while "+
++						"the process context was still live; the book feed is gone "+
++						"and every market is non-actionable until it comes back", err),
++				})
++			}
++		})
++		inputs.start(ctx, func(ctx context.Context) {
++			if err := r.poll.Run(ctx, tokens, reads); err != nil && ctx.Err() == nil {
++				r.anom.raise(risk.Anomaly{
++					Class: "PORTFOLIO_POLLER_EXIT", Sev: risk.SEV1,
++					Text: fmt.Sprintf("the portfolio poller returned %v; position "+
++						"truth stops advancing from here, so it ages out and "+
++						"H-FAIL-4 stops all dispatch, which is the correct end "+
++						"state but not a recoverable one", err),
++				})
++			}
++		})
++		// The dispatcher is handed the RESERVATION OUTCOMES it needs and never the
++		// store's FIFO itself. `runResults` is the sole consumer of `TakeResults`,
++		// because it is the only thing that must see every result: a second consumer
++		// racing it would sometimes take a terminal outcome belonging to another
++		// record, and that record's SEV1 `STORE_RECORD_REJECTED` would never be
++		// raised -- `reject.go`'s whole argument is that the loss is observable
++		// exactly once, per record, from `Result.Err`.
++		inputs.start(ctx, func(ctx context.Context) { r.dispatchLoop(ctx, writes, sd.Permits(), results) })
++
++		// §9's schedule poll. It is a SEPARATE goroutine for the same reason the
++		// portfolio poller is: it is a REST read that must keep answering while the
++		// socket is down, and it must not be able to park the owner. Its cadence is
++		// `schedule_poll_s`, which `cfg.Validate` has already asserted is at least
++		// twice per `final_lead` -- H-CLOSE-0's sampling rule, checked as arithmetic
++		// rather than discovered at the close (HR-017).
++		schedules = make(chan rest.ScheduleResult, scheduleBuffer)
++		inputs.start(ctx, func(ctx context.Context) { r.scheduleLoop(ctx, schedules) })
++		programs = make(chan rest.ProgramsResult, 1)
++		inputs.start(ctx, func(ctx context.Context) { r.programLoop(ctx, programs) })
++		selectionReads = make(chan turnoverSelectionRead, 1)
++		inputs.start(ctx, func(ctx context.Context) { r.turnoverSelectionLoop(ctx, selectionReads) })
++		terminalReads = make(chan turnoverTerminalRead, 1)
++		inputs.start(ctx, func(ctx context.Context) { r.turnoverTerminalLoop(ctx, terminalReads) })
++		balanceThrottles = make(chan *rest.RateLimitError, 1)
++		inputs.start(ctx, func(ctx context.Context) { r.balanceLoop(ctx, balanceThrottles) })
++
++		crossChecks = make(chan wsx.CrossCheckRequest, crossCheckBuffer)
++		crossResults = make(chan crossCheckResult, crossCheckBuffer)
++		o.crossChecks = crossChecks
++		inputs.start(ctx, func(ctx context.Context) { r.crossCheckLoop(ctx, crossChecks, crossResults) })
++
++	}
++	startInputs()
+ 
+ 	// The drain runs on its own goroutine, fed observations by this one.
+ 	//
+@@ -715,6 +745,7 @@
+ 	// from a second goroutine. So the owner supplies the facts and the drain
+ 	// supplies the authority, and neither can perform the other's half.
+ 	observations := make(chan lifecycle.DrainObservation, 1)
++	sd.stopRequests = make(chan stopRequest)
+ 	go func() {
+ 		if err := sd.drainLoop(ctx, observations); err != nil && ctx.Err() == nil {
+ 			r.anom.raise(risk.Anomaly{
+@@ -744,6 +775,56 @@
+ 			return ctx.Err()
+ 		case err := <-r.qualErrors:
+ 			return fmt.Errorf("qualification evidence failed: %w", err)
++
++		case request := <-sd.stopRequests:
++			// The earlier drain observation is not a licence to cancel work
++			// admitted since then. Recheck on the sole owner, at an iteration
++			// boundary: no dispatched or ambiguous order may be in flight.
++			if !o.truthKnown() || o.anyInventory() || o.anyLiveOrder() {
++				request.done <- errors.New("owner no longer has fresh flat drain truth")
++				continue
++			}
++			closeCtx, closeCancel := context.WithTimeout(request.ctx, finalCloseTimeout)
++			// Keep the independent monitor and result consumer alive while
++			// network/direct producers unwind. On timeout, each completed loop
++			// resumes immediately; a blocked callback keeps its store open and
++			// its replacement waits for it, never overlapping mutable state.
++			err := inputs.pause(closeCtx)
++			if err == nil {
++				err = monitorLoop.pause(closeCtx)
++			}
++			if err == nil {
++				err = resultLoop.pause(closeCtx)
++			}
++			if err == nil && r.ex.quiesce != nil {
++				err = r.ex.quiesce(closeCtx)
++			}
++			if err == nil {
++				err = sd.stopStore(closeCtx)
++			}
++			closeCancel()
++			if err == nil {
++				checkpoints.stop()
++				request.done <- nil
++				// No callback can run against the closed store while the drain
++				// goroutine finalizes evidence and performs its authorized exit.
++				<-ctx.Done()
++				return ctx.Err()
++			}
++			// A fresh subscription invalidates old feed/truth generations.
++			// Reads canceled during quiescence are reacquired, never treated
++			// as completed observations. Retain the owner and stop latch.
++			if r.ex.resume != nil {
++				r.ex.resume()
++			}
++			resultLoop.resume(ctx)
++			o.applyEvent(wsx.Event{Kind: wsx.EventDisconnected, At: r.ex.Clock.Now(), UniverseRevision: r.sup.UniverseRevision(), Clean: true}, tokens)
++			inputs.resume(ctx)
++			o.evaluate(r.ex.Mono())
++			o.publish(r.ex.Mono())
++			monitorLoop.resume(ctx)
++			request.done <- err
++			continue
+ 
+ 		case ev := <-events:
+ 			o.applyEvent(ev, tokens)
+--- starting/go/cmd/harness/runtime.go
++++ repaired/go/cmd/harness/runtime.go
+@@ -120,6 +120,10 @@
+ 	// from NowMs because F21 (a clock step) and F7 (host sleep) both turn on
+ 	// the two being distinguishable.
+ 	Mono func() time.Duration
++	// Production transports may have detached dial callbacks after a request
++	// returns. Final close fences and joins those callbacks as well.
++	quiesce func(context.Context) error
++	resume  func()
+ }
+ 
+ func (e exchange) validate() error {
+@@ -173,6 +177,7 @@
+ 	dialer *netx.CachedDialer
+ 	rest   *http.Transport
+ 	ws     *http.Transport
++	dials  dialBarrier
+ }
+ 
+ // newF6Net composes F6 over injected system collaborators.
+@@ -195,7 +200,10 @@
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	return &f6Net{dialer: cd, rest: f6Transport(cd), ws: f6Transport(cd)}, nil
++	nt := &f6Net{dialer: cd, rest: f6Transport(cd), ws: f6Transport(cd)}
++	nt.rest.DialContext = nt.dialContext
++	nt.ws.DialContext = nt.dialContext
++	return nt, nil
+ }
+ 
+ // f6Transport is `net/http`'s default transport with ONLY its dial replaced.
+@@ -378,13 +386,15 @@
+ 
+ 	start := time.Now()
+ 	return exchange{
+-		Doer:   doer,
+-		Dialer: wsx.NewLiveDialerWithTransport(nt.ws),
+-		Signer: signer,
+-		Clock:  wsx.NewSystemClock(),
+-		Target: target,
+-		NowMs:  func() int64 { return time.Now().UnixMilli() },
+-		Mono:   func() time.Duration { return time.Since(start) },
++		Doer:    doer,
++		Dialer:  wsx.NewLiveDialerWithTransport(nt.ws),
++		Signer:  signer,
++		Clock:   wsx.NewSystemClock(),
++		Target:  target,
++		NowMs:   func() int64 { return time.Now().UnixMilli() },
++		Mono:    func() time.Duration { return time.Since(start) },
++		quiesce: nt.dials.pause,
++		resume:  nt.dials.resume,
+ 	}, nil
+ }
+ 
+@@ -479,7 +489,9 @@
+ 
+ 	// --- the store ---------------------------------------------------------
+ 
+-	store *hstore.Store
++	closeMu      sync.Mutex
++	closeFailure error // sticky if the writer stopped but final close failed
++	store        *hstore.Store
+ 	// storeCancel stops the writer goroutine. It is handed to
+ 	// `hstore.Shutdown`, which is the ONLY thing entitled to call it: the store
+ 	// refuses to close over a non-empty FIFO, and cancelling the writer first
+@@ -542,6 +554,7 @@
+ 	alertWake    chan struct{}
+ 	alertFlush   chan chan struct{}
+ 	alertMu      sync.Mutex
++	alertParent  context.Context
+ 	alertCancel  context.CancelFunc
+ 	alertDone    chan struct{}
+ 	alertStopped bool
+@@ -886,20 +899,40 @@
+ // released only after the store has been dealt with: while any record is still
+ // in flight this process is still the one incarnation entitled to write them.
+ func (r *rig) close(ctx context.Context) error {
+-	err := r.stopAlerts(ctx)
+-	if err != nil {
++	r.closeMu.Lock()
++	defer r.closeMu.Unlock()
++	if r.closeFailure != nil {
++		return r.closeFailure
++	}
++	if r.storeCancel == nil {
++		return errors.New("orderly shutdown requires the writer cancel function")
++	}
++	if err := r.stopAlerts(ctx); err != nil {
++		r.resumeAlerts()
+ 		return err
+ 	}
+-	err = r.store.Shutdown(ctx, r.storeCancel)
+-	if err == nil {
+-		<-r.storeDone
+-	}
++	writerStopped := false
++	err := r.store.Shutdown(ctx, func() {
++		writerStopped = true
++		r.storeCancel()
++	})
++	if err != nil {
++		// Close can fail after stopping the writer/closing a connection. A
++		// later idempotent Close is not proof that this failure resolved.
++		if writerStopped {
++			r.closeFailure = err
++		}
++		r.resumeAlerts()
++		return err
++	}
++	<-r.storeDone
+ 	if r.lock != nil {
+-		if cerr := r.lock.Close(); cerr != nil && err == nil {
+-			err = cerr
++		if err := r.lock.Close(); err != nil {
++			r.closeFailure = fmt.Errorf("store closed but instance lock release failed: %w", err)
++			return r.closeFailure
+ 		}
+ 	}
+-	return err
++	return nil
+ }
+ 
+ // requireExistingDB is (2) above, stated as a refusal.
+--- starting/go/cmd/harness/runtime_group.go
++++ repaired/go/cmd/harness/runtime_group.go
+@@ -0,0 +1,81 @@
++package main
++
++import (
++	"context"
++	"fmt"
++	"time"
++)
++
++// A refusal must give the owner and independent observers back promptly.
++const finalCloseTimeout = 2 * time.Second
++
++type stopRequest struct {
++	ctx  context.Context
++	done chan error
++}
++
++type runtimeTask struct {
++	run    func(context.Context)
++	cancel context.CancelFunc
++	done   chan struct{}
++}
++
++// A group belongs to the serving owner. Each replacement waits for its own
++// predecessor to join, even when cancellation returns before a callback does.
++// Independent completed tasks can resume without waiting for a stuck peer.
++// The store writer is deliberately outside these groups.
++type runtimeGroup struct {
++	tasks  []*runtimeTask
++	paused bool
++}
++
++func (t *runtimeTask) start(parent context.Context) {
++	previous := t.done
++	ctx, cancel := context.WithCancel(parent)
++	done := make(chan struct{})
++	t.cancel, t.done = cancel, done
++	go func() {
++		defer close(done)
++		if previous != nil {
++			<-previous
++		}
++		if ctx.Err() == nil {
++			t.run(ctx)
++		}
++	}()
++}
++
++func (g *runtimeGroup) start(parent context.Context, f func(context.Context)) {
++	task := &runtimeTask{run: f}
++	g.tasks = append(g.tasks, task)
++	task.start(parent)
++}
++
++func (g *runtimeGroup) pause(ctx context.Context) error {
++	g.paused = true
++	for _, task := range g.tasks {
++		task.cancel()
++	}
++	for _, task := range g.tasks {
++		select {
++		case <-task.done:
++		case <-ctx.Done():
++			return fmt.Errorf("joining runtime producers: %w", ctx.Err())
++		}
++	}
++	return nil
++}
++
++func (g *runtimeGroup) resume(ctx context.Context) {
++	if !g.paused {
++		return
++	}
++	for _, task := range g.tasks {
++		task.start(ctx)
++	}
++	g.paused = false
++}
++
++func (g *runtimeGroup) stop() { _ = g.pause(context.Background()) }
++
++// confidence: high
+--- starting/go/cmd/harness/serving_close_test.go
++++ repaired/go/cmd/harness/serving_close_test.go
+@@ -0,0 +1,195 @@
++package main
++
++import (
++	"context"
++	"database/sql"
++	"os"
++	"strings"
++	"sync/atomic"
++	"testing"
++	"time"
++
++	"lip/harness/ping"
++	"lip/harness/risk"
++)
++
++// These tests use serveWithShutdown, rather than calling shutdown.stopStore
++// directly. The owner must join every serving producer before the store closes.
++type servingCloseStepper struct{ calls atomic.Int32 }
++
++func (s *servingCloseStepper) Step(_ context.Context, nowMs int64, _ ping.Heartbeat) ping.Effects {
++	s.calls.Add(1)
++	return ping.Effects{NextStepMs: nowMs + int64(time.Hour/time.Millisecond)}
++}
++
++func startServingClose(t *testing.T, h *seamHarness, stepper *servingCloseStepper) *shutdown {
++	t.Helper()
++	h.rig.alerts = stepper
++	ctx, cancel := context.WithCancel(h.ctx)
++	h.serveCancel = cancel
++	h.serveDone = make(chan struct{})
++	h.serveSignals = make(chan os.Signal, 1)
++	h.serveExits = make(chan int, 1)
++	sd := newShutdown(h.rig)
++	sd.exit = func(code int) { h.serveExits <- code; cancel() }
++	go func() {
++		h.serveErr = h.rig.serveWithShutdown(ctx, sd, h.serveSignals)
++		close(h.serveDone)
++	}()
++	t.Cleanup(h.stopServe)
++	return sd
++}
++
++func servingCloseBalanceCount(t *testing.T, path string, tsMs int64) int {
++	t.Helper()
++	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(0)")
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer db.Close()
++	var count int
++	if err := db.QueryRow(`SELECT count(*) FROM balance_poll WHERE ts_ms=?`, tsMs).Scan(&count); err != nil {
++		t.Fatal(err)
++	}
++	return count
++}
++
++func servingCloseAnomalyCount(t *testing.T, path, class string) int {
++	t.Helper()
++	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(0)")
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer db.Close()
++	var count int
++	if err := db.QueryRow(`SELECT count(*) FROM anomaly WHERE class=?`, class).Scan(&count); err != nil {
++		t.Fatal(err)
++	}
++	return count
++}
++
++func TestServingClosePersistsAcceptedRecordsBeforeWriterStops(t *testing.T) {
++	h := newSeamHarness(t, seamOptions{ReadOnly: true})
++	stepper := &servingCloseStepper{}
++	sd := startServingClose(t, h, stepper)
++	h.awaitActionable()
++	const tsMs = int64(1_700_000_060_123)
++	if _, err := h.rig.store.RecordBalancePoll(h.rig.run, tsMs, 10_123); err != nil {
++		t.Fatalf("submitting accepted balance observation: %v", err)
++	}
++	h.rig.anom.raise(risk.Anomaly{Class: "SERVING_CLOSE_TEST", Sev: risk.SEV1,
++		Text: "accepted just before planned close"})
++	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
++	defer cancel()
++	if err := sd.stop(ctx); err != nil {
++		t.Fatalf("serving orderly close: %v", err)
++	}
++	if got := servingCloseBalanceCount(t, h.cfg.Paths.DB, tsMs); got != 1 {
++		t.Fatalf("accepted balance records persisted after close = %d, want 1", got)
++	}
++	if got := servingCloseAnomalyCount(t, h.cfg.Paths.DB, "SERVING_CLOSE_TEST"); got != 1 {
++		t.Fatalf("accepted anomaly records persisted after close = %d, want 1", got)
++	}
++	for _, class := range []string{"STORE_UNHEALTHY", "ANOMALY_SUBMISSION_FAILED"} {
++		if got := servingCloseAnomalyCount(t, h.cfg.Paths.DB, class); got != 0 {
++			t.Fatalf("authorized close wrote %d %s anomaly records", got, class)
++		}
++	}
++	if got := stepper.calls.Load(); got < 2 {
++		t.Fatalf("alert steps = %d, want immediate and final", got)
++	}
++	if h.rig.store.Health().AllowsAdding() {
++		t.Fatal("authorized close left store writer able to accept risk")
++	}
++	select {
++	case a := <-h.rig.anom.ch:
++		t.Fatalf("post-close anomaly was raised: %+v", a)
++	default:
++	}
++}
++
++func TestServingCloseRefusalRestoresObservationAndRetries(t *testing.T) {
++	h := newSeamHarness(t, seamOptions{ReadOnly: true})
++	stepper := &servingCloseStepper{}
++	sd := startServingClose(t, h, stepper)
++	h.awaitActionable()
++	contender, err := sql.Open("sqlite", "file:"+h.cfg.Paths.DB+"?_pragma=busy_timeout(0)")
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer contender.Close()
++	conn, err := contender.Conn(context.Background())
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer conn.Close()
++	if _, err := conn.ExecContext(context.Background(), "BEGIN IMMEDIATE"); err != nil {
++		t.Fatalf("holding private SQLite writer lock: %v", err)
++	}
++	locked := true
++	defer func() {
++		if locked {
++			_, _ = conn.ExecContext(context.Background(), "ROLLBACK")
++		}
++	}()
++	const tsMs = int64(1_700_000_060_124)
++	if _, err := h.rig.store.RecordBalancePoll(h.rig.run, tsMs, 10_124); err != nil {
++		t.Fatalf("submitting contended balance observation: %v", err)
++	}
++	h.await("real writer contention", func() bool { return h.rig.store.Health().Failures() > 0 })
++	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
++	defer cancel()
++	if err := sd.stop(ctx); err == nil {
++		t.Fatal("store close succeeded while an accepted record was blocked")
++	}
++	if h.rig.store.Health().Pending() == 0 {
++		t.Fatal("refused close lost the accepted pending record")
++	}
++	if _, err := seamNewRig(t, h.ctx, h.cfg, false, h.xch); err == nil || !strings.Contains(err.Error(), "lock") {
++		t.Fatalf("refused close released instance ownership: %v", err)
++	}
++	seq := h.snapSeq()
++	steps := stepper.calls.Load()
++	walks := h.ex.ordersWalkCount()
++	last := h.rig.last.Load()
++	h.clk.Advance(5 * time.Second)
++	h.await("owner, account observation, monitor and alerts to resume after refusal", func() bool {
++		return h.snapSeq() > seq && stepper.calls.Load() > steps && h.ex.ordersWalkCount() > walks && h.rig.last.Load() != last
++	})
++	if _, err := conn.ExecContext(context.Background(), "ROLLBACK"); err != nil {
++		t.Fatalf("releasing private SQLite writer lock: %v", err)
++	}
++	locked = false
++	h.await("accepted record to retry after lock release", func() bool {
++		return h.rig.store.Health().Pending() == 0
++	})
++	retryCtx, retryCancel := context.WithTimeout(context.Background(), 5*time.Second)
++	defer retryCancel()
++	if err := sd.stop(retryCtx); err != nil {
++		t.Fatalf("retrying orderly close after writer recovery: %v", err)
++	}
++	if got := servingCloseBalanceCount(t, h.cfg.Paths.DB, tsMs); got != 1 {
++		t.Fatalf("retried accepted balance records persisted = %d, want 1", got)
++	}
++}
++
++func TestServingCloseUnexpectedWriterLossStillStopsAndObserves(t *testing.T) {
++	h := newSeamHarness(t, seamOptions{ReadOnly: true})
++	stepper := &servingCloseStepper{}
++	startServingClose(t, h, stepper)
++	h.awaitActionable()
++	h.rig.storeCancel()
++	select {
++	case <-h.rig.storeDone:
++	case <-time.After(3 * time.Second):
++		t.Fatal("unexpected writer exit did not complete")
++	}
++	h.await("owner to durably stop after writer loss", func() bool {
++		return h.latchTrigger() == "store_unhealthy"
++	})
++	seq := h.snapSeq()
++	steps := stepper.calls.Load()
++	h.await("observation and alerting after writer loss", func() bool {
++		return h.snapSeq() > seq && stepper.calls.Load() > steps
++	})
++}
+--- starting/go/cmd/harness/shutdown.go
++++ repaired/go/cmd/harness/shutdown.go
+@@ -86,7 +86,8 @@
+ // instance plus a run id that is unique per run makes a collision impossible
+ // rather than unlikely.
+ type shutdown struct {
+-	r *rig
++	r            *rig
++	stopRequests chan stopRequest
+ 	// finalClose serializes the owner's health probe with the authorized
+ 	// store close. A refused close leaves orderlyClosed false, so a writer
+ 	// failure remains visible to the owner and can still latch a stop.
+@@ -275,6 +276,7 @@
+ // A closed observation channel ends the loop WITHOUT exiting, for the same
+ // reason: the absence of an observation is not an observation.
+ func (s *shutdown) drainLoop(ctx context.Context, obs <-chan lifecycle.DrainObservation) error {
++	var retryAfter time.Time
+ 	for {
+ 		var o lifecycle.DrainObservation
+ 		select {
+@@ -287,15 +289,16 @@
+ 			o = got
+ 		}
+ 
+-		if !s.observeDrain(o) {
++		if !s.observeDrain(o) || time.Now().Before(retryAfter) {
+ 			continue
+ 		}
+ 		if err := s.stop(ctx); err != nil {
++			retryAfter = time.Now().Add(time.Second)
+ 			s.r.anom.raise(risk.Anomaly{
+ 				Class: stopRefusedClass, Sev: risk.SEV1,
+ 				Text: fmt.Sprintf("the drain is complete and the exit is "+
+-					"authorised, but the orderly stop was refused and NOTHING has "+
+-					"been torn down: %v. The process stays up, still retrying, "+
++					"authorised, but the orderly stop failed; instance ownership is retained "+
++					"and observation/alerting continue: %v. The process stays up, still retrying, "+
+ 					"because forcing past this turns records the store has "+
+ 					"accepted into records that are permanently lost", err),
+ 			})
+@@ -332,6 +335,20 @@
+ // has ACCEPTED, and a caller that cannot stop cleanly is told rather than
+ // discovering afterwards that it stopped destructively.
+ func (s *shutdown) stop(ctx context.Context) error {
++	if s.stopRequests == nil {
++		return s.stopStore(ctx)
++	}
++	request := stopRequest{ctx: ctx, done: make(chan error, 1)}
++	select {
++	case s.stopRequests <- request:
++	case <-ctx.Done():
++		return ctx.Err()
++	}
++	// Once accepted, the owner must finish restoration before a retry.
++	return <-request.done
++}
++
++func (s *shutdown) stopStore(ctx context.Context) error {
+ 	s.handleResults(s.r.store.TakeResults())
+ 	s.handleAnomalies()
+ 	if err := s.r.store.Drain(ctx); err != nil {
+@@ -348,13 +365,49 @@
+ 	if err := s.r.flushAlerts(ctx); err != nil {
+ 		return err
+ 	}
++	anomaliesBeforeDelivery := s.anomalies.Load()
++	if err := s.r.stopAlerts(ctx); err != nil {
++		s.r.resumeAlerts()
++		return err
++	}
++	// The final alert step can itself submit delivery records. Consume all
++	// terminal results while the writer still accepts their failure evidence.
++	if err := s.drainResults(ctx); err != nil {
++		s.r.resumeAlerts()
++		return err
++	}
++	if s.anomalies.Load() != anomaliesBeforeDelivery {
++		s.r.resumeAlerts()
++		return fmt.Errorf("final delivery produced new record-failure evidence; retain observation and retry alert delivery before close")
++	}
+ 	s.finalClose.Lock()
+ 	defer s.finalClose.Unlock()
+ 	if err := s.r.close(ctx); err != nil {
++		s.r.resumeAlerts()
+ 		return err
+ 	}
+ 	s.orderlyClosed = true
+ 	return nil
++}
++
++// drainResults runs only after the serving result loop and all producers have
++// joined. A result can create another accepted anomaly, so two fixed passes
++// cannot establish that every terminal outcome was consumed.
++func (s *shutdown) drainResults(ctx context.Context) error {
++	for {
++		if err := ctx.Err(); err != nil {
++			return err
++		}
++		s.handleAnomalies()
++		if err := s.r.store.Drain(ctx); err != nil {
++			return err
++		}
++		batch := s.r.store.TakeResults()
++		if len(batch) == 0 {
++			return nil
++		}
++		s.handleResults(batch)
++	}
+ }
+ 
+ // ---------------------------------------------------------------------------
+--- starting/scripts/harness_negative_control.py
++++ repaired/scripts/harness_negative_control.py
+@@ -2041,34 +2041,20 @@
+      ],
+      'TestAlertFailureLoggingCannotRevealTransportSecrets'),
+ 
++    # The final close now has additional result/producer barriers. Mutate
++    # the same delivery-order property at the current flush boundary.
+     ('M-6W5-CONCURRENTFINAL',
+-     'call the stateful alert Step directly from shutdown while its goroutine '
+-     'may already own it, racing retry ladders and suppression buckets',
+-     [
+-         ('cmd/harness/shutdown.go',
+-          '\tif err := s.r.flushAlerts(ctx); err != nil {\n'
+-          '\t\treturn err\n'
+-          '\t}\n'
+-          '\treturn s.r.close(ctx)\n',
+-          '\ts.r.stepAlerts(ctx)\n'
+-          '\treturn s.r.close(ctx)\n'),
+-     ],
++     'call the stateful alert Step directly while its goroutine may own it',
++     [('cmd/harness/shutdown.go',
++       '\tif err := s.r.flushAlerts(ctx); err != nil {\n\t\treturn err\n\t}\n',
++       '\ts.r.stepAlerts(ctx)\n')],
+      'TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore'),
+-
+     ('M-6W5-CLOSEFIRST',
+-     'close the alert loop and store before the final delivery pass, so the '
+-     'last durable anomaly can be stranded precisely during orderly shutdown',
+-     [
+-         ('cmd/harness/shutdown.go',
+-          '\tif err := s.r.flushAlerts(ctx); err != nil {\n'
+-          '\t\treturn err\n'
+-          '\t}\n'
+-          '\treturn s.r.close(ctx)\n',
+-          '\tif err := s.r.close(ctx); err != nil {\n'
+-          '\t\treturn err\n'
+-          '\t}\n'
+-          '\treturn s.r.flushAlerts(ctx)\n'),
+-     ],
++     'close the alert loop and store before the final delivery pass',
++     [('cmd/harness/shutdown.go',
++       '\tif err := s.r.flushAlerts(ctx); err != nil {\n\t\treturn err\n\t}\n',
++       '\tif err := s.r.close(ctx); err != nil { return err }\n'
++       '\tif err := s.r.flushAlerts(ctx); err != nil { return err }\n')],
+      'TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore'),
+ 
+     # --- v3 items 11-13: the ping scheduling repairs --------------------------
+@@ -3248,7 +3234,7 @@
+      'system stack that is broken',
+      [
+          ('cmd/harness/runtime.go',
+-          '\t\tDialer: wsx.NewLiveDialerWithTransport(nt.ws),\n',
++          '\t\tDialer:  wsx.NewLiveDialerWithTransport(nt.ws),\n',
+           '\t\tDialer: wsx.NewLiveDialer(),\n'),
+      ],
+      'TestProductionWebSocketUsesF6Dialer'),
+@@ -4651,6 +4637,42 @@
+      [("cmd/harness/turnover_accounting.go", "func (o *owner) acceptTurnoverOwnedSighting(ord rest.Order) bool {\n", "func (o *owner) acceptTurnoverOwnedSighting(ord rest.Order) bool {\n\tif ord.ClientOrderID != \"\" { return true }\n")],
+      "TestTurnoverForeignPrefixIsNotOwnedSweepEvidence"),
+ ])
++
++# lip-3dw: final-close producer, evidence and refusal boundaries.
++MUTATIONS.extend([('M-3DW-INPUT-JOIN',
++  'close without joining runtime input producers',
++  [('cmd/harness/run.go', '\t\t\terr := inputs.pause(closeCtx)\n', '\t\t\tvar err error\n')],
++  'TestServingCloseJoinsCanceledBalanceCallbackBeforeStoreClose'),
++ ('M-3DW-INPUT-RESUME',
++  'leave account observation stopped after close refuses',
++  [('cmd/harness/run.go', '\t\t\tinputs.resume(ctx)\n', '')],
++  'TestServingCloseRefusalRestoresObservationAndRetries'),
++ ('M-3DW-LOCK-REFUSAL',
++  'release instance ownership when store shutdown refuses',
++  [('cmd/harness/runtime.go',
++    '\tif err != nil {\n\t\t// Close can fail',
++    '\tif err != nil {\n\t\tif r.lock != nil { _ = r.lock.Close() }\n\t\t// Close can fail')],
++  'TestRigCloseRefusalRetainsLockAndAlerts'),
++ ('M-3DW-ALERT-RESUME',
++  'leave alert service canceled after store close refuses',
++  [('cmd/harness/runtime.go',
++    '\t\tif writerStopped {\n\t\t\tr.closeFailure = err\n\t\t}\n\t\tr.resumeAlerts()',
++    '\t\tif writerStopped {\n\t\t\tr.closeFailure = err\n\t\t}')],
++  'TestRigCloseRefusalRetainsLockAndAlerts'),
++ ('M-3DW-DIAL-WAIT',
++  'final close skips detached in-flight dial reports',
++  [('cmd/harness/dial_barrier.go', '\tif active == 0 {', '\tif active >= 0 {')],
++  'TestServingCloseWaitsForDetachedDialReport'),
++ ('M-3DW-DIAL-FENCE',
++  'a late scheduled transport dial crosses the close fence',
++  [('cmd/harness/dial_barrier.go', '\tif b.paused {', '\tif false && b.paused {')],
++  'TestServingCloseWaitsForDetachedDialReport'),
++ ('M-3DW-FINAL-RESULTS',
++  'discard terminal outcomes from the final alert pass',
++  [('cmd/harness/shutdown.go',
++    '\tif err := s.drainResults(ctx); err != nil {',
++    '\tif err := error(nil); err != nil {')],
++  'TestFinalAlertResultFailureIsDrainedBeforeClose')])
+ 
+ # Files OUTSIDE `go/` that the Go tests read, and which the mutation sandbox
+ # must therefore reproduce.

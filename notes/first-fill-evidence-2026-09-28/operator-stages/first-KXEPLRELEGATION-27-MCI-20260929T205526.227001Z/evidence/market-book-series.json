@@ -1,0 +1,1450 @@
+{
+  "ticker": "KXEPLRELEGATION-27-MCI",
+  "read_only": true,
+  "calls": {
+    "market": {
+      "path": "/markets/KXEPLRELEGATION-27-MCI",
+      "at_utc": "2026-09-29T20:55:28.408996+00:00",
+      "status": 200,
+      "latency_ms": 277.636,
+      "body": {
+        "market": {
+          "can_close_early": true,
+          "close_time": "2027-06-21T21:00:00Z",
+          "created_time": "2026-07-17T16:44:53.398609Z",
+          "custom_strike": {
+            "soccer_team": "f5d3f1b2-8ff6-4165-835f-45406eae5fb6"
+          },
+          "early_close_condition": "This market will close and expire early if the event occurs.",
+          "event_ticker": "KXEPLRELEGATION-27",
+          "exchange_index": 0,
+          "expected_expiration_time": "2027-06-21T21:00:00Z",
+          "expiration_time": "2027-06-21T21:00:00Z",
+          "expiration_value": "",
+          "last_price_dollars": "0.3600",
+          "latest_expiration_time": "2027-06-21T21:00:00Z",
+          "liquidity_dollars": "0.0000",
+          "market_type": "binary",
+          "no_ask_dollars": "0.6700",
+          "no_bid_dollars": "0.6500",
+          "no_sub_title": "Manchester City",
+          "notional_value_dollars": "1.0000",
+          "occurrence_datetime": "2027-06-07T21:00:00Z",
+          "open_interest_fp": "44139.15",
+          "open_time": "2026-07-17T16:50:00Z",
+          "previous_price_dollars": "0.2300",
+          "previous_yes_ask_dollars": "0.2400",
+          "previous_yes_bid_dollars": "0.2300",
+          "price_level_structure": "linear_cent",
+          "price_ranges": [
+            {
+              "end": "1.0000",
+              "start": "0.0000",
+              "step": "0.0100"
+            }
+          ],
+          "result": "",
+          "rules_primary": "If Manchester City is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+          "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+          "settlement_timer_seconds": 500,
+          "status": "active",
+          "strike_type": "structured",
+          "ticker": "KXEPLRELEGATION-27-MCI",
+          "title": "Will Manchester City be relegated from EPL in 2026-27 Season?",
+          "updated_time": "2026-07-22T17:01:32.286148Z",
+          "volume_24h_fp": "22172.88",
+          "volume_fp": "79295.45",
+          "yes_ask_dollars": "0.3500",
+          "yes_ask_size_fp": "28.92",
+          "yes_bid_dollars": "0.3300",
+          "yes_bid_size_fp": "172.83",
+          "yes_sub_title": "Manchester City"
+        }
+      }
+    },
+    "orderbook": {
+      "path": "/markets/KXEPLRELEGATION-27-MCI/orderbook",
+      "at_utc": "2026-09-29T20:55:28.686693+00:00",
+      "status": 200,
+      "latency_ms": 253.203,
+      "body": {
+        "orderbook_fp": {
+          "no_dollars": [
+            [
+              "0.0100",
+              "8681.36"
+            ],
+            [
+              "0.0200",
+              "10250.00"
+            ],
+            [
+              "0.0300",
+              "7080.00"
+            ],
+            [
+              "0.0400",
+              "97.62"
+            ],
+            [
+              "0.0600",
+              "100.00"
+            ],
+            [
+              "0.0700",
+              "21.55"
+            ],
+            [
+              "0.0800",
+              "32.85"
+            ],
+            [
+              "0.0900",
+              "1256.00"
+            ],
+            [
+              "0.1000",
+              "3815.00"
+            ],
+            [
+              "0.1100",
+              "819.00"
+            ],
+            [
+              "0.1200",
+              "3.40"
+            ],
+            [
+              "0.1300",
+              "0.17"
+            ],
+            [
+              "0.1400",
+              "291.25"
+            ],
+            [
+              "0.1500",
+              "0.29"
+            ],
+            [
+              "0.1600",
+              "100.00"
+            ],
+            [
+              "0.2100",
+              "100.00"
+            ],
+            [
+              "0.2400",
+              "66.46"
+            ],
+            [
+              "0.2500",
+              "223.00"
+            ],
+            [
+              "0.2600",
+              "100.00"
+            ],
+            [
+              "0.2700",
+              "632.00"
+            ],
+            [
+              "0.2800",
+              "2168.00"
+            ],
+            [
+              "0.3100",
+              "100.00"
+            ],
+            [
+              "0.3200",
+              "12.31"
+            ],
+            [
+              "0.3300",
+              "6.00"
+            ],
+            [
+              "0.3600",
+              "16.51"
+            ],
+            [
+              "0.3800",
+              "130.12"
+            ],
+            [
+              "0.4500",
+              "2000.00"
+            ],
+            [
+              "0.4600",
+              "737.00"
+            ],
+            [
+              "0.4700",
+              "1399.30"
+            ],
+            [
+              "0.4800",
+              "1377.00"
+            ],
+            [
+              "0.5000",
+              "872.00"
+            ],
+            [
+              "0.5100",
+              "1246.62"
+            ],
+            [
+              "0.5200",
+              "103.70"
+            ],
+            [
+              "0.5600",
+              "49.00"
+            ],
+            [
+              "0.6000",
+              "200.00"
+            ],
+            [
+              "0.6300",
+              "1355.00"
+            ],
+            [
+              "0.6400",
+              "103.63"
+            ],
+            [
+              "0.6500",
+              "28.92"
+            ]
+          ],
+          "yes_dollars": [
+            [
+              "0.0100",
+              "6535.00"
+            ],
+            [
+              "0.0200",
+              "7180.00"
+            ],
+            [
+              "0.0300",
+              "6111.95"
+            ],
+            [
+              "0.0400",
+              "13888.00"
+            ],
+            [
+              "0.0600",
+              "3357.00"
+            ],
+            [
+              "0.1000",
+              "122.40"
+            ],
+            [
+              "0.1200",
+              "2001.34"
+            ],
+            [
+              "0.1300",
+              "50.00"
+            ],
+            [
+              "0.1400",
+              "1000.00"
+            ],
+            [
+              "0.1500",
+              "192.00"
+            ],
+            [
+              "0.1600",
+              "58.00"
+            ],
+            [
+              "0.1700",
+              "8.24"
+            ],
+            [
+              "0.1900",
+              "250.00"
+            ],
+            [
+              "0.2000",
+              "8.00"
+            ],
+            [
+              "0.2200",
+              "38.80"
+            ],
+            [
+              "0.2300",
+              "8.24"
+            ],
+            [
+              "0.2500",
+              "902.33"
+            ],
+            [
+              "0.2600",
+              "27.00"
+            ],
+            [
+              "0.2700",
+              "225.00"
+            ],
+            [
+              "0.2800",
+              "56.48"
+            ],
+            [
+              "0.2900",
+              "250.00"
+            ],
+            [
+              "0.3000",
+              "142.49"
+            ],
+            [
+              "0.3100",
+              "50.72"
+            ],
+            [
+              "0.3200",
+              "251.87"
+            ],
+            [
+              "0.3300",
+              "173.83"
+            ]
+          ]
+        }
+      }
+    },
+    "event": {
+      "path": "/events/KXEPLRELEGATION-27",
+      "at_utc": "2026-09-29T20:55:28.939934+00:00",
+      "status": 200,
+      "latency_ms": 326.625,
+      "body": {
+        "event": {
+          "category": "Sports",
+          "collateral_return_type": "",
+          "event_ticker": "KXEPLRELEGATION-27",
+          "exchange_index": 0,
+          "last_updated_ts": "0001-01-01T00:00:00Z",
+          "mutually_exclusive": false,
+          "product_metadata": {
+            "competition": "EPL",
+            "competition_scope": "Relegation"
+          },
+          "series_ticker": "KXEPLRELEGATION",
+          "settlement_sources": [
+            {
+              "name": "ESPN",
+              "url": "https://www.espn.com/"
+            }
+          ],
+          "strike_period": "",
+          "sub_title": "2026-27",
+          "title": "EPL Relegation"
+        },
+        "markets": [
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "246a91c5-f145-401f-bf0d-2a436e25a5f6"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0400",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9900",
+            "no_bid_dollars": "0.9700",
+            "no_sub_title": "Arsenal",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "17969.34",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "0.0300",
+            "previous_yes_bid_dollars": "0.0100",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Arsenal is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "subtitle": "Arsenal",
+            "ticker": "KXEPLRELEGATION-27-ARS",
+            "title": "Will Arsenal be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.347771Z",
+            "volume_24h_fp": "1254.27",
+            "volume_fp": "24422.69",
+            "yes_ask_dollars": "0.0300",
+            "yes_ask_size_fp": "22.82",
+            "yes_bid_dollars": "0.0100",
+            "yes_bid_size_fp": "2598.41",
+            "yes_sub_title": "Arsenal"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "bfb98900-9759-436c-bc1f-8bf8c5ae249f"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0500",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9500",
+            "no_bid_dollars": "0.8800",
+            "no_sub_title": "Aston Villa",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "2774.78",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "0.1300",
+            "previous_yes_bid_dollars": "0.0600",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Aston Villa is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-AVL",
+            "title": "Will Aston Villa be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "50.34",
+            "volume_fp": "5000.25",
+            "yes_ask_dollars": "0.1200",
+            "yes_ask_size_fp": "4.50",
+            "yes_bid_dollars": "0.0500",
+            "yes_bid_size_fp": "26.51",
+            "yes_sub_title": "Aston Villa"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "244308db-fa16-4065-905e-9053d68370e6"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0400",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9300",
+            "no_sub_title": "Brentford",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "92.22",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.0400",
+            "previous_yes_ask_dollars": "0.0700",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Brentford is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-BRE",
+            "title": "Will Brentford be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "258.51",
+            "yes_ask_dollars": "0.0700",
+            "yes_ask_size_fp": "4.56",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Brentford"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "75575478-e8c9-4d59-ae3b-b117c1d42890"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9500",
+            "no_sub_title": "Brighton",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "182.71",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "0.0500",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Brighton is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-BRI",
+            "title": "Will Brighton be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "442.71",
+            "yes_ask_dollars": "0.0500",
+            "yes_ask_size_fp": "20.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Brighton"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "894cf22a-8360-49a1-812c-7556fb97cbcd"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9200",
+            "no_sub_title": "Chelsea",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "124.93",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "0.0800",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Chelsea is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-CFC",
+            "title": "Will Chelsea be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "206.19",
+            "yes_ask_dollars": "0.0800",
+            "yes_ask_size_fp": "1.80",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Chelsea"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "6fe2874c-1926-4182-b52c-c223bf8b4c2c"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.6600",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.3400",
+            "no_bid_dollars": "0.3200",
+            "no_sub_title": "Coventry City",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "11126.64",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.6900",
+            "previous_yes_ask_dollars": "0.6900",
+            "previous_yes_bid_dollars": "0.6600",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Coventry City is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-COV",
+            "title": "Will Coventry City be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "20.00",
+            "volume_fp": "21480.47",
+            "yes_ask_dollars": "0.6800",
+            "yes_ask_size_fp": "1002.55",
+            "yes_bid_dollars": "0.6600",
+            "yes_bid_size_fp": "23.61",
+            "yes_sub_title": "Coventry City"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "7fd3376e-2256-4010-95a5-5b2a29a73e09"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.3600",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.6900",
+            "no_bid_dollars": "0.6400",
+            "no_sub_title": "Crystal Palace",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "2528.83",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.3200",
+            "previous_yes_ask_dollars": "0.3500",
+            "previous_yes_bid_dollars": "0.3200",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Crystal Palace is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-CRY",
+            "title": "Will Crystal Palace be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "16.92",
+            "volume_fp": "3915.92",
+            "yes_ask_dollars": "0.3600",
+            "yes_ask_size_fp": "1110.56",
+            "yes_bid_dollars": "0.3100",
+            "yes_bid_size_fp": "21.53",
+            "yes_sub_title": "Crystal Palace"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "7abb495c-193e-4baf-b3d3-108e99eab8ed"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.1300",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.8800",
+            "no_sub_title": "Everton",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "817.77",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.1300",
+            "previous_yes_ask_dollars": "0.1200",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Everton is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-EVE",
+            "title": "Will Everton be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "1275.59",
+            "yes_ask_dollars": "0.1200",
+            "yes_ask_size_fp": "26.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Everton"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "664077ba-242b-43e3-975d-cd754a774727"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.3100",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.7300",
+            "no_bid_dollars": "0.6900",
+            "no_sub_title": "Fulham",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "2097.84",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.2900",
+            "previous_yes_ask_dollars": "0.2900",
+            "previous_yes_bid_dollars": "0.2600",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Fulham is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-FUL",
+            "title": "Will Fulham be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "74.07",
+            "volume_fp": "3789.75",
+            "yes_ask_dollars": "0.3100",
+            "yes_ask_size_fp": "33.23",
+            "yes_bid_dollars": "0.2700",
+            "yes_bid_size_fp": "28.91",
+            "yes_sub_title": "Fulham"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "56d3f546-aa7e-436d-a7f3-0d71a96a5168"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.4800",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.5200",
+            "no_bid_dollars": "0.5000",
+            "no_sub_title": "Hull City",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "24017.15",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.4800",
+            "previous_yes_ask_dollars": "0.5000",
+            "previous_yes_bid_dollars": "0.4800",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Hull City is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-HUL",
+            "title": "Will Hull City be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "537.83",
+            "volume_fp": "46409.42",
+            "yes_ask_dollars": "0.5000",
+            "yes_ask_size_fp": "23.13",
+            "yes_bid_dollars": "0.4800",
+            "yes_bid_size_fp": "20.70",
+            "yes_sub_title": "Hull City"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "0a9eca41-bd4f-415c-b804-58214e97a77f"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.3800",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.6600",
+            "no_bid_dollars": "0.6100",
+            "no_sub_title": "Ipswich Town",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "6622.91",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.3500",
+            "previous_yes_ask_dollars": "0.3800",
+            "previous_yes_bid_dollars": "0.3500",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Ipswich Town is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-IPS",
+            "title": "Will Ipswich Town be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "348.60",
+            "volume_fp": "12105.05",
+            "yes_ask_dollars": "0.3900",
+            "yes_ask_size_fp": "14.80",
+            "yes_bid_dollars": "0.3400",
+            "yes_bid_size_fp": "54.00",
+            "yes_sub_title": "Ipswich Town"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "98aa1226-ef50-4226-9216-33a1096b597f"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.1600",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.8900",
+            "no_bid_dollars": "0.8800",
+            "no_sub_title": "Leeds United",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "2179.70",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.1100",
+            "previous_yes_ask_dollars": "0.1200",
+            "previous_yes_bid_dollars": "0.0700",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Leeds United is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-LEE",
+            "title": "Will Leeds United be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "196.31",
+            "volume_fp": "3346.42",
+            "yes_ask_dollars": "0.1200",
+            "yes_ask_size_fp": "1000.00",
+            "yes_bid_dollars": "0.1100",
+            "yes_bid_size_fp": "0.61",
+            "yes_sub_title": "Leeds United"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "cfd4b999-b080-4c2b-8a5b-640c992aff6e"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0700",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9300",
+            "no_sub_title": "Liverpool",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "279.00",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.0700",
+            "previous_yes_ask_dollars": "0.0700",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Liverpool is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-LFC",
+            "title": "Will Liverpool be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "5.09",
+            "volume_fp": "354.09",
+            "yes_ask_dollars": "0.0700",
+            "yes_ask_size_fp": "6.91",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Liverpool"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "f5d3f1b2-8ff6-4165-835f-45406eae5fb6"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.3600",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.6700",
+            "no_bid_dollars": "0.6500",
+            "no_sub_title": "Manchester City",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "44139.15",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.2300",
+            "previous_yes_ask_dollars": "0.2400",
+            "previous_yes_bid_dollars": "0.2300",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Manchester City is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-MCI",
+            "title": "Will Manchester City be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "22172.88",
+            "volume_fp": "79295.45",
+            "yes_ask_dollars": "0.3500",
+            "yes_ask_size_fp": "28.92",
+            "yes_bid_dollars": "0.3300",
+            "yes_bid_size_fp": "172.83",
+            "yes_sub_title": "Manchester City"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "7e273345-6669-4db7-8a38-7f3ccb608937"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0800",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9800",
+            "no_bid_dollars": "0.9200",
+            "no_sub_title": "Manchester United",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "753.82",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.0200",
+            "previous_yes_ask_dollars": "0.0600",
+            "previous_yes_bid_dollars": "0.0200",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Manchester United is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-MUN",
+            "title": "Will Manchester United be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "299.16",
+            "volume_fp": "906.04",
+            "yes_ask_dollars": "0.0800",
+            "yes_ask_size_fp": "2113.23",
+            "yes_bid_dollars": "0.0200",
+            "yes_bid_size_fp": "5.00",
+            "yes_sub_title": "Manchester United"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "2f4b2ba6-f0dd-4d68-96eb-96cff8389c1a"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.1300",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9100",
+            "no_bid_dollars": "0.8900",
+            "no_sub_title": "Newcastle United",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "5026.23",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.1000",
+            "previous_yes_ask_dollars": "0.1100",
+            "previous_yes_bid_dollars": "0.1000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Newcastle United is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-NEW",
+            "title": "Will Newcastle United be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "235.12",
+            "volume_fp": "8501.12",
+            "yes_ask_dollars": "0.1100",
+            "yes_ask_size_fp": "14.00",
+            "yes_bid_dollars": "0.0900",
+            "yes_bid_size_fp": "3.00",
+            "yes_sub_title": "Newcastle United"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "8d0773c5-7765-4da5-9be1-84707ae9ddce"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.1800",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9000",
+            "no_bid_dollars": "0.8200",
+            "no_sub_title": "Nottingham Forest",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "2940.50",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.1600",
+            "previous_yes_ask_dollars": "0.1500",
+            "previous_yes_bid_dollars": "0.1000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Nottingham Forest is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-NFO",
+            "title": "Will Nottingham Forest be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "30.19",
+            "volume_fp": "3587.29",
+            "yes_ask_dollars": "0.1800",
+            "yes_ask_size_fp": "142.23",
+            "yes_bid_dollars": "0.1000",
+            "yes_bid_size_fp": "83.00",
+            "yes_sub_title": "Nottingham Forest"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "f0a69f43-b3c4-4049-bf6d-4717809000a1"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.2600",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.8000",
+            "no_bid_dollars": "0.7700",
+            "no_sub_title": "Sunderland",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "1509.65",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.2300",
+            "previous_yes_ask_dollars": "0.2300",
+            "previous_yes_bid_dollars": "0.2000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Sunderland is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-SUN",
+            "title": "Will Sunderland be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "19.39",
+            "volume_fp": "2129.18",
+            "yes_ask_dollars": "0.2300",
+            "yes_ask_size_fp": "15.00",
+            "yes_bid_dollars": "0.2000",
+            "yes_bid_size_fp": "0.72",
+            "yes_sub_title": "Sunderland"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "95c3aaf8-3f26-4129-b67c-c99562cb3dc9"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.1700",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.8700",
+            "no_bid_dollars": "0.8400",
+            "no_sub_title": "Tottenham",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "36046.38",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.1700",
+            "previous_yes_ask_dollars": "0.1600",
+            "previous_yes_bid_dollars": "0.1300",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Tottenham is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-TOT",
+            "title": "Will Tottenham be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "198.48",
+            "volume_fp": "43767.17",
+            "yes_ask_dollars": "0.1600",
+            "yes_ask_size_fp": "3123.54",
+            "yes_bid_dollars": "0.1300",
+            "yes_bid_size_fp": "14.34",
+            "yes_sub_title": "Tottenham"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-06-21T21:00:00Z",
+            "created_time": "2026-07-17T16:44:53.398609Z",
+            "custom_strike": {
+              "soccer_team": "845da653-13fc-4d80-b0e0-a48179c37ffa"
+            },
+            "early_close_condition": "This market will close and expire early if the event occurs.",
+            "event_ticker": "KXEPLRELEGATION-27",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_time": "2027-06-21T21:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0700",
+            "latest_expiration_time": "2027-06-21T21:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9300",
+            "no_bid_dollars": "0.8700",
+            "no_sub_title": "Bournemouth",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-06-07T21:00:00Z",
+            "open_interest_fp": "155.04",
+            "open_time": "2026-07-17T16:50:00Z",
+            "previous_price_dollars": "0.0700",
+            "previous_yes_ask_dollars": "0.1300",
+            "previous_yes_bid_dollars": "0.0700",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Bournemouth is relegated from the EPL in 2026-27 season, then the market resolves to Yes.",
+            "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 500,
+            "status": "active",
+            "strike_type": "structured",
+            "ticker": "KXEPLRELEGATION-27-BOU",
+            "title": "Will Bournemouth be relegated from EPL in 2026-27 Season?",
+            "updated_time": "2026-07-22T17:01:32.286148Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "290.71",
+            "yes_ask_dollars": "0.1300",
+            "yes_ask_size_fp": "15.00",
+            "yes_bid_dollars": "0.0700",
+            "yes_bid_size_fp": "5.00",
+            "yes_sub_title": "Bournemouth"
+          }
+        ]
+      }
+    },
+    "series": {
+      "path": "/series/KXEPLRELEGATION",
+      "at_utc": "2026-09-29T20:55:29.268841+00:00",
+      "status": 200,
+      "latency_ms": 268.068,
+      "body": {
+        "series": {
+          "additional_prohibitions": [
+            "Current players, coaches, and staff of the league, association, or organization(s) governing the event. For college leagues/associations specifically, or where otherwise appropriate (as identified by the Exchange), this applies to current players/coaches/staff of the specific sport in <event> rather than the league/association as a whole (e.g., if the Division I Gonzaga Men\u2019s Basketball Team is playing in <event>, this prohibition will restrict trades by current players/coaches/staff on NCAA Basketball, rather than all current players/coaches/staff in any NCAA sport).",
+            "Paid employees of the league and league participants",
+            "Owners of teams and the league",
+            "and household members and immediate family of all above",
+            "Persons who are employed by any of the Source Agencies are not permitted to trade on the Contract.",
+            "Persons who hold any material, non-public information on the Underlying are not permitted to trade on the Contract."
+          ],
+          "categories": [
+            "Sports"
+          ],
+          "category": "Sports",
+          "contract_terms_url": "https://assets.kalshi.com/contract_terms/RELEGATION.pdf",
+          "contract_url": "https://assets.kalshi.com/regulatory/product-certifications/RELEGATION.pdf",
+          "exchange_index": 0,
+          "fee_multiplier": 1,
+          "fee_type": "quadratic",
+          "frequency": "annual",
+          "last_updated_ts": "2026-09-16T00:29:24.467894Z",
+          "product_metadata": {
+            "scope": "Relegation"
+          },
+          "settlement_sources": [
+            {
+              "name": "ESPN",
+              "url": "https://www.espn.com/"
+            }
+          ],
+          "tags": [
+            "Soccer"
+          ],
+          "ticker": "KXEPLRELEGATION",
+          "title": "English Premier League Relegation"
+        }
+      }
+    }
+  },
+  "completed_at_utc": "2026-09-29T20:55:29.536969+00:00",
+  "note": "Sequential snapshots, not executable quotes or actual fees. Re-read immediately before arming."
+}

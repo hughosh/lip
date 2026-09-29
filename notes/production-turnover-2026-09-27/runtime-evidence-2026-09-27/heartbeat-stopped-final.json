@@ -1,0 +1,13 @@
+{
+  "at_utc": "2026-09-27T17:27:48.766830+00:00",
+  "signal": "fail",
+  "source": "GET-only observer and its heartbeat are stopped",
+  "process_receipt": "process-final.json",
+  "provider": "Healthchecks",
+  "endpoint_redacted": true,
+  "human_acknowledgment": false,
+  "dashboard_verified": false,
+  "watchdog_installed": false,
+  "http_status": 200,
+  "body_exact_OK": true
+}

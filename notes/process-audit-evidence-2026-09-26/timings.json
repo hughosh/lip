@@ -1,0 +1,20 @@
+{
+  "quick_gate_seconds": 78.394,
+  "quick_old_historical_seconds": 523,
+  "quick_comparison_caveat": "Historical old quick includes race and all-300 compilation; different source/cache. New quick intentionally changes cadence and checks the whole Go module.",
+  "safety_16_seconds": 154.592,
+  "four_guard_first_revision_seconds": 70.065,
+  "four_guard_final_package_selection_seconds": 24.151,
+  "optional_all_300_model_seconds": 1908.7,
+  "model_inputs": {
+    "median_build_seconds": 2.4635,
+    "median_named_test_overhead_seconds": 2.532,
+    "weighted_catcher_seconds_using_baseline_except_16_measured_mutants": 125.24000000000001,
+    "full_suite_seconds": 73.095,
+    "full_suite_runs": 4,
+    "old_full_suite_runs": 301,
+    "build_runs": 300,
+    "old_build_runs": 601
+  },
+  "model_caveat": "Estimate, not a measured full audit; unmeasured mutants can introduce additional waits. Unknown or missing baseline timings count as zero. Do not use as a release receipt."
+}

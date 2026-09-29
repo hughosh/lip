@@ -116,10 +116,9 @@ type probe struct {
 	// that is absent (page.go:311-314), and the positions endpoint declares two.
 	siblings []string
 	// filters MUST match what the production caller sends, or the sweep judges
-	// the decoder against records production never sees. `Programs` sends
-	// `status=active` (read.go:631-632); the unfiltered walk returns 137,569
-	// records including every expired `incentive_type: "volume"` programme,
-	// none of which carry `target_size_fp`. Reporting those as live refusals
+	// the decoder against records production never sees. `Programs` sends both
+	// `status=active` and `type=liquidity`; the unfiltered walk includes volume
+	// programmes without `target_size_fp`. Reporting their refusals as live
 	// would be a fabricated defect.
 	filters url.Values
 	// latent marks a probe that deliberately walks WIDER than production, to
@@ -181,10 +180,11 @@ func probes() []probe {
 			decode: positions,
 		},
 		{
-			// Exactly what the harness sends at startup (read.go:631-632).
+			// Exactly what the harness sends at startup.
 			name: "programs", ep: rest.EpPrograms,
 			itemKey: "incentive_programs", decode: programs,
-			filters: url.Values{"status": []string{"active"}},
+			filters: url.Values{"status": []string{"active"},
+				"type": []string{"liquidity"}},
 		},
 		{
 			// The same decoder against the whole endpoint. `Programs` is

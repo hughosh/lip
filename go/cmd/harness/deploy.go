@@ -24,12 +24,10 @@ import (
 // `provision.go` makes about creating a database. The commands are printed for
 // the operator to run.
 //
-// Two refusals here exist because of what `KeepAlive: true` does with a job
-// that cannot start (H-DEP-2 -- "restart on any exit, including exit 0"). A
-// plist naming a missing `caffeinate`, or a harness whose store has not been
-// provisioned, produces a job that launchd faithfully respawns forever. Nothing
-// in this system reports that: the harness's own anomaly journal needs the
-// harness to be up.
+// Validate the dependencies before writing the job. The installed argv is
+// supervised, so a later structural refusal exits zero and leaves launchd
+// stopped; an operational failure remains nonzero and is retried. A missing
+// caffeinate executable prevents the job from starting at all.
 
 // agentLabel is the launchd job's identity, and there is exactly one of it.
 //
@@ -175,10 +173,8 @@ func installAgent(c config, configPath string, opts agentOptions,
 		return err
 	}
 
-	// The store, before the plist. `KeepAlive: true` restarts on any exit, so a
-	// job installed against an unprovisioned path is not a job that fails once
-	// -- it is a respawn loop against `requireExistingDB`'s refusal, running at
-	// whatever rate launchd throttles to, reported by nothing.
+	// The store, before the plist. Refuse an unprovisioned deployment now so
+	// the operator sees the error, instead of discovering a stopped job later.
 	if err := requireExistingDB(c.Paths.DB); err != nil {
 		return err
 	}
@@ -406,8 +402,8 @@ func writeInstallReport(out io.Writer, path string,
 	fmt.Fprintf(&b, "  Label             %s\n", plan.Label)
 	fmt.Fprintf(&b, "  ProgramArguments  %s\n",
 		strings.Join(plan.Command(), " "))
-	b.WriteString("  KeepAlive         true (H-DEP-2: restart on any exit, " +
-		"including exit 0)\n")
+	b.WriteString("  KeepAlive         SuccessfulExit=false (restart failures; stop on exit 0)\n")
+	b.WriteString("  ThrottleInterval  60 seconds\n")
 	fmt.Fprintf(&b, "  stdout            %s\n", plan.StdoutPath)
 	fmt.Fprintf(&b, "  stderr            %s\n", plan.StderrPath)
 
@@ -429,7 +425,7 @@ func writeInstallReport(out io.Writer, path string,
 
 // agentArgs is the deployed argv after the executable.
 //
-// `-config <absolute path>`, then `-rung <name>` when the operator asserted one,
+// `-supervised -config <absolute path>`, then `-rung <name>` when asserted,
 // then AT MOST ONE `-live`. Built here rather than inline so each decision is a
 // single expression a test can drive both ways, and so that "exactly once" is a
 // property of the function rather than of wherever the slice happened to be
@@ -441,7 +437,7 @@ func writeInstallReport(out io.Writer, path string,
 // human running `launchctl print` on a job they installed months ago does, and
 // that human is the only reader this argv has.
 func agentArgs(configPath, rung, qualification string, live bool) []string {
-	argv := []string{"-config", configPath}
+	argv := []string{"-supervised", "-config", configPath}
 	if rung != "" {
 		argv = append(argv, "-rung", rung)
 	}

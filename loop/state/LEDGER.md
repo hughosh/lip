@@ -366,3 +366,147 @@ CONSEQUENCES.
   `scripts/harness_negative_control.py` is NOT in conductor CONTROL_FILES, so
   such a fix needs no control re-pin; the `nc_ratchet` check at conductor.py:715
   only forbids removing mutation IDs, which a runner-logic fix does not do.
+## 2026-08-15T22:07:09Z — lip-732 scope violation ['go/harness/wsx/gate.go', 'go/harness/wsx/gate_test.go'] — discarded
+
+## 2026-08-15 — OPERATOR: it26 destroyed work on a scope violation, it27 hit the codex wall
+
+Two iterations, no advance, and the loop is now BLOCKED until codex quota
+returns on 2026-08-20 09:20. lip-732's implementation is finished and
+gate-verified but has never been audited.
+
+IT26: A GREEN GATE, THEN THE CONDUCTOR DISCARDED THE WORK. Round 3's full gate
+returned VERDICT: GREEN, ADVANCE_ELIGIBLE: YES on all seven steps. The attempt
+was then discarded at conductor.py:730 as a SCOPE VIOLATION on
+go/harness/wsx/gate.go and go/harness/wsx/gate_test.go. The implementer never
+touched those files. That iteration's driver narrowed allowed_paths to the three
+go/cmd/harness files, and changed_paths() reports the WHOLE tree -- so rounds
+1-2's accumulated work read as out of scope and was reverted with
+git checkout. This is exactly the destruction mode already recorded for lip-357,
+which carries a bd annotation pinning its paths; lip-732 had none.
+
+RECOVERED. 02.patch is written at conductor.py:713, BEFORE the discard at :730,
+so it captured the reverted files. Both were re-applied and the tree verified
+byte-identical to the tree that passed the GREEN gate (hash of the excluded-path
+diff matches 02.patch exactly). lip-732 now carries a bd note naming all five
+paths every future directive must keep in allowed_paths.
+
+02.patch IS NOT A COMPLETE BACKUP. It is `git diff HEAD`, which excludes
+UNTRACKED files, so it does not contain go/cmd/harness/gate_failure_test.go --
+the new test file this unit exists to add. That file survived it26 only because
+it happened to be inside the narrowed allowed_paths. A durable backup of all
+five files now exists as refs/backup/lip-732-round3 (76ba1f9), built through a
+temporary index so neither the working tree nor the real index was touched.
+Recover with: git diff HEAD refs/backup/lip-732-round3 | git apply
+
+THE IMPLEMENTER ENDED ITS TURN EARLY, AND THE LOOP SCORED IT AS SUCCESS. it26's
+implement turn returned 297 bytes saying it had armed a Monitor and would report
+the gate result "as soon as it completes", then ended. The run is a single
+non-interactive `claude -p`, so the turn ending ends the run. run_claude accepts
+any non-empty result -- only None trips the failure guard -- so the conductor
+went on to spend six hours gating a tree no one had reported on. It happened to
+be complete. Filed as lip-048.
+
+IT27: CODEX QUOTA EXHAUSTED. The driver's first call returned
+"You've hit your usage limit ... try again at Aug 20th, 2026 9:20 AM". The
+conductor classified it kind=rate and began the 900/1800/3600s backoff, which
+cannot help against a five-day reset: all four attempts would fail, the driver
+would return no directive, and the run would end having spent a round. Killed
+attended. NOTE for the next session: the log was 7,678 bytes, not the few
+hundred that the "judge a quota refusal by log SIZE" heuristic expects, because
+it contains the echoed prompt before the error. Read the tail for the explicit
+ERROR line instead.
+
+ROUNDS REFUNDED TWICE, 3 -> 2 each time. Neither iteration produced a verdict.
+it26's scope branch short-circuits before the audit; it27's driver never ran at
+all. Charging a unit for a harness defect and for a vendor quota is not what
+MAX_ROUNDS is for, and lip-357's 3 -> 0 reset is the standing precedent.
+
+WHERE THIS LEAVES lip-732. unit_rounds is 2, so the next launch is round 3/3 and
+a non-ADVANCE decision will park it. pending still holds the repair, re-issued at
+4,605 chars with an operator status block explaining that the instruction was
+already carried out and came back GREEN, that the discard was a scope accident
+rather than a judgement, and that the turn must not end while waiting on a
+background task. The working tree is the gate-verified, never-audited
+implementation. Nothing can move until codex returns.
+
+DISK. 34GB free. Each full gate costs ~15GB and the reclaim between runs is
+incomplete: 91 -> 78, then 69 -> 54, then 48 -> 33. There is room for about one
+more gate before gates.sh hits its floor, so space must be reclaimed before the
+next authoritative run.
+
+BEADS FILED THIS SESSION, all P1, all discovered-from lip-732: lip-bca (the
+negative control attributes any suite flake to the mutation in flight),
+lip-y3q (the catalogue does not catch a gateStopped-restricted reducer check),
+lip-048 (the implementer can end its turn waiting on a background task). None is
+yet a declared dependency of lip-8hn.1; the first two bear directly on whether a
+green catalogue can certify that gate.
+
+================================================================================
+2026-08-19 OPERATOR (attended, no conductor, codex out of quota until 08-20)
+================================================================================
+
+DISK RECLAIMED. The go build cache had reached 169GB. "go clean -cache" took 13
+minutes and returned the volume from 32GB free to 202GB. This is the second
+occurrence of the failure mode lip-9vc already documents; the cache is now 8KB.
+Disk is no longer a constraint on the next authoritative run.
+
+lip-732 REVIEWED OFFLINE, AND IT DID NOT SURVIVE. Codex being out, the loop's
+audit / challenge / adjudicate was reproduced with two independent non-codex
+reviewer threads and operator adjudication. The audit returned ADVANCE. The
+challenge returned BREAKS. The operator re-verified every load-bearing citation
+against the source and sided with the challenge.
+
+THE GREEN GATE WAS TRUE BUT NOT SUFFICIENT. Iteration 26 passed all seven steps
+including test-race and the full 287-mutation negative control while a blocking
+regression sat in the change. No test covered disconnect-with-inventory or
+pre-snapshot evaluation, and both new SETTLING tests inject a clean orders walk
+BEFORE the replacement leg is sized. A mutation catalogue can only kill code the
+tests already exercise, so a green catalogue is evidence about covered paths and
+says nothing about uncovered ones. This sharpens lip-bca's argument that the
+oracle cannot on its own certify lip-8hn.1.
+
+D1, BLOCKING, NOW FIXED. The recap predicate carried no "target > 0" guard.
+fundedReducer answers 0 on an empty book; SizeR caps Reduce at funded while
+SizesFor still reports HasReduce for any q != 0, so "wanted" stays true, target
+becomes 0, and the predicate degenerates to atRisk > 0 -- cancelling ANY resting
+exit, including a compliant one. ApplyDisconnect sets ResetBooks on an abnormal
+close, ResetOnReconnect empties every level, and the owner loop evaluates after
+every select arm, so this fired on every abnormal disconnect while holding
+inventory, and again at startup with adopted inventory. The recap sits above the
+!actionable guard, so the cancel dispatched from a book nothing could be placed
+against. The harness deleted its own exit at the moment it went blind: the exact
+inversion of I1 and A4. It is a REGRESSION -- HEAD has no cancelConfirmed field
+and zero KindCancelConfirmPlace sites, so the branch is entirely new, and
+lip-732 is also the first thing to activate the cancel-confirm-place machinery
+in quote/queue.go at all.
+
+Fixed by guarding on "target > 0", with the false in-code comment corrected.
+Added TestAnAbnormalDisconnectDoesNotCancelTheCompliantExit, whose exit is sized
+at exactly the quantized |q| so that ONLY the target collapse can produce a
+reducing-side cancel, with the clean close as control. Verified to FAIL on both
+abnormal cases with the guard reverted and PASS with it restored; build, vet and
+every harness package pass.
+
+D2, CONFIRMED, DELIBERATELY LEFT OPEN for the next round. The replacement leg of
+the cancel-confirm-place is deterministically unbuildable in production timing:
+ConfirmAbsent sets the latch but does not touch pf.LiveOrders, restingOn never
+consults cancelConfirmed, so remainder clamps to 0, build errors, the intents
+are dropped and a WRITE_NOT_BUILDABLE SEV2 fires. The side is then absent for up
+to position_poll_s. Not fixed here because the repair is a design judgment --
+discounting confirmed-absent quantity in restingOn trades against H-FAIL-3 --
+and that deserves codex's independent read rather than an operator's. Full
+detail and the missing test are on the bead.
+
+INDEPENDENCE CAVEAT, recorded so it is not overstated later: both reviewers were
+Claude-family. This is different-model independence, not the cross-vendor
+independence codex supplies. It found a blocking defect a single reviewer would
+have shipped, but it does not retire the audit codex still owes this unit.
+
+FULL GATE RELAUNCHED on the fixed tree 2026-08-19 21:32:49Z under caffeinate,
+output outside the repo. lip-732 must NOT be closed until that gate is green AND
+D2 is dispositioned.
+
+RECOVERY REFS, all including the untracked gate_failure_test.go:
+  refs/backup/lip-732-round3    76ba1f9  the GREEN iteration-26 tree
+  refs/backup/lip-732-pre-d1fix 8aec288  identical, taken immediately pre-fix
+  refs/backup/lip-732-d1fix     436d5f6  the same tree plus the D1 fix and test

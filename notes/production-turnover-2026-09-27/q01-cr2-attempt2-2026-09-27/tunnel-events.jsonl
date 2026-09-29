@@ -1,0 +1,12 @@
+{"event": "listening", "host": "127.0.0.1", "port": 56509, "time_utc": "2026-09-27T18:26:32Z"}
+{"event": "tunnel_open", "host": "external-api-ws.kalshi.com", "time_utc": "2026-09-27T18:27:11Z"}
+{"event": "tunnel_closed", "host": "external-api-ws.kalshi.com", "time_utc": "2026-09-27T18:27:12Z"}
+{"event": "tunnel_open", "host": "external-api-ws.kalshi.com", "time_utc": "2026-09-27T18:27:12Z"}
+{"event": "forced_disconnect", "host": "external-api-ws.kalshi.com", "time_utc": "2026-09-27T18:28:15Z"}
+{"event": "tunnel_closed", "host": "external-api-ws.kalshi.com", "time_utc": "2026-09-27T18:28:15Z"}
+{"event": "tunnel_open", "host": "external-api-ws.kalshi.com", "time_utc": "2026-09-27T18:28:16Z"}
+{"event": "tunnel_closed", "host": "external-api-ws.kalshi.com", "time_utc": "2026-09-27T18:29:26Z"}
+{"event": "tunnel_open", "host": "external-api-ws.kalshi.com", "time_utc": "2026-09-27T18:29:30Z"}
+{"event": "tunnel_closed", "host": "external-api-ws.kalshi.com", "time_utc": "2026-09-27T18:29:31Z"}
+{"event": "tunnel_open", "host": "external-api-ws.kalshi.com", "time_utc": "2026-09-27T18:29:31Z"}
+{"event": "tunnel_closed", "host": "external-api-ws.kalshi.com", "time_utc": "2026-09-27T18:47:44Z"}

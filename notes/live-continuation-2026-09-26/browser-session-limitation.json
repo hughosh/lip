@@ -1,0 +1,11 @@
+{
+  "at": "2026-09-26T23:59:09.261341+00:00",
+  "existing_chrome_pid": 13452,
+  "existing_mcp_pid": 13273,
+  "task_mcp_pid": 29882,
+  "mcp_flags": "--browser=chrome --isolated",
+  "result": "current task MCP created a distinct isolated profile; existing logged-in Chrome belongs to older MCP process, left untouched",
+  "user_instruction": "Stop opening new browser sessions",
+  "action": "ceased attempts, closed only current task blank MCP page; no cookie or credential extraction",
+  "fresh_personal_rewards": "not read"
+}

@@ -1,0 +1,375 @@
+{
+  "metadata": {
+    "schema_version": 4,
+    "config_hash": "sha256:1ee3ce26d67e4e599f58d8976c4e5ca932a1b00f219041f1d5e961c59bc70b8a",
+    "binary_identity": "sha256:69622c0eb4d3787dd25351109e2ed05e79b073ef1c0e87a851a6e7276ee3392b;vcs.revision=f7e9571547bb948418b7a27adc9c30ae38314b00;vcs.modified=true",
+    "ticker": "KXFEATURE-26GTA6-DON",
+    "rung": "sizing",
+    "live": false
+  },
+  "created_at": "2026-09-27T00:18:44.025746Z",
+  "updated_at": "2026-09-27T00:42:28.340858Z",
+  "segments": [
+    {
+      "id": "3e0ebef993c647c422571c76b900aaf2",
+      "run_id": "20260927T001846PSWV8",
+      "pid": 35391,
+      "started_at": "2026-09-27T00:18:44.025746Z",
+      "active_nanos": 115000435397,
+      "monitor_slots": {
+        "observed": 115,
+        "fresh": 115
+      },
+      "portfolio_slots": {
+        "observed": 23,
+        "fresh_complete": 23,
+        "stale_walks": 0,
+        "incomplete_walks": 0
+      }
+    },
+    {
+      "id": "df3676b0c4b0702ebdead3dda2d70af8",
+      "run_id": "20260927T002045V7226",
+      "pid": 35719,
+      "started_at": "2026-09-27T00:20:43.301764Z",
+      "ended_at": "2026-09-27T00:42:28.340858Z",
+      "end_reason": "finalized",
+      "active_nanos": 1302913317477,
+      "monitor_slots": {
+        "observed": 1302,
+        "fresh": 1302
+      },
+      "portfolio_slots": {
+        "observed": 261,
+        "fresh_complete": 261,
+        "stale_walks": 0,
+        "incomplete_walks": 0
+      }
+    }
+  ],
+  "attempted_http": [
+    {
+      "method": "GET",
+      "endpoint": "/incentive_programs",
+      "count": 350
+    },
+    {
+      "method": "GET",
+      "endpoint": "/markets/{ticker}",
+      "count": 354
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/balance",
+      "count": 288
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/fills",
+      "count": 287
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/orders",
+      "count": 289
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/positions",
+      "count": 289
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/subaccounts/balances",
+      "count": 289
+    }
+  ],
+  "http": [
+    {
+      "method": "GET",
+      "endpoint": "/incentive_programs",
+      "count": 350
+    },
+    {
+      "method": "GET",
+      "endpoint": "/markets/{ticker}",
+      "count": 354
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/balance",
+      "count": 288
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/fills",
+      "count": 287
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/orders",
+      "count": 289
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/positions",
+      "count": 289
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/subaccounts/balances",
+      "count": 289
+    }
+  ],
+  "would_writes": [
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXFEATURE-26GTA6-DON",
+        "side": "yes",
+        "price": "72",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=1"
+      },
+      "segment_id": "3e0ebef993c647c422571c76b900aaf2",
+      "first_at": "2026-09-27T00:18:47.495479Z",
+      "last_at": "2026-09-27T00:19:56.950482Z",
+      "observations": 9090
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXFEATURE-26GTA6-DON",
+        "side": "no",
+        "price": "27",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=1"
+      },
+      "segment_id": "3e0ebef993c647c422571c76b900aaf2",
+      "first_at": "2026-09-27T00:18:47.502192Z",
+      "last_at": "2026-09-27T00:19:56.950457Z",
+      "observations": 9089
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXFEATURE-26GTA6-DON",
+        "side": "yes",
+        "price": "72",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=3"
+      },
+      "segment_id": "3e0ebef993c647c422571c76b900aaf2",
+      "first_at": "2026-09-27T00:19:58.650483Z",
+      "last_at": "2026-09-27T00:20:41.041094Z",
+      "observations": 5348
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXFEATURE-26GTA6-DON",
+        "side": "no",
+        "price": "27",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=3"
+      },
+      "segment_id": "3e0ebef993c647c422571c76b900aaf2",
+      "first_at": "2026-09-27T00:19:58.650522Z",
+      "last_at": "2026-09-27T00:20:41.051019Z",
+      "observations": 5348
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXFEATURE-26GTA6-DON",
+        "side": "yes",
+        "price": "72",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=1"
+      },
+      "segment_id": "df3676b0c4b0702ebdead3dda2d70af8",
+      "first_at": "2026-09-27T00:20:46.711677Z",
+      "last_at": "2026-09-27T00:42:28.064837Z",
+      "observations": 176736
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXFEATURE-26GTA6-DON",
+        "side": "no",
+        "price": "27",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=1"
+      },
+      "segment_id": "df3676b0c4b0702ebdead3dda2d70af8",
+      "first_at": "2026-09-27T00:20:46.718207Z",
+      "last_at": "2026-09-27T00:42:28.048977Z",
+      "observations": 176721
+    }
+  ],
+  "would_write_overflow": {
+    "episodes": 0,
+    "observations": 0
+  },
+  "monitor": {
+    "checks": 1417,
+    "fresh": 1417,
+    "stale": 0,
+    "last_check_at": "2026-09-27T00:42:27.428478Z",
+    "last_fresh_at": "2026-09-27T00:42:27.428478Z"
+  },
+  "portfolio": {
+    "walks": 285,
+    "fresh": 285,
+    "stale": 0,
+    "complete": 285,
+    "incomplete": 0,
+    "fresh_complete": 285,
+    "last_walk_at": "2026-09-27T00:42:26.937467Z",
+    "last_fresh_at": "2026-09-27T00:42:26.937467Z",
+    "last_complete_at": "2026-09-27T00:42:26.937467Z"
+  },
+  "events": [
+    {
+      "category": "anomaly",
+      "name": "SEV2:BOOK_QUIET",
+      "count": 18,
+      "first_at": "2026-09-27T00:21:46.392993Z",
+      "last_at": "2026-09-27T00:41:59.127664Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:FOREIGN_FILL_INHERITED",
+      "count": 30,
+      "first_at": "2026-09-27T00:18:47.49547Z",
+      "last_at": "2026-09-27T00:20:46.711621Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:SIGNAL_DRAIN",
+      "count": 1,
+      "first_at": "2026-09-27T00:42:28.12001Z",
+      "last_at": "2026-09-27T00:42:28.12001Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:WRITE_NOT_BUILDABLE",
+      "count": 1,
+      "first_at": "2026-09-27T00:42:28.120182Z",
+      "last_at": "2026-09-27T00:42:28.120182Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:WS_DISCONNECT",
+      "count": 1,
+      "first_at": "2026-09-27T00:19:56.957456Z",
+      "last_at": "2026-09-27T00:19:56.957456Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:BOOK_CROSSCHECK_AGREED",
+      "count": 18,
+      "first_at": "2026-09-27T00:21:46.49219Z",
+      "last_at": "2026-09-27T00:41:59.223428Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:FUNDING_EXACT",
+      "count": 2,
+      "first_at": "2026-09-27T00:18:46.667852Z",
+      "last_at": "2026-09-27T00:20:46.00523Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:FUNDING_LIMITS",
+      "count": 2,
+      "first_at": "2026-09-27T00:18:46.667835Z",
+      "last_at": "2026-09-27T00:20:46.005211Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:STARTUP",
+      "count": 2,
+      "first_at": "2026-09-27T00:18:46.667854Z",
+      "last_at": "2026-09-27T00:20:46.005235Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "deadman_checkin_sent",
+      "count": 48,
+      "first_at": "2026-09-27T00:18:47.035894Z",
+      "last_at": "2026-09-27T00:42:16.317249Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "sent",
+      "count": 48,
+      "first_at": "2026-09-27T00:18:47.035892Z",
+      "last_at": "2026-09-27T00:42:16.317246Z"
+    },
+    {
+      "category": "state",
+      "name": "global=DRAINED;market=IDLE;actionable=true;truth_generation=1",
+      "count": 42,
+      "first_at": "2026-09-27T00:42:28.120172Z",
+      "last_at": "2026-09-27T00:42:28.335516Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=0",
+      "count": 4,
+      "first_at": "2026-09-27T00:18:46.779689Z",
+      "last_at": "2026-09-27T00:20:46.255524Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=2",
+      "count": 7,
+      "first_at": "2026-09-27T00:19:56.95749Z",
+      "last_at": "2026-09-27T00:19:58.166718Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=QUOTING;actionable=false;truth_generation=1",
+      "count": 562,
+      "first_at": "2026-09-27T00:18:47.037859Z",
+      "last_at": "2026-09-27T00:41:59.204456Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=QUOTING;actionable=false;truth_generation=3",
+      "count": 85,
+      "first_at": "2026-09-27T00:19:58.244311Z",
+      "last_at": "2026-09-27T00:19:58.641817Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=QUOTING;actionable=true;truth_generation=1",
+      "count": 371636,
+      "first_at": "2026-09-27T00:18:47.495489Z",
+      "last_at": "2026-09-27T00:42:28.064843Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=QUOTING;actionable=true;truth_generation=3",
+      "count": 10696,
+      "first_at": "2026-09-27T00:19:58.650488Z",
+      "last_at": "2026-09-27T00:20:41.051026Z"
+    },
+    {
+      "category": "state",
+      "name": "websocket:connected",
+      "count": 3,
+      "first_at": "2026-09-27T00:18:47.037812Z",
+      "last_at": "2026-09-27T00:20:46.305205Z"
+    },
+    {
+      "category": "state",
+      "name": "websocket:disconnected",
+      "count": 1,
+      "first_at": "2026-09-27T00:19:56.957441Z",
+      "last_at": "2026-09-27T00:19:56.957441Z"
+    }
+  ],
+  "finalized_at": "2026-09-27T00:42:28.340858Z"
+}

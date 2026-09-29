@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"time"
+
+	"lip/harness/num"
 )
 
 // This file is harness-spec.md §6.6 -- the order priority queue -- together
@@ -32,26 +34,13 @@ import (
 // Vocabulary
 // ---------------------------------------------------------------------------
 
-// Side indexes the two sides of one market's book. Both are BIDS in book terms
-// (§4): yes bids at cents and no bids at cents.
-//
-// harness/risk carries the same two-valued type and this one is deliberately
-// not shared with it: risk imports quote for the market states, so the reverse
-// import would be a cycle -- the same layering num's doc comment records for
-// Qty.
-type Side uint8
+// Side is shared with risk through the leaf num package (book bids, §4).
+type Side = num.Side
 
 const (
-	SideYes Side = iota
-	SideNo
+	SideYes = num.SideYes
+	SideNo  = num.SideNo
 )
-
-func (s Side) String() string {
-	if s == SideNo {
-		return "no"
-	}
-	return "yes"
-}
 
 // Role is the distinction H-QUE-2 turns on, and the only one: whether a write
 // can increase exposure, or can only decrease it.
@@ -740,9 +729,8 @@ type Dispatch struct {
 
 	Market string
 	Side   Side
-	// Role is the earliest-queued member's role. For a coalesced cancel every
-	// member shares a (market, side), and a market side is either adding or
-	// reducing at one instant, so the group is single-role in practice.
+	// A coalesced cancel is reducing if any member protects an exit. A stale
+	// adding intent cannot give that group P0's bucket bypass (H-QUE-2).
 	Role Role
 	Op   Op
 
@@ -1008,11 +996,8 @@ func (q *Queue) dropCleared(c Conditions) {
 // wait for its laziest member would be a starvation channel dressed up as
 // fairness.
 //
-// Its base class is merged the same way, and a group is single-role in practice
-// -- a market side is either adding or reducing at one instant -- so the merge
-// only ever chooses between equal values. It is written as a merge anyway so
-// that base cannot silently become "whichever member happened to be seen
-// first".
+// Admission is P1 if any member is reducing. Roles can differ across queued
+// observations; coalescing must not erase H-QUE-2's no-bypass restriction.
 func (q *Queue) candidates(c Conditions) []candidate {
 	var out []candidate
 	groups := make(map[cancelKey]int)
@@ -1034,6 +1019,10 @@ func (q *Queue) candidates(c Conditions) []candidate {
 				}
 				if base < out[i].base {
 					out[i].base = base
+				}
+				if e.in.Role == RoleReducing || out[i].role == RoleReducing {
+					out[i].role = RoleReducing
+					out[i].base = P1
 				}
 				if e.seq < out[i].seq {
 					out[i].seq = e.seq

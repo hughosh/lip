@@ -1,0 +1,17 @@
+{
+  "started_at": "2026-09-27T18:31:28.053843+00:00",
+  "finished_at": "2026-09-27T18:31:29.548270+00:00",
+  "command": [
+    "/usr/local/bin/go",
+    "build",
+    "-trimpath",
+    "-o",
+    "/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/tools/accountcheck",
+    "./cmd/accountcheck"
+  ],
+  "exit": 0,
+  "stderr": "",
+  "go_source_manifest_sha256": "74f8ee7634c406f0e4279429b4e8bbdca9cab31bc2f3a1564163b1d42c4263c2",
+  "source_file_sha256": "093d49985e6c4745c69e3c138ef6a533b675510eee294171a07f5868774f4dda",
+  "binary_sha256": "9cf5d04e3662d1b1b326327951b9315b95cab65383228de06b2286f86ab51886"
+}

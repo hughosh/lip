@@ -365,15 +365,21 @@ func TestSubscriptionArgumentsThatFailSilentlyAreRejected(t *testing.T) {
 		t.Fatalf("trade subscription payload:\n got %s\nwant %s", tb, wantTrade)
 	}
 
-	// sids must be an empty array and never JSON null: a null there is a
-	// different request, and the difference is only visible in what does not
-	// arrive.
-	rb, err := resnapshotRequest(nil, []string{"A"})
+	// The exchange requires exactly one live orderbook SID.
+	for _, sids := range [][]int64{nil, {}, {7, 9}, {0}, {-1}} {
+		if _, err := resnapshotRequest(sids, []string{"A"}); err == nil {
+			t.Fatalf("invalid snapshot sids %v accepted", sids)
+		}
+		if err := (Command{Kind: CmdResnapshot, Sids: sids, Tickers: []string{"A"}}).Validate(); err == nil {
+			t.Fatalf("invalid command sids %v accepted", sids)
+		}
+	}
+	rb, err := resnapshotRequest([]int64{7}, []string{"A"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	wantRe := `{"cmd":"update_subscription","id":3,"params":{"action":` +
-		`"get_snapshot","market_tickers":["A"],"sids":[]}}`
+		`"get_snapshot","market_tickers":["A"],"sids":[7]}}`
 	if string(rb) != wantRe {
 		t.Fatalf("resnapshot payload:\n got %s\nwant %s", rb, wantRe)
 	}

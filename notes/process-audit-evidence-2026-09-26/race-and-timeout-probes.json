@@ -1,0 +1,38 @@
+[
+  {
+    "name": "synchronized",
+    "command": [
+      "/usr/local/bin/go",
+      "test",
+      "-race",
+      "-json",
+      "-count=1",
+      "-timeout=30s",
+      "."
+    ],
+    "exit_code": 0,
+    "seconds": 2.604,
+    "race_diagnostic": false
+  },
+  {
+    "name": "deliberate-race",
+    "command": [
+      "/usr/local/bin/go",
+      "test",
+      "-race",
+      "-json",
+      "-count=1",
+      "-timeout=30s",
+      "."
+    ],
+    "exit_code": 1,
+    "seconds": 0.698,
+    "race_diagnostic": true
+  },
+  {
+    "name": "timeout-negative",
+    "exit_code": 124,
+    "seconds": 0.105,
+    "classification": "INCONCLUSIVE"
+  }
+]

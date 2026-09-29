@@ -118,8 +118,9 @@ func openSQLite(path string) (*sqliteBackend, error) {
 	// another is a verdict about a file that may no longer be the file being
 	// written. Opening the connection is not a write, so verify-then-write on
 	// a single handle costs nothing and leaves no window.
+	var migratePilot bool
 	if !fresh {
-		fresh, err = inspectDatabase(db, path)
+		fresh, migratePilot, err = inspectDatabase(db, path)
 		if err != nil {
 			db.Close()
 			return nil, err
@@ -131,6 +132,11 @@ func openSQLite(path string) (*sqliteBackend, error) {
 	}
 	if fresh {
 		if err := b.createSchema(); err != nil {
+			db.Close()
+			return nil, err
+		}
+	} else if migratePilot {
+		if err := b.migratePilotSchema(); err != nil {
 			db.Close()
 			return nil, err
 		}
@@ -206,42 +212,47 @@ func statFresh(path string) (bool, error) {
 //     Version zero is SQLite's default, so "version zero" alone means nothing;
 //     it is the presence of tables that says the file is in use. This is the
 //     `rig.db` case.
-//   - `user_version = 1` whose table set is not exactly the pilot five is a
-//     database this schema does not describe. §15's cut is five, and a sixth
-//     table -- or a missing one -- means either an implementation we do not
-//     have or a corruption we cannot interpret.
-func inspectDatabase(db *sql.DB, path string) (fresh bool, err error) {
+//   - `user_version = 2` with a table set other than the pilot five is a
+//     database this migration does not describe. An extra or missing table
+//     means either unknown implementation or corruption.
+func inspectDatabase(db *sql.DB, path string) (fresh, migratePilot bool, err error) {
 	var version int64
 	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
-		return false, fmt.Errorf("%s could not be read as a database: %w",
+		return false, false, fmt.Errorf("%s could not be read as a database: %w",
 			path, err)
 	}
 	tables, err := userTablesIn(db)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 
 	switch version {
 	case 0:
 		if len(tables) > 0 {
-			return false, fmt.Errorf("%s is an existing database with no "+
+			return false, false, fmt.Errorf("%s is an existing database with no "+
 				"harness schema version and %d table(s) already in it (%v); "+
 				"refusing to write to it. H-ORD-7 makes the evidence "+
 				"collectors' database read-only to the harness, and creating "+
 				"this schema in it would also switch its journal mode "+
 				"underneath two running writers", path, len(tables), tables)
 		}
-		return true, nil
+		return true, false, nil
 	case schemaVersion:
 		if !reflect.DeepEqual(tables, userTables) {
-			return false, fmt.Errorf("%s declares schema version %d but its "+
-				"tables are %v, not the pilot five %v; this process does not "+
+			return false, false, fmt.Errorf("%s declares schema version %d but its "+
+				"tables are %v, not the known set %v; this process does not "+
 				"know what its rows mean, and reading an owned_order row wrong "+
 				"classifies a fill", path, version, tables, userTables)
 		}
-		return false, nil
+		return false, false, nil
+	case pilotSchemaVersion:
+		pilotTables := []string{"anomaly", "our_fill", "owned_order", "run", "state_event"}
+		if !reflect.DeepEqual(tables, pilotTables) {
+			return false, false, fmt.Errorf("%s declares pilot schema version %d but its tables are %v, not %v; refusing migration", path, version, tables, pilotTables)
+		}
+		return false, true, nil
 	case legacySchemaVersion:
-		return false, fmt.Errorf("%s is a version-%d harness database and this "+
+		return false, false, fmt.Errorf("%s is a version-%d harness database and this "+
 			"process writes version %d; there is no migration. Version %d's "+
 			"owned_order has no abandoned_ms, so every reservation in it that "+
 			"was never bound is indistinguishable from one the exchange "+
@@ -251,10 +262,28 @@ func inspectDatabase(db *sql.DB, path string) (fresh bool, err error) {
 			"created", path, version, schemaVersion, legacySchemaVersion,
 			legacySchemaVersion, path)
 	default:
-		return false, fmt.Errorf("database schema version %d is not %d: this "+
+		return false, false, fmt.Errorf("database schema version %d is not %d: this "+
 			"process does not know what its owned_order rows mean",
 			version, schemaVersion)
 	}
+}
+
+// migratePilotSchema adds observation only. The version change and table appear
+// in one transaction, so a crash cannot leave an ambiguous intermediate file.
+func (b *sqliteBackend) migratePilotSchema() error {
+	return b.tx(func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`CREATE TABLE balance_poll (
+			ts_ms INTEGER PRIMARY KEY,
+			run_id TEXT NOT NULL REFERENCES run(run_id),
+			balance_cents INTEGER NOT NULL
+		)`); err != nil {
+			return fmt.Errorf("add balance_poll: %w", err)
+		}
+		if _, err := tx.Exec(fmt.Sprintf("PRAGMA user_version=%d", schemaVersion)); err != nil {
+			return fmt.Errorf("pin migrated user_version: %w", err)
+		}
+		return nil
+	})
 }
 
 func userTablesIn(db *sql.DB) ([]string, error) {
@@ -295,7 +324,7 @@ func (b *sqliteBackend) applyJournalMode() error {
 	return nil
 }
 
-// createSchema creates the five tables and pins the version ATOMICALLY.
+// createSchema creates the known tables and pins the version ATOMICALLY.
 //
 // One transaction, so a crash between the tables and the version cannot leave a
 // database that looks like somebody else's version-zero file -- which the

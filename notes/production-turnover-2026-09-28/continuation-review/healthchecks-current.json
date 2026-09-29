@@ -1,0 +1,18 @@
+{
+  "observed_at_utc": "2026-09-28T19:29:21.437758+00:00",
+  "via": "signed-in browser, operator completed login",
+  "monitor_name": "lip harness heartbeat",
+  "dashboard_state": "DOWN",
+  "period_seconds": 3600,
+  "grace_seconds": 1200,
+  "email_notification": "ON",
+  "last_ping_ui": "an hour ago",
+  "runtime_heartbeat_source": "stopped; no success ping sent by this continuation",
+  "private_route_match_checked": true,
+  "private_route_matches_dashboard": true,
+  "fresh_missed_timeout_timing_drill": false,
+  "fresh_human_receipt_or_ack_time": null,
+  "prior_missed_timeout_evidence": "notes/live-readiness-2026-09-26/alarm-drill.json",
+  "primary_ntfy_only": true,
+  "independent_fallback_claimed": false
+}

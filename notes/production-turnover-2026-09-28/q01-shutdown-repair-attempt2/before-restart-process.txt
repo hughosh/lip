@@ -1,0 +1,1 @@
+64020 Mon Sep 28 10:41:31 2026     /Users/hugh/kek/lip/notes/production-turnover-2026-09-28/candidate-2/harness -supervised -config /Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/config.json -rung sizing -qualification /Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/evidence.json

@@ -1,0 +1,651 @@
+{
+  "ticker": "KXOPENSOURCESHARE-26SEP29-T70",
+  "read_only": true,
+  "calls": {
+    "market": {
+      "path": "/markets/KXOPENSOURCESHARE-26SEP29-T70",
+      "at_utc": "2026-09-28T17:34:08.761332+00:00",
+      "status": 200,
+      "latency_ms": 324.311,
+      "body": {
+        "market": {
+          "can_close_early": true,
+          "close_time": "2026-09-29T14:00:00Z",
+          "created_time": "2026-09-27T15:29:45.578977Z",
+          "early_close_condition": "This market will close and expire early if the economic data is released.",
+          "event_ticker": "KXOPENSOURCESHARE-26SEP29",
+          "exchange_index": 0,
+          "expected_expiration_time": "2026-10-06T15:31:00Z",
+          "expiration_time": "2026-10-06T15:31:00Z",
+          "expiration_value": "",
+          "floor_strike": 70,
+          "last_price_dollars": "0.0200",
+          "latest_expiration_time": "2026-10-06T15:31:00Z",
+          "liquidity_dollars": "0.0000",
+          "market_type": "binary",
+          "no_ask_dollars": "0.9900",
+          "no_bid_dollars": "0.9000",
+          "no_sub_title": "Above 70%",
+          "notional_value_dollars": "1.0000",
+          "occurrence_datetime": "2026-09-29T15:31:00Z",
+          "open_interest_fp": "1899.00",
+          "open_time": "2026-09-27T17:00:00Z",
+          "previous_price_dollars": "0.0000",
+          "previous_yes_ask_dollars": "0.9800",
+          "previous_yes_bid_dollars": "0.0200",
+          "price_level_structure": "linear_cent",
+          "price_ranges": [
+            {
+              "end": "1.0000",
+              "start": "0.0000",
+              "step": "0.0100"
+            }
+          ],
+          "result": "",
+          "rules_primary": "If the Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 is above 70%, then the market resolves to Yes.",
+          "rules_secondary": "This event resolves using the Open Weights percentage in Vercel AI Gateway's Open vs. Closed Token Volume chart. At 10:00 AM ET on Sep 29, 2026, Kalshi will use the chart's updated value for Sep 28, 2026. \n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Vercel. All trademarks, logos, and brand names are the property of their respective owners.",
+          "settlement_timer_seconds": 1800,
+          "status": "active",
+          "strike_type": "greater",
+          "ticker": "KXOPENSOURCESHARE-26SEP29-T70",
+          "title": "Will Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 be above 70%?",
+          "updated_time": "2026-09-27T17:00:06.408547Z",
+          "volume_24h_fp": "1899.00",
+          "volume_fp": "1899.00",
+          "yes_ask_dollars": "0.1000",
+          "yes_ask_size_fp": "54.00",
+          "yes_bid_dollars": "0.0100",
+          "yes_bid_size_fp": "1000.00",
+          "yes_sub_title": "Above 70%"
+        }
+      }
+    },
+    "orderbook": {
+      "path": "/markets/KXOPENSOURCESHARE-26SEP29-T70/orderbook",
+      "at_utc": "2026-09-28T17:34:09.085745+00:00",
+      "status": 200,
+      "latency_ms": 277.771,
+      "body": {
+        "orderbook_fp": {
+          "no_dollars": [
+            [
+              "0.0100",
+              "1714.00"
+            ],
+            [
+              "0.0700",
+              "100.00"
+            ],
+            [
+              "0.1100",
+              "500.00"
+            ],
+            [
+              "0.1400",
+              "50.00"
+            ],
+            [
+              "0.3200",
+              "21.00"
+            ],
+            [
+              "0.3500",
+              "1612.00"
+            ],
+            [
+              "0.3800",
+              "58.00"
+            ],
+            [
+              "0.6100",
+              "54.00"
+            ],
+            [
+              "0.6300",
+              "52.00"
+            ],
+            [
+              "0.6400",
+              "225.00"
+            ],
+            [
+              "0.6500",
+              "49.00"
+            ],
+            [
+              "0.8300",
+              "13.00"
+            ],
+            [
+              "0.9000",
+              "54.00"
+            ]
+          ],
+          "yes_dollars": [
+            [
+              "0.0100",
+              "1000.00"
+            ]
+          ]
+        }
+      }
+    },
+    "event": {
+      "path": "/events/KXOPENSOURCESHARE-26SEP29",
+      "at_utc": "2026-09-28T17:34:09.363545+00:00",
+      "status": 200,
+      "latency_ms": 370.711,
+      "body": {
+        "event": {
+          "category": "Science and Technology",
+          "collateral_return_type": "DIRECNET",
+          "event_ticker": "KXOPENSOURCESHARE-26SEP29",
+          "exchange_index": 0,
+          "last_updated_ts": "0001-01-01T00:00:00Z",
+          "mutually_exclusive": false,
+          "series_ticker": "KXOPENSOURCESHARE",
+          "settlement_sources": [
+            {
+              "name": "Vercel AI Gateway Leaderboards",
+              "url": "https://vercel.com/ai-gateway/leaderboards/models#open-vs-closed"
+            }
+          ],
+          "strike_period": "",
+          "sub_title": "Sep 28, 2026",
+          "title": "Open Source market share on Sep 28th"
+        },
+        "markets": [
+          {
+            "can_close_early": true,
+            "close_time": "2026-09-29T14:00:00Z",
+            "created_time": "2026-09-27T15:29:45.578977Z",
+            "early_close_condition": "This market will close and expire early if the economic data is released.",
+            "event_ticker": "KXOPENSOURCESHARE-26SEP29",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_value": "",
+            "floor_strike": 67.5,
+            "last_price_dollars": "0.2000",
+            "latest_expiration_time": "2026-10-06T15:31:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9600",
+            "no_bid_dollars": "0.8200",
+            "no_sub_title": "Above 67.5%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-09-29T15:31:00Z",
+            "open_interest_fp": "3600.61",
+            "open_time": "2026-09-27T17:00:00Z",
+            "previous_price_dollars": "0.0000",
+            "previous_yes_ask_dollars": "0.9800",
+            "previous_yes_bid_dollars": "0.0300",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 is above 67.5%, then the market resolves to Yes.",
+            "rules_secondary": "This event resolves using the Open Weights percentage in Vercel AI Gateway's Open vs. Closed Token Volume chart. At 10:00 AM ET on Sep 29, 2026, Kalshi will use the chart's updated value for Sep 28, 2026. \n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Vercel. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "greater",
+            "ticker": "KXOPENSOURCESHARE-26SEP29-T67.5",
+            "title": "Will Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 be above 67.5%?",
+            "updated_time": "2026-09-27T17:00:06.408547Z",
+            "volume_24h_fp": "8261.91",
+            "volume_fp": "8261.91",
+            "yes_ask_dollars": "0.1800",
+            "yes_ask_size_fp": "7.00",
+            "yes_bid_dollars": "0.0400",
+            "yes_bid_size_fp": "28.00",
+            "yes_sub_title": "Above 67.5%"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2026-09-29T14:00:00Z",
+            "created_time": "2026-09-27T15:29:45.578977Z",
+            "early_close_condition": "This market will close and expire early if the economic data is released.",
+            "event_ticker": "KXOPENSOURCESHARE-26SEP29",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_value": "",
+            "floor_strike": 70,
+            "last_price_dollars": "0.0200",
+            "latest_expiration_time": "2026-10-06T15:31:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9900",
+            "no_bid_dollars": "0.9000",
+            "no_sub_title": "Above 70%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-09-29T15:31:00Z",
+            "open_interest_fp": "1899.00",
+            "open_time": "2026-09-27T17:00:00Z",
+            "previous_price_dollars": "0.0000",
+            "previous_yes_ask_dollars": "0.9800",
+            "previous_yes_bid_dollars": "0.0200",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 is above 70%, then the market resolves to Yes.",
+            "rules_secondary": "This event resolves using the Open Weights percentage in Vercel AI Gateway's Open vs. Closed Token Volume chart. At 10:00 AM ET on Sep 29, 2026, Kalshi will use the chart's updated value for Sep 28, 2026. \n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Vercel. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "greater",
+            "ticker": "KXOPENSOURCESHARE-26SEP29-T70",
+            "title": "Will Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 be above 70%?",
+            "updated_time": "2026-09-27T17:00:06.408547Z",
+            "volume_24h_fp": "1899.00",
+            "volume_fp": "1899.00",
+            "yes_ask_dollars": "0.1000",
+            "yes_ask_size_fp": "54.00",
+            "yes_bid_dollars": "0.0100",
+            "yes_bid_size_fp": "1000.00",
+            "yes_sub_title": "Above 70%"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2026-09-29T14:00:00Z",
+            "created_time": "2026-09-27T15:29:45.578977Z",
+            "early_close_condition": "This market will close and expire early if the economic data is released.",
+            "event_ticker": "KXOPENSOURCESHARE-26SEP29",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_value": "",
+            "floor_strike": 72.5,
+            "last_price_dollars": "0.0200",
+            "latest_expiration_time": "2026-10-06T15:31:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9900",
+            "no_bid_dollars": "0.9300",
+            "no_sub_title": "Above 72.5%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-09-29T15:31:00Z",
+            "open_interest_fp": "419.00",
+            "open_time": "2026-09-27T17:00:00Z",
+            "previous_price_dollars": "0.0000",
+            "previous_yes_ask_dollars": "0.9800",
+            "previous_yes_bid_dollars": "0.0200",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 is above 72.5%, then the market resolves to Yes.",
+            "rules_secondary": "This event resolves using the Open Weights percentage in Vercel AI Gateway's Open vs. Closed Token Volume chart. At 10:00 AM ET on Sep 29, 2026, Kalshi will use the chart's updated value for Sep 28, 2026. \n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Vercel. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "greater",
+            "ticker": "KXOPENSOURCESHARE-26SEP29-T72.5",
+            "title": "Will Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 be above 72.5%?",
+            "updated_time": "2026-09-27T17:00:06.408547Z",
+            "volume_24h_fp": "419.00",
+            "volume_fp": "419.00",
+            "yes_ask_dollars": "0.0700",
+            "yes_ask_size_fp": "2.00",
+            "yes_bid_dollars": "0.0100",
+            "yes_bid_size_fp": "1000.00",
+            "yes_sub_title": "Above 72.5%"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2026-09-29T14:00:00Z",
+            "created_time": "2026-09-27T15:29:45.578977Z",
+            "early_close_condition": "This market will close and expire early if the economic data is released.",
+            "event_ticker": "KXOPENSOURCESHARE-26SEP29",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_value": "",
+            "floor_strike": 75,
+            "last_price_dollars": "0.1400",
+            "latest_expiration_time": "2026-10-06T15:31:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9900",
+            "no_bid_dollars": "0.9300",
+            "no_sub_title": "Above 75%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-09-29T15:31:00Z",
+            "open_interest_fp": "1449.00",
+            "open_time": "2026-09-27T17:00:00Z",
+            "previous_price_dollars": "0.0000",
+            "previous_yes_ask_dollars": "0.9800",
+            "previous_yes_bid_dollars": "0.0200",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 is above 75%, then the market resolves to Yes.",
+            "rules_secondary": "This event resolves using the Open Weights percentage in Vercel AI Gateway's Open vs. Closed Token Volume chart. At 10:00 AM ET on Sep 29, 2026, Kalshi will use the chart's updated value for Sep 28, 2026. \n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Vercel. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "greater",
+            "ticker": "KXOPENSOURCESHARE-26SEP29-T75",
+            "title": "Will Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 be above 75%?",
+            "updated_time": "2026-09-27T17:00:06.408547Z",
+            "volume_24h_fp": "1459.27",
+            "volume_fp": "1459.27",
+            "yes_ask_dollars": "0.0700",
+            "yes_ask_size_fp": "6.00",
+            "yes_bid_dollars": "0.0100",
+            "yes_bid_size_fp": "1300.00",
+            "yes_sub_title": "Above 75%"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2026-09-29T14:00:00Z",
+            "created_time": "2026-09-27T15:29:45.578977Z",
+            "early_close_condition": "This market will close and expire early if the economic data is released.",
+            "event_ticker": "KXOPENSOURCESHARE-26SEP29",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_value": "",
+            "floor_strike": 77.5,
+            "last_price_dollars": "0.0200",
+            "latest_expiration_time": "2026-10-06T15:31:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9900",
+            "no_bid_dollars": "0.9800",
+            "no_sub_title": "Above 77.5%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-09-29T15:31:00Z",
+            "open_interest_fp": "1162.00",
+            "open_time": "2026-09-27T17:00:00Z",
+            "previous_price_dollars": "0.0000",
+            "previous_yes_ask_dollars": "0.9800",
+            "previous_yes_bid_dollars": "0.0200",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 is above 77.5%, then the market resolves to Yes.",
+            "rules_secondary": "This event resolves using the Open Weights percentage in Vercel AI Gateway's Open vs. Closed Token Volume chart. At 10:00 AM ET on Sep 29, 2026, Kalshi will use the chart's updated value for Sep 28, 2026. \n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Vercel. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "greater",
+            "ticker": "KXOPENSOURCESHARE-26SEP29-T77.5",
+            "title": "Will Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 be above 77.5%?",
+            "updated_time": "2026-09-27T17:00:06.408547Z",
+            "volume_24h_fp": "1540.79",
+            "volume_fp": "1540.79",
+            "yes_ask_dollars": "0.0200",
+            "yes_ask_size_fp": "501.21",
+            "yes_bid_dollars": "0.0100",
+            "yes_bid_size_fp": "705.79",
+            "yes_sub_title": "Above 77.5%"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2026-09-29T14:00:00Z",
+            "created_time": "2026-09-27T15:29:45.578977Z",
+            "early_close_condition": "This market will close and expire early if the economic data is released.",
+            "event_ticker": "KXOPENSOURCESHARE-26SEP29",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_value": "",
+            "floor_strike": 80,
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2026-10-06T15:31:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9800",
+            "no_sub_title": "Above 80%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-09-29T15:31:00Z",
+            "open_interest_fp": "2645.00",
+            "open_time": "2026-09-27T17:00:00Z",
+            "previous_price_dollars": "0.0000",
+            "previous_yes_ask_dollars": "0.9800",
+            "previous_yes_bid_dollars": "0.0200",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 is above 80%, then the market resolves to Yes.",
+            "rules_secondary": "This event resolves using the Open Weights percentage in Vercel AI Gateway's Open vs. Closed Token Volume chart. At 10:00 AM ET on Sep 29, 2026, Kalshi will use the chart's updated value for Sep 28, 2026. \n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Vercel. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "greater",
+            "ticker": "KXOPENSOURCESHARE-26SEP29-T80",
+            "title": "Will Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 be above 80%?",
+            "updated_time": "2026-09-27T17:00:06.408547Z",
+            "volume_24h_fp": "3245.00",
+            "volume_fp": "3245.00",
+            "yes_ask_dollars": "0.0200",
+            "yes_ask_size_fp": "2200.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Above 80%"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2026-09-29T14:00:00Z",
+            "created_time": "2026-09-27T15:29:45.578977Z",
+            "early_close_condition": "This market will close and expire early if the economic data is released.",
+            "event_ticker": "KXOPENSOURCESHARE-26SEP29",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_value": "",
+            "floor_strike": 82.5,
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2026-10-06T15:31:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9900",
+            "no_sub_title": "Above 82.5%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-09-29T15:31:00Z",
+            "open_interest_fp": "2957.00",
+            "open_time": "2026-09-27T17:00:00Z",
+            "previous_price_dollars": "0.0000",
+            "previous_yes_ask_dollars": "0.9800",
+            "previous_yes_bid_dollars": "0.0200",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 is above 82.5%, then the market resolves to Yes.",
+            "rules_secondary": "This event resolves using the Open Weights percentage in Vercel AI Gateway's Open vs. Closed Token Volume chart. At 10:00 AM ET on Sep 29, 2026, Kalshi will use the chart's updated value for Sep 28, 2026. \n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Vercel. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "greater",
+            "ticker": "KXOPENSOURCESHARE-26SEP29-T82.5",
+            "title": "Will Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 be above 82.5%?",
+            "updated_time": "2026-09-27T17:00:06.408547Z",
+            "volume_24h_fp": "4157.00",
+            "volume_fp": "4157.00",
+            "yes_ask_dollars": "0.0100",
+            "yes_ask_size_fp": "2400.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Above 82.5%"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2026-09-29T14:00:00Z",
+            "created_time": "2026-09-27T15:29:45.578977Z",
+            "early_close_condition": "This market will close and expire early if the economic data is released.",
+            "event_ticker": "KXOPENSOURCESHARE-26SEP29",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_value": "",
+            "floor_strike": 85,
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2026-10-06T15:31:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9900",
+            "no_sub_title": "Above 85%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-09-29T15:31:00Z",
+            "open_interest_fp": "3065.00",
+            "open_time": "2026-09-27T17:00:00Z",
+            "previous_price_dollars": "0.0000",
+            "previous_yes_ask_dollars": "0.9700",
+            "previous_yes_bid_dollars": "0.0200",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 is above 85%, then the market resolves to Yes.",
+            "rules_secondary": "This event resolves using the Open Weights percentage in Vercel AI Gateway's Open vs. Closed Token Volume chart. At 10:00 AM ET on Sep 29, 2026, Kalshi will use the chart's updated value for Sep 28, 2026. \n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Vercel. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "greater",
+            "ticker": "KXOPENSOURCESHARE-26SEP29-T85",
+            "title": "Will Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 be above 85%?",
+            "updated_time": "2026-09-27T17:00:06.408547Z",
+            "volume_24h_fp": "3065.00",
+            "volume_fp": "3065.00",
+            "yes_ask_dollars": "0.0100",
+            "yes_ask_size_fp": "2949.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Above 85%"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2026-09-29T14:00:00Z",
+            "created_time": "2026-09-27T15:29:45.578977Z",
+            "early_close_condition": "This market will close and expire early if the economic data is released.",
+            "event_ticker": "KXOPENSOURCESHARE-26SEP29",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_time": "2026-10-06T15:31:00Z",
+            "expiration_value": "",
+            "floor_strike": 87.5,
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2026-10-06T15:31:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9800",
+            "no_sub_title": "Above 87.5%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-09-29T15:31:00Z",
+            "open_interest_fp": "2322.00",
+            "open_time": "2026-09-27T17:00:00Z",
+            "previous_price_dollars": "0.0000",
+            "previous_yes_ask_dollars": "0.9700",
+            "previous_yes_bid_dollars": "0.0200",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 is above 87.5%, then the market resolves to Yes.",
+            "rules_secondary": "This event resolves using the Open Weights percentage in Vercel AI Gateway's Open vs. Closed Token Volume chart. At 10:00 AM ET on Sep 29, 2026, Kalshi will use the chart's updated value for Sep 28, 2026. \n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Vercel. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "greater",
+            "ticker": "KXOPENSOURCESHARE-26SEP29-T87.5",
+            "title": "Will Open vs. Closed Token Volume (open weights share) for Sep 28, 2026 be above 87.5%?",
+            "updated_time": "2026-09-27T17:00:06.408547Z",
+            "volume_24h_fp": "3322.00",
+            "volume_fp": "3322.00",
+            "yes_ask_dollars": "0.0200",
+            "yes_ask_size_fp": "2944.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Above 87.5%"
+          }
+        ]
+      }
+    },
+    "series": {
+      "path": "/series/KXOPENSOURCESHARE",
+      "at_utc": "2026-09-28T17:34:09.734489+00:00",
+      "status": 200,
+      "latency_ms": 273.523,
+      "body": {
+        "series": {
+          "additional_prohibitions": [
+            "Persons who are employed by any of the Source Agencies are not permitted to trade on the Contract.",
+            "Persons who hold any material, non-public information on the Underlying are not permitted to trade on the Contract."
+          ],
+          "categories": [
+            "Economics",
+            "Science and Technology"
+          ],
+          "category": "Science and Technology",
+          "contract_terms_url": "https://assets.kalshi.com/contract_terms/ECONSTAT.pdf",
+          "contract_url": "https://assets.kalshi.com/regulatory/product-certifications/ECONSTAT.pdf",
+          "exchange_index": 0,
+          "fee_multiplier": 1,
+          "fee_type": "quadratic",
+          "frequency": "one_off",
+          "last_updated_ts": "2026-09-28T16:58:16.271144Z",
+          "settlement_sources": [
+            {
+              "name": "Vercel AI Gateway Leaderboards",
+              "url": "https://vercel.com/ai-gateway/leaderboards/models#open-vs-closed"
+            }
+          ],
+          "tags": [
+            "Market Share"
+          ],
+          "ticker": "KXOPENSOURCESHARE",
+          "title": "Open weights AI market share"
+        }
+      }
+    }
+  },
+  "completed_at_utc": "2026-09-28T17:34:10.008038+00:00",
+  "note": "Sequential snapshots, not executable quotes or actual fees. Re-read immediately before arming."
+}

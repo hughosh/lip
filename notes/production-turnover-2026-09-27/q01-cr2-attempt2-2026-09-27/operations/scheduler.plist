@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.lip.ops.ntfy.drill.20260927</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/hugh/kek/.venv/bin/python</string>
+		<string>/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/operations/scheduled_drill.py</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/operations/scheduler.err</string>
+	<key>StandardOutPath</key>
+	<string>/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/operations/scheduler.out</string>
+	<key>StartInterval</key>
+	<integer>15</integer>
+	<key>WorkingDirectory</key>
+	<string>/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/operations</string>
+</dict>
+</plist>

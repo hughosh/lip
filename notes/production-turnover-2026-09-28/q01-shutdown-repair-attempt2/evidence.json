@@ -1,0 +1,403 @@
+{
+  "metadata": {
+    "schema_version": 4,
+    "config_hash": "sha256:47b3b73244755998afab6d6d27376a15b96c6eb7d99fd680eafcef776ae67135",
+    "binary_identity": "sha256:e3f8a697a20c3153f5c2a8650094b949ff57b985f94b154a7defdad22e9ef361;vcs.revision=f7e9571547bb948418b7a27adc9c30ae38314b00;vcs.modified=true",
+    "ticker": "KXTOKENUSE-26OCT05-T168",
+    "rung": "sizing",
+    "live": false
+  },
+  "created_at": "2026-09-28T17:41:31.971845Z",
+  "updated_at": "2026-09-28T18:02:49.578373Z",
+  "segments": [
+    {
+      "id": "75f5710242c3e1d55969c4b485a67511",
+      "run_id": "20260928T174133SC1H2",
+      "pid": 64020,
+      "started_at": "2026-09-28T17:41:31.971845Z",
+      "active_nanos": 90000466193,
+      "monitor_slots": {
+        "observed": 90,
+        "fresh": 89
+      },
+      "portfolio_slots": {
+        "observed": 18,
+        "fresh_complete": 18,
+        "stale_walks": 0,
+        "incomplete_walks": 0
+      }
+    },
+    {
+      "id": "bfceff304eaa8766b7adaa8e4f29548f",
+      "run_id": "20260928T174310XV36P",
+      "pid": 64173,
+      "started_at": "2026-09-28T17:43:08.006138Z",
+      "ended_at": "2026-09-28T18:02:49.578373Z",
+      "end_reason": "finalized",
+      "active_nanos": 1179538409471,
+      "monitor_slots": {
+        "observed": 1179,
+        "fresh": 1178
+      },
+      "portfolio_slots": {
+        "observed": 236,
+        "fresh_complete": 236,
+        "stale_walks": 0,
+        "incomplete_walks": 0
+      }
+    }
+  ],
+  "attempted_http": [
+    {
+      "method": "GET",
+      "endpoint": "/incentive_programs",
+      "count": 440
+    },
+    {
+      "method": "GET",
+      "endpoint": "/markets/{ticker}",
+      "count": 808
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/balance",
+      "count": 516
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/fills",
+      "count": 259
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/orders",
+      "count": 771
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/positions",
+      "count": 517
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/subaccounts/balances",
+      "count": 517
+    }
+  ],
+  "http": [
+    {
+      "method": "GET",
+      "endpoint": "/incentive_programs",
+      "count": 440
+    },
+    {
+      "method": "GET",
+      "endpoint": "/markets/{ticker}",
+      "count": 808
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/balance",
+      "count": 516
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/fills",
+      "count": 259
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/orders",
+      "count": 771
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/positions",
+      "count": 517
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/subaccounts/balances",
+      "count": 517
+    }
+  ],
+  "would_writes": [
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXBROSFT-26OCT08-T110",
+        "side": "yes",
+        "price": "23",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=4"
+      },
+      "segment_id": "75f5710242c3e1d55969c4b485a67511",
+      "first_at": "2026-09-28T17:41:36.984795Z",
+      "last_at": "2026-09-28T17:42:34.767947Z",
+      "observations": 6918
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXBROSFT-26OCT08-T110",
+        "side": "no",
+        "price": "39",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=4"
+      },
+      "segment_id": "75f5710242c3e1d55969c4b485a67511",
+      "first_at": "2026-09-28T17:41:36.988678Z",
+      "last_at": "2026-09-28T17:42:34.755379Z",
+      "observations": 6917
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXBROSFT-26OCT08-T110",
+        "side": "yes",
+        "price": "23",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=6"
+      },
+      "segment_id": "75f5710242c3e1d55969c4b485a67511",
+      "first_at": "2026-09-28T17:42:36.507194Z",
+      "last_at": "2026-09-28T17:43:03.705219Z",
+      "observations": 3021
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXBROSFT-26OCT08-T110",
+        "side": "no",
+        "price": "39",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=6"
+      },
+      "segment_id": "75f5710242c3e1d55969c4b485a67511",
+      "first_at": "2026-09-28T17:42:36.542766Z",
+      "last_at": "2026-09-28T17:43:03.705296Z",
+      "observations": 3021
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXBROSFT-26OCT08-T110",
+        "side": "yes",
+        "price": "23",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=4"
+      },
+      "segment_id": "bfceff304eaa8766b7adaa8e4f29548f",
+      "first_at": "2026-09-28T17:43:13.12526Z",
+      "last_at": "2026-09-28T18:02:49.263239Z",
+      "observations": 110749
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXBROSFT-26OCT08-T110",
+        "side": "no",
+        "price": "39",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=4"
+      },
+      "segment_id": "bfceff304eaa8766b7adaa8e4f29548f",
+      "first_at": "2026-09-28T17:43:13.126497Z",
+      "last_at": "2026-09-28T18:02:49.263276Z",
+      "observations": 110740
+    }
+  ],
+  "would_write_overflow": {
+    "episodes": 0,
+    "observations": 0
+  },
+  "monitor": {
+    "checks": 1269,
+    "fresh": 1267,
+    "stale": 2,
+    "last_check_at": "2026-09-28T18:02:49.04138Z",
+    "last_fresh_at": "2026-09-28T18:02:49.04138Z"
+  },
+  "portfolio": {
+    "walks": 257,
+    "fresh": 257,
+    "stale": 0,
+    "complete": 257,
+    "incomplete": 0,
+    "fresh_complete": 257,
+    "last_walk_at": "2026-09-28T18:02:48.262109Z",
+    "last_fresh_at": "2026-09-28T18:02:48.262109Z",
+    "last_complete_at": "2026-09-28T18:02:48.262109Z"
+  },
+  "events": [
+    {
+      "category": "anomaly",
+      "name": "SEV2:BOOK_QUIET",
+      "count": 34,
+      "first_at": "2026-09-28T17:44:14.015368Z",
+      "last_at": "2026-09-28T18:02:42.813251Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:FOREIGN_FILL_INHERITED",
+      "count": 30,
+      "first_at": "2026-09-28T17:41:35.548018Z",
+      "last_at": "2026-09-28T17:43:11.902417Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:SIGNAL_DRAIN",
+      "count": 1,
+      "first_at": "2026-09-28T18:02:49.296864Z",
+      "last_at": "2026-09-28T18:02:49.296864Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:WRITE_NOT_BUILDABLE",
+      "count": 1,
+      "first_at": "2026-09-28T18:02:49.296932Z",
+      "last_at": "2026-09-28T18:02:49.296932Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:WS_DISCONNECT",
+      "count": 1,
+      "first_at": "2026-09-28T17:42:34.798608Z",
+      "last_at": "2026-09-28T17:42:34.798608Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:BOOK_CROSSCHECK_AGREED",
+      "count": 34,
+      "first_at": "2026-09-28T17:44:14.112087Z",
+      "last_at": "2026-09-28T18:02:42.919239Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:FUNDING_LIMITS",
+      "count": 2,
+      "first_at": "2026-09-28T17:41:34.838933Z",
+      "last_at": "2026-09-28T17:43:11.207964Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:STARTUP",
+      "count": 2,
+      "first_at": "2026-09-28T17:41:34.838951Z",
+      "last_at": "2026-09-28T17:43:11.20798Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:TURNOVER_MANAGED",
+      "count": 2,
+      "first_at": "2026-09-28T17:41:34.838948Z",
+      "last_at": "2026-09-28T17:43:11.207978Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:TURNOVER_SELECTION",
+      "count": 2,
+      "first_at": "2026-09-28T17:41:36.321678Z",
+      "last_at": "2026-09-28T17:43:12.465045Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "deadman_checkin_sent",
+      "count": 43,
+      "first_at": "2026-09-28T17:41:34.583661Z",
+      "last_at": "2026-09-28T18:02:40.950706Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "sent",
+      "count": 43,
+      "first_at": "2026-09-28T17:41:34.583648Z",
+      "last_at": "2026-09-28T18:02:40.950704Z"
+    },
+    {
+      "category": "state",
+      "name": "global=DRAINED;market=IDLE;actionable=true;truth_generation=4",
+      "count": 8,
+      "first_at": "2026-09-28T18:02:49.296903Z",
+      "last_at": "2026-09-28T18:02:49.297072Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=1",
+      "count": 8,
+      "first_at": "2026-09-28T17:41:34.943254Z",
+      "last_at": "2026-09-28T17:43:11.460519Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=2",
+      "count": 211,
+      "first_at": "2026-09-28T17:41:35.124707Z",
+      "last_at": "2026-09-28T17:43:11.896995Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=3",
+      "count": 8,
+      "first_at": "2026-09-28T17:41:36.3217Z",
+      "last_at": "2026-09-28T17:43:12.708533Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=4",
+      "count": 613,
+      "first_at": "2026-09-28T17:41:36.582718Z",
+      "last_at": "2026-09-28T18:02:42.917006Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=5",
+      "count": 11,
+      "first_at": "2026-09-28T17:42:34.798654Z",
+      "last_at": "2026-09-28T17:42:35.83863Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=6",
+      "count": 57,
+      "first_at": "2026-09-28T17:42:36.08033Z",
+      "last_at": "2026-09-28T17:42:36.489115Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=2",
+      "count": 299,
+      "first_at": "2026-09-28T17:41:35.548047Z",
+      "last_at": "2026-09-28T17:43:12.458605Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=4",
+      "count": 235245,
+      "first_at": "2026-09-28T17:41:36.984809Z",
+      "last_at": "2026-09-28T18:02:49.26328Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=6",
+      "count": 6042,
+      "first_at": "2026-09-28T17:42:36.507207Z",
+      "last_at": "2026-09-28T17:43:03.705302Z"
+    },
+    {
+      "category": "state",
+      "name": "websocket:connected",
+      "count": 5,
+      "first_at": "2026-09-28T17:41:35.124598Z",
+      "last_at": "2026-09-28T17:43:12.719726Z"
+    },
+    {
+      "category": "state",
+      "name": "websocket:disconnected",
+      "count": 1,
+      "first_at": "2026-09-28T17:42:34.798589Z",
+      "last_at": "2026-09-28T17:42:34.798589Z"
+    }
+  ],
+  "finalized_at": "2026-09-28T18:02:49.578373Z"
+}

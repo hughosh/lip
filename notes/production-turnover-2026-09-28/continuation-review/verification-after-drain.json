@@ -1,0 +1,65 @@
+{
+  "at_utc": "2026-09-28T20:35:37.450532+00:00",
+  "historical_binary_sha256": "e3f8a697a20c3153f5c2a8650094b949ff57b985f94b154a7defdad22e9ef361",
+  "matches_original": true,
+  "new_code_scope": [
+    "go/harness/rest/orderbook.go",
+    "go/harness/rest/orderbook_precision_test.go"
+  ],
+  "candidate_rebuilt": false,
+  "full_gate_repeated": false,
+  "q01_repeated": false,
+  "beads": [
+    {
+      "id": "lip-3dw",
+      "status": "closed",
+      "title": "Coordinate runtime shutdown before final store close"
+    },
+    {
+      "id": "lip-1in",
+      "status": "closed",
+      "title": "CR-2: manage held non-selected markets across rotation"
+    },
+    {
+      "id": "lip-2w3",
+      "status": "closed",
+      "title": "F5 cross-check mistakes floating-point quantity residue for live book disagreement"
+    },
+    {
+      "id": "lip-kaf",
+      "status": "open",
+      "title": "Review six live SWEEP_INCOMPLETE alarms during first-stage reprice and stop"
+    },
+    {
+      "id": "lip-dwf",
+      "status": "blocked",
+      "title": "Attended balance-derived sizing and first-fill clean exit"
+    },
+    {
+      "id": "lip-9vc",
+      "status": "blocked",
+      "title": "CR-1 operations: recovery, disk headroom, runbook, and alert escalation"
+    },
+    {
+      "id": "lip-9j3",
+      "status": "blocked",
+      "title": "Pilot: attended balance-derived repeated-cycle test"
+    },
+    {
+      "id": "lip-8hn.2",
+      "status": "blocked",
+      "title": "R2 promotion gate: exact balance-derived repeated-cycle candidate"
+    },
+    {
+      "id": "lip-8hn",
+      "status": "blocked",
+      "title": "EPIC CR-1: one-market continuous runtime"
+    },
+    {
+      "id": "lip-yca",
+      "status": "blocked",
+      "title": "Revalidate LIP economics under July 30 terms and current per-series fees"
+    }
+  ],
+  "no_commit_or_push": true
+}

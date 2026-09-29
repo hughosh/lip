@@ -1,0 +1,19 @@
+{
+  "pid": 95344,
+  "started_at_utc": "2026-09-27T17:21:23.106190+00:00",
+  "command": [
+    "/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/candidate/harness",
+    "-config",
+    "/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/read-only-smoke/config.json",
+    "-rung",
+    "sizing",
+    "-qualification",
+    "/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/read-only-smoke/observation.json"
+  ],
+  "binary_sha256": "ecf16ea19c4f0e05dad8cce0c261d6e6f2204eeb8f9615913a79b54816b311c6",
+  "source_manifest_sha256": "74f8ee7634c406f0e4279429b4e8bbdca9cab31bc2f3a1564163b1d42c4263c2",
+  "config_sha256": "0c01ba575df66988f4d694d39947c2effe497499159ca97e7a3b764cc90c0791",
+  "live_flag": false,
+  "live_sentinel_exists": false,
+  "q01_qualification_claimed": false
+}

@@ -1,0 +1,129 @@
+{
+  "checked_at_epoch": 1790468549.288304,
+  "jobs": [
+    {
+      "label": "com.lip.supervision.probe.zero.3a0c5d5bdc",
+      "argv": [
+        "/bin/launchctl",
+        "print",
+        "gui/501/com.lip.supervision.probe.zero.3a0c5d5bdc"
+      ],
+      "status": 113,
+      "stdout": "",
+      "stderr": "Bad request.\nCould not find service \"com.lip.supervision.probe.zero.3a0c5d5bdc\" in domain for user gui: 501\n"
+    },
+    {
+      "label": "com.lip.supervision.probe.nonzero.3a0c5d5bdc",
+      "argv": [
+        "/bin/launchctl",
+        "print",
+        "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+      ],
+      "status": 113,
+      "stdout": "",
+      "stderr": "Bad request.\nCould not find service \"com.lip.supervision.probe.nonzero.3a0c5d5bdc\" in domain for user gui: 501\n"
+    },
+    {
+      "label": "com.lip.supervision.probe.term.3a0c5d5bdc",
+      "argv": [
+        "/bin/launchctl",
+        "print",
+        "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+      ],
+      "status": 113,
+      "stdout": "",
+      "stderr": "Bad request.\nCould not find service \"com.lip.supervision.probe.term.3a0c5d5bdc\" in domain for user gui: 501\n"
+    },
+    {
+      "label": "com.lip.supervision.probe.kill.3a0c5d5bdc",
+      "argv": [
+        "/bin/launchctl",
+        "print",
+        "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+      ],
+      "status": 113,
+      "stdout": "",
+      "stderr": "Bad request.\nCould not find service \"com.lip.supervision.probe.kill.3a0c5d5bdc\" in domain for user gui: 501\n"
+    }
+  ],
+  "pids": [
+    {
+      "pid": 35954,
+      "argv": [
+        "/bin/ps",
+        "-p",
+        "35954",
+        "-o",
+        "pid=,ppid=,stat=,command="
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "pid": 36021,
+      "argv": [
+        "/bin/ps",
+        "-p",
+        "36021",
+        "-o",
+        "pid=,ppid=,stat=,command="
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "pid": 36059,
+      "argv": [
+        "/bin/ps",
+        "-p",
+        "36059",
+        "-o",
+        "pid=,ppid=,stat=,command="
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "pid": 36072,
+      "argv": [
+        "/bin/ps",
+        "-p",
+        "36072",
+        "-o",
+        "pid=,ppid=,stat=,command="
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "pid": 36184,
+      "argv": [
+        "/bin/ps",
+        "-p",
+        "36184",
+        "-o",
+        "pid=,ppid=,stat=,command="
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "pid": 36242,
+      "argv": [
+        "/bin/ps",
+        "-p",
+        "36242",
+        "-o",
+        "pid=,ppid=,stat=,command="
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}

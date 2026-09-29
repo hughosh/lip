@@ -1,0 +1,195 @@
+{
+  "pid": 63780,
+  "updated_at": "2026-09-28T17:38:16.42372Z",
+  "active_seconds": 220.001826085,
+  "segments": [
+    {
+      "id": "956d84b2c94888cb7ef23be8ec35f74f",
+      "run_id": "20260928T173431RBQFF",
+      "pid": 63443,
+      "started_at": "2026-09-28T17:34:29.408139Z",
+      "active_nanos": 205001176396,
+      "monitor_slots": {
+        "observed": 205,
+        "fresh": 204
+      },
+      "portfolio_slots": {
+        "observed": 41,
+        "fresh_complete": 41,
+        "stale_walks": 0,
+        "incomplete_walks": 0
+      }
+    },
+    {
+      "id": "0ce63f171e89d097ed6fbfa6cc31ae4e",
+      "run_id": "20260928T17380164HWZ",
+      "pid": 63780,
+      "started_at": "2026-09-28T17:37:59.416884Z",
+      "active_nanos": 15000649689,
+      "monitor_slots": {
+        "observed": 14,
+        "fresh": 13
+      },
+      "portfolio_slots": {
+        "observed": 3,
+        "fresh_complete": 3,
+        "stale_walks": 0,
+        "incomplete_walks": 0
+      }
+    }
+  ],
+  "portfolio": {
+    "walks": 47,
+    "fresh": 47,
+    "stale": 0,
+    "complete": 47,
+    "incomplete": 0,
+    "fresh_complete": 47,
+    "last_walk_at": "2026-09-28T17:38:14.796641Z",
+    "last_fresh_at": "2026-09-28T17:38:14.796641Z",
+    "last_complete_at": "2026-09-28T17:38:14.796641Z"
+  },
+  "monitor": {
+    "checks": 219,
+    "fresh": 217,
+    "stale": 2,
+    "last_check_at": "2026-09-28T17:38:15.426186Z",
+    "last_fresh_at": "2026-09-28T17:38:15.426186Z"
+  },
+  "events": [
+    {
+      "category": "anomaly",
+      "name": "SEV2:FOREIGN_FILL_INHERITED",
+      "count": 30,
+      "first_at": "2026-09-28T17:34:33.348051Z",
+      "last_at": "2026-09-28T17:38:03.310778Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:WS_DISCONNECT",
+      "count": 1,
+      "first_at": "2026-09-28T17:36:01.681549Z",
+      "last_at": "2026-09-28T17:36:01.681549Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:FUNDING_LIMITS",
+      "count": 2,
+      "first_at": "2026-09-28T17:34:32.583464Z",
+      "last_at": "2026-09-28T17:38:02.599931Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:STARTUP",
+      "count": 2,
+      "first_at": "2026-09-28T17:34:32.583701Z",
+      "last_at": "2026-09-28T17:38:02.599941Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:TURNOVER_MANAGED",
+      "count": 2,
+      "first_at": "2026-09-28T17:34:32.583697Z",
+      "last_at": "2026-09-28T17:38:02.599939Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "deadman_checkin_sent",
+      "count": 8,
+      "first_at": "2026-09-28T17:34:32.453007Z",
+      "last_at": "2026-09-28T17:38:02.575593Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "sent",
+      "count": 8,
+      "first_at": "2026-09-28T17:34:32.452993Z",
+      "last_at": "2026-09-28T17:38:02.575581Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=1",
+      "count": 8,
+      "first_at": "2026-09-28T17:34:32.69217Z",
+      "last_at": "2026-09-28T17:38:02.852671Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=2",
+      "count": 72,
+      "first_at": "2026-09-28T17:34:32.917697Z",
+      "last_at": "2026-09-28T17:38:03.278883Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=3",
+      "count": 6,
+      "first_at": "2026-09-28T17:34:33.993497Z",
+      "last_at": "2026-09-28T17:38:04.350667Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=4",
+      "count": 118,
+      "first_at": "2026-09-28T17:34:34.274158Z",
+      "last_at": "2026-09-28T17:38:04.819579Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=5",
+      "count": 10,
+      "first_at": "2026-09-28T17:36:01.681596Z",
+      "last_at": "2026-09-28T17:36:02.831882Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=6",
+      "count": 46,
+      "first_at": "2026-09-28T17:36:02.98332Z",
+      "last_at": "2026-09-28T17:36:03.418129Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=2",
+      "count": 220,
+      "first_at": "2026-09-28T17:34:33.34806Z",
+      "last_at": "2026-09-28T17:38:04.100627Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=4",
+      "count": 13661,
+      "first_at": "2026-09-28T17:34:34.68533Z",
+      "last_at": "2026-09-28T17:38:16.42372Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=6",
+      "count": 16463,
+      "first_at": "2026-09-28T17:36:03.419082Z",
+      "last_at": "2026-09-28T17:37:56.489495Z"
+    },
+    {
+      "category": "state",
+      "name": "websocket:connected",
+      "count": 5,
+      "first_at": "2026-09-28T17:34:32.917615Z",
+      "last_at": "2026-09-28T17:38:04.374455Z"
+    },
+    {
+      "category": "state",
+      "name": "websocket:disconnected",
+      "count": 1,
+      "first_at": "2026-09-28T17:36:01.681518Z",
+      "last_at": "2026-09-28T17:36:01.681518Z"
+    }
+  ],
+  "metadata": {
+    "schema_version": 4,
+    "config_hash": "sha256:e9c57c2d5c84feb1c266b9cc32279f1b4f5f6b5ade4eea402d3915746d13f1fb",
+    "binary_identity": "sha256:e3f8a697a20c3153f5c2a8650094b949ff57b985f94b154a7defdad22e9ef361;vcs.revision=f7e9571547bb948418b7a27adc9c30ae38314b00;vcs.modified=true",
+    "ticker": "KXOPENSOURCESHARE-26OCT01-T81",
+    "rung": "sizing",
+    "live": false
+  }
+}

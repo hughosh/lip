@@ -1,0 +1,20 @@
+{
+  "started_at": "2026-09-27T00:51:42.026465+00:00",
+  "ended_at": "2026-09-27T00:52:00.671511+00:00",
+  "command": [
+    "/usr/local/bin/go",
+    "test",
+    "-race",
+    "./cmd/harness",
+    "./harness/lifecycle",
+    "-run",
+    "TestStartup|TestEntrypointExitPolicy|TestAlertDestinationEntrypointExitPolicy|TestRunAndDeploy|TestFunding|TestLaunchdPlan|TestSeamHarnessPlannedFlatDrainCapturesExit|TestComposedOperatorSignalKeepsServiceUntilFlatUnrestedExit",
+    "-count=1"
+  ],
+  "exit_code": 0,
+  "seconds": 18.645066721830517,
+  "go_source_sha256_before": "702c288a3d1ace2cb5a4e6a6435518d0b82644392bacf353f1703be597628319",
+  "go_source_sha256_after": "702c288a3d1ace2cb5a4e6a6435518d0b82644392bacf353f1703be597628319",
+  "environment": "offline isolated verification environment; CGO_ENABLED=1",
+  "log": "focused-race-final.log"
+}

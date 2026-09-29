@@ -95,6 +95,23 @@ func TestStoreSurfaceCannotForgeLicencesOrReachSQL(t *testing.T) {
 		reflect.TypeOf(&hstore.Ownership{}),
 	} {
 		for i := 0; i < ty.NumMethod(); i++ {
+			// "RecordBalancePoll" contains the letters "db" where Record
+			// meets Balance. Its exact typed signature is a fixed record API,
+			// not an escape hatch to a database connection.
+			if ty == reflect.TypeOf(&hstore.Store{}) &&
+				ty.Method(i).Name == "RecordBalancePoll" {
+				method := ty.Method(i).Type
+				if method.NumIn() != 4 ||
+					method.In(1) != reflect.TypeOf(hstore.RunHandle{}) ||
+					method.In(2).Kind() != reflect.Int64 ||
+					method.In(3).Kind() != reflect.Int64 ||
+					method.NumOut() != 2 ||
+					method.Out(0) != reflect.TypeOf(hstore.Receipt{}) ||
+					method.Out(1) != reflect.TypeOf((*error)(nil)).Elem() {
+					t.Fatal("RecordBalancePoll changed its fixed record signature")
+				}
+				continue
+			}
 			name := strings.ToLower(ty.Method(i).Name)
 			for _, bad := range forbidden {
 				if strings.Contains(name, bad) {

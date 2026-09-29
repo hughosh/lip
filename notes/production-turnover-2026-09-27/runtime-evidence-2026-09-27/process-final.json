@@ -1,0 +1,8 @@
+{
+  "at_utc": "2026-09-27T17:27:48.765387+00:00",
+  "processes_matching_harness_caffeinate_watchdog": [],
+  "launchctl_returncode": 0,
+  "lip_jobs": [],
+  "live_sentinels_under_dot_lip_and_new_evidence": [],
+  "scope": "Process executable names, current-user launchctl jobs and scoped sentinel paths; no provider dashboard or human acknowledgment."
+}

@@ -1,0 +1,13 @@
+{
+  "observed_ended_at": "2026-09-27T17:29:41.082742Z",
+  "new_fill_ids": [],
+  "removed_fill_ids": [],
+  "rows_changed": false,
+  "full_walk_pages": 1,
+  "rows": 15,
+  "bytes": 7996,
+  "duration_ms": 103.778434,
+  "configured_poll_ms": 5000,
+  "full_read_fraction_of_poll": 0.0207556868,
+  "decision": "No measured current pressure; preserve full current endpoint walk. No new attributable fills or fees; no new reward observation. Terminal cursor is not proof of lifetime completeness."
+}

@@ -1,0 +1,10 @@
+{
+  "at": "2026-09-27T18:22:14.152877+00:00",
+  "returncode": 0,
+  "stdout": "",
+  "stderr": "",
+  "live": false,
+  "live_ok_present": false,
+  "target": "gui/501/com.lip.q01.cr2.20260927",
+  "plist_sha256": "16785199598282cd91568407549cd25dc9dfb9f86bf548127599c0e1af8ee977"
+}

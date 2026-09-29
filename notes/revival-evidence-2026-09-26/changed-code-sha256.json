@@ -1,0 +1,10 @@
+{
+  "go/harness/rest/read.go": "184b49231efde99c53a178afc5388de9c09e235f68113c5e50e86b27332a10d7",
+  "go/harness/rest/programs_filter_test.go": "86d29ede06305c31ccd46e88ef98983aa9ce2b6dba59d265a3fc1cfbbcb40021",
+  "go/cmd/conform/main.go": "e5ba116b126a91d0ed4bc32976fddf85336c8884e948d5a7dd28de1b100a8b29",
+  "go/cmd/conform/main_test.go": "5d68bd5710fd6b264cb9988bcb8ac2bf87150e61fd3d5869296e3ef0b87560c6",
+  "go/cmd/incentives/main.go": "125669f6a4efb5c63970d5deb9487e4370ba2c62dcbd5972806a13cfed40bed9",
+  "go/cmd/incentives/main_test.go": "ebcf3511566316552a3bde771d3b298efacefd98729c807640df21e1f8a9961a",
+  "scripts/harness_negative_control.py": "0bc52d72267667ee1cc8b2e8c5f55a054e1d316f498e44805aecc3693e54d796",
+  "go/harness/ping/stub_test.go": "3bfda355b8a387b5c2f88fdd2bf44c66ab578928e3ec6e54144660a23f577a17"
+}

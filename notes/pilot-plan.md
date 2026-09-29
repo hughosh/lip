@@ -1,6 +1,6 @@
 # The pilot plan — qualification ladder to continuous runtime
 
-**Status:** revised 2026-08-09 after implementation and gate review. This
+**Status:** revised 2026-09-26 for balance-derived sizing and staged evidence. This
 supersedes `harness-spec.md` §17's verification ladder **for the one-market
 pilot only**. The spec remains the design contract: every safety rule still
 binds where its behaviour is in scope. This plan decides what blocks each rung
@@ -38,9 +38,10 @@ withdrawals, or manual trades; `capital_max` remains fixed; and any reward or
 settlement proceeds above it are not deployable without an explicit rung change
 and a new config review.
 
-No command called a “dry run” may be pointed at live credentials until §6.1's
-structural write guard exists. The current binary has no `--live` plus
-`live_ok` two-key guard, so running it is a live-writer action.
+The current binary has the `-live` plus `live_ok` two-key write guard.
+Read-only qualification excludes `-live` and counts transported methods.
+The selected-shard mode resolves authenticated funds before recording a run;
+an unscoped aggregate balance is not an entry budget.
 
 ## 1. Capital and finish lines are separate ladders
 
@@ -50,9 +51,9 @@ external loss bound and the amount of live evidence being collected.
 | Rung | Size | Purpose | Is it continuous runtime? |
 |---|---:|---|---|
 | read-only qualification | no writes | prove live-feed, restart, schedule, monitoring, and alert behaviour | no |
-| attended canary | 1 market, `S=1`, `capital_max=$2` | prove the real order path; the first directional entry durably stops adding | **no — it deliberately self-stops** |
-| attended pilot burn-in | 1 market, `S=12`, at most $100 in the dedicated account | prove one full-size add → fill → reduce → restart cycle | no |
-| continuous pilot (CR-1) | 1 market, `S=12`, at most $100 | permit repeated unattended fill cycles during one declared market assignment | **yes, within that assignment** |
+| attended sizing | 1 market, `S <= 12`, authenticated selected-shard capital | exercise actual sizing and order path; first owned fill durably stops adding | **no — it deliberately self-stops** |
+| attended pilot burn-in | 1 market, fundable `S <= 12`, same balance-derived envelope | prove add → fill → reduce → restart cycles | no |
+| continuous pilot (CR-1) | 1 market, reviewed balance-derived envelope | permit repeated unattended fill cycles during one declared market assignment | **yes, within that assignment** |
 | second market | 2 markets after a clean continuous-pilot interval | expose concurrency assumptions | yes, expanded |
 | scale | up to 6 markets only after an observed payout | revenue validation | yes, expanded |
 
@@ -65,6 +66,12 @@ tested recovery path. It does not mean “the process stayed up once” or “th
 canary can be launched.” True 24/7 quoting across programme and market turnover
 is CR-2 and requires selection/rotation automation; CR-1 does not rename manual
 replacement as unattended operation.
+
+The user's 2026-09-26 target is **CR-2 continuous participation across
+turnover**. That resolves the scope decision in `lip-1in`; it does not establish
+implementation or release evidence. Selection, shard funding, managed exposure,
+and rotation/restart tests remain required. The historical S=1/$2 `canary` rung
+remains usable as an optional diagnostic, but is not the required first stage.
 
 ## 2. What the pilot ships
 
@@ -107,8 +114,11 @@ durable anomalies oldest-first, send immediate SEV1 notifications and hourly
 heartbeats, and check in with an external dead-man service. The operator must
 demonstrate that a missed check-in alarms; a configured URL is not evidence.
 
-Dense `position_poll`, `snap`, `balance_poll`, and `uptime` tables remain
-deferred. The qualification runner must still produce a compact evidence bundle
+Dense `position_poll`, `snap`, and `uptime` tables remain deferred. Every complete
+position discrepancy above tolerance is still recorded as an attributable
+`POSITION_DISAGREEMENT` journal row (local, exchange and delta quantities). The
+`balance_poll` observation table is restored in schema v3 (atomic migration from
+the five-table v2 store); its values do not feed trading PNL or capital. The qualification runner must still produce a compact evidence bundle
 for its required polls, samples, and intervals; deleting a table does not delete
 the fact that must be proved.
 
@@ -120,11 +130,13 @@ telemetry, Go payout/share scoring, DNS-IP fallback, fill import, payout
 prediction, reducer markout research, or the 72-hour V6 soak.
 
 Do not delete work that is already built. In particular, the priority queue and
-the full mutation catalogue are retained and continue to ratchet.
+the existing mutation catalogue remain available for targeted checks and optional
+deep audits; the process policy is §5.
 
-## 3. Scenario exchange — deterministic private truth, not a market simulator
+## 3. Optional scenario fixture — deterministic private truth
 
-Build a small in-process exchange with an injected clock, order ledger,
+When a composed test needs it, use a small in-process fake with an injected
+clock and order ledger,
 deterministic coid idempotency, scripted REST outcomes, scripted websocket
 events, and restartable state. Fills are explicit private inputs: zero, partial,
 full, delayed, duplicate, out-of-order, multiple, and cancel-race. They are never
@@ -164,34 +176,39 @@ it covers every failure that can strand exposure or make silence look healthy:
    reducing, monitoring, durable retry, and honest heartbeat health continue.
 
 Rare availability cases may remain direct response-path tests, but each of the
-eight composed scenarios must have a named artifact and a permanent mutation
-that proves its catcher can fail.
+eight composed scenarios must have named behavioral evidence. Add a mutation
+when the catcher needs a negative control; permanent mutations for every scenario
+are not a separate completion requirement.
 
-## 5. Gates are a ratchet
+## 5. Fast verification
 
-- Inner development may use targeted tests and the quick gate.
-- A bead advances only on the full build, vet, format, race, repository check,
-  and mutation-negative-control gate.
-- The current catalogue has 173 declared outcomes. It is retained in full; the
-  earlier proposal to cut it to twelve is withdrawn because the additional
-  mutations are already built evidence, not future scope.
-- Every new behaviour adds a compiling semantic mutation, a reachability
-  argument for the deployed rung, and a named deterministic catcher.
-- A probabilistic catcher is a red gate even when one run happens to pass.
-- At a milestone, run the whole catalogue once on the exact tree being
-  advanced. Between milestones, run the affected mutations individually.
+Use [verification-workflow.md](verification-workflow.md). Ordinary edits use
+relevant tests; a coherent checkpoint uses `loop/gates.sh`. Before an attended
+candidate, use ordinary tests, affected race checks and useful safety mutations
+(`--candidate` is the convenient bundled check). All 300 mutations and repeated
+full suites are optional deep audits, not per-bead or universal promotion gates.
+A completed implementation bead is not permission to trade. Known safety failures
+must still be addressed; process ceremony is not a substitute for working code.
 
 ## 6. Entry and exit gates
 
-### 6.1 Code-qualified for read-only operation
+### 6.1 Code evidence for the intended rung
 
-All of the following are required:
+A real read-only experiment requires explicit operator authorization, the composed
+two-key guard in item 1, correct current read contracts/complete portfolio walks,
+and relevant local tests. It may expose missing observation/recovery behavior;
+it does not require finishing unrelated writer features first. An incomplete
+walk or lost monitoring is a failed experiment, not an excuse to run for hours.
+
+Before the first live writer, the following safety properties remain required.
+Use direct composed tests of the actual client; no separate simulator project or
+all-catalogue completion ceremony is required:
 
 1. H-VER-1's two-key write guard is composed at the transport boundary:
    non-GET requests require both an explicit `--live` invocation and a present
    absolute-path `live_ok` sentinel, checked at dispatch time. Without either,
    zero non-GET requests can reach the network.
-2. The flaky `M-HS-ONERUN` catcher is deterministic (`lip-ke1`).
+2. No unexplained flaky result is relied on as safety evidence.
 3. Startup history cannot be replayed onto exchange-seeded position and is
    recorded with honest provenance (`lip-da6`).
 4. Startup calls H-CAP-8 fundability (`lip-lpf`), and 429 handling cannot lose a
@@ -205,44 +222,66 @@ All of the following are required:
 7. H-Q-4a's `gate_fail_debounce_s` has a production consumer: after 30 seconds
    of continuous gate failure, adding orders are cancelled and swept while a
    capped reducer remains.
-8. The scenario exchange, eight scenarios, and production assertions A1–A14
-   are composed and mutation-gated.
-9. A row-by-row production wiring audit covers F1–F21 and every §12 trigger, so
-   a configured detector is not credited merely because its component exists.
-10. The full gate is green on the resulting tree.
+8. The eight fault scenarios in §4 have named behavioral evidence exercising
+   the production seams relevant to the one-market canary. A separate scenario
+   exchange and universal A1–A14 assertion framework are not prerequisites.
+9. Required detectors and §12 stops for the intended rung reach their production
+   consumers. Component existence alone is insufficient; known reachable safety
+   defects block the trial. Later-rung features do not block an earlier safe rung.
+10. Relevant code checks pass on the candidate: the normal suite, affected race
+    tests, safety sentinels and any affected regression controls. There is no
+    all-300-mutation prerequisite. Retain the exact code/config identity.
 
 ### 6.2 Read-only qualified
 
-Run 4–6 hours against the real feed with the write guard unarmed. Assert zero
+The [2026-09-26 attended event stages](attended-stages-2026-09-26.md) revise
+this operational gate. Run against the real feed with the write guard unarmed
+until required events are observed, for at least 20 minutes of linked active
+time, targeting a stop by 45 minutes. This shorter event test gives no long
+soak or economic-value proof. Assert zero
 network non-GET attempts rather than inferring it from an empty order list.
-During the run force a disconnect/resnapshot, process restart, owner-stall
-alarm, and schedule/clock jump. Require ≥99% monitor availability outside
+During the run force a genuine disconnect/resnapshot and process restart.
+Exercise owner-only stall and schedule/clock jump with deterministic injected
+code scenarios before promotion; the production binary has no safe external
+owner-stall hook, and changing the real host clock is not a qualification drill.
+Retain actual external missed-heartbeat alarm evidence separately. Require ≥99% monitor availability outside
 explicitly gated intervals, fresh complete portfolio walks, no silent anomaly
-loss, and a fired external missed-heartbeat alarm. Preserve the evidence bundle.
+loss, and a fired external missed-heartbeat alarm. Preserve the evidence bundle
+and provider receipt. The local assessor alone cannot award promotion.
 
 ### 6.3 Attended canary passed
 
-With the operator present, fund only the canary account, arm both write keys,
-and run one market at `S=1`. The first post-adoption directional entry from an
+With the operator present, verify selected-shard spendable funds and derive a
+fundable one-market size `S <= 12` within the fixed account and risk bounds;
+record the balance, cap, reserve and sizing arithmetic. Arm both write keys.
+The first post-adoption directional entry from an
 ack, newly owned fill, or complete position walk must durably latch
 `WINDING_DOWN`. Demonstrate create visibility, verified adding-side cancel,
 owned-fill attribution, `is_taker=false`, `fee_cost=0`, a capped maker reduction
 to flat, restart adoption, and no resumption of adding after flat or restart.
+Verify no open orders or positions at exit. A no-fill run leaves the fill path
+unqualified. Follow the current attended-stage plan for operator evidence.
 
 ### 6.4 Continuous pilot authorised
 
-Before raising to `S=12`, close the remaining repeated-cycle gaps: live
+Before unattended repeated cycles, close the remaining repeated-cycle gaps: live
 `inv_kill` (`lip-lqw`), the stuck-inventory escalation (`lip-2da`), algebraic
 trading P&L and `pnl_kill` (`lip-gp8`), active-program membership
-(`lip-2v0`), and any safety finding produced by the canary. Then run an attended
-`S=12` burn-in through a directional fill, reduction to flat, and restart.
+(`lip-2v0`), and any safety finding produced by the first writer. Then run an
+attended, balance-derived `S <= 12` candidate through a directional fill,
+reduction to flat, restart, and market/program turnover cleanup.
 
 Continuous runtime begins only after that evidence is reviewed, the halt is
-cleared by an operator, the full gate is green, no priority-0 or priority-1
-safety bead remains open, and launchd + caffeinate + external dead-man
-supervision are active. At that point repeated unattended cycles are permitted.
+cleared by an operator, the applicable code and regression checks pass, no priority-0 or priority-1
+safety bead for this operating envelope remains open, and launchd + caffeinate + external dead-man
+supervision are active. The real provider must prove a missed-dead-man alarm,
+primary SEV1 receipt and acknowledgment, and backup acknowledgment/escalation
+when the primary does not acknowledge. Continuous participation across turnover
+also requires proven selection/rotation and cleanup; see the current
+[attended stages](attended-stages-2026-09-26.md). A local green result grants
+no unattended authority.
 
-## 7. Ordered critical path
+## 7. Historical critical path (consult current Beads and receipts)
 
 The numbering in this section is stable because existing code comments cite it.
 
@@ -291,7 +330,7 @@ The numbering in this section is stable because existing code comments cite it.
     rotation automation; it is not delivered by a CR-1 process idling in
     `DRAINED`.
 
-## 8. Current estimate
+## 8. Historical estimate (not current readiness)
 
 As of the green 2026-08-09 `lip-2t6` tree:
 

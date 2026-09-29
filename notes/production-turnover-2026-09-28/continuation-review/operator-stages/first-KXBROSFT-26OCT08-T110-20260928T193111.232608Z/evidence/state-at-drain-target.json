@@ -1,0 +1,12 @@
+{
+  "at_utc": "2026-09-28T20:18:59.631796+00:00",
+  "process": "70087 70075 Mon Sep 28 12:33:03 2026     /Users/hugh/kek/lip/notes/production-turnover-2026-09-28/candidate-2/harness -config /Users/hugh/kek/lip/notes/production-turnover-2026-09-28/continuation-review/operator-stages/first-KXBROSFT-26OCT08-T110-20260928T193111.232608Z/config.json -rung sizing -live",
+  "process_present": true,
+  "sentinel_present": true,
+  "latch_present": false,
+  "exit_status_file": null,
+  "read_only_support_observer": "exited normally at45-minute target; no signal sent",
+  "operator_drain_report": "pending",
+  "qualified_continuous_trading": false,
+  "process_actions_by_assistant": []
+}

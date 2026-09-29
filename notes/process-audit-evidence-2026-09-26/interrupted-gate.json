@@ -1,0 +1,10 @@
+{
+  "command": "bash loop/gates.sh",
+  "exit_code": 143,
+  "result": "stopped during initial fingerprint before tests",
+  "reason": "New fingerprint erroneously included raw-20260724T231211Z.jsonl.gz (7,843,923,428 bytes). Scope restricted to source/config/test fixtures and streaming hashing added.",
+  "initial_receipt_missing": true,
+  "fix": "Write INCOMPLETE receipt before fingerprint; test collector-tape exclusion. Lock path also made independent of TMPDIR and tested across child environment changes.",
+  "collector_data_modified": false,
+  "trading_process_signaled": false
+}

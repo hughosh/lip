@@ -1,0 +1,20 @@
+{
+  "at": "2026-09-27T00:53:36.391455+00:00",
+  "jobs": {
+    "com.lip.harness": {
+      "exit_code": 113,
+      "absent": true
+    },
+    "com.lip.q01.20260926": {
+      "exit_code": 113,
+      "absent": true
+    },
+    "com.lip.q01.v3.20260926": {
+      "exit_code": 113,
+      "absent": true
+    }
+  },
+  "test_process_matches": [],
+  "proxy_session_exit": 130,
+  "proxy_exit_reason": "operator SIGINT after observers were stopped and account flat; no financial network writes"
+}

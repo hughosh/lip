@@ -1,0 +1,13 @@
+{
+  "recorded_at_utc": "2026-09-28T17:40:55.419638+00:00",
+  "reason": "Both approved programs have passed unchanged first-quarter selection window. No actual selection or would-write decision occurred.",
+  "t70_cutoff_utc": "2026-09-28T04:15:00Z",
+  "t81_cutoff_utc": "2026-09-28T16:15:00Z",
+  "additional_t70_snapshot_failures": [
+    "mid 5.5 cents < 10",
+    "YES depth 1000 < 1300"
+  ],
+  "shutdown": "cleanly finalized; no SEV1, no financial writes",
+  "assessment": "FAIL retained; short window, no would-write and insufficient slot ratios for this short window",
+  "next": "Fresh scope/config, same candidate binary; no selector or assessor change"
+}

@@ -1,0 +1,22 @@
+{
+  "reviewed_at_utc": "2026-09-28T20:32:43.442021+00:00",
+  "reviewer": "bounded independent gpt-6-sol read-only review plus root source review",
+  "conclusion": "Requested-ID persistence triggered the six SEV1 records; opposite-side OtherOurs is not the trigger. Actual intermediate persistence cause remains unresolved.",
+  "source": [
+    "go/harness/rest/cancel.go:306-347",
+    "go/cmd/harness/run.go:2930-2958",
+    "go/cmd/harness/dispatch.go:547-555",
+    "go/harness/rest/cancel_test.go:403-440"
+  ],
+  "evidence": "operator-stages/first-KXBROSFT-26OCT08-T110-20260928T193111.232608Z/evidence/order-details-after-drain.json",
+  "inference": "Terminal update times earlier than the SEV1 records by about0.28\u20131.2s support possible transient resting-list lag; later GETs do not prove intermediate DELETE/list responses.",
+  "missing": [
+    "per-sweep requested IDs",
+    "per-attempt DELETE status/allowlisted response",
+    "verifying-list start/end, completeness and order IDs/status/times"
+  ],
+  "next_evidence": "A scripted two-sided persistence/clearance case and bounded per-sweep production trace; do not weaken SEV1 or claim eventual flatness resolves prior uncertainty.",
+  "code_changed": false,
+  "live_actions": false,
+  "bead": "lip-kaf"
+}

@@ -1,0 +1,2 @@
+{"event": "start", "mode": "zero", "pid": 35954, "ppid": 1, "at": 1790468481.968592, "argv": ["/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py", "zero", "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.events.jsonl"], "elapsed": 0}
+{"event": "exit", "mode": "zero", "pid": 35954, "ppid": 1, "at": 1790468481.968776, "status": 0}

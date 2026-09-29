@@ -1,0 +1,10 @@
+{
+  "observed_utc": "2026-09-29T20:38-20:42Z",
+  "method": "GET-only: incentives walk (5953 programs), public /markets join (5083 tradeable, close >= 24h, program >= 4h left), H-SEL-6/7 with 15-85c margin (2131), top 40 by volume_24h -> per-ticker orderbook + last 1000 trades (fill-odds-40.jsonl) + /series fee_type (series-fees.json). Ranked by the worse side's estimated join-the-touch wait, because the funded reducer needs flow on the side opposite the first fill.",
+  "shortlist": [
+    {"ticker": "KXEPLRELEGATION-27-MCI", "book": "YES bid 33 / NO bid 65 (mid 34c, bid sum 98)", "yes_wait_min": 6.6, "no_wait_min": 2.2, "yes_hits_per_h": 253.7, "no_hits_per_h": 363.8, "fee_type": "quadratic", "market_close": "2027-06-21", "program_end": "2026-10-03T03:59Z"},
+    {"ticker": "KXRT-DIG-50", "book": "YES bid 42 / NO bid 54 (mid 44c, bid sum 96)", "yes_wait_min": 1.7, "no_wait_min": 16.2, "yes_hits_per_h": 176.5, "no_hits_per_h": 270.7, "fee_type": "quadratic", "market_close": "2026-10-05", "program_end": "2026-09-30T18:32Z"},
+    {"ticker": "KXTRUMPSAYCOMPANY-26OCT01-SPCX", "book": "YES bid 22 / NO bid 76 (mid 23c, bid sum 98)", "yes_wait_min": 7.4, "no_wait_min": 6.5, "yes_hits_per_h": 8.1, "no_hits_per_h": 9.2, "fee_type": "quadratic", "market_close": "2026-10-01", "program_end": "2026-10-01T14:00Z"}
+  ],
+  "limits": "Diagnostic, not launch authority. Waits are historical averages (queue ahead / taker hit rate over the last 1000 trades), not fill promises. Prep re-reads program/book/fees/account and re-applies H-SEL-6/7."
+}

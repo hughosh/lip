@@ -1,0 +1,87 @@
+gui/501/com.lip.q01.cr2.attempt2.20260927 = {
+	active count = 1
+	path = /Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/supervisor.plist
+	type = LaunchAgent
+	state = running
+
+	program = /usr/bin/caffeinate
+	arguments = {
+		/usr/bin/caffeinate
+		-is
+		/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/candidate/harness
+		-supervised
+		-config
+		/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/config.json
+		-rung
+		sizing
+		-qualification
+		/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/evidence.json
+	}
+
+	working directory = /Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/runtime
+
+	stdout path = /Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/supervised.out
+	stderr path = /Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/supervised.err
+	inherited environment = {
+		SSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		NO_PROXY => api.elections.kalshi.com,external-api.kalshi.com,ntfy.sh,hc-ping.com,localhost,127.0.0.1
+		HTTPS_PROXY => http://127.0.0.1:56509
+		XPC_SERVICE_NAME => com.lip.q01.cr2.attempt2.20260927
+	}
+
+	domain = gui/501 [100002]
+	asid = 100002
+	minimum runtime = 3
+	exit timeout = 5
+	runs = 2
+	pid = 99360
+	immediate reason = semaphore
+	forks = 1
+	execs = 2
+	initialized = 1
+	trampolined = 1
+	started suspended = 0
+	proxy started suspended = 0
+	checked allocations = 0 (queried = 1)
+	checked allocations reason = no host
+	checked allocations flags = 0x0
+	last terminating signal = Killed: 9
+
+	semaphores = {
+		successful exit => 0
+	}
+
+	resource coalition = {
+		ID = 238541
+		type = resource
+		state = active
+		active count = 1
+		name = com.lip.q01.cr2.attempt2.20260927
+	}
+
+	jetsam coalition = {
+		ID = 238542
+		type = jetsam
+		state = active
+		active count = 1
+		name = com.lip.q01.cr2.attempt2.20260927
+	}
+
+	spawn type = daemon (3)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	jetsam thread limit = 32
+	cpumon = default
+
+	properties = runatload | inferred program
+}

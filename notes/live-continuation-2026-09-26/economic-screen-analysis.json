@@ -1,0 +1,447 @@
+{
+  "observed_at_utc": "2026-09-26T23:50:25.764810+00:00",
+  "refresh_completed_at_utc": "2026-09-26T23:51:41.33476Z",
+  "refresh_programs": 6993,
+  "rows": [
+    {
+      "yes": {
+        "best_bid_cents": 4.0,
+        "best_depth": 8798.5,
+        "total_depth": 12929.5,
+        "target_met": true,
+        "reference_cents": 4.0,
+        "exit_12_bid_vwap_cents": 4.0,
+        "exit_12_unfilled": 0.0
+      },
+      "no": {
+        "best_bid_cents": 95.0,
+        "best_depth": 7795.23,
+        "total_depth": 12616.23,
+        "target_met": true,
+        "reference_cents": 95.0,
+        "exit_12_bid_vwap_cents": 95.0,
+        "exit_12_unfilled": 0.0
+      },
+      "ticker": "KXTRUMPAPPROVE-26SEP27-E39.0",
+      "active_in_refresh": true,
+      "program_end_utc": "2026-09-27T14:02:10.90855Z",
+      "program_reward_usd": 600.0,
+      "target": 1000.0,
+      "discount_factor_bps": 5000,
+      "market_status": "active",
+      "market_close_utc": "2026-09-27T16:59:00Z",
+      "expected_expiration_utc": "2026-09-27T17:00:00Z",
+      "market_exchange_index": 0,
+      "series_exchange_index": 0,
+      "fee_type": "quadratic",
+      "fee_multiplier": 1,
+      "best_spread_cents": 1.0,
+      "read_latencies_ms": {
+        "market": 281,
+        "orderbook": 261,
+        "event": 332,
+        "series": 244
+      }
+    },
+    {
+      "yes": {
+        "best_bid_cents": 1.0,
+        "best_depth": 50982.79,
+        "total_depth": 50982.79,
+        "target_met": true,
+        "reference_cents": 1.0,
+        "exit_12_bid_vwap_cents": 1.0,
+        "exit_12_unfilled": 0.0
+      },
+      "no": {
+        "best_bid_cents": 98.0,
+        "best_depth": 15457.97,
+        "total_depth": 17608.76,
+        "target_met": true,
+        "reference_cents": 98.0,
+        "exit_12_bid_vwap_cents": 98.0,
+        "exit_12_unfilled": 0.0
+      },
+      "ticker": "KXTRUMPAPPROVE-26SEP27-E39.1",
+      "active_in_refresh": true,
+      "program_end_utc": "2026-09-27T14:02:10.90855Z",
+      "program_reward_usd": 600.0,
+      "target": 1000.0,
+      "discount_factor_bps": 5000,
+      "market_status": "active",
+      "market_close_utc": "2026-09-27T16:59:00Z",
+      "expected_expiration_utc": "2026-09-27T17:00:00Z",
+      "market_exchange_index": 0,
+      "series_exchange_index": 0,
+      "fee_type": "quadratic",
+      "fee_multiplier": 1,
+      "best_spread_cents": 1.0,
+      "read_latencies_ms": {
+        "market": 280,
+        "orderbook": 259,
+        "event": 320,
+        "series": 271
+      }
+    },
+    {
+      "yes": {
+        "best_bid_cents": 78.0,
+        "best_depth": 68170.57,
+        "total_depth": 79621.57,
+        "target_met": true,
+        "reference_cents": 78.0,
+        "exit_12_bid_vwap_cents": 78.0,
+        "exit_12_unfilled": 0.0
+      },
+      "no": {
+        "best_bid_cents": 21.0,
+        "best_depth": 79768.0,
+        "total_depth": 92846.59,
+        "target_met": true,
+        "reference_cents": 21.0,
+        "exit_12_bid_vwap_cents": 21.0,
+        "exit_12_unfilled": 0.0
+      },
+      "ticker": "KXMLBSEASONGAMES-27-1215",
+      "active_in_refresh": true,
+      "program_end_utc": "2026-09-27T00:16:38.719713Z",
+      "program_reward_usd": 500.0,
+      "target": 1000.0,
+      "discount_factor_bps": 5000,
+      "market_status": "active",
+      "market_close_utc": "2027-11-07T14:00:00Z",
+      "expected_expiration_utc": "2027-10-31T14:00:00Z",
+      "market_exchange_index": 0,
+      "series_exchange_index": 0,
+      "fee_type": "quadratic",
+      "fee_multiplier": 1,
+      "best_spread_cents": 1.0,
+      "read_latencies_ms": {
+        "market": 279,
+        "orderbook": 259,
+        "event": 265,
+        "series": 265
+      }
+    },
+    {
+      "yes": {
+        "best_bid_cents": 81.0,
+        "best_depth": 71796.0,
+        "total_depth": 88896.0,
+        "target_met": true,
+        "reference_cents": 81.0,
+        "exit_12_bid_vwap_cents": 81.0,
+        "exit_12_unfilled": 0.0
+      },
+      "no": {
+        "best_bid_cents": 18.0,
+        "best_depth": 70307.32,
+        "total_depth": 84840.17,
+        "target_met": true,
+        "reference_cents": 18.0,
+        "exit_12_bid_vwap_cents": 18.0,
+        "exit_12_unfilled": 0.0
+      },
+      "ticker": "KXMLBSEASONGAMES-27-600",
+      "active_in_refresh": true,
+      "program_end_utc": "2026-09-27T00:16:38.719713Z",
+      "program_reward_usd": 500.0,
+      "target": 1000.0,
+      "discount_factor_bps": 5000,
+      "market_status": "active",
+      "market_close_utc": "2027-11-07T14:00:00Z",
+      "expected_expiration_utc": "2027-10-31T14:00:00Z",
+      "market_exchange_index": 0,
+      "series_exchange_index": 0,
+      "fee_type": "quadratic",
+      "fee_multiplier": 1,
+      "best_spread_cents": 1.0,
+      "read_latencies_ms": {
+        "market": 279,
+        "orderbook": 260,
+        "event": 266,
+        "series": 253
+      }
+    },
+    {
+      "yes": {
+        "best_bid_cents": 1.84,
+        "best_depth": 156304.0,
+        "total_depth": 158304.0,
+        "target_met": true,
+        "reference_cents": 1.84,
+        "exit_12_bid_vwap_cents": 1.84,
+        "exit_12_unfilled": 0.0
+      },
+      "no": {
+        "best_bid_cents": 98.15,
+        "best_depth": 40520.37,
+        "total_depth": 44632.37,
+        "target_met": true,
+        "reference_cents": 98.15,
+        "exit_12_bid_vwap_cents": 98.15,
+        "exit_12_unfilled": 0.0
+      },
+      "ticker": "KXNFLESCALATORREC-26SEP27LVNO-NOTETIENNE3",
+      "active_in_refresh": true,
+      "program_end_utc": "2026-09-28T03:59:00Z",
+      "program_reward_usd": 500.0,
+      "target": 1000.0,
+      "discount_factor_bps": 5000,
+      "market_status": "active",
+      "market_close_utc": "2026-09-29T20:25:00Z",
+      "expected_expiration_utc": "2026-09-27T23:25:00Z",
+      "market_exchange_index": 0,
+      "series_exchange_index": 0,
+      "fee_type": "quadratic",
+      "fee_multiplier": 1,
+      "best_spread_cents": 0.01,
+      "read_latencies_ms": {
+        "market": 256,
+        "orderbook": 244,
+        "event": 328,
+        "series": 250
+      }
+    },
+    {
+      "yes": {
+        "best_bid_cents": 6.98,
+        "best_depth": 118286.53,
+        "total_depth": 123287.53,
+        "target_met": true,
+        "reference_cents": 6.98,
+        "exit_12_bid_vwap_cents": 6.98,
+        "exit_12_unfilled": 0.0
+      },
+      "no": {
+        "best_bid_cents": 93.01,
+        "best_depth": 32317.19,
+        "total_depth": 37707.19,
+        "target_met": true,
+        "reference_cents": 93.01,
+        "exit_12_bid_vwap_cents": 93.01,
+        "exit_12_unfilled": 0.0
+      },
+      "ticker": "KXNFLESCALATORRECYDS-26SEP27LACBUF-LACLMCCONKEY15",
+      "active_in_refresh": true,
+      "program_end_utc": "2026-09-28T03:59:00Z",
+      "program_reward_usd": 500.0,
+      "target": 1000.0,
+      "discount_factor_bps": 5000,
+      "market_status": "active",
+      "market_close_utc": "2026-09-29T17:00:00Z",
+      "expected_expiration_utc": "2026-09-27T20:00:00Z",
+      "market_exchange_index": 0,
+      "series_exchange_index": 0,
+      "fee_type": "quadratic",
+      "fee_multiplier": 1,
+      "best_spread_cents": 0.01,
+      "read_latencies_ms": {
+        "market": 244,
+        "orderbook": 271,
+        "event": 335,
+        "series": 264
+      }
+    },
+    {
+      "yes": {
+        "best_bid_cents": 62.0,
+        "best_depth": 191.0,
+        "total_depth": 4485.51,
+        "target_met": true,
+        "reference_cents": 61.0,
+        "exit_12_bid_vwap_cents": 62.0,
+        "exit_12_unfilled": 0.0
+      },
+      "no": {
+        "best_bid_cents": 4.0,
+        "best_depth": 2365.0,
+        "total_depth": 4514.0,
+        "target_met": true,
+        "reference_cents": 4.0,
+        "exit_12_bid_vwap_cents": 4.0,
+        "exit_12_unfilled": 0.0
+      },
+      "ticker": "KXCPIYOY-26DEC-T3.4",
+      "active_in_refresh": true,
+      "program_end_utc": "2026-10-01T16:31:52.049889Z",
+      "program_reward_usd": 100.0,
+      "target": 1000.0,
+      "discount_factor_bps": 5000,
+      "market_status": "active",
+      "market_close_utc": "2027-01-13T13:29:00Z",
+      "expected_expiration_utc": "2027-01-13T15:00:00Z",
+      "market_exchange_index": 0,
+      "series_exchange_index": 0,
+      "fee_type": "quadratic_with_maker_fees",
+      "fee_multiplier": 1,
+      "best_spread_cents": 34.0,
+      "read_latencies_ms": {
+        "market": 253,
+        "orderbook": 248,
+        "event": 329,
+        "series": 243
+      }
+    },
+    {
+      "yes": {
+        "best_bid_cents": 38.0,
+        "best_depth": 3.0,
+        "total_depth": 763.0,
+        "target_met": true,
+        "reference_cents": 29.0,
+        "exit_12_bid_vwap_cents": 35.916666666666664,
+        "exit_12_unfilled": 0.0
+      },
+      "no": {
+        "best_bid_cents": 12.0,
+        "best_depth": 4.0,
+        "total_depth": 1787.0,
+        "target_met": true,
+        "reference_cents": 6.0,
+        "exit_12_bid_vwap_cents": 10.166666666666666,
+        "exit_12_unfilled": 0.0
+      },
+      "ticker": "KXTTELITEMATCH-26SEP262010MOLMKO-MOL",
+      "active_in_refresh": true,
+      "program_end_utc": "2026-09-27T01:10:00Z",
+      "program_reward_usd": 20.0,
+      "target": 300.0,
+      "discount_factor_bps": 5000,
+      "market_status": "active",
+      "market_close_utc": "2026-10-04T00:10:00Z",
+      "expected_expiration_utc": "2026-09-27T03:10:00Z",
+      "market_exchange_index": 0,
+      "series_exchange_index": 0,
+      "fee_type": "quadratic",
+      "fee_multiplier": 1,
+      "best_spread_cents": 50.0,
+      "read_latencies_ms": {
+        "market": 247,
+        "orderbook": 233,
+        "event": 253,
+        "series": 237
+      }
+    },
+    {
+      "yes": {
+        "best_bid_cents": 4.0,
+        "best_depth": 642.0,
+        "total_depth": 3589.0,
+        "target_met": true,
+        "reference_cents": 4.0,
+        "exit_12_bid_vwap_cents": 4.0,
+        "exit_12_unfilled": 0.0
+      },
+      "no": {
+        "best_bid_cents": 95.0,
+        "best_depth": 1103.93,
+        "total_depth": 4271.93,
+        "target_met": true,
+        "reference_cents": 95.0,
+        "exit_12_bid_vwap_cents": 95.0,
+        "exit_12_unfilled": 0.0
+      },
+      "ticker": "KXRAIN-26SEP27-LAX",
+      "active_in_refresh": true,
+      "program_end_utc": "2026-09-28T08:00:00Z",
+      "program_reward_usd": 100.0,
+      "target": 1000.0,
+      "discount_factor_bps": 5000,
+      "market_status": "active",
+      "market_close_utc": "2026-09-28T08:00:00Z",
+      "expected_expiration_utc": "2026-09-29T03:59:59Z",
+      "market_exchange_index": 0,
+      "series_exchange_index": 0,
+      "fee_type": "quadratic",
+      "fee_multiplier": 1,
+      "best_spread_cents": 1.0,
+      "read_latencies_ms": {
+        "market": 249,
+        "orderbook": 236,
+        "event": 391,
+        "series": 227
+      }
+    },
+    {
+      "yes": {
+        "best_bid_cents": 1.0,
+        "best_depth": 8284.0,
+        "total_depth": 8284.0,
+        "target_met": true,
+        "reference_cents": 1.0,
+        "exit_12_bid_vwap_cents": 1.0,
+        "exit_12_unfilled": 0.0
+      },
+      "no": {
+        "best_bid_cents": 98.0,
+        "best_depth": 16861.3,
+        "total_depth": 24466.3,
+        "target_met": true,
+        "reference_cents": 98.0,
+        "exit_12_bid_vwap_cents": 98.0,
+        "exit_12_unfilled": 0.0
+      },
+      "ticker": "KXGRAMMY-BAMP69-TIE",
+      "active_in_refresh": true,
+      "program_end_utc": "2026-09-27T03:59:59.999999Z",
+      "program_reward_usd": 60.0,
+      "target": 1000.0,
+      "discount_factor_bps": 5000,
+      "market_status": "active",
+      "market_close_utc": "2027-12-31T15:00:00Z",
+      "expected_expiration_utc": "2027-02-08T04:59:00Z",
+      "market_exchange_index": 0,
+      "series_exchange_index": 0,
+      "fee_type": "quadratic",
+      "fee_multiplier": 1,
+      "best_spread_cents": 1.0,
+      "read_latencies_ms": {
+        "market": 227,
+        "orderbook": 247,
+        "event": 319,
+        "series": 261
+      }
+    },
+    {
+      "yes": {
+        "best_bid_cents": 72.0,
+        "best_depth": 660.45,
+        "total_depth": 5463.45,
+        "target_met": true,
+        "reference_cents": 72.0,
+        "exit_12_bid_vwap_cents": 72.0,
+        "exit_12_unfilled": 0.0
+      },
+      "no": {
+        "best_bid_cents": 27.0,
+        "best_depth": 37.0,
+        "total_depth": 8048.03,
+        "target_met": true,
+        "reference_cents": 8.0,
+        "exit_12_bid_vwap_cents": 27.0,
+        "exit_12_unfilled": 0.0
+      },
+      "ticker": "KXFEATURE-26GTA6-DON",
+      "active_in_refresh": true,
+      "program_end_utc": "2026-10-01T16:47:40.563285Z",
+      "program_reward_usd": 100.0,
+      "target": 1000.0,
+      "discount_factor_bps": 5000,
+      "market_status": "active",
+      "market_close_utc": "2026-12-31T04:59:00Z",
+      "expected_expiration_utc": "2026-12-31T15:00:00Z",
+      "market_exchange_index": 0,
+      "series_exchange_index": 0,
+      "fee_type": "quadratic",
+      "fee_multiplier": 1,
+      "best_spread_cents": 1.0,
+      "read_latencies_ms": {
+        "market": 250,
+        "orderbook": 250,
+        "event": 503,
+        "series": 255
+      }
+    }
+  ]
+}

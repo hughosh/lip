@@ -1,0 +1,24 @@
+{
+  "scope": "local_evidence_only",
+  "local_requirements_met": true,
+  "elapsed": 1417913752874,
+  "above_guard_non_get": 0,
+  "below_guard_non_get": 0,
+  "would_write_observations": 382332,
+  "historical_unclean_segments": 1,
+  "expected_monitor_slots": 1419,
+  "observed_monitor_slots": 1417,
+  "fresh_monitor_slots": 1417,
+  "monitor_fresh_slot_ratio": 0.9985905567300916,
+  "expected_portfolio_slots": 285,
+  "observed_portfolio_slots": 284,
+  "fresh_complete_portfolio_slots": 284,
+  "portfolio_fresh_complete_slot_ratio": 0.9964912280701754,
+  "protocol_deviations": [],
+  "external_outstanding": [
+    "real-account, real-feed, launchd, and caffeinate provenance",
+    "operator provenance and timestamps for forced qualification actions",
+    "alert-provider receipt and proof that a missed-heartbeat alarm fired"
+  ],
+  "failures": []
+}

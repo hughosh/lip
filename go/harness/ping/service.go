@@ -163,6 +163,10 @@ type Service struct {
 	lastSev1        map[string]int64
 	lastSev2        map[string]int64
 	retryAt         map[string]int64
+	// A retry loaded from the durable queue is observed once in this process.
+	// Its stored attempt timestamp remains wall time; its remaining backoff is
+	// then protected from later wall corrections like every other interval.
+	persistedRetry map[string]retryObservation
 
 	healthSeen  bool
 	lastHealthy bool
@@ -183,6 +187,13 @@ type Service struct {
 	beatRetryAt      int64
 	deadAttempts     int
 	deadRetryAt      int64
+	pairedClockSeen  bool
+	pairedWallMs     int64
+	pairedMonoMs     int64
+}
+
+type retryObservation struct {
+	attempts, lastAttemptMs, dueMs int64
 }
 
 // NewService requires every collaborator, including the dead man.
@@ -225,10 +236,11 @@ func NewService(reader *hstore.Reader, store *hstore.Store, sender *NTFYSender,
 	}
 	return &Service{
 		reader: reader, store: store, ntfy: sender, dead: dead,
-		interval: interval,
-		lastSev1: make(map[string]int64),
-		lastSev2: make(map[string]int64),
-		retryAt:  make(map[string]int64),
+		interval:       interval,
+		lastSev1:       make(map[string]int64),
+		lastSev2:       make(map[string]int64),
+		retryAt:        make(map[string]int64),
+		persistedRetry: make(map[string]retryObservation),
 	}, nil
 }
 
@@ -377,6 +389,56 @@ func (s *Service) Step(ctx context.Context, nowMs int64, hb Heartbeat) Effects {
 	return eff
 }
 
+// StepAt uses a paired wall and monotonic reading. A wall correction must not
+// consume or extend elapsed heartbeat, retry, or suppression intervals. The
+// private deadlines stay in wall coordinates so Step can retain its original
+// deterministic API; moving those coordinates by the clock correction keeps
+// the remaining monotonic duration unchanged. Delivery records still receive
+// the real wall timestamp passed to Step.
+func (s *Service) StepAt(ctx context.Context, wallMs, monoMs int64,
+	hb Heartbeat) Effects {
+	if s.pairedClockSeen {
+		correction := (wallMs - s.pairedWallMs) - (monoMs - s.pairedMonoMs)
+		if correction != 0 {
+			s.rebaseDeadlines(correction)
+		}
+	}
+	s.pairedClockSeen = true
+	s.pairedWallMs, s.pairedMonoMs = wallMs, monoMs
+	return s.Step(ctx, wallMs, hb)
+}
+
+func (s *Service) rebaseDeadlines(delta int64) {
+	if s.lastHeartbeatMs != 0 {
+		s.lastHeartbeatMs += delta
+	}
+	if s.lastHealthPushMs != 0 {
+		s.lastHealthPushMs += delta
+	}
+	for k, at := range s.lastSev1 {
+		s.lastSev1[k] = at + delta
+	}
+	for k, at := range s.lastSev2 {
+		s.lastSev2[k] = at + delta
+	}
+	for k, at := range s.retryAt {
+		s.retryAt[k] = at + delta
+	}
+	for k, observed := range s.persistedRetry {
+		observed.dueMs += delta
+		s.persistedRetry[k] = observed
+	}
+	if s.healthRetryAt != 0 {
+		s.healthRetryAt += delta
+	}
+	if s.beatRetryAt != 0 {
+		s.beatRetryAt += delta
+	}
+	if s.deadRetryAt != 0 {
+		s.deadRetryAt += delta
+	}
+}
+
 // healthPushDueMs is the earliest this Step may send the owed health notice.
 //
 // The LATER of two independent bounds: the 1-60 second ladder's next rung after
@@ -421,7 +483,9 @@ func (s *Service) drain(ctx context.Context, nowMs int64,
 	var next int64
 	var order []*group
 	byKey := make(map[string]*group)
+	pending := make(map[string]struct{}, len(rows))
 	for _, r := range rows {
+		pending[r.AnomalyID] = struct{}{}
 		if r.Sev == risk.SEV3 {
 			// §13.2: SEV3, including STARTUP and drain-complete notices, is
 			// batched into the next heartbeat and never pushed on its own.
@@ -440,6 +504,11 @@ func (s *Service) drain(ctx context.Context, nowMs int64,
 		g.rows = append(g.rows, r)
 		byKey[k] = g
 		order = append(order, g)
+	}
+	for id := range s.persistedRetry {
+		if _, ok := pending[id]; !ok {
+			delete(s.persistedRetry, id)
+		}
 	}
 	// `rows` arrives oldest first, so group creation order is already oldest
 	// first. A STABLE sort by severity therefore yields "due SEV1 oldest first,
@@ -488,7 +557,16 @@ func (s *Service) dueAt(r hstore.AnomalyRow) int64 {
 		return at
 	}
 	if r.Attempts > 0 && r.LastAttemptMs > 0 {
-		return r.LastAttemptMs + deliveryBackoffMs(r.Attempts)
+		if observed, ok := s.persistedRetry[r.AnomalyID]; ok &&
+			observed.attempts == int64(r.Attempts) &&
+			observed.lastAttemptMs == r.LastAttemptMs {
+			return observed.dueMs
+		}
+		due := r.LastAttemptMs + deliveryBackoffMs(r.Attempts)
+		s.persistedRetry[r.AnomalyID] = retryObservation{
+			attempts: int64(r.Attempts), lastAttemptMs: r.LastAttemptMs, dueMs: due,
+		}
+		return due
 	}
 	return 0
 }
@@ -547,6 +625,7 @@ func (s *Service) pushGroup(ctx context.Context, nowMs int64, g *group) Push {
 		s.markBucket(g, nowMs)
 		for _, id := range ids {
 			delete(s.retryAt, id)
+			delete(s.persistedRetry, id)
 		}
 	} else {
 		for _, r := range g.rows {

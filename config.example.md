@@ -18,6 +18,13 @@ harness -config ~/.lip/canary/config.json -provision
 At `s` = 1 the binary starts without a `-rung` flag; every larger size requires
 `-rung <name>` matching the file (`main.go`, `checkRung`).
 
+The rung's `maxS` is a sizing ceiling, not a claim that every size under it is
+fundable. H-CAP-8 separately checks market count and deployable capital. For
+example, six markets with $500 and the 25% reserve permit whole-contract S up
+to 63: `6 * S * $0.99 <= $375`. The scale ceiling of 100 requires at least
+$792 for six markets under that calculation. This clarifies the existing
+loader behavior; it does not change the one-market canary or authorize scale.
+
 ## The two rules the file obeys
 
 **Human units.** Sizes are in CONTRACTS and money is in DOLLARS. The loader
@@ -44,9 +51,9 @@ READ from `/markets/{ticker}`, never configured.
 | `rung` | **yes** | — | `canary`. ASSERTED against `s`, never used to derive it — a file that says canary and sizes like the pilot is refused. |
 | `s` | no | 12 | 1 contract. The canary's whole question is whether the order path works at all. |
 | `s_max` | no | 48 | 1. The per-side-per-market aggregate cap. Left at 48 the canary could rest 48× its base quote. |
-| `inv_soft` | no | 3 | 0.1 — see the caveat below. |
+| `inv_soft` | no | 3 | 0.1 — see the canary bound below. |
 | `inv_hard` | no | 7 | 0.25. A single 1-contract fill exceeds this, so the market goes REDUCING on the first directional fill. The §16 defaults (3/7/18) can never fire at S=1. |
-| `inv_kill` | no | 18 | 0.5 — see the caveat below. |
+| `inv_kill` | no | 18 | 0.5 — see the canary bound below. |
 | `capital_max` | no | $100 | $2, not $1. H-CAP-8's arithmetic needs the deployable fraction (1 − `capital_reserve` = 0.75) to cover a worst-case reducer fill of 1 × $0.99; $1 leaves $0.75 and does not. |
 | `pnl_kill` | no | −$15 | −$1. A LOSS FLOOR, therefore negative; a non-negative value fires immediately. |
 | `n_markets` | no | 6 | 1. Also the divisor in H-CAP-2's per-market cap. |
@@ -76,34 +83,37 @@ than defaulted so that WHICH ACCOUNT this process can reach is a property of the
 config and visible in a diff. Neither `loadConfig` nor `resolvePaths` stats these
 files; a wrong path surfaces at startup, not at load.
 
-## Caveat: three of these knobs are not currently enforced
+## Current enforcement and the canary bound
 
-Read this before starting anything. `inv_kill`, `pnl_kill` and `capital_max`
-are written here at values chosen from the spec, and as of 2026-08-08 the
-harness acts on none of them. Each was verified against the code by a reviewer
-instructed to refute it.
+Checked against the source on 2026-09-26: the earlier warning that these three
+parameters had no production callers is obsolete.
 
-- **`inv_kill` (F17, global WINDING_DOWN)** — parsed and bounds-checked;
-  nothing anywhere compares live inventory against it. F17's detector is
-  specified as the position poll, and that poll uses `cfg.Params` only for
-  drift (`q_local` vs `q_exch`), never for `|q|`. Tracked as `lip-lqw`.
-- **`pnl_kill` (§12, H-HALT-5)** — same: zero production reads. The loss floor
-  does not fire. Tracked as `lip-gp8`.
-- **`capital_max` via H-CAP-8** — `risk.CheckFundable` implements the rule and
-  is tested, but has no caller on the startup path, so a config that cannot
-  fund its reducer starts without complaint. Tracked as `lip-lpf`.
+- **`inv_kill` (F17, global WINDING_DOWN)** — the owner consumes the reconciler's
+  `InvKill` effect and calls `requestStop("inv_kill", ...)` in
+  `go/cmd/harness/run.go`.
+- **`pnl_kill` (§12, H-HALT-5)** — the owner's `evaluatePnL` compares trading
+  P&L, including fees and excluding rewards, against the inclusive loss floor
+  and requests a global stop.
+- **`capital_max` via H-CAP-8** — `loadConfig` calls `risk.CheckFundable` after
+  parameter validation, before running, provisioning, or deploying. This
+  validates configured fundability; it does not guarantee liquidation or cap
+  the account's lifetime loss.
+
+These code paths do not establish release qualification. See the dated
+[revival assessment](notes/revival-2026-09-26.md) and the unchanged pilot gates
+for the remaining safety and operational evidence.
 
 **What this means for the canary.** pilot-plan §7.9 bounds it by "the first
 directional fill latches `WINDING_DOWN`", and as of `lip-2t6` (2026-08-09) it
-does — but NOT through any of the three knobs above, and no setting of them
-would have delivered it. Fills are fractional to the 0.01-contract quantum, F17
+does. That first-fill bound comes from the rung, independently of the inventory
+and P&L thresholds. Fills are fractional to the 0.01-contract quantum, F17
 compares with a strict `>`, and `inv_kill` must sit strictly above `inv_hard`,
 which must sit strictly above `inv_soft`, which must be positive; so there is no
 ordering in which every 0.01 fill breaches `inv_kill`. What bites below it is
 `inv_hard`, which takes the market to REDUCING — and REDUCING is market-scoped
-and clears at exactly flat, going IDLE and then QUOTING again. A canary bounded
-only by these numbers reduces to zero and **resumes adding by itself**, one
-quantum at a time, forever.
+and clears at exactly flat, going IDLE and then QUOTING again. If no global
+threshold has fired, those inventory transitions can reduce to zero and resume
+adding. They do not enforce a first-directional-fill limit.
 
 So the bound is a property of the RUNG rather than a knob. Selecting
 `"rung": "canary"` is what turns it on; there is deliberately no config key for
@@ -138,3 +148,25 @@ is writable.** A SEV2 `LATCH_WRITE_RECOVERED` says the write later succeeded.
 This is recorded here rather than papered over because an operator reading this
 file would otherwise reasonably believe three kill conditions are protecting the
 canary that are not.
+# Balance-derived attended sizing (2026-09-26)
+
+Use `"capital_source": "selected_shard_balance"` to derive the frozen run cap
+from authenticated primary-subaccount cash on the selected market's authoritative
+`exchange_index`. Omit `capital_max` for the balance-derived cap alone; an explicit
+`capital_max` becomes an additional entry ceiling. The legacy default remains
+`configured` for compatibility with historical files.
+
+The new `sizing` rung permits `S <= 12` and retains the first-owned-fill durable
+stop. It supersedes the required S=1/$2 stage for the current task, while preserving
+reserve, inventory limits, loss stop, maker-only writes and complete cleanup.
+Inherited selected-market commitments start recovery only: their conservative
+committed value is added to cash for reducer accounting, with no new adds. This
+recovery accounting can exceed a newly lowered entry ceiling; it does not permit
+additional risk. Nonselected exposure requires CR-2 and refuses a one-market start.
+
+Periodic scoped cash observations do not raise the frozen capital cap. Missing
+or stale observations stop adding. Cash accounting conservatively reserves live,
+inflight and unknown orders even where the exchange may already reserve them;
+this can undersize. Confirm order/cash behavior in an attended run before relying
+on it for continuous operation. Effective parameters are stored in the run row,
+with exact funding basis and limits in `FUNDING_LIMITS`/`FUNDING_EXACT` records.

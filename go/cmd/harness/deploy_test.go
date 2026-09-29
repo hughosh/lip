@@ -143,30 +143,22 @@ func TestInstalledJobExecsCaffeinateAndKeepsAlive(t *testing.T) {
 		t.Fatalf("ProgramArguments[2] is %q, want this process's resolved "+
 			"executable %q", argv[2], exe)
 	}
-	if argv[3] != "-config" || argv[4] != configPath {
+	if argv[3] != "-supervised" || argv[4] != "-config" || argv[5] != configPath {
 		t.Fatalf("the job is started as %v; launchd inherits no working "+
 			"directory, so the config has to be named absolutely in the argv",
 			argv)
 	}
 
-	const keepAlive = "<key>KeepAlive</key>"
-	k := strings.Index(plist, keepAlive)
-	if k < 0 {
-		t.Fatalf("the installed plist has no KeepAlive. H-DEP-2 restarts the "+
-			"harness on any exit, including exit 0: a drained harness exits "+
-			"cleanly, and what stops it coming back up is the durable latch on "+
-			"disk, not a supervisor that declined to restart it:\n%s", plist)
-	}
+	const keepAlive = "<key>KeepAlive</key>\n\t<dict>\n\t<key>SuccessfulExit</key>\n\t<false/>\n\t</dict>"
 	// `<true/>` and not `<true>`: launchd accepts ONLY the empty-element form
 	// and rejects the paired one with `Bootstrap failed: 5: Input/output
 	// error`, so the INSTALLED plist is the one place this has to be right
 	// (lip-83o). This assertion previously accepted `<true>`, which matches the
 	// paired form and is why the installed job was never loadable.
-	if after := strings.TrimSpace(plist[k+len(keepAlive):]); !strings.HasPrefix(
-		after, "<true/>") {
-		t.Fatalf("KeepAlive is not rendered as the empty element <true/>; it "+
-			"is followed by %.20q. launchd rejects <true></true> outright and "+
-			"reports only `Bootstrap failed: 5: Input/output error`", after)
+	if !strings.Contains(plist, keepAlive) ||
+		!strings.Contains(plist, "<key>RunAtLoad</key>\n\t<true/>") ||
+		!strings.Contains(plist, "<key>ThrottleInterval</key>\n\t<integer>60</integer>") {
+		t.Fatalf("installed job lacks conditional crash recovery, RunAtLoad, or throttle:\n%s", plist)
 	}
 
 	if info, err := os.Stat(path); err != nil {
@@ -660,7 +652,7 @@ func TestPilotDeployCarriesTheConfigAndRungInStableOrder(t *testing.T) {
 	}
 
 	got := harnessArgv(t, programArguments(t, string(body)))
-	want := []string{"-config", configPath, "-rung", "pilot"}
+	want := []string{"-supervised", "-config", configPath, "-rung", "pilot"}
 	if len(got) != len(want) {
 		t.Fatalf("the deployed harness argv is %v, want %v", got, want)
 	}
@@ -672,8 +664,8 @@ func TestPilotDeployCarriesTheConfigAndRungInStableOrder(t *testing.T) {
 
 	// And the path is the absolute one, because launchd inherits no working
 	// directory and the file this names carries the halt latch's location.
-	if !filepath.IsAbs(got[1]) {
-		t.Fatalf("the deployed argv names the config relatively: %q", got[1])
+	if !filepath.IsAbs(got[2]) {
+		t.Fatalf("the deployed argv names the config relatively: %q", got[2])
 	}
 
 	// The plist summary the operator reads has to say the same thing the file
@@ -699,7 +691,7 @@ func TestPilotDeployCarriesTheConfigAndRungInStableOrder(t *testing.T) {
 		t.Fatalf("reading the replaced plist: %v", err)
 	}
 	got = harnessArgv(t, programArguments(t, string(body)))
-	want = []string{"-config", configPath, "-rung", "pilot", "-live"}
+	want = []string{"-supervised", "-config", configPath, "-rung", "pilot", "-live"}
 	if len(got) != len(want) {
 		t.Fatalf("the armed harness argv is %v, want %v", got, want)
 	}
@@ -743,6 +735,9 @@ func TestTheDeployedArgvStartsUnderTheRungGate(t *testing.T) {
 		t.Fatalf("the deployed argv starts the harness against %q, want %q",
 			cl.configPath, configPath)
 	}
+	if !cl.supervised || len(argv) == 0 || argv[0] != "-supervised" {
+		t.Fatalf("deployed argv must start with the supervised marker: %v", argv)
+	}
 	if err := checkRung(c, cl.rung); err != nil {
 		t.Fatalf("the plist this deploy wrote is REFUSED by the binary it "+
 			"starts: %v\n\nKeepAlive restarts on every exit, so this is not a "+
@@ -782,8 +777,8 @@ func TestCanaryDeployRendersExactlyWhatTheOperatorAsserted(t *testing.T) {
 		t.Fatalf("reading the installed plist: %v", err)
 	}
 	got := harnessArgv(t, programArguments(t, string(body)))
-	want := []string{"-config", configPath}
-	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+	want := []string{"-supervised", "-config", configPath}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
 		t.Fatalf("an unadorned canary deploy rendered %v, want %v. A rung "+
 			"that appears without the operator having typed one was copied "+
 			"out of the config, and a copy cannot disagree with its source",
@@ -807,7 +802,7 @@ func TestCanaryDeployRendersExactlyWhatTheOperatorAsserted(t *testing.T) {
 		t.Fatalf("reading the replaced plist: %v", err)
 	}
 	got = harnessArgv(t, programArguments(t, string(body)))
-	want = []string{"-config", configPath, "-rung", "canary"}
+	want = []string{"-supervised", "-config", configPath, "-rung", "canary"}
 	if len(got) != len(want) {
 		t.Fatalf("an explicit canary deploy rendered %v, want %v", got, want)
 	}

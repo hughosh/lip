@@ -1,0 +1,7 @@
+{
+  "superseded_at_utc": "2026-09-28T23:57:00Z",
+  "reason": "loop/gates.sh --candidate failed at check.py section 9.1: go/harness/rest/sweep_trace.go and go/cmd/harness/sweep_trace.go lacked the required '// confidence: high|low' trailer. The trailers were added (comment-only), which changes the Go source manifest this binary is bound to, so this build is not a launch candidate.",
+  "failed_gate_receipt": "/Users/hugh/kek/lip/loop/gates-out/20260928T235511879742Z-52eb2086/receipt.json",
+  "static_gate_after_fix": "/Users/hugh/kek/lip/loop/gates-out/20260928T235611986737Z-1bc74aa6/receipt.json",
+  "replacement": "/Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/candidate-4"
+}

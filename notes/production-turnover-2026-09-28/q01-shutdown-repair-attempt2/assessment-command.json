@@ -1,0 +1,9 @@
+{
+  "at_utc": "2026-09-28T18:03:00.833922+00:00",
+  "argv": [
+    "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/candidate-2/harness",
+    "-assess-qualification",
+    "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/evidence.json"
+  ],
+  "exit_code": 0
+}

@@ -1,0 +1,30 @@
+{
+  "started_at": "2026-09-27T17:29:38.771168Z",
+  "ended_at": "2026-09-27T17:29:41.082742Z",
+  "account_scope_complete": true,
+  "flat": true,
+  "resting_orders_status": {
+    "outcome": "complete",
+    "pages": 1
+  },
+  "positions_by_subaccount": {
+    "0": {
+      "outcome": "complete",
+      "pages": 1,
+      "count": 2
+    }
+  },
+  "fills_status": {
+    "outcome": "complete",
+    "pages": 1,
+    "count": 15
+  },
+  "market_funding_available_micro": "98580200",
+  "market_funding_observed_at": "2026-09-27T17:29:39.540377Z",
+  "open_orders": 0,
+  "nonzero_positions": 0,
+  "subaccounts": [
+    0
+  ],
+  "scope": "Complete endpoint account-wide GET-only orders/positions across enumerated subaccounts; positions count includes two flat historical rows."
+}

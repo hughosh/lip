@@ -1,0 +1,5 @@
+{
+  "at": "2026-09-27T18:32:33.837196+00:00",
+  "fault": "Local process-scoped HTTPS proxy returns 503 for CONNECT, preventing one actual ntfy transport attempt. Provider outage is not claimed.",
+  "expected": "Persist failed attempt, retry >=30 seconds later to real ntfy, no autoack or backup"
+}

@@ -1,0 +1,473 @@
+{
+  "metadata": {
+    "schema_version": 4,
+    "config_hash": "sha256:43832f23ae332846f31321c264cca775df2961d38c80a17b77a2be64d18a64e6",
+    "binary_identity": "sha256:77b61ff23c763aa0e29f8bb0d5a77e5e5aeca4bfef7bf2dc24d71673dc5747bd;vcs.revision=f7e9571547bb948418b7a27adc9c30ae38314b00;vcs.modified=true",
+    "ticker": "KXTOKENUSE-26SEP28-T146",
+    "rung": "sizing",
+    "live": false
+  },
+  "created_at": "2026-09-26T23:47:33.108718Z",
+  "updated_at": "2026-09-27T00:03:30.080686Z",
+  "segments": [
+    {
+      "id": "dcc40286658b741e6539a7af77f35bf7",
+      "run_id": "20260926T234734EPSNJ",
+      "pid": 30961,
+      "started_at": "2026-09-26T23:47:33.108718Z",
+      "active_nanos": 185001156806,
+      "monitor_slots": {
+        "observed": 184,
+        "fresh": 184
+      },
+      "portfolio_slots": {
+        "observed": 37,
+        "fresh_complete": 37,
+        "stale_walks": 0,
+        "incomplete_walks": 0
+      }
+    },
+    {
+      "id": "82e7d71681e60dd72645996cd4d21f23",
+      "run_id": "20260926T235044ZJ26S",
+      "pid": 31380,
+      "started_at": "2026-09-26T23:50:42.289213Z",
+      "active_nanos": 55000345083,
+      "monitor_slots": {
+        "observed": 54,
+        "fresh": 54
+      },
+      "portfolio_slots": {
+        "observed": 11,
+        "fresh_complete": 11,
+        "stale_walks": 0,
+        "incomplete_walks": 0
+      }
+    },
+    {
+      "id": "fde14aac66cf398a50d9ac85ed1b8b7c",
+      "run_id": "20260926T235144XT0Z6",
+      "pid": 31589,
+      "started_at": "2026-09-26T23:51:42.94273Z",
+      "active_nanos": 705000429546,
+      "monitor_slots": {
+        "observed": 705,
+        "fresh": 705
+      },
+      "portfolio_slots": {
+        "observed": 140,
+        "fresh_complete": 140,
+        "stale_walks": 0,
+        "incomplete_walks": 0
+      }
+    }
+  ],
+  "attempted_http": [
+    {
+      "method": "GET",
+      "endpoint": "/incentive_programs",
+      "count": 252
+    },
+    {
+      "method": "GET",
+      "endpoint": "/markets/{ticker}",
+      "count": 235
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/balance",
+      "count": 195
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/fills",
+      "count": 193
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/orders",
+      "count": 196
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/positions",
+      "count": 196
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/subaccounts/balances",
+      "count": 196
+    }
+  ],
+  "http": [
+    {
+      "method": "GET",
+      "endpoint": "/incentive_programs",
+      "count": 252
+    },
+    {
+      "method": "GET",
+      "endpoint": "/markets/{ticker}",
+      "count": 235
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/balance",
+      "count": 195
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/fills",
+      "count": 193
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/orders",
+      "count": 196
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/positions",
+      "count": 196
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/subaccounts/balances",
+      "count": 196
+    }
+  ],
+  "would_writes": [
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXTOKENUSE-26SEP28-T146",
+        "side": "yes",
+        "price": "14",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=1"
+      },
+      "segment_id": "dcc40286658b741e6539a7af77f35bf7",
+      "first_at": "2026-09-26T23:47:36.360185Z",
+      "last_at": "2026-09-26T23:48:50.900929Z",
+      "observations": 10818
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXTOKENUSE-26SEP28-T146",
+        "side": "no",
+        "price": "55",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=1"
+      },
+      "segment_id": "dcc40286658b741e6539a7af77f35bf7",
+      "first_at": "2026-09-26T23:47:36.38579Z",
+      "last_at": "2026-09-26T23:48:50.899931Z",
+      "observations": 10817
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXTOKENUSE-26SEP28-T146",
+        "side": "yes",
+        "price": "14",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=3"
+      },
+      "segment_id": "dcc40286658b741e6539a7af77f35bf7",
+      "first_at": "2026-09-26T23:48:52.586802Z",
+      "last_at": "2026-09-26T23:50:40.025429Z",
+      "observations": 13383
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXTOKENUSE-26SEP28-T146",
+        "side": "no",
+        "price": "55",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=3"
+      },
+      "segment_id": "dcc40286658b741e6539a7af77f35bf7",
+      "first_at": "2026-09-26T23:48:52.58687Z",
+      "last_at": "2026-09-26T23:50:40.023727Z",
+      "observations": 13382
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXTOKENUSE-26SEP28-T146",
+        "side": "yes",
+        "price": "14",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=1"
+      },
+      "segment_id": "82e7d71681e60dd72645996cd4d21f23",
+      "first_at": "2026-09-26T23:50:45.702766Z",
+      "last_at": "2026-09-26T23:51:39.344057Z",
+      "observations": 6767
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXTOKENUSE-26SEP28-T146",
+        "side": "no",
+        "price": "55",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=1"
+      },
+      "segment_id": "82e7d71681e60dd72645996cd4d21f23",
+      "first_at": "2026-09-26T23:50:45.706669Z",
+      "last_at": "2026-09-26T23:51:39.348232Z",
+      "observations": 6767
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXTOKENUSE-26SEP28-T146",
+        "side": "yes",
+        "price": "14",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=1"
+      },
+      "segment_id": "fde14aac66cf398a50d9ac85ed1b8b7c",
+      "first_at": "2026-09-26T23:51:46.372155Z",
+      "last_at": "2026-09-26T23:56:07.030128Z",
+      "observations": 36799
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXTOKENUSE-26SEP28-T146",
+        "side": "no",
+        "price": "55",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=1"
+      },
+      "segment_id": "fde14aac66cf398a50d9ac85ed1b8b7c",
+      "first_at": "2026-09-26T23:51:46.380871Z",
+      "last_at": "2026-09-26T23:56:07.030092Z",
+      "observations": 36797
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXTOKENUSE-26SEP28-T146",
+        "side": "no",
+        "price": "51",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=1"
+      },
+      "segment_id": "fde14aac66cf398a50d9ac85ed1b8b7c",
+      "first_at": "2026-09-26T23:56:07.030155Z",
+      "last_at": "2026-09-26T23:56:53.234875Z",
+      "observations": 6794
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXTOKENUSE-26SEP28-T146",
+        "side": "yes",
+        "price": "13",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=1"
+      },
+      "segment_id": "fde14aac66cf398a50d9ac85ed1b8b7c",
+      "first_at": "2026-09-26T23:56:07.030189Z",
+      "last_at": "2026-09-26T23:57:21.130915Z",
+      "observations": 10880
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXTOKENUSE-26SEP28-T146",
+        "side": "no",
+        "price": "52",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=1"
+      },
+      "segment_id": "fde14aac66cf398a50d9ac85ed1b8b7c",
+      "first_at": "2026-09-26T23:56:53.24741Z",
+      "last_at": "2026-09-26T23:57:06.777589Z",
+      "observations": 1886
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXTOKENUSE-26SEP28-T146",
+        "side": "no",
+        "price": "53",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=QUOTING;truth_generation=1"
+      },
+      "segment_id": "fde14aac66cf398a50d9ac85ed1b8b7c",
+      "first_at": "2026-09-26T23:57:06.787382Z",
+      "last_at": "2026-09-26T23:57:21.130887Z",
+      "observations": 2200
+    }
+  ],
+  "would_write_overflow": {
+    "episodes": 0,
+    "observations": 0
+  },
+  "monitor": {
+    "checks": 943,
+    "fresh": 943,
+    "stale": 0,
+    "last_check_at": "2026-09-27T00:03:30.080686Z",
+    "last_fresh_at": "2026-09-27T00:03:30.080686Z"
+  },
+  "portfolio": {
+    "walks": 190,
+    "fresh": 190,
+    "stale": 0,
+    "complete": 190,
+    "incomplete": 0,
+    "fresh_complete": 190,
+    "last_walk_at": "2026-09-27T00:03:26.807283Z",
+    "last_fresh_at": "2026-09-27T00:03:26.807283Z",
+    "last_complete_at": "2026-09-27T00:03:26.807283Z"
+  },
+  "events": [
+    {
+      "category": "anomaly",
+      "name": "SEV2:BOOK_QUIET",
+      "count": 7,
+      "first_at": "2026-09-26T23:48:36.020241Z",
+      "last_at": "2026-09-27T00:02:31.234553Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:FOREIGN_FILL_INHERITED",
+      "count": 45,
+      "first_at": "2026-09-26T23:47:36.36017Z",
+      "last_at": "2026-09-26T23:51:46.372176Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:WRITE_NOT_BUILDABLE",
+      "count": 1,
+      "first_at": "2026-09-26T23:57:21.37603Z",
+      "last_at": "2026-09-26T23:57:21.37603Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:WS_DISCONNECT",
+      "count": 1,
+      "first_at": "2026-09-26T23:48:50.909997Z",
+      "last_at": "2026-09-26T23:48:50.909997Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:BOOK_CROSSCHECK_AGREED",
+      "count": 7,
+      "first_at": "2026-09-26T23:48:36.114984Z",
+      "last_at": "2026-09-27T00:02:31.328454Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:FUNDING_EXACT",
+      "count": 3,
+      "first_at": "2026-09-26T23:47:35.634567Z",
+      "last_at": "2026-09-26T23:51:45.654373Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:FUNDING_LIMITS",
+      "count": 3,
+      "first_at": "2026-09-26T23:47:35.634539Z",
+      "last_at": "2026-09-26T23:51:45.654353Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:STARTUP",
+      "count": 3,
+      "first_at": "2026-09-26T23:47:35.634568Z",
+      "last_at": "2026-09-26T23:51:45.654375Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "deadman_checkin_sent",
+      "count": 33,
+      "first_at": "2026-09-26T23:47:35.982119Z",
+      "last_at": "2026-09-27T00:03:15.776299Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "sent",
+      "count": 33,
+      "first_at": "2026-09-26T23:47:35.982117Z",
+      "last_at": "2026-09-27T00:03:15.776298Z"
+    },
+    {
+      "category": "state",
+      "name": "global=DRAINED;market=IDLE;actionable=false;truth_generation=1",
+      "count": 34,
+      "first_at": "2026-09-27T00:01:31.140942Z",
+      "last_at": "2026-09-27T00:02:31.325459Z"
+    },
+    {
+      "category": "state",
+      "name": "global=DRAINED;market=IDLE;actionable=true;truth_generation=1",
+      "count": 100203,
+      "first_at": "2026-09-26T23:57:21.376009Z",
+      "last_at": "2026-09-27T00:03:30.057681Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=0",
+      "count": 6,
+      "first_at": "2026-09-26T23:47:35.738019Z",
+      "last_at": "2026-09-26T23:51:45.905514Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=2",
+      "count": 7,
+      "first_at": "2026-09-26T23:48:50.91002Z",
+      "last_at": "2026-09-26T23:48:52.133649Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=QUOTING;actionable=false;truth_generation=1",
+      "count": 418,
+      "first_at": "2026-09-26T23:47:35.943664Z",
+      "last_at": "2026-09-26T23:55:19.989434Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=QUOTING;actionable=false;truth_generation=3",
+      "count": 128,
+      "first_at": "2026-09-26T23:48:52.176891Z",
+      "last_at": "2026-09-26T23:49:52.363257Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=QUOTING;actionable=true;truth_generation=1",
+      "count": 130525,
+      "first_at": "2026-09-26T23:47:36.360197Z",
+      "last_at": "2026-09-26T23:57:21.130917Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=QUOTING;actionable=true;truth_generation=3",
+      "count": 26765,
+      "first_at": "2026-09-26T23:48:52.586811Z",
+      "last_at": "2026-09-26T23:50:40.025436Z"
+    },
+    {
+      "category": "state",
+      "name": "websocket:connected",
+      "count": 4,
+      "first_at": "2026-09-26T23:47:35.94338Z",
+      "last_at": "2026-09-26T23:51:45.949652Z"
+    },
+    {
+      "category": "state",
+      "name": "websocket:disconnected",
+      "count": 1,
+      "first_at": "2026-09-26T23:48:50.909973Z",
+      "last_at": "2026-09-26T23:48:50.909973Z"
+    }
+  ]
+}

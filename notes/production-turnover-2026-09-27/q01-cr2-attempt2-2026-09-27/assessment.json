@@ -1,0 +1,37 @@
+{
+  "scope": "local_evidence_only",
+  "local_requirements_met": false,
+  "elapsed": 1230625803116,
+  "above_guard_non_get": 0,
+  "below_guard_non_get": 0,
+  "would_write_observations": 268243,
+  "historical_unclean_segments": 1,
+  "expected_monitor_slots": 1232,
+  "observed_monitor_slots": 1230,
+  "fresh_monitor_slots": 1228,
+  "monitor_fresh_slot_ratio": 0.9967532467532467,
+  "expected_portfolio_slots": 248,
+  "observed_portfolio_slots": 246,
+  "fresh_complete_portfolio_slots": 246,
+  "portfolio_fresh_complete_slot_ratio": 0.9919354838709677,
+  "protocol_deviations": [],
+  "external_outstanding": [
+    "real-account, real-feed, launchd, and caffeinate provenance",
+    "operator provenance and timestamps for forced qualification actions",
+    "alert-provider receipt and proof that a missed-heartbeat alarm fired"
+  ],
+  "failures": [
+    {
+      "code": "q01_unexpected_anomaly",
+      "category": "anomaly",
+      "name": "SEV1:ANOMALY_SUBMISSION_FAILED",
+      "detail": "q01 recorded forbidden anomaly \"SEV1:ANOMALY_SUBMISSION_FAILED\""
+    },
+    {
+      "code": "q01_unexpected_anomaly",
+      "category": "anomaly",
+      "name": "SEV1:STORE_UNHEALTHY",
+      "detail": "q01 recorded forbidden anomaly \"SEV1:STORE_UNHEALTHY\""
+    }
+  ]
+}

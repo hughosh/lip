@@ -1,0 +1,11 @@
+{
+  "at": "2026-09-27T18:59:34.950870+00:00",
+  "harness_or_caffeinate_processes": [],
+  "com_lip_launchd_jobs": [],
+  "known_observer_sentinel_present": {
+    "notes/production-turnover-2026-09-27/q01-cr2-2026-09-27/runtime/live_ok": false,
+    "notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/runtime/live_ok": false
+  },
+  "trading_writer_started_by_session": false,
+  "permanent_watchdog_installed_by_session": false
+}

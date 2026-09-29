@@ -43,8 +43,11 @@ type Params struct {
 
 	// --- requote policy (§6.5) and the write queue (§6.6) ---
 
-	Debounce        time.Duration // debounce_s          H-Q-7
-	RequoteInterval time.Duration // requote_interval_s  §6.6, per side per market
+	Debounce time.Duration // debounce_s          H-Q-7
+	// RequoteInterval preserves the historical §16 field only. No runtime
+	// consumer: §6.5 specifies debounce and §6.6 the global write bucket, not
+	// a per-side cooldown. Do not implement one without a policy decision (lip-qhi).
+	RequoteInterval time.Duration
 	StaleBidTicks   int           // stale_bid_ticks     H-Q-8 stranded brake
 	MaxQueueAge     time.Duration // max_queue_age       §6.6 anti-starvation
 	WriteRate       float64       // write_rate          §6.6, writes/s global

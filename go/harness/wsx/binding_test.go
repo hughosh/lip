@@ -3,12 +3,48 @@ package wsx
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"lip/harness/num"
 	"lip/harness/quote"
 	"lip/harness/rest"
 	"lip/harness/risk"
 )
+
+func TestUnresolvedFillEscalatesAfterElapsedTimeAcrossWallSteps(t *testing.T) {
+	p := testParams()
+	g, err := NewGate([]string{fxTicker}, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pf := risk.NewPortfolio()
+	tok := g.OnConnect(at(0)).Token
+	fill := restFill("clock-fill", "pending-order", fxTicker,
+		quote.SideYes, 1, "0.0000", false)
+	own := ledger{unresolved: map[string]bool{"pending-order": true}}
+	readAt := func(stamp Stamp, seq uint64) PortfolioRead {
+		return newRead(tok, stamp, seq,
+			completePositions(map[string]num.Qty{}), completeOrders(nil),
+			completeFills([]rest.Fill{fill}))
+	}
+	check := func(stamp Stamp, seq uint64, want bool) {
+		t.Helper()
+		eff := ApplyPortfolio(g, pf, own, nil, readAt(stamp, seq), risk.Live,
+			stamp.Mono, p)
+		if got := hasAnomaly(eff.Anomalies, "FILL_UNCLASSIFIABLE"); got != want {
+			t.Fatalf("at mono=%v wall=%d, escalation=%t, want %t: %v",
+				stamp.Mono, stamp.WallMs, got, want, classes(eff.Anomalies))
+		}
+	}
+	check(at(0), 1, false)
+	forward := at(5)
+	forward.WallMs += time.Hour.Milliseconds()
+	check(forward, 2, false)
+	backward := at(119)
+	backward.WallMs -= time.Hour.Milliseconds()
+	check(backward, 3, false)
+	check(at(120), 4, true)
+}
 
 // TestPortfolioPollBindsListedOrdersBeforeClassifyingFills is the live half of
 // the F2 repair: the poll cycle does not merely tolerate an unresolved

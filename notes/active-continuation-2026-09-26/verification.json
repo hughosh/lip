@@ -1,0 +1,32 @@
+{
+  "candidate_binary_sha256": "2d8de985f4fa5204fdac0021a98121ae6a2436f8c288bd70e797f1e7130aba7c",
+  "go_source_manifest_sha256": "c9b5101a87ec4c55d26f925ef9c5c0290c16b089e038511e3a28d68d5c4f2490",
+  "candidate_gate": "loop/gates-out/20260927T014340787325Z-9f7918c1/receipt.json",
+  "candidate_verdict": "PASS",
+  "candidate_seconds": 392.712,
+  "gate_source_stable": true,
+  "affected_go_mutations": [
+    "loop/gates-out/negative-control-20260927T012533053633Z/receipt.json",
+    "loop/gates-out/negative-control-20260927T013207275891Z/receipt.json"
+  ],
+  "affected_python_mutations": "notes/active-continuation-2026-09-26/watchdog-mutations-20260927T014145606615Z/receipt.json",
+  "focused_logs": [
+    "turnover-focused.jsonl",
+    "store-health/focused.log",
+    "store-health/race.log",
+    "store-health/recovered-stall-focused.log",
+    "store-health/recovered-stall-race.log",
+    "store-health/sqlite-write-failure-focused.jsonl",
+    "operator-ops-final-tests.log",
+    "operator-render-final-tests.log"
+  ],
+  "failed_receipts_retained": [
+    "loop/gates-out/20260927T014259828837Z-731577d4/receipt.json",
+    "notes/active-continuation-2026-09-26/operator-ops-tests.log",
+    "notes/active-continuation-2026-09-26/turnover-cancel-mutation-anchor-failure.json"
+  ],
+  "full_catalogue_run": false,
+  "live_trading_proven": false,
+  "turnover_runtime_connected": false,
+  "post_gate_change": "Only Python operator command rendering changed to capture retained-latch restart PID/log/exit and explicitly request drain; 10 affected tests passed afterward. Go sources unchanged."
+}

@@ -1,0 +1,29 @@
+# Bounded historical trading cash flow — 2026-09-27 UTC
+
+**Finding.** A fresh, authenticated, GET-only read returned 15 fills and one settlement, both cursor walks complete in one page. The fills imply **-$9.119800 net historical trading P&L across two fully offset markets**, including **$1.929800 fill fees**, under the ordinary YES/NO pair-netting interpretation below. This is a reconstruction from trade rows, not an independent account cash ledger or a current strategy EV estimate. The settlement row independently corroborates the ballot market's paired 111 YES/111 NO counts, $59.27/$59.12 side costs, $1.9298 fees, and zero residual settlement revenue. It does **not** corroborate any liquidity incentive payment.
+
+## Read scope and sources
+
+- Probe interval: `2026-09-27T00:20:38.310168Z` to `2026-09-27T00:20:38.662375Z` (local date was September 26). [Allowlisted response](account-read.json) retains only the fields used here. [Probe source](read_probe.go) loads credentials by the same `feed.NewSigner()` path as `go/cmd/accountcheck`, refuses any request other than bodyless GET to exactly `/portfolio/settlements` and `/portfolio/fills`, and emits no credentials or raw response bodies.
+- `GET /portfolio/settlements`: `complete`, 1 page, 1 row. `GET /portfolio/fills`: `complete`, 1 page, 15 rows. The repository's cursor walker returns `complete` only after an empty terminal cursor; it abandons failed or rewound walks rather than treating partial rows as complete. No filters were sent, so these are all rows returned by these two live endpoints at that instant.
+- Official API contracts: [Get Settlements](https://docs.kalshi.com/api-reference/portfolio/get-settlements) specifies the route, cursor and fields; [Get Fills](https://docs.kalshi.com/api-reference/portfolio/get-fills) specifies side, action, prices, fees and the historical-cutoff caveat. [Market Settlement](https://docs.kalshi.com/getting_started/market_settlement) says only net positions settle after netting. The documented pre-cutoff `GET /historical/fills` was outside this probe, so the returned 15 rows cannot prove lifetime fill completeness if older fills exist.
+
+## Exact fixed-point reconciliation
+
+All amounts below are dollars. Quantity times the displayed side price uses decimal arithmetic; fee values are the exact six-decimal `fee_cost` strings. Each ticker has equal YES and NO quantity and the account was separately observed flat with no orders or positions in the contemporaneous account check. A matched YES/NO pair returns $1 in collateral/netting value, so its gross trading result is `matched quantity - YES side cost - NO side cost`. This is an **economic inference from the paired fills**, not the `revenue` field of a settlement row or a separately observed cash-credit transaction.
+
+| Market | Matched quantities and observed actions | YES side price cost | NO side price cost | Pair value | Gross result | Fill fees | Implied net |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `KXGENERICBALLOTVOTEHUB-26JUL31-T5.7` | 111 YES `buy` / 111 NO `sell` | 59.270000 | 59.120000 | 111.000000 | -7.390000 | 1.929800 | **-9.319800** |
+| `KXHOODA-28JANFUNDED-33000000` | 20 YES `buy` / 20 NO `buy` | 10.800000 | 9.000000 | 20.000000 | +0.200000 | 0.000000 | **+0.200000** |
+| **Returned-history total** | 15 fills | 70.070000 | 68.120000 | 131.000000 | **-7.190000** | **1.929800** | **-9.119800** |
+
+For the ballot market, the settlement at `2026-07-31T14:52:10.927701Z` reports `market_result=yes`, `yes_count_fp=111.00`, `no_count_fp=111.00`, `yes_total_cost_dollars=59.270000`, `no_total_cost_dollars=59.120000`, `fee_cost=1.929800`, `revenue=0` cents and `value=100` cents per winning YES contract. The two cost fields and fee exactly match the independent fill aggregation. `revenue=0` is consistent with no net contracts left to settle; it must not be added to the pair value or treated as evidence that the matched pairs earned nothing. The settlement endpoint returned no row for HOODA; the $0.20 there comes solely from its 20 offsetting YES/NO fills and observed flat account, not a settlement payment.
+
+The ballot fills were stamped July 28–29, 2026; the HOODA fills were stamped July 24, 2026. Eight ballot fill rows carry `side=no, action=sell, book_side=ask`; four carry `side=yes, action=buy, book_side=bid`. Thus blindly assigning a positive cash sign to every `action=sell` while also taking `no_price_dollars` as a NO cost would double count a complementary contract. The calculation uses the paired outcome-side prices, and its ballot cost and fee totals are checked against the settlement row. The fills are sufficient for this bounded result because the quantities fully offset; they do not supply a separate settlement-credit ledger entry.
+
+## Limits for economic decisions
+
+- The result is **historical realized trading economics for returned fills**, not a forecast, an estimate of the current quoting policy's expected value, or proof that the present strategy earned these outcomes. It does not attribute individual fills to the present code version or distinguish incentive-related activity from other activity.
+- The visible July 31 liquidity incentive credit of **$7.65** for `KXGENERICBALLOTVOTEHUB-26JUL31` remains a UI observation. Neither GET response is a reward-payment ledger; adding $7.65 to this trading result would mix an uncorroborated reward credit with reconstructed trading P&L. No payment is inferred from the current **$98.580200** balance or any balance delta.
+- The live fills endpoint has an official historical cutoff. The one-page terminal cursor establishes completeness only for that endpoint's returned scope at the read time. A full lifetime or tax P&L would also need any older historical fills, adjustment/rebate records, and an authoritative cash/P&L statement. No such broader claim is made here.

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HTTPS_PROXY</key>
+		<string>http://127.0.0.1:55427</string>
+		<key>NO_PROXY</key>
+		<string>api.elections.kalshi.com,external-api.kalshi.com,ntfy.sh,hc-ping.com,localhost,127.0.0.1</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>com.lip.q01.v3.20260926</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/bin/caffeinate</string>
+		<string>-is</string>
+		<string>/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/q01-v3/harness-candidate-v3</string>
+		<string>-config</string>
+		<string>/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/q01-v3/config.json</string>
+		<string>-rung</string>
+		<string>sizing</string>
+		<string>-qualification</string>
+		<string>/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/q01-v3/evidence.json</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/q01-v3/supervised.err</string>
+	<key>StandardOutPath</key>
+	<string>/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/q01-v3/supervised.out</string>
+	<key>WorkingDirectory</key>
+	<string>/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/q01-v3/runtime</string>
+</dict>
+</plist>

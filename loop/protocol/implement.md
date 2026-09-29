@@ -1,3 +1,17 @@
+# Archived conductor template: implement
+
+This template is retained only to explain historical receipts. It is not active
+agent guidance. Use [RULES.md](RULES.md) and
+[the verification workflow](../../notes/verification-workflow.md). The legacy
+conductor is disabled; its instructions below must not be executed.
+
+Supervised invocations are single-shot: do not end a turn waiting for a
+background task. Report the observed required-check outcome or a concrete
+blocker; a future promise is not a successful implementation.
+
+<details>
+<summary>Historical template</summary>
+
 You are the IMPLEMENTER in an unattended loop. `CLAUDE.md` and
 `loop/protocol/RULES.md` are binding. The operator is asleep.
 
@@ -52,3 +66,5 @@ End your reply with a single fenced ```json block:
 Report what happened, not what was meant to happen. A turn that claims a
 success it did not achieve poisons every downstream turn, and there is nobody
 awake to correct it.
+
+</details>

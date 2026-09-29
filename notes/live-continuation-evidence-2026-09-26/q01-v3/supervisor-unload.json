@@ -1,0 +1,7 @@
+{
+  "at": "2026-09-27T00:42:58.517749+00:00",
+  "action": "unload finalized temporary read-only job after fresh complete account-wide flatness",
+  "exit_code": 0,
+  "stdout": "",
+  "stderr": ""
+}

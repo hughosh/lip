@@ -1,0 +1,10 @@
+{
+  "at_utc": "2026-09-27T02:02:06.668833+00:00",
+  "go_source_unchanged": true,
+  "binary_unchanged": true,
+  "head_unchanged": true,
+  "artifact_links_valid": true,
+  "first_stage_armed": false,
+  "first_stage_store_provisioned": false,
+  "current_go_manifest_sha256": "c9b5101a87ec4c55d26f925ef9c5c0290c16b089e038511e3a28d68d5c4f2490"
+}

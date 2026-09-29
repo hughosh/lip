@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"lip/harness/cfg"
 	"lip/harness/num"
@@ -43,8 +44,7 @@ const (
 	// exhaustive walk cannot either without a snapshot-consistency contract
 	// that is not known to exist.
 	CreateAlreadyExists
-	// CreateRejected is a definite 4xx. The exchange answered, and its answer
-	// was no. No order exists.
+	// CreateRejected is a definite ordinary 4xx (excluding 429). No order exists.
 	CreateRejected
 )
 
@@ -78,12 +78,12 @@ type CreateResult struct {
 	// Status is the last HTTP status seen, 0 if no response ever arrived.
 	Status int
 
-	// RejectReason is the exchange's own `error.code` from an ordinary 4xx. It
+	// RejectReason is the exchange's own `error.code` from a definite 4xx. It
 	// is populated on CreateRejected and on nothing else.
 	//
-	// F8, F9, F10 and F11 are four consumers of this one string, and without it
-	// every ordinary 4xx collapses into a single indistinguishable "no": a 429
-	// rate limit (F8), an `insufficient_balance` (F10, which H-CAP-5 calls a
+	// F9, F10 and F11 consume this string. Without it, every definite 4xx
+	// collapses into a single indistinguishable "no": an
+	// `insufficient_balance` (F10, which H-CAP-5 calls a
 	// correctness failure rather than a market condition, worth a SEV1 and a
 	// global WINDING_DOWN) and a `post_only` that would cross (F11, our book
 	// view disagreeing with the exchange's) all read the same. No downstream
@@ -298,6 +298,15 @@ func (c *Client) Create(ctx context.Context, body CreateOrder, p cfg.Params) Cre
 				errorCode(resp.Body), errAlreadyExists)
 			continue
 
+		case resp.Status == http.StatusTooManyRequests:
+			// F8 is not evidence that the create was rejected. Preserve the
+			// full possible exposure and let the dispatcher schedule the next
+			// same-coid action after backoff, outside its transport slot.
+			res.Outcome = CreateUnknown
+			res.MaxLive = requested
+			res.Err = rateLimitError(resp)
+			return res
+
 		case resp.Status >= 400 && resp.Status < 500:
 			// A definite answer, and the answer is no. Retrying would not be
 			// dangerous, but it would also not be a retry of an ambiguous
@@ -332,14 +341,9 @@ func (c *Client) Create(ctx context.Context, body CreateOrder, p cfg.Params) Cre
 	// we do not know it is absent, and "we could not find it" has never been
 	// evidence of anything.
 	res.MaxLive = requested
-	res.Anomalies = append(res.Anomalies, risk.Anomaly{
-		Class: "ORDER_UNKNOWN", Sev: risk.SEV2, Ticker: body.Ticker(),
-		Text: fmt.Sprintf("create %s unresolved after %d same-coid attempts "+
-			"(last: %v); it stays UNKNOWN, its %s contracts stay in every "+
-			"aggregate cap, and no new order may be placed on that side until "+
-			"reconciliation resolves it",
-			body.ClientOrderID(), res.Attempts, res.Err, body.Count().Wire()),
-	})
+	// The owner emits ORDER_UNKNOWN once after unknown_ping_s. Transport
+	// exhaustion is the beginning of that interval, not its expiry.
+
 	return res
 }
 

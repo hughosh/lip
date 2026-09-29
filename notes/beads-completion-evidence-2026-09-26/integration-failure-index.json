@@ -1,0 +1,23 @@
+{
+  "kind": "intermediate failed integration, retained",
+  "passing_test_and_subtest_events": 1506,
+  "failures": [
+    {
+      "package": "lip/cmd/harness",
+      "test": "TestComposedOperatorSignalKeepsServiceUntilFlatUnrestedExit/interrupt",
+      "elapsed": 15.13
+    },
+    {
+      "package": "lip/cmd/harness",
+      "test": "TestComposedOperatorSignalKeepsServiceUntilFlatUnrestedExit",
+      "elapsed": 15.45
+    },
+    {
+      "package": "lip/cmd/harness",
+      "test": null,
+      "elapsed": 104.186
+    }
+  ],
+  "receipt": "loop/gates-out/20260926T214530265148Z-90d063c7/receipt.json",
+  "head": "f7e9571547bb948418b7a27adc9c30ae38314b00"
+}

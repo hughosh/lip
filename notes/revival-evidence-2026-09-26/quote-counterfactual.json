@@ -1,0 +1,59 @@
+{
+  "input_sha256": "62679dd6cb20148def60034e926304027cbc6bc6eeb898085c6182c20fbaf4c7",
+  "assumptions": {
+    "target_contracts": 300,
+    "discount_factor": "0.5",
+    "own_contracts_per_side": 12,
+    "whole_period_reward_dollars": 20,
+    "qualifying_time_fraction": 1,
+    "participation_fraction": 1,
+    "competitor_book": "unchanged throughout entire period; own quotes added, qualifying/reference levels recomputed",
+    "fills": "none; this is reward arithmetic only, not a profit or achievable-payout forecast"
+  },
+  "policies": {
+    "reference": {
+      "sides": {
+        "yes": {
+          "reference_cents": 20,
+          "own_price_cents": 20,
+          "own_weighted_score": "12",
+          "total_side_weighted_score": "72.7835388183593750000",
+          "own_normalized_share": "0.1648724449898971517892670393"
+        },
+        "no": {
+          "reference_cents": 23,
+          "own_price_cents": 23,
+          "own_weighted_score": "12",
+          "total_side_weighted_score": "72.78290557861328125000",
+          "own_normalized_share": "0.1648738794446550824278200352"
+        }
+      },
+      "period_share": "0.1648731622172761171085435372",
+      "reward_before_floor_dollars": "3.297463244345522342170870744",
+      "reward_after_floor_dollars": "3.29",
+      "reward_if_60pct_qualifying_25pct_present": "0.00"
+    },
+    "one_tick_below_reference": {
+      "sides": {
+        "yes": {
+          "reference_cents": 20,
+          "own_price_cents": 19,
+          "own_weighted_score": "6.0",
+          "total_side_weighted_score": "66.7835388183593750000",
+          "own_normalized_share": "0.08984249870793830822400122832"
+        },
+        "no": {
+          "reference_cents": 23,
+          "own_price_cents": 22,
+          "own_weighted_score": "6.0",
+          "total_side_weighted_score": "66.78290557861328125000",
+          "own_normalized_share": "0.08984335060020890242374107615"
+        }
+      },
+      "period_share": "0.08984292465407360532387115225",
+      "reward_before_floor_dollars": "1.796858493081472106477423045",
+      "reward_after_floor_dollars": "1.79",
+      "reward_if_60pct_qualifying_25pct_present": "0.00"
+    }
+  }
+}

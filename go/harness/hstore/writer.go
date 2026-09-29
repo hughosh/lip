@@ -72,6 +72,7 @@ type submission struct {
 	state    StateEvent
 	anom     anomalyRecord
 	delivery DeliveryAttempt
+	balance  BalancePollRow
 
 	rowDone     bool
 	journalDone bool
@@ -150,6 +151,7 @@ type Store struct {
 	healthy   bool
 	adding    bool
 	stalled   bool
+	stalls    uint64
 	failures  uint64
 	committed uint64
 	recoverAt uint64
@@ -428,6 +430,9 @@ func (s *Store) Health() Health {
 
 	switch {
 	case s.inflight && s.monoNow()-s.inflightSince >= s.stallBound:
+		if !s.stalled {
+			s.stalls++
+		}
 		s.stalled = true
 		s.healthy = false
 		s.adding = false
@@ -467,6 +472,7 @@ func (s *Store) healthLocked() Health {
 		healthy:   ok,
 		adding:    ok,
 		stalled:   s.stalled,
+		stalls:    s.stalls,
 		pending:   len(s.queue),
 		failures:  s.failures,
 		committed: s.committed,
@@ -793,6 +799,8 @@ func (s *Store) apply(sub *submission) error {
 		return s.applyAnomaly(sub)
 	case KindDelivery:
 		return s.back.recordDelivery(sub.delivery)
+	case KindBalancePoll:
+		return recordBalancePoll(s.back, sub.balance)
 	}
 	return permanent("submission of unknown kind %d reached the writer",
 		sub.kind)

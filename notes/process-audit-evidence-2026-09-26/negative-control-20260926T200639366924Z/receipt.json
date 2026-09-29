@@ -1,0 +1,669 @@
+{
+  "build_runs_planned": 16,
+  "catalogue_count": 300,
+  "catcher_packages": {
+    "TestASetLatchRefusesWithoutResumeAndWindsDownWithIt": "./cmd/harness",
+    "TestCancelSweepAutoRoutesByMarketAndVerifiesAbsence": "./harness/rest",
+    "TestConfirmedAbsenceDoesNotReleaseUnknownCreate": "./cmd/harness",
+    "TestConfirmedAbsentReducerWaitsForFreshPosition": "./cmd/harness",
+    "TestFlatToFillCancelCannotDeclareDrainedBeforeReconciliation": "./cmd/harness",
+    "TestGlobalStopIsDurableBeforePublicationAndSurvivesRestart": "./harness/lifecycle",
+    "TestPnLKillLatchesByNameAndKeepsTheReducerLive": "./cmd/harness",
+    "TestPostOnlyIsStructural": "./harness/rest",
+    "TestReadOnlyRigStillGuardsDirectRESTWrites": "./cmd/harness",
+    "TestRemovingLiveOKDisarmsTheNextWrite": "./harness/rest",
+    "TestTheCanaryLatchesOnAnAcknowledgementThatCarriedAFill": "./cmd/harness",
+    "TestTheCanaryLatchesOnAnyPositionItDidNotStartWith": "./cmd/harness",
+    "TestTheSettlingMarketRecapsAnOversizedReducerWithoutAGateFailure": "./cmd/harness",
+    "TestValidateCountRejectsOvershoot": "./harness/num",
+    "TestWriteGuardTruthTable": "./harness/rest"
+  },
+  "duration_seconds": 154.592,
+  "environment": {
+    "CGO_ENABLED": "0",
+    "GOCACHE": "/private/tmp/lip-readiness-gocache",
+    "GOENV": "off",
+    "GOFLAGS": "-p=2",
+    "GOMAXPROCS": "2",
+    "GOMODCACHE": "/Users/hugh/go/pkg/mod",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off",
+    "HOME": "/Users/hugh",
+    "PATH": "/usr/local/bin:/usr/bin:/bin",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONUNBUFFERED": "1"
+  },
+  "focused": false,
+  "full_suite_runs_planned": 0,
+  "go_binary": "/usr/local/bin/go",
+  "go_sha256": "6890cf02fb958fc15a043022d5f29e2a2206ab08a73581eddc3f33c7c681a730",
+  "mode": "named",
+  "named_test_runs_planned": 17,
+  "outcomes": [
+    {
+      "accepted": true,
+      "expected": "TestValidateCountRejectsOvershoot",
+      "failed_tests": [
+        "TestValidateCountRejectsOvershoot"
+      ],
+      "id": "M7",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestPostOnlyIsStructural",
+      "failed_tests": [
+        "TestPostOnlyIsStructural"
+      ],
+      "id": "M5a",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestGlobalStopIsDurableBeforePublicationAndSurvivesRestart",
+      "failed_tests": [
+        "TestGlobalStopIsDurableBeforePublicationAndSurvivesRestart"
+      ],
+      "id": "M20",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestWriteGuardTruthTable",
+      "failed_tests": [
+        "TestWriteGuardTruthTable"
+      ],
+      "id": "M-ES6-FLAG",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestWriteGuardTruthTable",
+      "failed_tests": [
+        "TestWriteGuardTruthTable"
+      ],
+      "id": "M-ES6-SENTINEL",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestRemovingLiveOKDisarmsTheNextWrite",
+      "failed_tests": [
+        "TestRemovingLiveOKDisarmsTheNextWrite"
+      ],
+      "id": "M-ES6-RECHECK",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestReadOnlyRigStillGuardsDirectRESTWrites",
+      "failed_tests": [
+        "TestReadOnlyRigStillGuardsDirectRESTWrites"
+      ],
+      "id": "M-ES6-NOGUARD",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestTheSettlingMarketRecapsAnOversizedReducerWithoutAGateFailure",
+      "failed_tests": [
+        "TestTheSettlingMarketRecapsAnOversizedReducerWithoutAGateFailure"
+      ],
+      "id": "M-Y3Q-GATESTOPCAP",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestCancelSweepAutoRoutesByMarketAndVerifiesAbsence",
+      "failed_tests": [
+        "TestCancelSweepAutoRoutesByMarketAndVerifiesAbsence"
+      ],
+      "id": "M-R-CANCEL-SHARD-ROUTE",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestConfirmedAbsenceDoesNotReleaseUnknownCreate",
+      "failed_tests": [
+        "TestConfirmedAbsenceDoesNotReleaseUnknownCreate"
+      ],
+      "id": "M-D2-RELEASE-UNKNOWN",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestConfirmedAbsentReducerWaitsForFreshPosition",
+      "failed_tests": [
+        "TestConfirmedAbsentReducerWaitsForFreshPosition"
+      ],
+      "id": "M-D2-PLACE-BEFORE-FRESH-TRUTH",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestFlatToFillCancelCannotDeclareDrainedBeforeReconciliation",
+      "failed_tests": [
+        "TestFlatToFillCancelCannotDeclareDrainedBeforeReconciliation"
+      ],
+      "id": "M-D2-DRAIN-WITHOUT-CANCEL-TRUTH",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestASetLatchRefusesWithoutResumeAndWindsDownWithIt",
+      "failed_tests": [
+        "TestASetLatchRefusesWithoutResumeAndWindsDownWithIt"
+      ],
+      "id": "M-3AF-RESUME",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestTheCanaryLatchesOnAnyPositionItDidNotStartWith",
+      "failed_tests": [
+        "TestTheCanaryLatchesOnAnyPositionItDidNotStartWith"
+      ],
+      "id": "M-2T6-RUNGOFF",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestTheCanaryLatchesOnAnAcknowledgementThatCarriedAFill",
+      "failed_tests": [
+        "TestTheCanaryLatchesOnAnAcknowledgementThatCarriedAFill"
+      ],
+      "id": "M-2T6-NOACK",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestPnLKillLatchesByNameAndKeepsTheReducerLive",
+      "failed_tests": [
+        "TestPnLKillLatchesByNameAndKeepsTheReducerLive"
+      ],
+      "id": "M-GP8-NOWIRE",
+      "status": "caught"
+    }
+  ],
+  "partial": true,
+  "runner_sha256": "4b9ea2039f03a0342497e3182f41bba95761a6da8f2bd93df3a23ef688cc495a",
+  "runs": [
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^(?:TestASetLatchRefusesWithoutResumeAndWindsDownWithIt|TestCancelSweepAutoRoutesByMarketAndVerifiesAbsence|TestConfirmedAbsenceDoesNotReleaseUnknownCreate|TestConfirmedAbsentReducerWaitsForFreshPosition|TestFlatToFillCancelCannotDeclareDrainedBeforeReconciliation|TestGlobalStopIsDurableBeforePublicationAndSurvivesRestart|TestPnLKillLatchesByNameAndKeepsTheReducerLive|TestPostOnlyIsStructural|TestReadOnlyRigStillGuardsDirectRESTWrites|TestRemovingLiveOKDisarmsTheNextWrite|TestTheCanaryLatchesOnAnAcknowledgementThatCarriedAFill|TestTheCanaryLatchesOnAnyPositionItDidNotStartWith|TestTheSettlingMarketRecapsAnOversizedReducerWithoutAGateFailure|TestValidateCountRejectsOvershoot|TestWriteGuardTruthTable)$",
+        "./cmd/harness",
+        "./harness/lifecycle",
+        "./harness/num",
+        "./harness/rest"
+      ],
+      "exit_code": 0,
+      "label": "baseline",
+      "log": "0000-baseline.log",
+      "seconds": 9.55
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M7-build",
+      "log": "0001-M7-build.log",
+      "seconds": 3.277
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestValidateCountRejectsOvershoot$",
+        "./harness/num"
+      ],
+      "exit_code": 1,
+      "label": "M7-test",
+      "log": "0002-M7-test.log",
+      "seconds": 1.263
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M5a-build",
+      "log": "0003-M5a-build.log",
+      "seconds": 2.55
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestPostOnlyIsStructural$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M5a-test",
+      "log": "0004-M5a-test.log",
+      "seconds": 1.623
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M20-build",
+      "log": "0005-M20-build.log",
+      "seconds": 2.472
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestGlobalStopIsDurableBeforePublicationAndSurvivesRestart$",
+        "./harness/lifecycle"
+      ],
+      "exit_code": 1,
+      "label": "M20-test",
+      "log": "0006-M20-test.log",
+      "seconds": 1.514
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-ES6-FLAG-build",
+      "log": "0007-M-ES6-FLAG-build.log",
+      "seconds": 2.751
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestWriteGuardTruthTable$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-ES6-FLAG-test",
+      "log": "0008-M-ES6-FLAG-test.log",
+      "seconds": 1.513
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-ES6-SENTINEL-build",
+      "log": "0009-M-ES6-SENTINEL-build.log",
+      "seconds": 2.421
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestWriteGuardTruthTable$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-ES6-SENTINEL-test",
+      "log": "0010-M-ES6-SENTINEL-test.log",
+      "seconds": 1.538
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-ES6-RECHECK-build",
+      "log": "0011-M-ES6-RECHECK-build.log",
+      "seconds": 2.597
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestRemovingLiveOKDisarmsTheNextWrite$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-ES6-RECHECK-test",
+      "log": "0012-M-ES6-RECHECK-test.log",
+      "seconds": 1.518
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-ES6-NOGUARD-build",
+      "log": "0013-M-ES6-NOGUARD-build.log",
+      "seconds": 2.451
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestReadOnlyRigStillGuardsDirectRESTWrites$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-ES6-NOGUARD-test",
+      "log": "0014-M-ES6-NOGUARD-test.log",
+      "seconds": 2.76
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-Y3Q-GATESTOPCAP-build",
+      "log": "0015-M-Y3Q-GATESTOPCAP-build.log",
+      "seconds": 2.43
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestTheSettlingMarketRecapsAnOversizedReducerWithoutAGateFailure$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-Y3Q-GATESTOPCAP-test",
+      "log": "0016-M-Y3Q-GATESTOPCAP-test.log",
+      "seconds": 2.75
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-R-CANCEL-SHARD-ROUTE-build",
+      "log": "0017-M-R-CANCEL-SHARD-ROUTE-build.log",
+      "seconds": 2.409
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestCancelSweepAutoRoutesByMarketAndVerifiesAbsence$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-R-CANCEL-SHARD-ROUTE-test",
+      "log": "0018-M-R-CANCEL-SHARD-ROUTE-test.log",
+      "seconds": 1.502
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-D2-RELEASE-UNKNOWN-build",
+      "log": "0019-M-D2-RELEASE-UNKNOWN-build.log",
+      "seconds": 2.434
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestConfirmedAbsenceDoesNotReleaseUnknownCreate$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-D2-RELEASE-UNKNOWN-test",
+      "log": "0020-M-D2-RELEASE-UNKNOWN-test.log",
+      "seconds": 2.614
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-D2-PLACE-BEFORE-FRESH-TRUTH-build",
+      "log": "0021-M-D2-PLACE-BEFORE-FRESH-TRUTH-build.log",
+      "seconds": 2.344
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestConfirmedAbsentReducerWaitsForFreshPosition$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-D2-PLACE-BEFORE-FRESH-TRUTH-test",
+      "log": "0022-M-D2-PLACE-BEFORE-FRESH-TRUTH-test.log",
+      "seconds": 2.66
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-D2-DRAIN-WITHOUT-CANCEL-TRUTH-build",
+      "log": "0023-M-D2-DRAIN-WITHOUT-CANCEL-TRUTH-build.log",
+      "seconds": 2.455
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestFlatToFillCancelCannotDeclareDrainedBeforeReconciliation$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-D2-DRAIN-WITHOUT-CANCEL-TRUTH-test",
+      "log": "0024-M-D2-DRAIN-WITHOUT-CANCEL-TRUTH-test.log",
+      "seconds": 2.611
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-3AF-RESUME-build",
+      "log": "0025-M-3AF-RESUME-build.log",
+      "seconds": 2.417
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestASetLatchRefusesWithoutResumeAndWindsDownWithIt$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-3AF-RESUME-test",
+      "log": "0026-M-3AF-RESUME-test.log",
+      "seconds": 5.253
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-2T6-RUNGOFF-build",
+      "log": "0027-M-2T6-RUNGOFF-build.log",
+      "seconds": 2.495
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestTheCanaryLatchesOnAnyPositionItDidNotStartWith$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-2T6-RUNGOFF-test",
+      "log": "0028-M-2T6-RUNGOFF-test.log",
+      "seconds": 33.202
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-2T6-NOACK-build",
+      "log": "0029-M-2T6-NOACK-build.log",
+      "seconds": 3.376
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestTheCanaryLatchesOnAnAcknowledgementThatCarriedAFill$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-2T6-NOACK-test",
+      "log": "0030-M-2T6-NOACK-test.log",
+      "seconds": 17.862
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-GP8-NOWIRE-build",
+      "log": "0031-M-GP8-NOWIRE-build.log",
+      "seconds": 3.368
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestPnLKillLatchesByNameAndKeepsTheReducerLive$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-GP8-NOWIRE-test",
+      "log": "0032-M-GP8-NOWIRE-test.log",
+      "seconds": 17.777
+    }
+  ],
+  "selected_count": 16,
+  "selected_ids": [
+    "M7",
+    "M5a",
+    "M20",
+    "M-ES6-FLAG",
+    "M-ES6-SENTINEL",
+    "M-ES6-RECHECK",
+    "M-ES6-NOGUARD",
+    "M-Y3Q-GATESTOPCAP",
+    "M-R-CANCEL-SHARD-ROUTE",
+    "M-D2-RELEASE-UNKNOWN",
+    "M-D2-PLACE-BEFORE-FRESH-TRUTH",
+    "M-D2-DRAIN-WITHOUT-CANCEL-TRUTH",
+    "M-3AF-RESUME",
+    "M-2T6-RUNGOFF",
+    "M-2T6-NOACK",
+    "M-GP8-NOWIRE"
+  ],
+  "source_sha256_after": "8e5bbbe2f6f3faed183318d2873ecb70e3dc923e85527ac6f2e50c583588b3a4",
+  "source_sha256_before": "8e5bbbe2f6f3faed183318d2873ecb70e3dc923e85527ac6f2e50c583588b3a4",
+  "started_at_utc": "2026-09-26T20:06:39.483645+00:00",
+  "status": "PASS",
+  "updated_at_utc": "2026-09-26T20:09:13.827832+00:00"
+}

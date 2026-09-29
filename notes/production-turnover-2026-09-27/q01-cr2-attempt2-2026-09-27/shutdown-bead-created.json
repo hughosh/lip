@@ -1,0 +1,14 @@
+{
+  "acceptance_criteria": "Deterministic production-seam regression proves authorized teardown does not generate false store-health/submission failures; unexpected writer exit still durably stops and alerts, and refused close retains health protection. Affected tests/race pass; a new exact candidate identity and fresh event-complete GET-only qualification retain original failed evidence.",
+  "created_at": "2026-09-27T18:49:34.702674Z",
+  "created_by": "Hugh",
+  "description": "Exact CR-2 binary ecf16ea19c4f0e05dad8cce0c261d6e6f2204eeb8f9615913a79b54816b311c6 completed 1230.626 linked read-only seconds with required real selection, forced disconnect/resnapshot and supervised restart; monitor 1228/1232 and portfolio 246/248 slots, zero financial writes. Planned SIGTERM then produced SEV1 STORE_UNHEALTHY and ANOMALY_SUBMISSION_FAILED because owner store-health observation continued after the authorized writer close; stderr says zero failed writes/stalls/pending and writer exited. Process returned zero but local q01 correctly failed. Preserve failed bundle and prior candidate identities. Evidence: notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/assessment.json, supervised.err, operator-actions.jsonl. This is a new shutdown issue, not reopening lip-1in or interface audit.",
+  "id": "lip-3dw",
+  "issue_type": "bug",
+  "owner": "hugh@shiftiq.ai",
+  "priority": 1,
+  "schema_version": 1,
+  "status": "open",
+  "title": "Authorized shutdown races owner store-health probe",
+  "updated_at": "2026-09-27T18:49:34.702674Z"
+}

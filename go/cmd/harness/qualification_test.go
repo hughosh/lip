@@ -389,3 +389,20 @@ func TestFinalizedEvidenceDoesNotFailTheQualification(t *testing.T) {
 			"is exempt; everything else must still fail the qualification")
 	}
 }
+
+// lip-tdz: every rig has the qualification failure channel, and a failure
+// reported through it ends serve, fail closed.
+func TestQualificationFailureEndsServe(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{ReadOnly: true})
+	h.start()
+	h.awaitActionable()
+	h.rig.failQualification(errors.New("injected evidence failure"))
+	select {
+	case <-h.serveDone:
+	case <-time.After(seamBudget):
+		t.Fatal("serve kept running after a qualification failure")
+	}
+	if h.serveErr == nil || !strings.Contains(h.serveErr.Error(), "qualification evidence failed") {
+		t.Fatalf("serve returned %v, want the qualification failure", h.serveErr)
+	}
+}

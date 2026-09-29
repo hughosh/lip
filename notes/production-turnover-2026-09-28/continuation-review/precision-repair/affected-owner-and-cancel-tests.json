@@ -1,0 +1,21 @@
+{
+  "started_at": "2026-09-28T20:33:34.730227+00:00",
+  "ended_at": "2026-09-28T20:33:45.630704+00:00",
+  "command": [
+    "go",
+    "test",
+    "./harness/rest",
+    "./cmd/harness",
+    "-run",
+    "^Test(Sweep(CatchesAnIgnoredFirstCancel|EscalatesWhenTheOrderWillNotDie|DoesNotCancelOurOrdersItWasNotAskedTo)|OwnerF5)",
+    "-count=1"
+  ],
+  "scope": "F5 owner integration and three cancel sweep cases; disposable scripted transports only; no live stage",
+  "exit_code": 0,
+  "source_sha256": {
+    "harness/rest/orderbook.go": "173b13d7b6a70b85d14ce1a525b49af7718177f8ab95718b6a890702515feea9",
+    "harness/rest/orderbook_precision_test.go": "f6d3a0cca15b638f138b8b027d9aeb2ccba256cec95d8c430500c2a25b9512a2"
+  },
+  "credentials_inherited": false,
+  "go_network": "off"
+}

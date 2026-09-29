@@ -1,0 +1,24 @@
+{
+  "at": "2026-09-27T18:34:27.830660+00:00",
+  "active_s": 430.001984258,
+  "portfolio": {
+    "walks": 89,
+    "fresh": 89,
+    "stale": 0,
+    "complete": 89,
+    "incomplete": 0,
+    "fresh_complete": 89,
+    "last_walk_at": "2026-09-27T18:34:22.179495Z",
+    "last_fresh_at": "2026-09-27T18:34:22.179495Z",
+    "last_complete_at": "2026-09-27T18:34:22.179495Z"
+  },
+  "monitor": {
+    "checks": 429,
+    "fresh": 427,
+    "stale": 2,
+    "last_check_at": "2026-09-27T18:34:22.811204Z",
+    "last_fresh_at": "2026-09-27T18:34:22.811204Z"
+  },
+  "non_get": 0,
+  "events_sev1": []
+}

@@ -1,0 +1,2031 @@
+{
+  "started_utc": "2026-09-27T00:21:21.782659+00:00",
+  "domain": "gui/501",
+  "nonce": "3a0c5d5bdc",
+  "cases": [
+    {
+      "mode": "zero",
+      "label": "com.lip.supervision.probe.zero.3a0c5d5bdc",
+      "plist": "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.plist",
+      "plist_content": {
+        "Label": "com.lip.supervision.probe.zero.3a0c5d5bdc",
+        "ProgramArguments": [
+          "/usr/bin/caffeinate",
+          "-is",
+          "/usr/bin/python3",
+          "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+          "zero",
+          "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.events.jsonl"
+        ],
+        "RunAtLoad": true,
+        "KeepAlive": {
+          "SuccessfulExit": false
+        },
+        "ThrottleInterval": 3,
+        "StandardOutPath": "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.stdout",
+        "StandardErrorPath": "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.stderr"
+      },
+      "before": {
+        "argv": [
+          "/bin/launchctl",
+          "print",
+          "gui/501/com.lip.supervision.probe.zero.3a0c5d5bdc"
+        ],
+        "status": 113,
+        "stdout": "",
+        "stderr": "Bad request.\nCould not find service \"com.lip.supervision.probe.zero.3a0c5d5bdc\" in domain for user gui: 501\n"
+      },
+      "plutil": {
+        "argv": [
+          "/usr/bin/plutil",
+          "-lint",
+          "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.plist"
+        ],
+        "status": 0,
+        "stdout": "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.plist: OK\n",
+        "stderr": ""
+      },
+      "bootstrap": {
+        "argv": [
+          "/bin/launchctl",
+          "bootstrap",
+          "gui/501",
+          "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.plist"
+        ],
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "samples": [
+        {
+          "at": 1790468481.919769,
+          "events": [],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.zero.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.zero.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tzero\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.zero.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tpid = 35954\n\timmediate reason = speculative\n\tforks = 0\n\texecs = 1\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast exit code = (never exited)\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233861\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.zero.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233862\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.zero.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468482.179775,
+          "events": [
+            {
+              "event": "start",
+              "mode": "zero",
+              "pid": 35954,
+              "ppid": 1,
+              "at": 1790468481.968592,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "zero",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "exit",
+              "mode": "zero",
+              "pid": 35954,
+              "ppid": 1,
+              "at": 1790468481.968776,
+              "status": 0
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.zero.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.zero.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.plist\n\ttype = LaunchAgent\n\tstate = not running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tzero\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.zero.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast exit code = 0\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233861\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.zero.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233862\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.zero.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        }
+      ],
+      "after_wait": {
+        "events": [
+          {
+            "event": "start",
+            "mode": "zero",
+            "pid": 35954,
+            "ppid": 1,
+            "at": 1790468481.968592,
+            "argv": [
+              "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+              "zero",
+              "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.events.jsonl"
+            ],
+            "elapsed": 0
+          },
+          {
+            "event": "exit",
+            "mode": "zero",
+            "pid": 35954,
+            "ppid": 1,
+            "at": 1790468481.968776,
+            "status": 0
+          }
+        ],
+        "state": {
+          "argv": [
+            "/bin/launchctl",
+            "print",
+            "gui/501/com.lip.supervision.probe.zero.3a0c5d5bdc"
+          ],
+          "status": 0,
+          "stdout": "gui/501/com.lip.supervision.probe.zero.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.plist\n\ttype = LaunchAgent\n\tstate = not running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tzero\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/zero.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.zero.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast exit code = 0\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233861\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.zero.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233862\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.zero.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+          "stderr": ""
+        }
+      },
+      "bootout": {
+        "argv": [
+          "/bin/launchctl",
+          "bootout",
+          "gui/501/com.lip.supervision.probe.zero.3a0c5d5bdc"
+        ],
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "after_bootout": {
+        "argv": [
+          "/bin/launchctl",
+          "print",
+          "gui/501/com.lip.supervision.probe.zero.3a0c5d5bdc"
+        ],
+        "status": 113,
+        "stdout": "",
+        "stderr": "Bad request.\nCould not find service \"com.lip.supervision.probe.zero.3a0c5d5bdc\" in domain for user gui: 501\n"
+      }
+    },
+    {
+      "mode": "nonzero",
+      "label": "com.lip.supervision.probe.nonzero.3a0c5d5bdc",
+      "plist": "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist",
+      "plist_content": {
+        "Label": "com.lip.supervision.probe.nonzero.3a0c5d5bdc",
+        "ProgramArguments": [
+          "/usr/bin/caffeinate",
+          "-is",
+          "/usr/bin/python3",
+          "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+          "nonzero",
+          "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"
+        ],
+        "RunAtLoad": true,
+        "KeepAlive": {
+          "SuccessfulExit": false
+        },
+        "ThrottleInterval": 3,
+        "StandardOutPath": "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stdout",
+        "StandardErrorPath": "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stderr"
+      },
+      "before": {
+        "argv": [
+          "/bin/launchctl",
+          "print",
+          "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+        ],
+        "status": 113,
+        "stdout": "",
+        "stderr": "Bad request.\nCould not find service \"com.lip.supervision.probe.nonzero.3a0c5d5bdc\" in domain for user gui: 501\n"
+      },
+      "plutil": {
+        "argv": [
+          "/usr/bin/plutil",
+          "-lint",
+          "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist"
+        ],
+        "status": 0,
+        "stdout": "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist: OK\n",
+        "stderr": ""
+      },
+      "bootstrap": {
+        "argv": [
+          "/bin/launchctl",
+          "bootstrap",
+          "gui/501",
+          "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist"
+        ],
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "samples": [
+        {
+          "at": 1790468486.23425,
+          "events": [],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tnonzero\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tpid = 36021\n\timmediate reason = speculative\n\tforks = 0\n\texecs = 1\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast exit code = (never exited)\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233863\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233864\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468486.498284,
+          "events": [
+            {
+              "event": "start",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.281759,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "nonzero",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "exit",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.28203,
+              "status": 17
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tnonzero\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast exit code = 17\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233863\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233864\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468486.763273,
+          "events": [
+            {
+              "event": "start",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.281759,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "nonzero",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "exit",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.28203,
+              "status": 17
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tnonzero\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast exit code = 17\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233863\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233864\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468487.025706,
+          "events": [
+            {
+              "event": "start",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.281759,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "nonzero",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "exit",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.28203,
+              "status": 17
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tnonzero\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast exit code = 17\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233863\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233864\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468487.2872791,
+          "events": [
+            {
+              "event": "start",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.281759,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "nonzero",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "exit",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.28203,
+              "status": 17
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tnonzero\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast exit code = 17\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233863\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233864\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468487.5504792,
+          "events": [
+            {
+              "event": "start",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.281759,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "nonzero",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "exit",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.28203,
+              "status": 17
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tnonzero\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast exit code = 17\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233863\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233864\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468487.81376,
+          "events": [
+            {
+              "event": "start",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.281759,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "nonzero",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "exit",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.28203,
+              "status": 17
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tnonzero\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast exit code = 17\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233863\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233864\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468488.0765219,
+          "events": [
+            {
+              "event": "start",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.281759,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "nonzero",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "exit",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.28203,
+              "status": 17
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tnonzero\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast exit code = 17\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233863\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233864\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468488.339021,
+          "events": [
+            {
+              "event": "start",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.281759,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "nonzero",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "exit",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.28203,
+              "status": 17
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tnonzero\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast exit code = 17\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233863\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233864\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468488.599009,
+          "events": [
+            {
+              "event": "start",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.281759,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "nonzero",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "exit",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.28203,
+              "status": 17
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tnonzero\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast exit code = 17\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233863\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233864\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468488.862238,
+          "events": [
+            {
+              "event": "start",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.281759,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "nonzero",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "exit",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.28203,
+              "status": 17
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tnonzero\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast exit code = 17\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233863\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233864\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468489.1284502,
+          "events": [
+            {
+              "event": "start",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.281759,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "nonzero",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "exit",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.28203,
+              "status": 17
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tnonzero\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast exit code = 17\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233863\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233864\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468489.394026,
+          "events": [
+            {
+              "event": "start",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.281759,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "nonzero",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "exit",
+              "mode": "nonzero",
+              "pid": 36021,
+              "ppid": 1,
+              "at": 1790468486.28203,
+              "status": 17
+            },
+            {
+              "event": "start",
+              "mode": "nonzero",
+              "pid": 36059,
+              "ppid": 1,
+              "at": 1790468489.347911,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "nonzero",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "exit",
+              "mode": "nonzero",
+              "pid": 36059,
+              "ppid": 1,
+              "at": 1790468489.348143,
+              "status": 17
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tnonzero\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 2\n\tlast exit code = 17\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233863\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233864\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        }
+      ],
+      "after_wait": {
+        "events": [
+          {
+            "event": "start",
+            "mode": "nonzero",
+            "pid": 36021,
+            "ppid": 1,
+            "at": 1790468486.281759,
+            "argv": [
+              "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+              "nonzero",
+              "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"
+            ],
+            "elapsed": 0
+          },
+          {
+            "event": "exit",
+            "mode": "nonzero",
+            "pid": 36021,
+            "ppid": 1,
+            "at": 1790468486.28203,
+            "status": 17
+          },
+          {
+            "event": "start",
+            "mode": "nonzero",
+            "pid": 36059,
+            "ppid": 1,
+            "at": 1790468489.347911,
+            "argv": [
+              "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+              "nonzero",
+              "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"
+            ],
+            "elapsed": 0
+          },
+          {
+            "event": "exit",
+            "mode": "nonzero",
+            "pid": 36059,
+            "ppid": 1,
+            "at": 1790468489.348143,
+            "status": 17
+          }
+        ],
+        "state": {
+          "argv": [
+            "/bin/launchctl",
+            "print",
+            "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+          ],
+          "status": 0,
+          "stdout": "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tnonzero\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 2\n\tlast exit code = 17\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233863\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233864\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.nonzero.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+          "stderr": ""
+        }
+      },
+      "bootout": {
+        "argv": [
+          "/bin/launchctl",
+          "bootout",
+          "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+        ],
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "after_bootout": {
+        "argv": [
+          "/bin/launchctl",
+          "print",
+          "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+        ],
+        "status": 113,
+        "stdout": "",
+        "stderr": "Bad request.\nCould not find service \"com.lip.supervision.probe.nonzero.3a0c5d5bdc\" in domain for user gui: 501\n"
+      }
+    },
+    {
+      "mode": "term",
+      "label": "com.lip.supervision.probe.term.3a0c5d5bdc",
+      "plist": "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist",
+      "plist_content": {
+        "Label": "com.lip.supervision.probe.term.3a0c5d5bdc",
+        "ProgramArguments": [
+          "/usr/bin/caffeinate",
+          "-is",
+          "/usr/bin/python3",
+          "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+          "term",
+          "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl"
+        ],
+        "RunAtLoad": true,
+        "KeepAlive": {
+          "SuccessfulExit": false
+        },
+        "ThrottleInterval": 3,
+        "StandardOutPath": "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stdout",
+        "StandardErrorPath": "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stderr"
+      },
+      "before": {
+        "argv": [
+          "/bin/launchctl",
+          "print",
+          "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+        ],
+        "status": 113,
+        "stdout": "",
+        "stderr": "Bad request.\nCould not find service \"com.lip.supervision.probe.term.3a0c5d5bdc\" in domain for user gui: 501\n"
+      },
+      "plutil": {
+        "argv": [
+          "/usr/bin/plutil",
+          "-lint",
+          "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist"
+        ],
+        "status": 0,
+        "stdout": "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist: OK\n",
+        "stderr": ""
+      },
+      "bootstrap": {
+        "argv": [
+          "/bin/launchctl",
+          "bootstrap",
+          "gui/501",
+          "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist"
+        ],
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "samples": [
+        {
+          "at": 1790468489.439975,
+          "events": [],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tterm\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tpid = 36072\n\timmediate reason = speculative\n\tforks = 0\n\texecs = 1\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast exit code = (never exited)\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233865\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233866\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468489.7047749,
+          "events": [
+            {
+              "event": "start",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.4877598,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "term",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl"
+              ],
+              "elapsed": 0
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tterm\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tpid = 36072\n\timmediate reason = speculative\n\tforks = 1\n\texecs = 4\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast exit code = (never exited)\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233865\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233866\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        }
+      ],
+      "kill_command": {
+        "argv": [
+          "/bin/launchctl",
+          "kill",
+          "SIGTERM",
+          "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+        ],
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "after_signal": [
+        {
+          "at": 1790468489.7187588,
+          "events": [
+            {
+              "event": "start",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.4877598,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "term",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "signal",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.711414,
+              "signum": 15,
+              "signal_name": "SIGTERM"
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tterm\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tpid = 36072\n\timmediate reason = speculative\n\tforks = 1\n\texecs = 4\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast exit code = (never exited)\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233865\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233866\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        }
+      ],
+      "one_second_after_signal": {
+        "events": [
+          {
+            "event": "start",
+            "mode": "term",
+            "pid": 36072,
+            "ppid": 1,
+            "at": 1790468489.4877598,
+            "argv": [
+              "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+              "term",
+              "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl"
+            ],
+            "elapsed": 0
+          },
+          {
+            "event": "signal",
+            "mode": "term",
+            "pid": 36072,
+            "ppid": 1,
+            "at": 1790468489.711414,
+            "signum": 15,
+            "signal_name": "SIGTERM"
+          }
+        ],
+        "state": {
+          "argv": [
+            "/bin/launchctl",
+            "print",
+            "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+          ],
+          "status": 0,
+          "stdout": "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tterm\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tpid = 36072\n\timmediate reason = speculative\n\tforks = 1\n\texecs = 4\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast exit code = (never exited)\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233865\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233866\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+          "stderr": ""
+        }
+      },
+      "after_drain": [
+        {
+          "at": 1790468490.746281,
+          "events": [
+            {
+              "event": "start",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.4877598,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "term",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "signal",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.711414,
+              "signum": 15,
+              "signal_name": "SIGTERM"
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tterm\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tpid = 36072\n\timmediate reason = speculative\n\tforks = 1\n\texecs = 4\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast exit code = (never exited)\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233865\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233866\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468491.009561,
+          "events": [
+            {
+              "event": "start",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.4877598,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "term",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "signal",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.711414,
+              "signum": 15,
+              "signal_name": "SIGTERM"
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tterm\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tpid = 36072\n\timmediate reason = speculative\n\tforks = 1\n\texecs = 4\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast exit code = (never exited)\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233865\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233866\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468491.266669,
+          "events": [
+            {
+              "event": "start",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.4877598,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "term",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "signal",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.711414,
+              "signum": 15,
+              "signal_name": "SIGTERM"
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tterm\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tpid = 36072\n\timmediate reason = speculative\n\tforks = 1\n\texecs = 4\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast exit code = (never exited)\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233865\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233866\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468491.529551,
+          "events": [
+            {
+              "event": "start",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.4877598,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "term",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "signal",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.711414,
+              "signum": 15,
+              "signal_name": "SIGTERM"
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tterm\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tpid = 36072\n\timmediate reason = speculative\n\tforks = 1\n\texecs = 4\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast exit code = (never exited)\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233865\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233866\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468491.795058,
+          "events": [
+            {
+              "event": "start",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.4877598,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "term",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "signal",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.711414,
+              "signum": 15,
+              "signal_name": "SIGTERM"
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tterm\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tpid = 36072\n\timmediate reason = speculative\n\tforks = 1\n\texecs = 4\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast exit code = (never exited)\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233865\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233866\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468492.0581079,
+          "events": [
+            {
+              "event": "start",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.4877598,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "term",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "signal",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.711414,
+              "signum": 15,
+              "signal_name": "SIGTERM"
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tterm\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tpid = 36072\n\timmediate reason = speculative\n\tforks = 1\n\texecs = 4\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast exit code = (never exited)\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233865\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233866\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468492.32094,
+          "events": [
+            {
+              "event": "start",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.4877598,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "term",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "signal",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.711414,
+              "signum": 15,
+              "signal_name": "SIGTERM"
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tterm\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tpid = 36072\n\timmediate reason = speculative\n\tforks = 1\n\texecs = 4\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast exit code = (never exited)\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233865\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233866\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468492.578481,
+          "events": [
+            {
+              "event": "start",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.4877598,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "term",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "signal",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.711414,
+              "signum": 15,
+              "signal_name": "SIGTERM"
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tterm\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tpid = 36072\n\timmediate reason = speculative\n\tforks = 1\n\texecs = 4\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast exit code = (never exited)\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233865\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233866\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468492.845757,
+          "events": [
+            {
+              "event": "start",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.4877598,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "term",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "signal",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468489.711414,
+              "signum": 15,
+              "signal_name": "SIGTERM"
+            },
+            {
+              "event": "exit",
+              "mode": "term",
+              "pid": 36072,
+              "ppid": 1,
+              "at": 1790468492.838621,
+              "status": 0,
+              "seconds_after_signal": 3.127
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist\n\ttype = LaunchAgent\n\tstate = not running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tterm\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast exit code = 0\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233865\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233866\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        }
+      ],
+      "after_wait": {
+        "events": [
+          {
+            "event": "start",
+            "mode": "term",
+            "pid": 36072,
+            "ppid": 1,
+            "at": 1790468489.4877598,
+            "argv": [
+              "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+              "term",
+              "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl"
+            ],
+            "elapsed": 0
+          },
+          {
+            "event": "signal",
+            "mode": "term",
+            "pid": 36072,
+            "ppid": 1,
+            "at": 1790468489.711414,
+            "signum": 15,
+            "signal_name": "SIGTERM"
+          },
+          {
+            "event": "exit",
+            "mode": "term",
+            "pid": 36072,
+            "ppid": 1,
+            "at": 1790468492.838621,
+            "status": 0,
+            "seconds_after_signal": 3.127
+          }
+        ],
+        "state": {
+          "argv": [
+            "/bin/launchctl",
+            "print",
+            "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+          ],
+          "status": 0,
+          "stdout": "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.plist\n\ttype = LaunchAgent\n\tstate = not running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tterm\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast exit code = 0\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233865\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233866\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.term.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+          "stderr": ""
+        }
+      },
+      "bootout": {
+        "argv": [
+          "/bin/launchctl",
+          "bootout",
+          "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+        ],
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "after_bootout": {
+        "argv": [
+          "/bin/launchctl",
+          "print",
+          "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+        ],
+        "status": 113,
+        "stdout": "",
+        "stderr": "Bad request.\nCould not find service \"com.lip.supervision.probe.term.3a0c5d5bdc\" in domain for user gui: 501\n"
+      }
+    },
+    {
+      "mode": "kill",
+      "label": "com.lip.supervision.probe.kill.3a0c5d5bdc",
+      "plist": "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist",
+      "plist_content": {
+        "Label": "com.lip.supervision.probe.kill.3a0c5d5bdc",
+        "ProgramArguments": [
+          "/usr/bin/caffeinate",
+          "-is",
+          "/usr/bin/python3",
+          "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+          "kill",
+          "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+        ],
+        "RunAtLoad": true,
+        "KeepAlive": {
+          "SuccessfulExit": false
+        },
+        "ThrottleInterval": 3,
+        "StandardOutPath": "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout",
+        "StandardErrorPath": "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr"
+      },
+      "before": {
+        "argv": [
+          "/bin/launchctl",
+          "print",
+          "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+        ],
+        "status": 113,
+        "stdout": "",
+        "stderr": "Bad request.\nCould not find service \"com.lip.supervision.probe.kill.3a0c5d5bdc\" in domain for user gui: 501\n"
+      },
+      "plutil": {
+        "argv": [
+          "/usr/bin/plutil",
+          "-lint",
+          "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist"
+        ],
+        "status": 0,
+        "stdout": "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist: OK\n",
+        "stderr": ""
+      },
+      "bootstrap": {
+        "argv": [
+          "/bin/launchctl",
+          "bootstrap",
+          "gui/501",
+          "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist"
+        ],
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "samples": [
+        {
+          "at": 1790468496.9033012,
+          "events": [],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = xpcproxy\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tpid = 36184\n\timmediate reason = speculative\n\tforks = 0\n\texecs = 0\n\tinitialized = 0\n\ttrampolined = 0\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 0)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast exit code = (never exited)\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468497.166272,
+          "events": [
+            {
+              "event": "start",
+              "mode": "kill",
+              "pid": 36184,
+              "ppid": 1,
+              "at": 1790468496.96693,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "kill",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+              ],
+              "elapsed": 0
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tpid = 36184\n\timmediate reason = speculative\n\tforks = 1\n\texecs = 4\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast exit code = (never exited)\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        }
+      ],
+      "kill_command": {
+        "argv": [
+          "/bin/launchctl",
+          "kill",
+          "SIGKILL",
+          "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+        ],
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "after_kill": [
+        {
+          "at": 1790468497.181226,
+          "events": [
+            {
+              "event": "start",
+              "mode": "kill",
+              "pid": 36184,
+              "ppid": 1,
+              "at": 1790468496.96693,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "kill",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+              ],
+              "elapsed": 0
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast terminating signal = Killed: 9\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468497.4473228,
+          "events": [
+            {
+              "event": "start",
+              "mode": "kill",
+              "pid": 36184,
+              "ppid": 1,
+              "at": 1790468496.96693,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "kill",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+              ],
+              "elapsed": 0
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast terminating signal = Killed: 9\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468497.708022,
+          "events": [
+            {
+              "event": "start",
+              "mode": "kill",
+              "pid": 36184,
+              "ppid": 1,
+              "at": 1790468496.96693,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "kill",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+              ],
+              "elapsed": 0
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast terminating signal = Killed: 9\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468497.972168,
+          "events": [
+            {
+              "event": "start",
+              "mode": "kill",
+              "pid": 36184,
+              "ppid": 1,
+              "at": 1790468496.96693,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "kill",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+              ],
+              "elapsed": 0
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast terminating signal = Killed: 9\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468498.2305868,
+          "events": [
+            {
+              "event": "start",
+              "mode": "kill",
+              "pid": 36184,
+              "ppid": 1,
+              "at": 1790468496.96693,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "kill",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+              ],
+              "elapsed": 0
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast terminating signal = Killed: 9\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468498.49608,
+          "events": [
+            {
+              "event": "start",
+              "mode": "kill",
+              "pid": 36184,
+              "ppid": 1,
+              "at": 1790468496.96693,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "kill",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+              ],
+              "elapsed": 0
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast terminating signal = Killed: 9\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468498.758661,
+          "events": [
+            {
+              "event": "start",
+              "mode": "kill",
+              "pid": 36184,
+              "ppid": 1,
+              "at": 1790468496.96693,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "kill",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+              ],
+              "elapsed": 0
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast terminating signal = Killed: 9\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468499.025496,
+          "events": [
+            {
+              "event": "start",
+              "mode": "kill",
+              "pid": 36184,
+              "ppid": 1,
+              "at": 1790468496.96693,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "kill",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+              ],
+              "elapsed": 0
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast terminating signal = Killed: 9\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468499.292141,
+          "events": [
+            {
+              "event": "start",
+              "mode": "kill",
+              "pid": 36184,
+              "ppid": 1,
+              "at": 1790468496.96693,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "kill",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+              ],
+              "elapsed": 0
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast terminating signal = Killed: 9\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468499.558357,
+          "events": [
+            {
+              "event": "start",
+              "mode": "kill",
+              "pid": 36184,
+              "ppid": 1,
+              "at": 1790468496.96693,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "kill",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+              ],
+              "elapsed": 0
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast terminating signal = Killed: 9\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468499.822381,
+          "events": [
+            {
+              "event": "start",
+              "mode": "kill",
+              "pid": 36184,
+              "ppid": 1,
+              "at": 1790468496.96693,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "kill",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+              ],
+              "elapsed": 0
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast terminating signal = Killed: 9\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468500.089099,
+          "events": [
+            {
+              "event": "start",
+              "mode": "kill",
+              "pid": 36184,
+              "ppid": 1,
+              "at": 1790468496.96693,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "kill",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+              ],
+              "elapsed": 0
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 0\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = spawn scheduled\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 1\n\tlast terminating signal = Killed: 9\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        },
+        {
+          "at": 1790468500.3542888,
+          "events": [
+            {
+              "event": "start",
+              "mode": "kill",
+              "pid": 36184,
+              "ppid": 1,
+              "at": 1790468496.96693,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "kill",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+              ],
+              "elapsed": 0
+            },
+            {
+              "event": "start",
+              "mode": "kill",
+              "pid": 36242,
+              "ppid": 1,
+              "at": 1790468500.231991,
+              "argv": [
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+                "kill",
+                "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+              ],
+              "elapsed": 0
+            }
+          ],
+          "state": {
+            "argv": [
+              "/bin/launchctl",
+              "print",
+              "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+            ],
+            "status": 0,
+            "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 2\n\tpid = 36242\n\timmediate reason = semaphore\n\tforks = 1\n\texecs = 4\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast terminating signal = Killed: 9\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+            "stderr": ""
+          }
+        }
+      ],
+      "after_wait": {
+        "events": [
+          {
+            "event": "start",
+            "mode": "kill",
+            "pid": 36184,
+            "ppid": 1,
+            "at": 1790468496.96693,
+            "argv": [
+              "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+              "kill",
+              "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+            ],
+            "elapsed": 0
+          },
+          {
+            "event": "start",
+            "mode": "kill",
+            "pid": 36242,
+            "ppid": 1,
+            "at": 1790468500.231991,
+            "argv": [
+              "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+              "kill",
+              "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl"
+            ],
+            "elapsed": 0
+          }
+        ],
+        "state": {
+          "argv": [
+            "/bin/launchctl",
+            "print",
+            "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+          ],
+          "status": 0,
+          "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 2\n\tpid = 36242\n\timmediate reason = semaphore\n\tforks = 1\n\texecs = 4\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast terminating signal = Killed: 9\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+          "stderr": ""
+        }
+      },
+      "bootout": {
+        "argv": [
+          "/bin/launchctl",
+          "bootout",
+          "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+        ],
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "after_bootout": {
+        "argv": [
+          "/bin/launchctl",
+          "print",
+          "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+        ],
+        "status": 0,
+        "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = SIGTERMed\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 2\n\tpid = 36242\n\timmediate reason = semaphore\n\tforks = 1\n\texecs = 4\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast terminating signal = Killed: 9\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+        "stderr": ""
+      }
+    }
+  ],
+  "direct": [
+    {
+      "argv": [
+        "/usr/bin/caffeinate",
+        "-is",
+        "/usr/bin/python3",
+        "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+        "zero",
+        "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/direct-zero.events.jsonl"
+      ],
+      "status": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/usr/bin/caffeinate",
+        "-is",
+        "/usr/bin/python3",
+        "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py",
+        "nonzero",
+        "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/direct-nonzero.events.jsonl"
+      ],
+      "status": 17,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "cleanup": [
+    {
+      "label": "com.lip.supervision.probe.zero.3a0c5d5bdc",
+      "bootout": {
+        "argv": [
+          "/bin/launchctl",
+          "bootout",
+          "gui/501/com.lip.supervision.probe.zero.3a0c5d5bdc"
+        ],
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "after_bootout": {
+        "argv": [
+          "/bin/launchctl",
+          "print",
+          "gui/501/com.lip.supervision.probe.zero.3a0c5d5bdc"
+        ],
+        "status": 113,
+        "stdout": "",
+        "stderr": "Bad request.\nCould not find service \"com.lip.supervision.probe.zero.3a0c5d5bdc\" in domain for user gui: 501\n"
+      }
+    },
+    {
+      "label": "com.lip.supervision.probe.nonzero.3a0c5d5bdc",
+      "bootout": {
+        "argv": [
+          "/bin/launchctl",
+          "bootout",
+          "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+        ],
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "after_bootout": {
+        "argv": [
+          "/bin/launchctl",
+          "print",
+          "gui/501/com.lip.supervision.probe.nonzero.3a0c5d5bdc"
+        ],
+        "status": 113,
+        "stdout": "",
+        "stderr": "Bad request.\nCould not find service \"com.lip.supervision.probe.nonzero.3a0c5d5bdc\" in domain for user gui: 501\n"
+      }
+    },
+    {
+      "label": "com.lip.supervision.probe.term.3a0c5d5bdc",
+      "bootout": {
+        "argv": [
+          "/bin/launchctl",
+          "bootout",
+          "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+        ],
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "after_bootout": {
+        "argv": [
+          "/bin/launchctl",
+          "print",
+          "gui/501/com.lip.supervision.probe.term.3a0c5d5bdc"
+        ],
+        "status": 113,
+        "stdout": "",
+        "stderr": "Bad request.\nCould not find service \"com.lip.supervision.probe.term.3a0c5d5bdc\" in domain for user gui: 501\n"
+      }
+    },
+    {
+      "label": "com.lip.supervision.probe.kill.3a0c5d5bdc",
+      "bootout": {
+        "argv": [
+          "/bin/launchctl",
+          "bootout",
+          "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+        ],
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "after_bootout": {
+        "argv": [
+          "/bin/launchctl",
+          "print",
+          "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc"
+        ],
+        "status": 0,
+        "stdout": "gui/501/com.lip.supervision.probe.kill.3a0c5d5bdc = {\n\tactive count = 1\n\tpath = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.plist\n\ttype = LaunchAgent\n\tstate = SIGTERMed\n\n\tprogram = /usr/bin/caffeinate\n\targuments = {\n\t\t/usr/bin/caffeinate\n\t\t-is\n\t\t/usr/bin/python3\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py\n\t\tkill\n\t\t/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.events.jsonl\n\t}\n\n\tstdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stdout\n\tstderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/kill.stderr\n\tinherited environment = {\n\t\tSSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners\n\t}\n\n\tdefault environment = {\n\t\tPATH => /usr/bin:/bin:/usr/sbin:/sbin\n\t}\n\n\tenvironment = {\n\t\tOSLogRateLimit => 64\n\t\tXPC_SERVICE_NAME => com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tdomain = gui/501 [100002]\n\tasid = 100002\n\tminimum runtime = 3\n\texit timeout = 5\n\truns = 2\n\tpid = 36242\n\timmediate reason = semaphore\n\tforks = 1\n\texecs = 4\n\tinitialized = 1\n\ttrampolined = 1\n\tstarted suspended = 0\n\tproxy started suspended = 0\n\tchecked allocations = 0 (queried = 1)\n\tchecked allocations reason = no host\n\tchecked allocations flags = 0x0\n\tlast terminating signal = Killed: 9\n\n\tsemaphores = {\n\t\tsuccessful exit => 0\n\t}\n\n\tresource coalition = {\n\t\tID = 233867\n\t\ttype = resource\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tjetsam coalition = {\n\t\tID = 233868\n\t\ttype = jetsam\n\t\tstate = active\n\t\tactive count = 1\n\t\tname = com.lip.supervision.probe.kill.3a0c5d5bdc\n\t}\n\n\tspawn type = daemon (3)\n\tjetsam priority = 40\n\tjetsam memory limit (active) = (unlimited)\n\tjetsam memory limit (inactive) = (unlimited)\n\tjetsamproperties category = daemon\n\tjetsam thread limit = 32\n\tcpumon = default\n\n\tproperties = runatload | inferred program\n}\n",
+        "stderr": ""
+      }
+    }
+  ],
+  "finished_utc": "2026-09-27T00:21:40.376108+00:00"
+}

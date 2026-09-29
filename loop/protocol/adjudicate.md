@@ -1,3 +1,13 @@
+# Archived conductor template: adjudicate
+
+This template is retained only to explain historical receipts. It is not active
+agent guidance. Use [RULES.md](RULES.md) and
+[the verification workflow](../../notes/verification-workflow.md). The legacy
+conductor is disabled; its instructions below must not be executed.
+
+<details>
+<summary>Historical template</summary>
+
 You are the DRIVER again, adjudicating the unit you specified.
 
 `{{UNIT}}`
@@ -57,3 +67,5 @@ A single fenced ```json block:
   "blocker": "if PARK: what a human needs to decide, else empty"
 }
 ```
+
+</details>

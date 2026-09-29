@@ -1,0 +1,16 @@
+# lip-kaf dispatch-level case against UNFIXED source, 2026-09-28T23:38:48Z
+# cancel.go sha256 bfc2f6724806e5f26874c2d07d11a4efe3d3f4afcf50fb365258f9c68f7fef1b
+# cancel_lag_dispatch_test.go sha256 ee931ca362f43c219f643432edbe4836d8eaae665825953de016dc8befc4fe2b
+# go test ./cmd/harness -run '^TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides$' -count=1 -v
+=== RUN   TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides
+=== RUN   TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides/both_cancelled,_both_lagging
+    cancel_lag_dispatch_test.go:107: YES: the exchange's record says EX-Y is cancelled; absent=false SEV1=true clean=false still=1. A lagging list is not a live order (lip-kaf, H-FAIL-3)
+=== RUN   TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides/one_side_really_rests
+    cancel_lag_dispatch_test.go:133: YES: absent=false SEV1=true
+--- FAIL: TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides (0.04s)
+    --- FAIL: TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides/both_cancelled,_both_lagging (0.03s)
+    --- FAIL: TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides/one_side_really_rests (0.01s)
+FAIL
+FAIL	lip/cmd/harness	0.693s
+FAIL
+# exit 1

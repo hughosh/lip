@@ -1,0 +1,56 @@
+{
+  "reviewed_at_utc": "2026-09-27T17:36:15.901128+00:00",
+  "head": "f7e9571547bb948418b7a27adc9c30ae38314b00",
+  "go_source_manifest_sha256": "74f8ee7634c406f0e4279429b4e8bbdca9cab31bc2f3a1564163b1d42c4263c2",
+  "binary_sha256": "ecf16ea19c4f0e05dad8cce0c261d6e6f2204eeb8f9615913a79b54816b311c6",
+  "artifacts": [
+    {
+      "name": "candidate",
+      "path": "loop/gates-out/20260927T170933719968Z-8521aa8d/receipt.json",
+      "sha256": "0e26b1270483a8a6ccd2c400ed9cc3eeeaf31f21a7466ddc3424160f31fb7bb6"
+    },
+    {
+      "name": "named_mutations",
+      "path": "loop/gates-out/negative-control-20260927T171702926992Z/receipt.json",
+      "sha256": "ed7c3c4ce878eeac730848c069b7fe9845402372b8004f361451557dfcba1c2f"
+    },
+    {
+      "name": "prior_failed_candidate",
+      "path": "loop/gates-out/20260927T170508460861Z-9f4a0e3a/receipt.json",
+      "sha256": "969fa4d32a023f1fb08562418b0aa0e3b865479da312b6ec3867796d48a26679"
+    },
+    {
+      "name": "ops_tests",
+      "path": "notes/production-turnover-2026-09-27/ops-final-tests.log",
+      "sha256": "cd2290af1c59f653bf1f31c869367e7626a4e30603b243ffddab59019c074305"
+    },
+    {
+      "name": "observation",
+      "path": "notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/read-only-smoke/observation.json",
+      "sha256": "5d0d60b45c18bf2d1bc960f2d758898fe62341ba60d9346f64a9b1f7e0b0f1cb"
+    },
+    {
+      "name": "observation_assessment_failed_q01",
+      "path": "notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/read-only-smoke/assessment.json",
+      "sha256": "4551ddaaebf6a3e79d64e5f58fcdf925cc8fac65575b1961df7ed0c2cfaa9227"
+    },
+    {
+      "name": "final_account",
+      "path": "notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/account-final.json",
+      "sha256": "d8db16b5bd4015d33ab0dda2031ea340a97176a29884f1921a667df3184e5cbc"
+    },
+    {
+      "name": "final_static",
+      "path": "loop/gates-out/20260927T173628999014Z-8192f395/receipt.json",
+      "sha256": "862cae3543389fe160f8c5c8bb0de42a26b092f7b943e4d35ebcccb6e748f22f",
+      "verdict": "PASS"
+    }
+  ],
+  "scope": "Code qualification and actual GET-only observation; no live financial or human-attestation evidence. Repository and mutation source fingerprints cover different inputs.",
+  "source_matches_build": true,
+  "advance_eligible": false,
+  "live_eligible": false,
+  "final_process_review": "process-final-review.json",
+  "beads_state": "beads-final.json",
+  "final_review_at_utc": "2026-09-27T17:37:09.409463+00:00"
+}

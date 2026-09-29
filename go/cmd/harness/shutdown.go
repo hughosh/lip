@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -47,7 +49,7 @@ import (
 // permitBuffer is the depth of the hand-off from the result loop to the
 // dispatcher.
 //
-// It is not sized against throughput. With `dispatchWorkers` = 1 and §16's token
+// It is not sized against throughput. With the bounded `dispatchWorkers` pool and §16's token
 // bucket the number of reservations outstanding at any instant is small, so 64
 // is not a queue -- it is headroom past which the dispatcher goroutine is
 // provably wedged. The send is non-blocking BECAUSE of that: this loop is the
@@ -85,7 +87,13 @@ const (
 // instance plus a run id that is unique per run makes a collision impossible
 // rather than unlikely.
 type shutdown struct {
-	r *rig
+	r            *rig
+	stopRequests chan stopRequest
+	// finalClose serializes the owner's health probe with the authorized
+	// store close. A refused close leaves orderlyClosed false, so a writer
+	// failure remains visible to the owner and can still latch a stop.
+	finalClose    sync.RWMutex
+	orderlyClosed bool
 
 	// exit is `os.Exit`, injected.
 	//
@@ -266,9 +274,15 @@ func (s *shutdown) observeDrain(obs lifecycle.DrainObservation) bool {
 // and tearing down would convert records that are still being retried into
 // records that are permanently lost.
 //
+// A close failure the rig has recorded is different: the writer already stopped
+// or the lock was already released, and every retry returns it unchanged. It is
+// reported once and not retried; the process stays up (lip-6w8).
+//
 // A closed observation channel ends the loop WITHOUT exiting, for the same
 // reason: the absence of an observation is not an observation.
 func (s *shutdown) drainLoop(ctx context.Context, obs <-chan lifecycle.DrainObservation) error {
+	var retryAfter time.Time
+	permanent := false
 	for {
 		var o lifecycle.DrainObservation
 		select {
@@ -281,18 +295,14 @@ func (s *shutdown) drainLoop(ctx context.Context, obs <-chan lifecycle.DrainObse
 			o = got
 		}
 
-		if !s.observeDrain(o) {
+		if !s.observeDrain(o) || permanent || time.Now().Before(retryAfter) {
 			continue
 		}
 		if err := s.stop(ctx); err != nil {
-			s.r.anom.raise(risk.Anomaly{
-				Class: stopRefusedClass, Sev: risk.SEV1,
-				Text: fmt.Sprintf("the drain is complete and the exit is "+
-					"authorised, but the orderly stop was refused and NOTHING has "+
-					"been torn down: %v. The process stays up, still retrying, "+
-					"because forcing past this turns records the store has "+
-					"accepted into records that are permanently lost", err),
-			})
+			retryAfter = time.Now().Add(time.Second)
+			released, recorded := s.r.closeFailed()
+			permanent = recorded != nil
+			s.r.anom.raise(stopRefusal(err, permanent, released))
 			continue
 		}
 		// A qualification process normally ends through this os.Exit path, not
@@ -312,6 +322,30 @@ func (s *shutdown) drainLoop(ctx context.Context, obs <-chan lifecycle.DrainObse
 	}
 }
 
+// stopRefusal is the SEV1 for an orderly stop that failed after the drain had
+// authorised the exit. Once the writer is gone it can only reach stderr.
+func stopRefusal(err error, permanent, lockReleased bool) risk.Anomaly {
+	text := fmt.Sprintf("the drain is complete and the exit is "+
+		"authorised, but the orderly stop failed; instance ownership is retained "+
+		"and observation/alerting continue: %v. The process stays up, still retrying, "+
+		"because forcing past this turns records the store has "+
+		"accepted into records that are permanently lost", err)
+	switch {
+	case permanent && lockReleased:
+		text = fmt.Sprintf("the drain is complete and the exit is authorised, "+
+			"but the orderly stop failed permanently: %v. The store is closed and "+
+			"the instance lock is released, so another instance could start "+
+			"beside this one; stop this process first. No retry can repair "+
+			"this, so the process stays up without retrying", err)
+	case permanent:
+		text = fmt.Sprintf("the drain is complete and the exit is authorised, "+
+			"but the orderly stop failed permanently: %v. The store failed after "+
+			"its writer stopped; instance ownership is retained. No retry can "+
+			"repair this, so the process stays up without retrying", err)
+	}
+	return risk.Anomaly{Class: stopRefusedClass, Sev: risk.SEV1, Text: text}
+}
+
 // stop is the orderly stop, in `hstore.Shutdown`'s order.
 //
 // The final sweep runs FIRST and is not optional. `Store.Close` discards
@@ -326,6 +360,22 @@ func (s *shutdown) drainLoop(ctx context.Context, obs <-chan lifecycle.DrainObse
 // has ACCEPTED, and a caller that cannot stop cleanly is told rather than
 // discovering afterwards that it stopped destructively.
 func (s *shutdown) stop(ctx context.Context) error {
+	// serveWithShutdown assigns the owner's channel before a drain can ask.
+	// Closing the store from here instead would skip joining its inputs.
+	if s.stopRequests == nil {
+		return errors.New("the orderly stop has no owner to join its inputs; nothing was closed")
+	}
+	request := stopRequest{ctx: ctx, done: make(chan error, 1)}
+	select {
+	case s.stopRequests <- request:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	// Once accepted, the owner must finish restoration before a retry.
+	return <-request.done
+}
+
+func (s *shutdown) stopStore(ctx context.Context) error {
 	s.handleResults(s.r.store.TakeResults())
 	s.handleAnomalies()
 	if err := s.r.store.Drain(ctx); err != nil {
@@ -342,7 +392,49 @@ func (s *shutdown) stop(ctx context.Context) error {
 	if err := s.r.flushAlerts(ctx); err != nil {
 		return err
 	}
-	return s.r.close(ctx)
+	anomaliesBeforeDelivery := s.anomalies.Load()
+	if err := s.r.stopAlerts(ctx); err != nil {
+		s.r.resumeAlerts()
+		return err
+	}
+	// The final alert step can itself submit delivery records. Consume all
+	// terminal results while the writer still accepts their failure evidence.
+	if err := s.drainResults(ctx); err != nil {
+		s.r.resumeAlerts()
+		return err
+	}
+	if s.anomalies.Load() != anomaliesBeforeDelivery {
+		s.r.resumeAlerts()
+		return fmt.Errorf("final delivery produced new record-failure evidence; retain observation and retry alert delivery before close")
+	}
+	s.finalClose.Lock()
+	defer s.finalClose.Unlock()
+	if err := s.r.close(ctx); err != nil {
+		s.r.resumeAlerts()
+		return err
+	}
+	s.orderlyClosed = true
+	return nil
+}
+
+// drainResults runs only after the serving result loop and all producers have
+// joined. A result can create another accepted anomaly, so two fixed passes
+// cannot establish that every terminal outcome was consumed.
+func (s *shutdown) drainResults(ctx context.Context) error {
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		s.handleAnomalies()
+		if err := s.r.store.Drain(ctx); err != nil {
+			return err
+		}
+		batch := s.r.store.TakeResults()
+		if len(batch) == 0 {
+			return nil
+		}
+		s.handleResults(batch)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -589,9 +681,9 @@ func (s *shutdown) submitAnomaly(a risk.Anomaly) {
 		if ticker == "" {
 			ticker = "account"
 		}
-		fmt.Fprintf(os.Stderr, "harness: anomaly %s (%s, sev%d, %s) could not be "+
+		fmt.Fprintf(os.Stderr, "harness: anomaly %s (%s, %s, %s) could not be "+
 			"submitted to either journal and is now only in this line: %s (%v)\n",
-			id, a.Class, a.Sev, ticker, a.Text, err)
+			id, a.Class, a.Sev.String(), ticker, a.Text, err)
 	}
 }
 

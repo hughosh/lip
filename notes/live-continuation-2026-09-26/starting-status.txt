@@ -1,0 +1,159 @@
+ M ../.beads/interactions.jsonl
+ M ../AGENTS.md
+ M ../CLAUDE.md
+ M ../config.example.md
+ M cmd/conform/main.go
+ M cmd/harness/alerts.go
+ M cmd/harness/alerts_test.go
+ M cmd/harness/config.go
+ M cmd/harness/config_test.go
+ M cmd/harness/dispatch.go
+ M cmd/harness/main.go
+ M cmd/harness/provision.go
+ M cmd/harness/provision_test.go
+ M cmd/harness/qualification.go
+ M cmd/harness/run.go
+ M cmd/harness/runtime.go
+ M cmd/harness/seam_test.go
+ M cmd/harness/shutdown.go
+ M cmd/harness/shutdown_test.go
+ M harness/cfg/params.go
+ M harness/hstore/records.go
+ M harness/hstore/schema.go
+ M harness/hstore/schema_test.go
+ M harness/hstore/seal_test.go
+ M harness/hstore/sqlite.go
+ M harness/hstore/writer.go
+ M harness/lifecycle/drain.go
+ M harness/lifecycle/startup.go
+ M harness/ping/service.go
+ M harness/ping/stub_test.go
+ M harness/qual/q01.go
+ M harness/qual/q01_test.go
+ M harness/quote/cross.go
+ M harness/quote/queue.go
+ M harness/rest/cancel.go
+ M harness/rest/cancel_test.go
+ M harness/rest/client.go
+ M harness/rest/page.go
+ M harness/rest/read.go
+ M harness/rest/schedule.go
+ M harness/rest/wire.go
+ M harness/rest/wire_test.go
+ M harness/rest/write.go
+ M harness/rest/write_test.go
+ M harness/risk/snapshot.go
+ M harness/wsx/binding_test.go
+ M harness/wsx/frame.go
+ M harness/wsx/frame_test.go
+ M harness/wsx/gate.go
+ M harness/wsx/gate_test.go
+ M harness/wsx/portfolio.go
+ M harness/wsx/seal_test.go
+ M harness/wsx/session.go
+ M harness/wsx/supervisor_test.go
+ M harness/wsx/wire.go
+ M ../loop/START.md
+ M ../loop/conductor.py
+ M ../loop/gates.sh
+ M ../loop/protocol/RULES.md
+ M ../loop/protocol/adjudicate.md
+ M ../loop/protocol/audit.md
+ M ../loop/protocol/challenge.md
+ M ../loop/protocol/driver.md
+ M ../loop/protocol/implement.md
+ M ../loop/state/LEDGER.md
+ M ../notes/economics.md
+ M ../notes/harness-negative-control.md
+ M ../notes/harness-spec.md
+ M ../notes/overnight-loop.md
+ M ../notes/pilot-plan.md
+ M ../scripts/check.py
+ M ../scripts/harness_negative_control.py
+ M ../scripts/test_harness_negative_control.py
+?? cmd/accountcheck/
+?? cmd/alarmcheck/
+?? cmd/conform/main_test.go
+?? cmd/harness/balance_telemetry.go
+?? cmd/harness/balance_telemetry_test.go
+?? cmd/harness/capital_dispatch.go
+?? cmd/harness/capital_dispatch_test.go
+?? cmd/harness/clock_step_composition_test.go
+?? cmd/harness/crosscheck.go
+?? cmd/harness/crosscheck_test.go
+?? cmd/harness/disconnect_composition_test.go
+?? cmd/harness/dispatch_throttle.go
+?? cmd/harness/dispatch_throttle_test.go
+?? cmd/harness/drift_composition_test.go
+?? cmd/harness/exposure_identity.go
+?? cmd/harness/foreign_orders.go
+?? cmd/harness/foreign_orders_test.go
+?? cmd/harness/funding_cap.go
+?? cmd/harness/funding_cap_test.go
+?? cmd/harness/funding_runtime.go
+?? cmd/harness/funding_runtime_test.go
+?? cmd/harness/funding_wrong_shard_test.go
+?? cmd/harness/gate_failure_test.go
+?? cmd/harness/inventory_hard_test.go
+?? cmd/harness/inventory_stuck.go
+?? cmd/harness/inventory_stuck_test.go
+?? cmd/harness/operations_readiness.go
+?? cmd/harness/operations_readiness_test.go
+?? cmd/harness/portfolio_stop.go
+?? cmd/harness/position_journal_test.go
+?? cmd/harness/program_membership.go
+?? cmd/harness/program_membership_test.go
+?? cmd/harness/read_throttle.go
+?? cmd/harness/read_throttle_test.go
+?? cmd/harness/reducer_confirmation_test.go
+?? cmd/harness/reject_response.go
+?? cmd/harness/reject_response_test.go
+?? cmd/harness/reject_window.go
+?? cmd/harness/reject_window_test.go
+?? cmd/harness/restart_composition_test.go
+?? cmd/harness/scenario_exchange_test.go
+?? cmd/harness/signal_composition_test.go
+?? cmd/harness/sizing_rung_test.go
+?? cmd/harness/sleep_relay_test.go
+?? cmd/harness/unknown_composition_test.go
+?? cmd/incentives/
+?? harness/hstore/balance_telemetry.go
+?? harness/hstore/balance_telemetry_test.go
+?? harness/lifecycle/drain_concurrency_test.go
+?? harness/num/side.go
+?? harness/ping/clock_step_test.go
+?? harness/quote/mixed_cancel_test.go
+?? harness/rest/account_positions.go
+?? harness/rest/account_positions_test.go
+?? harness/rest/cancel_shard_test.go
+?? harness/rest/funding.go
+?? harness/rest/funding_test.go
+?? harness/rest/orderbook.go
+?? harness/rest/orderbook_test.go
+?? harness/rest/programs_filter_test.go
+?? harness/rest/throttle.go
+?? harness/rest/throttle_test.go
+?? harness/wsx/forced_crosscheck.go
+?? harness/wsx/forced_crosscheck_test.go
+?? harness/wsx/observation_gap.go
+?? harness/wsx/observation_gap_test.go
+?? harness/wsx/read_throttle.go
+?? notes/
+?? ../notes/attended-stages-2026-09-26.md
+?? ../notes/beads-completion-evidence-2026-09-26/
+?? ../notes/cr1-operations-runbook.md
+?? ../notes/invariant-enforcement-2026-09-26.md
+?? ../notes/live-readiness-2026-09-26/
+?? ../notes/process-audit-2026-09-26.md
+?? ../notes/process-audit-evidence-2026-09-26/
+?? ../notes/readiness-2026-09-26.md
+?? ../notes/readiness-evidence-2026-09-26/
+?? ../notes/revival-2026-09-26.md
+?? ../notes/revival-evidence-2026-09-26/
+?? ../notes/verification-workflow.md
+?? ../scripts/run_gates.py
+?? ../scripts/safety_mutations.json
+?? ../scripts/test_check.py
+?? ../scripts/test_gates.py
+?? ../scripts/test_verification_support.py
+?? ../scripts/verification_support.py

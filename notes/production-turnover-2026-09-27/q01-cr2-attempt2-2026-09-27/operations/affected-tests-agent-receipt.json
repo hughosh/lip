@@ -1,0 +1,20 @@
+{
+  "reviewed_at": "2026-09-27T18:30:54.620502+00:00",
+  "command": [
+    "/Users/hugh/kek/.venv/bin/python",
+    "-m",
+    "unittest",
+    "scripts.test_ops_watchdog",
+    "scripts.test_ops_watchdog_source",
+    "scripts.test_ops_recovery"
+  ],
+  "observer": "primary_only_ops bounded subagent",
+  "reported_output": "Ran 29 tests in 0.703s; OK",
+  "original_tool_wall_seconds": 0.695944694,
+  "raw_log_saved": false,
+  "source_hashes": {
+    "scripts/ops_watchdog.py": "6673b4826971ca0b8740cbf8f371aa3abe591b306c695c65a8d38cb5e68b5a89",
+    "scripts/test_ops_watchdog.py": "c3deb66eef03b8ba0f1bfa20692a4f7b3246a2f0c3d668734a0f2d360db35943"
+  },
+  "scope": "Explicit primary-only route selection; two-route escalation preserved; no Go source or candidate changes"
+}

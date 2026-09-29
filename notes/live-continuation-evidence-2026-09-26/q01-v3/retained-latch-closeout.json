@@ -1,0 +1,17 @@
+{
+  "at": "2026-09-27T00:45:07.830653+00:00",
+  "account_finished": "2026-09-27T00:44:49.561766Z",
+  "account_scope_complete": true,
+  "flat": true,
+  "cash_micro": "98580200",
+  "fills": {
+    "outcome": "complete",
+    "pages": 1,
+    "count": 15
+  },
+  "retained_latch_finalized_at": "2026-09-27T00:44:17.169801Z",
+  "retained_latch_active_nanos": 35274815175,
+  "would_writes": 0,
+  "above_and_below_guard_non_get": 0,
+  "process_absent": true
+}

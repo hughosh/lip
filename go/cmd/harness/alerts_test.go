@@ -22,6 +22,37 @@ import (
 
 type quietTestAlertStepper struct{}
 
+type clockCaptureAlertStepper struct {
+	wall, mono int64
+	paired     bool
+}
+
+func (s *clockCaptureAlertStepper) Step(_ context.Context, wall int64,
+	_ ping.Heartbeat) ping.Effects {
+	s.wall = wall
+	return ping.Effects{NextStepMs: wall + 1000}
+}
+
+func (s *clockCaptureAlertStepper) StepAt(_ context.Context, wall, mono int64,
+	_ ping.Heartbeat) ping.Effects {
+	s.wall, s.mono, s.paired = wall, mono, true
+	return ping.Effects{NextStepMs: wall + 1000}
+}
+
+func TestAlertCompositionPassesPairedWallAndMonotonicClock(t *testing.T) {
+	stepper := &clockCaptureAlertStepper{}
+	r := newBareAlertRig(stepper)
+	r.ex.NowMs = func() int64 { return 1_700_000_000_000 }
+	r.ex.Mono = func() time.Duration { return 37 * time.Second }
+	if got := r.stepAlerts(context.Background()); got != 1_700_000_001_000 {
+		t.Fatalf("next alert deadline = %d", got)
+	}
+	if !stepper.paired || stepper.wall != 1_700_000_000_000 || stepper.mono != 37_000 {
+		t.Fatalf("alert service received wall=%d mono=%d paired=%t",
+			stepper.wall, stepper.mono, stepper.paired)
+	}
+}
+
 func (quietTestAlertStepper) Step(_ context.Context, nowMs int64,
 	_ ping.Heartbeat) ping.Effects {
 	return ping.Effects{NextStepMs: nowMs + int64(time.Hour/time.Millisecond)}
@@ -222,10 +253,50 @@ func TestRunAndDeployValidateAlertsBeforeCredentialsOrAccountAccess(t *testing.T
 			fs.SetOutput(io.Discard)
 			err := run(fs, configPath, "", "", "", "", false, tc.deploy, false, false)
 			var ref *refusal
-			if !errors.As(err, &ref) || !strings.Contains(err.Error(), "alert topic") {
-				t.Fatalf("run error = %v, want alert-topic refusal before the missing key, store, or any exchange request", err)
+			if err == nil || errors.As(err, &ref) || !strings.Contains(err.Error(), "alert topic") {
+				t.Fatalf("run error = %v, want retryable alert-topic read failure before the missing key, store, or any exchange request", err)
 			}
 		})
+	}
+}
+
+func TestRunAndDeployRefuseMalformedAlertDestinationsBeforeCredentialsOrAccountAccess(t *testing.T) {
+	for _, tc := range []struct {
+		name, env, diagnostic string
+	}{
+		{"missing topic", "DEADMAN_URL=https://watchdog.example/checkin\n", "NTFY_TOPIC is not set"},
+		{"duplicate topic", "NTFY_TOPIC=one\nNTFY_TOPIC=two\n", "NTFY_TOPIC appears"},
+		{"malformed topic", "NTFY_TOPIC=bad/topic\n", "NTFY_TOPIC contains"},
+		{"missing deadman", "NTFY_TOPIC=valid-topic\n", "DEADMAN_URL is not set"},
+		{"malformed deadman", "NTFY_TOPIC=valid-topic\nDEADMAN_URL=http://watchdog.example/checkin\n", "dead-man endpoint"},
+	} {
+		for _, deploy := range []bool{false, true} {
+			name := tc.name + "/run"
+			if deploy {
+				name = tc.name + "/deploy"
+			}
+			t.Run(name, func(t *testing.T) {
+				configPath := writeConfig(t, `{"ticker":"KXTEST-A","rung":"canary","s":1,`+
+					goodTail(t)+`}`)
+				c, err := loadConfig(configPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(c.Paths.Env, []byte(tc.env), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				fs := flag.NewFlagSet("harness", flag.ContinueOnError)
+				fs.SetOutput(io.Discard)
+				err = run(fs, configPath, "", "", "", "", false, deploy, false, false)
+				var ref *refusal
+				if !errors.As(err, &ref) || !strings.Contains(err.Error(), tc.diagnostic) {
+					t.Fatalf("run error = %v, want semantic alert refusal before the missing key, store, or any exchange request", err)
+				}
+				if _, err := os.Stat(c.Paths.DB); !os.IsNotExist(err) {
+					t.Fatalf("preflight reached or created the store: %v", err)
+				}
+			})
+		}
 	}
 }
 
@@ -619,7 +690,7 @@ func TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore(t *testing.T
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	stopDone := make(chan error, 1)
-	go func() { stopDone <- newShutdown(r).stop(ctx) }()
+	go func() { stopDone <- newShutdown(r).stopStore(ctx) }()
 	// The first Step is still active. A final Step called directly by shutdown
 	// would now overlap it; sending the command to the loop's sole owner cannot.
 	time.Sleep(25 * time.Millisecond)

@@ -1,0 +1,66 @@
+{
+  "catalogue_count": 300,
+  "added_count": 12,
+  "added": [
+    {
+      "id": "M-Y3Q-GATESTOPCAP",
+      "change": "make the reducing aggregate recap conditional on gateStopped, leaving an oversized at-touch reducer live in SETTLING when the gate is healthy",
+      "expected": "TestTheSettlingMarketRecapsAnOversizedReducerWithoutAGateFailure"
+    },
+    {
+      "id": "M-HQ4A-DOUBLE-DEBOUNCE",
+      "change": "double configured gate_fail_debounce_s and leave adding orders resting twice as long",
+      "expected": "TestSustainedGateFailureCancelsTheAddingSideAtTheConfiguredDebounce"
+    },
+    {
+      "id": "M-D1-TARGETZERO-RECAP",
+      "change": "drop the target-positive guard and cancel a compliant reducer when a disconnect makes funded target zero",
+      "expected": "TestAnAbnormalDisconnectDoesNotCancelTheCompliantExit"
+    },
+    {
+      "id": "M-R-CANCEL-SHARD-ROUTE",
+      "change": "route a cancel sweep by order id alone and leave a selected-market order resting on its actual shard",
+      "expected": "TestCancelSweepAutoRoutesByMarketAndVerifiesAbsence"
+    },
+    {
+      "id": "M-D2-OMIT-ABSENT-STAMP",
+      "change": "do not remember ids proved absent by a complete cancel sweep, so the stale portfolio reducer blocks its replacement",
+      "expected": "TestConfirmedAbsentReducerWaitsForFreshPosition"
+    },
+    {
+      "id": "M-D2-RELEASE-UNKNOWN",
+      "change": "release every pending create on the side after a cancel sweep, including an UNKNOWN create with no exchange id",
+      "expected": "TestConfirmedAbsenceDoesNotReleaseUnknownCreate"
+    },
+    {
+      "id": "M-D2-KEEP-ABSENT-AFTER-WALK",
+      "change": "retain cancel-sweep absence tombstones after a complete orders walk positively lists the order again",
+      "expected": "TestCompleteOrdersWalkRestoresPositiveOrderEvidence"
+    },
+    {
+      "id": "M-D2-COUNT-ABSENT-EXPOSURE",
+      "change": "count a reducer id proved absent by the complete cancel sweep in aggregate exposure",
+      "expected": "TestConfirmedAbsentReducerWaitsForFreshPosition"
+    },
+    {
+      "id": "M-D2-PLACE-BEFORE-FRESH-TRUTH",
+      "change": "allow a replacement reducer immediately after an absent cancel sweep, before fresh fills, orders, and positions reconcile a possible fill",
+      "expected": "TestConfirmedAbsentReducerWaitsForFreshPosition"
+    },
+    {
+      "id": "M-D2-ACCEPT-PRECANCEL-READ",
+      "change": "let a portfolio cycle that started before the absent cancel sweep release the placement hold when it completes afterwards",
+      "expected": "TestPreCancelStartedPortfolioReadCannotReleaseReducer"
+    },
+    {
+      "id": "M-D2-DRAIN-WITHOUT-CANCEL-TRUTH",
+      "change": "treat reducer truth as known for drain decisions while an absent cancel still awaits fresh portfolio reconciliation",
+      "expected": "TestFlatToFillCancelCannotDeclareDrainedBeforeReconciliation"
+    },
+    {
+      "id": "M-D2-DRAIN-BEFORE-FIRST-WALK",
+      "change": "treat a never-observed portfolio endpoint as fresh enough to authorize drain before the first complete walk",
+      "expected": "TestMissingFirstPortfolioWalkCannotAuthorizeDrain"
+    }
+  ]
+}

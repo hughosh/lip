@@ -1,0 +1,19 @@
+{
+  "at_utc": "2026-09-28T17:55:36.063458+00:00",
+  "expected_segment_pids": [
+    64020,
+    64173
+  ],
+  "processes": [
+    {
+      "pid": 64173,
+      "ppid": 1,
+      "executable": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/candidate-2/harness"
+    },
+    {
+      "pid": 64174,
+      "ppid": 64173,
+      "executable": "/usr/bin/caffeinate"
+    }
+  ]
+}

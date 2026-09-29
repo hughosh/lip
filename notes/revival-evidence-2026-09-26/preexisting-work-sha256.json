@@ -1,0 +1,9 @@
+{
+  "go/cmd/harness/run.go": "954ffbe0cffd21b449e7b8258f7a33eabefa769bd07f3ea7c9b7f3dafbe578a6",
+  "go/cmd/harness/seam_test.go": "9792b83dee6d16cd2c60b898e271a9bd618958a9bfee52eca2528755a553d251",
+  "go/harness/wsx/gate.go": "768731cc0c75767a8f55b4cf1f9bfc35554d2d95819ab2215da4f2cdd601e5fb",
+  "go/harness/wsx/gate_test.go": "1114e99495f652469873777f69f1f1ef9f649e2b25878c174ef9e4dee3e9e370",
+  "loop/state/LEDGER.md": "bb801f4ef78377ec8b4e002f9801ff3646d978454fbbcdfacbfdbcf50cb6de42",
+  "notes/harness-negative-control.md": "1485ad523bc63e6f338fd45abd0927d0f6eed8a42c0d583fe8ef5920bee750e4",
+  "go/cmd/harness/gate_failure_test.go": "3d07296128aa412696dbf0efd4370f0909b7e7c3bb809bc0c17c9865bd56459e"
+}

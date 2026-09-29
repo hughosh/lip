@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"lip/harness/lifecycle"
@@ -29,7 +30,11 @@ const qualificationCheckpointEvery = 5 * time.Second
 // similar-looking lock rules whose production copy can be dropped while the
 // composition tests continue exercising the other.
 func acquireHarnessLock(c config) (*lifecycle.InstanceLock, error) {
-	return lifecycle.AcquireInstanceLock(c.Paths.Lock)
+	lock, err := lifecycle.AcquireInstanceLock(c.Paths.Lock)
+	if errors.Is(err, syscall.EWOULDBLOCK) {
+		return nil, &refusal{err: err}
+	}
+	return lock, err
 }
 
 // lockThenOpenQualification takes the single-instance lock before the
@@ -59,16 +64,16 @@ func openQualification(path string, c config) (*qual.Recorder, error) {
 		return nil, nil
 	}
 	if !filepath.IsAbs(path) {
-		return nil, fmt.Errorf("qualification evidence path %q is relative; "+
+		return nil, refuse("qualification evidence path %q is relative; "+
 			"launchd supplies no working directory and a restart must resume the "+
 			"same artifact", path)
 	}
 	if c.Live {
-		return nil, fmt.Errorf("qualification evidence is zero-write, but this " +
+		return nil, refuse("qualification evidence is zero-write, but this " +
 			"process is live")
 	}
 	if c.ConfigHash == "" {
-		return nil, fmt.Errorf("qualification needs the exact config hash")
+		return nil, refuse("qualification needs the exact config hash")
 	}
 
 	binary, err := currentBinaryIdentity()
@@ -80,7 +85,7 @@ func openQualification(path string, c config) (*qual.Recorder, error) {
 		return nil, err
 	}
 	started := time.Now().UTC()
-	return qual.Open(path, qual.Metadata{
+	recorder, err := qual.Open(path, qual.Metadata{
 		SchemaVersion:  qual.SchemaVersion,
 		ConfigHash:     c.ConfigHash,
 		BinaryIdentity: binary,
@@ -90,6 +95,10 @@ func openQualification(path string, c config) (*qual.Recorder, error) {
 	}, qual.SegmentStart{
 		ID: segmentID, PID: os.Getpid(), StartedAt: started,
 	})
+	if errors.Is(err, qual.ErrCorrupt) || errors.Is(err, qual.ErrMetadataMismatch) || errors.Is(err, qual.ErrFinalized) {
+		return nil, &refusal{err: err}
+	}
+	return recorder, err
 }
 
 // assessQualificationBundle is the whole offline consumer of the strict local
@@ -97,7 +106,7 @@ func openQualification(path string, c config) (*qual.Recorder, error) {
 //
 // It reads one file with `qual.LoadEvidence` -- the same strict reader `Open`
 // resumes with -- applies the FIXED `AssessQ01Local`, and prints the result. It
-// takes no Requirements, so nothing here can shorten the four hours, slow a
+// takes no Requirements, so nothing here can shorten the 20 minutes, slow a
 // cadence, or lower 99%; it holds no store, no lock and no exchange client, so
 // it cannot be the thing that starts an observer; and it refuses to print an
 // assessment whose scope or outstanding-evidence list has gone missing, because
@@ -232,7 +241,7 @@ func (r *rig) runQualificationCheckpoints(ctx context.Context) {
 }
 
 func (r *rig) failQualification(err error) {
-	if err == nil || r.qualErrors == nil {
+	if err == nil {
 		return
 	}
 	// `lip-oqq`. A write REFUSED BECAUSE THE EVIDENCE IS ALREADY FINALIZED is

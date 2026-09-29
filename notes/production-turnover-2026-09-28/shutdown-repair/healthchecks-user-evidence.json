@@ -1,0 +1,17 @@
+{
+  "recorded_at": "2026-09-28T17:06:09.144581+00:00",
+  "source": "User-pasted received Healthchecks email in this chat",
+  "monitor": "lip harness heartbeat",
+  "email_displayed_date": "Sun, Sep 27, 10:27 AM",
+  "status": "DOWN",
+  "reason": "received a failure signal",
+  "status_changed_at": "2026-09-27T10:27:49-07:00",
+  "period_seconds": 3600,
+  "total_pings": 141,
+  "human_receipt_confirmed": true,
+  "human_receipt_timestamp": null,
+  "timely_acknowledgment_proved": false,
+  "current_dashboard_state_verified": false,
+  "browser_observation": "Healthchecks public homepage showed Log In; no authenticated dashboard observed",
+  "subsequent_user_direction": "Do not overly focus on healthchecks.io and ntfy; they are functioning for the user and not currently mission critical. No further alert-route work planned."
+}

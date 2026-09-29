@@ -33,6 +33,7 @@ import argparse
 import hashlib
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -104,6 +105,74 @@ def check_slop() -> list[str]:
                 if re.search(pattern, line):
                     bad.append(f"{rel}:{i}: {name} — {why}\n      {line.strip()}")
     return bad
+
+
+def go_ident_start(ch: str) -> bool:
+    return ch == "_" or unicodedata.category(ch).startswith("L")
+
+
+def go_ident_continue(ch: str) -> bool:
+    return go_ident_start(ch) or unicodedata.category(ch) == "Nd"
+
+
+def halt_identifier_lines(source: str) -> list[int]:
+    """Find `halt` tokens in Go code, excluding comments and literals."""
+    lines = []
+    i = 0
+    line = 1
+    state = "code"
+    escaped = False
+    while i < len(source):
+        ch = source[i]
+        nxt = source[i + 1] if i + 1 < len(source) else ""
+        if ch == "\n":
+            line += 1
+            if state == "line comment":
+                state = "code"
+            i += 1
+            continue
+        if state == "code":
+            if ch == "/" and nxt in ("/", "*"):
+                state = "line comment" if nxt == "/" else "block comment"
+                i += 2
+                continue
+            if ch in ('"', "'", "`"):
+                state = ch
+                escaped = False
+                i += 1
+                continue
+            if go_ident_start(ch):
+                start = i
+                token_line = line
+                i += 1
+                while i < len(source) and go_ident_continue(source[i]):
+                    i += 1
+                if source[start:i] == "halt":
+                    lines.append(token_line)
+                continue
+        elif state == "block comment":
+            if ch == "*" and nxt == "/":
+                state = "code"
+                i += 2
+                continue
+        elif state in ('"', "'"):
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == state:
+                state = "code"
+        elif state == "`" and ch == "`":
+            state = "code"
+        i += 1
+    return lines
+
+
+def check_halt_identifiers() -> list[str]:
+    """H-HALT-1: the identifier `halt` must not occur in Go sources or tests."""
+    return [f"{path.relative_to(LIP)}:{line}:H-HALT-1: forbidden identifier halt"
+            for path in go_files()
+            for line in halt_identifier_lines(path.read_text())]
 
 
 def check_trailers() -> list[str]:
@@ -262,6 +331,7 @@ def main() -> int:
     failures = 0
     for title, section, fn in (
         ("slop scan", "§9.4", check_slop),
+        ("halt identifier", "H-HALT-1", check_halt_identifiers),
         ("confidence trailers", "§9.1", check_trailers),
         ("frozen artifacts", "§9.5", check_frozen),
         ("read-only Go trees", "H-TOP-2", check_readonly),

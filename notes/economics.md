@@ -1,5 +1,13 @@
 # Does resting at the touch make money?
 
+> Historical analysis, reviewed 2026-09-26: the July 30, 2026 LIP terms changed
+> reference-price construction and scale payouts by the non-excluded snapshot
+> fraction. Sections 2–5 below use the earlier rules; in particular, the claim
+> that excluded snapshots leave the reward pool intact is no longer current.
+> These public-markout and static-book estimates do not establish private fills
+> or a profitable strategy. See [the revival assessment](revival-2026-09-26.md)
+> for current sources, fee checks, and the evidence still required.
+
 Measured 2026-07-25 against `rig.db`: 40,392 fills / 91,309 reference rows /
 153 markets / 6.5h. This is one session on one day, dominated by
 KXTRUMPMENTION markets. Treat it as a first read, not a conclusion.

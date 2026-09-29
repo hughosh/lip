@@ -1,3 +1,13 @@
+# Archived conductor template: driver
+
+This template is retained only to explain historical receipts. It is not active
+agent guidance. Use [RULES.md](RULES.md) and
+[the verification workflow](../../notes/verification-workflow.md). The legacy
+conductor is disabled; its instructions below must not be executed.
+
+<details>
+<summary>Historical template</summary>
+
 You are the DRIVER for an unattended implementation loop. `AGENTS.md` and
 `loop/protocol/RULES.md` are binding — read them if this is a fresh thread.
 
@@ -94,3 +104,5 @@ A single fenced ```json block, and nothing that matters outside it:
   "max_rounds": 3
 }
 ```
+
+</details>

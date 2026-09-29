@@ -50,7 +50,9 @@ type fileConfig struct {
 	// `risk.Snapshot.SelectedTickers()` only reads a flag someone else set.
 	// pilot-plan §7.1 is "one operator-chosen ticker", so this is a decision
 	// the operator makes and records, not one the harness derives.
-	Ticker *string `json:"ticker"`
+	Ticker     *string  `json:"ticker"`
+	Turnover   bool     `json:"turnover"`
+	Candidates []string `json:"candidates"`
 
 	// Rung names the capital ladder step (pilot-plan §1). It is asserted
 	// against the sizing below rather than deriving it, so a config that says
@@ -108,6 +110,10 @@ type fileConfig struct {
 	// --- money, in DOLLARS -------------------------------------------------
 
 	CapitalMax *float64 `json:"capital_max"`
+	// CapitalSource selects the historical configured limit or a fresh,
+	// market-shard cash read. In the latter mode capital_max is an optional
+	// explicit ceiling; an omitted value never inherits the §16 $100 default.
+	CapitalSource *string `json:"capital_source"`
 	// PnLKill is a LOSS FLOOR and is therefore negative (§12, H-HALT-5).
 	PnLKill *float64 `json:"pnl_kill"`
 
@@ -163,9 +169,15 @@ type pathConfig struct {
 
 // config is the validated result: the §16 params plus this run's identity.
 type config struct {
-	Params cfg.Params
-	Ticker string
-	Rung   rung
+	Params         cfg.Params
+	CapitalSource  string
+	CapitalCeiling *num.Money
+	Funding        *fundingEvidence
+	Turnover       bool
+	Candidates     []string
+	ShardFunding   map[string]fundingEvidence
+	Ticker         string
+	Rung           rung
 	// ConfigHash pins the exact bytes the operator supplied, not a
 	// re-serialization of the parsed values. Qualification evidence can
 	// therefore distinguish comments/format revisions and, more importantly,
@@ -234,16 +246,20 @@ var rungs = map[string]rung{
 		stopOnFirstOwnedFill: true,
 		human: "1 market, S=1, ~$1: does the order path work at all -- fills, " +
 			"attribution, is_taker=false, verified cancel, restart adoption"},
+	"sizing": {name: "sizing", maxS: num.QtyFromFloat(12),
+		stopOnFirstOwnedFill: true,
+		human:                "1 market, S up to 12: stop on the first owned fill and verify sizing"},
 	"pilot": {name: "pilot", maxS: num.QtyFromFloat(12),
 		human: "1 market, S=12, $100: do we get paid, and does the scoring " +
 			"model predict the payout"},
 	"second": {name: "second", maxS: num.QtyFromFloat(12),
 		human: "2 markets, S=12: does anything break with concurrency"},
 	"scale": {name: "scale", maxS: num.QtyFromFloat(100),
-		human: "6 markets, larger S, $500 -- ONLY after a real payout is observed"},
+		human: "S ceiling 100; capital must separately pass H-CAP-8 " +
+			"(6 markets at $500 permit whole-contract S <= 63) -- ONLY after a real payout is observed"},
 }
 
-func rungNames() []string { return []string{"canary", "pilot", "second", "scale"} }
+func rungNames() []string { return []string{"canary", "sizing", "pilot", "second", "scale"} }
 
 // defaultEarlyCloseLead is four hours: §16's `close_lead` as it stood before
 // HR-011 cut it to one, kept for exactly the markets HR-011's argument does not
@@ -273,6 +289,21 @@ func loadConfig(path string) (config, error) {
 	// §16's table is the baseline. The file names DEVIATIONS from it, so a diff
 	// of the file against an empty one is the whole config review.
 	p := cfg.Default()
+	capitalSource := "configured"
+	if fc.CapitalSource != nil {
+		capitalSource = *fc.CapitalSource
+	}
+	if capitalSource != "configured" && capitalSource != "selected_shard_balance" {
+		return config{}, fmt.Errorf("unknown capital_source %q", capitalSource)
+	}
+	var ceiling *num.Money
+	if fc.CapitalMax != nil && capitalSource == "selected_shard_balance" {
+		amount := num.MoneyFromDollars(*fc.CapitalMax)
+		if amount <= 0 {
+			return config{}, fmt.Errorf("selected shard capital_max ceiling must be positive")
+		}
+		ceiling = &amount
+	}
 
 	if fc.S != nil {
 		p.S = num.QtyFromFloat(*fc.S)
@@ -313,39 +344,21 @@ func loadConfig(path string) (config, error) {
 			"set: %w", path, err)
 	}
 
-	// H-CAP-8, and it is a SECOND validation rather than part of the first
-	// because `Validate()` disclaims it in its own doc comment: the rule needs
-	// a price bound and the capital model, which live in `harness/risk`.
-	//
-	// # Why the loader and not the run arm
-	//
-	// `CheckFundable` is a pure function of the FILE -- S, n_markets and
-	// capital_max, against a reserve the file cannot even set. Nothing from the
-	// invocation enters it, so it belongs with the file's own validation.
-	// `checkRung` is the mirror image and stays in the run arm for the opposite
-	// reason: it asserts the file against a flag, and a flag is the one input
-	// this function does not have.
-	//
-	// The placement also decides `-deploy` and `-provision`, both of which run
-	// through here before the switch in `main`. That is the point rather than a
-	// side effect: an unfundable config written into a plist is a start that
-	// fails FOREVER under `KeepAlive`, throttled by launchd and watched by
-	// nothing -- the exact failure lip-3yo removed for the rung, and it would
-	// otherwise have been left open here. Refusing before `provision` is the
-	// same argument one step earlier: no durable store for a configuration that
-	// can never legally start.
-	//
-	// §16 sets `capital_reserve` at 0.25 and `fileConfig` has no field for it,
-	// so only the first of `CheckFundable`'s two checks can fire on this path:
-	// passing it means `n · S ≤ 0.7576 · capital_max`, which already satisfies
-	// the round-trip bound. The second check is reachable only by a caller that
-	// can drive the reserve, and `capital_test.go` is that caller.
-	if err := risk.CheckFundable(p); err != nil {
-		return config{}, fmt.Errorf("config %s cannot fund its own reducer: %w",
-			path, err)
+	// H-CAP-8 is checked here for the historical configured mode, where the
+	// whole funding bound is known from the file. Selected-shard mode defers it
+	// until the authenticated balance and complete account truth have been read
+	// under the instance lock. A recovery-only start with inherited exposure
+	// skips the entry sizing check so a small cash balance cannot strand its
+	// cancellation and reducing path.
+	if capitalSource == "configured" {
+		if err := risk.CheckFundable(p); err != nil {
+			return config{}, fmt.Errorf("config %s cannot fund its own reducer: %w",
+				path, err)
+		}
 	}
 
-	c := config{Params: p, ConfigHash: fmt.Sprintf("sha256:%x", sha256.Sum256(b))}
+	c := config{Params: p, CapitalSource: capitalSource, CapitalCeiling: ceiling,
+		ConfigHash: fmt.Sprintf("sha256:%x", sha256.Sum256(b))}
 
 	if fc.Ticker == nil || *fc.Ticker == "" {
 		return config{}, errors.New("config names no ticker: the pilot profile " +
@@ -353,6 +366,24 @@ func loadConfig(path string) (config, error) {
 			"algorithm in this binary to derive one")
 	}
 	c.Ticker = *fc.Ticker
+	c.Turnover, c.Candidates = fc.Turnover, append([]string(nil), fc.Candidates...)
+	if c.Turnover {
+		if capitalSource != "selected_shard_balance" || len(c.Candidates) == 0 || len(c.Candidates) > 32 {
+			return config{}, fmt.Errorf("turnover requires selected_shard_balance and 1..32 approved candidates")
+		}
+		seen := map[string]bool{}
+		for _, t := range c.Candidates {
+			if t == "" || seen[t] {
+				return config{}, fmt.Errorf("empty or duplicate turnover candidate")
+			}
+			seen[t] = true
+		}
+		if !seen[c.Ticker] {
+			return config{}, fmt.Errorf("initial ticker must be an approved candidate")
+		}
+	} else if len(c.Candidates) != 0 {
+		return config{}, fmt.Errorf("candidates require turnover")
+	}
 
 	if fc.Rung == nil {
 		return config{}, fmt.Errorf("config names no rung; one of %v. Capital "+

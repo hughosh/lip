@@ -1,0 +1,12 @@
+# lip-kaf AFTER fix, 2026-09-28T23:47:12Z
+# cancel.go sha256 f03b28e91ce4dc0e8a93134ab924df4c5aeed31293d8c74583570ffca60e5581
+# go test ./cmd/harness -run '^TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides$' -count=1 -v
+=== RUN   TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides
+=== RUN   TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides/both_cancelled,_both_lagging
+=== RUN   TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides/one_side_really_rests
+--- PASS: TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides (0.05s)
+    --- PASS: TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides/both_cancelled,_both_lagging (0.02s)
+    --- PASS: TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides/one_side_really_rests (0.03s)
+PASS
+ok  	lip/cmd/harness	0.715s
+# exit 0

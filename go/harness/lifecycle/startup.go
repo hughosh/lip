@@ -39,11 +39,13 @@ const startupFailureThreshold = 3
 //
 // Termination does not depend on this bound: `CancelAndSweep` returns `Clean`
 // only when a COMPLETE verifying read found none of the requested orders
-// resting, and an order the exchange has confirmed absent cannot come back. An
-// honest source therefore cancels nothing on the rewalk. The bound exists
-// because an exchange that keeps re-reporting orders it confirmed gone is
-// lying about the one fact this procedure rests on, and an unbounded loop in a
-// startup path is a hang rather than an error.
+// resting, or the exchange's own record reported one retired (H-ORD-4c), and an
+// order the exchange has confirmed gone cannot come back. The resting list can
+// lag a cancel by about a second (lip-kaf), so a rewalk may still list such an
+// order once; it is cancelled and confirmed again, which the bound absorbs. The
+// bound exists because an exchange that keeps re-reporting orders it confirmed
+// gone is lying about the one fact this procedure rests on, and an unbounded
+// loop in a startup path is a hang rather than an error.
 const maxSweepRewalks = 3
 
 // resolveConfirmAttempts is how many COMPLETE unfiltered orders walks must fail
@@ -376,7 +378,8 @@ func (s *Startup) Step(ctx context.Context, now time.Time) Attempt {
 	s.consecutiveFailures = 0
 	res.ad.causes = s.carriedCauses()
 
-	// The ONE Advance of this Step (§3.8). The pass is complete and cancelled
+	// Advance through the central transition authority (H-HALT-2). This pass
+	// is complete and cancelled
 	// nothing, so its own reads describe the account as it is now and the risk
 	// flags are answers rather than zeroes.
 	dec := s.advance(quote.GlobalInput{

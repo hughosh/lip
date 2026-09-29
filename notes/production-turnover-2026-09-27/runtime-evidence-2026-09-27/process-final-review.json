@@ -1,0 +1,5 @@
+{
+  "at_utc": "2026-09-27T17:36:15.813586+00:00",
+  "processes": [],
+  "scope": "Executable and Python watchdog script arguments checked; raw arguments not retained to avoid route secrets. Read-only; no signals sent."
+}

@@ -1,0 +1,52 @@
+Prepared first evidence: /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/evidence
+Candidate identity: /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/evidence/identity.json
+Operator-only commands, not executed by this helper.
+RULE: paste one phase at a time, only its indented command lines, and finish its CHECK lines first.
+
+PHASE 1 of 10: provision this stage store.
+    /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/candidate-5/harness -config /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/config.json -provision
+
+PHASE 2 of 10: arm and start the harness.
+CHECK: arm only after reviewing current account, book, fees, limits and candidate identity.
+    install -m 600 /dev/null /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/runtime/live_ok
+    /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/candidate-5/harness -config /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/config.json -rung sizing -live > /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/evidence/harness.log 2>&1 &
+    echo $! > /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/evidence/harness.pid
+
+PHASE 3 of 10: show the harness process before signaling it.
+CHECK: remain present. Observe fills and the durable first-fill stop before planned shutdown.
+    ps -p "$(cat /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/evidence/harness.pid)" -o pid=,command=
+
+PHASE 4 of 10: stop the harness and wait for it in the SAME operator shell that started it.
+CHECK: the ps output shows the operator-verified harness child. Verify identity before signaling.
+NOTE: await clean drain. Unknown or nonflat truth keeps cancellation and reduction attended.
+    kill -TERM "$(cat /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/evidence/harness.pid)"
+    wait "$(cat /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/evidence/harness.pid)"; echo $? > /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/evidence/exit-status.txt
+
+PHASE 5 of 10: record account truth after the drain.
+CHECK: the wait above has returned.
+    cd /Users/hugh/kek/lip/go
+    go run ./cmd/accountcheck -ticker KXEPLRELEGATION-27-MCI -fills -out /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/evidence/account-after-drain.json
+
+PHASE 6 of 10: attended retained-latch restart.
+CHECK: the drain exit status and the account report after drain have been read.
+    /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/candidate-5/harness -config /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/config.json -rung sizing -resume 'first-owned-fill stop validation' -live > /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/evidence/restart.log 2>&1 &
+    echo $! > /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/evidence/restart.pid
+
+PHASE 7 of 10: show the restarted child before signaling it.
+CHECK: observe retained-latch WINDING_DOWN/adoption and no new adds. A latched process can idle DRAINED until signaled.
+    ps -p "$(cat /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/evidence/restart.pid)" -o pid=,command=
+
+PHASE 8 of 10: stop the restarted child and wait for it in the SAME operator shell.
+CHECK: the ps output shows the restarted child. Verify identity before signaling.
+    kill -TERM "$(cat /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/evidence/restart.pid)"
+    wait "$(cat /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/evidence/restart.pid)"; echo $? > /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/evidence/restart-exit-status.txt
+
+PHASE 9 of 10: record account truth after the restart, still in the go directory.
+CHECK: only after the attended retained-latch restart has exited cleanly.
+NOTE: R2 remains gated on the candidate-bound first-stage evidence receipt and human latch adjudication.
+    go run ./cmd/accountcheck -ticker KXEPLRELEGATION-27-MCI -fills -out /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/evidence/account-after-restart.json
+
+PHASE 10 of 10: remove the write sentinel of this stage.
+CHECK: only after verifying every stage process has exited and account truth is complete and flat.
+NOTE: this removes only the write sentinel of this stage. Retain the store, latch and evidence.
+    rm -f /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/runtime/live_ok

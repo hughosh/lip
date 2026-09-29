@@ -1,0 +1,20 @@
+{
+  "at": "2026-09-27T00:46:47.928784+00:00",
+  "runtime_file_bytes": {
+    "anomaly.jsonl": 52103,
+    "harness.halt": 68,
+    "harness.lock": 6,
+    "harness.db-wal": 0,
+    "harness.db": 118784,
+    "harness.db-shm": 32768
+  },
+  "table_rows": {
+    "run": 3,
+    "balance_poll": 292,
+    "owned_order": 0,
+    "our_fill": 0,
+    "state_event": 11,
+    "anomaly": 94
+  },
+  "disk_available_bytes": 105372418048
+}

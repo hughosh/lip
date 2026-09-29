@@ -1,0 +1,7 @@
+{
+  "chosen_by": "Hugh (AskUserQuestion, 2026-09-29 ~20:45Z)",
+  "ticker": "KXEPLRELEGATION-27-MCI",
+  "size": 12,
+  "basis": "GET-only public scope 20:38-20:42Z (shortlist.json). Best worse-side join-the-touch wait of the top 40 by volume_24h: YES ~6.6 min (queue 28, ~254/h), NO ~2.2 min (queue 14, ~364/h). Book YES 33 / NO 65, mid 34c, bid sum 98 (H-SEL-6/7 pass). Series fee_type quadratic. Market close 2027-06-21; program end 2026-10-03T03:59Z.",
+  "limits": "Diagnostic and refreshable; not launch authority. Estimates are historical averages over the last 1000 trades, not a fill promise. Preparation must re-read program/book/fees/account within 60 s of arming."
+}

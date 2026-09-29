@@ -1,0 +1,7 @@
+{
+  "command": "scripts/harness_negative_control.py --only M-CR2-REDUCING-CANCEL",
+  "exit_code": 2,
+  "verdict": "INCONCLUSIVE",
+  "output": "invalid mutation inventory: M-CR2-REDUCING-CANCEL: anchor appears 2x in harness/turnover/coordinator.go, need exactly 1",
+  "repair": "Narrowed the mutation to the complete cancellation conditional. This setup failure is not a caught mutant."
+}

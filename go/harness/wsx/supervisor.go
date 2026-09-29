@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"lip/harness/cfg"
@@ -40,12 +41,15 @@ func backoffAt(attempt int) time.Duration {
 // rotated key, and the harness would keep trading against the last book it saw
 // -- which is the failure the whole package is arranged to prevent.
 type Supervisor struct {
-	signer  Signer
-	dialer  Dialer
-	clk     Clock
-	p       cfg.Params
-	tickers []string
-	url     string
+	signer   Signer
+	dialer   Dialer
+	clk      Clock
+	p        cfg.Params
+	mu       sync.Mutex
+	tickers  []string
+	revision uint64
+	changed  chan struct{}
+	url      string
 }
 
 // NewSupervisor validates everything that fails silently at runtime.
@@ -72,13 +76,77 @@ func NewSupervisor(signer Signer, dialer Dialer, clock Clock, params cfg.Params,
 		return nil, err
 	}
 	return &Supervisor{
-		signer:  signer,
-		dialer:  dialer,
-		clk:     clock,
-		p:       params,
-		tickers: append([]string(nil), tickers...),
-		url:     WSURL,
+		signer:   signer,
+		dialer:   dialer,
+		clk:      clock,
+		p:        params,
+		tickers:  append([]string(nil), tickers...),
+		revision: 1,
+		changed:  make(chan struct{}, 1),
+		url:      WSURL,
 	}, nil
+}
+
+// AddMarkets extends the filtered book subscription. Existing markets stay
+// subscribed, including held markets that are no longer selected for adding.
+// A live session reconnects so the exchange supplies full snapshots for the
+// new subscription; a pending update is coalesced into the next dial.
+func (s *Supervisor) AddMarkets(tickers []string) error {
+	if err := ValidateTickers(tickers); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	seen := make(map[string]bool, len(s.tickers))
+	for _, ticker := range s.tickers {
+		seen[ticker] = true
+	}
+	added := false
+	for _, ticker := range tickers {
+		if seen[ticker] {
+			continue
+		}
+		s.tickers = append(s.tickers, ticker)
+		added = true
+	}
+	if added {
+		s.revision++
+	}
+	s.mu.Unlock()
+	if added {
+		s.signalChange()
+	}
+	return nil
+}
+
+// RefreshUniverse reconnects with the same ticker set after a changed core
+// target map. It advances the subscription revision so buffered frames from
+// the previous core instance cannot be mistaken for current evidence.
+func (s *Supervisor) RefreshUniverse() {
+	s.mu.Lock()
+	s.revision++
+	s.mu.Unlock()
+	s.signalChange()
+}
+
+func (s *Supervisor) signalChange() {
+	select {
+	case s.changed <- struct{}{}:
+	default:
+	}
+}
+
+// Tickers returns a copy of the current subscription universe.
+func (s *Supervisor) Tickers() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.tickers...)
+}
+
+// UniverseRevision identifies the current filtered book subscription.
+func (s *Supervisor) UniverseRevision() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.revision
 }
 
 // Run supervises the socket until `ctx` is cancelled.
@@ -98,6 +166,9 @@ func (s *Supervisor) Run(ctx context.Context, cmds <-chan Command,
 	reduceSent := false
 
 	emit := func(e Event) error {
+		if e.UniverseRevision == 0 {
+			e.UniverseRevision = s.UniverseRevision()
+		}
 		select {
 		case events <- e:
 			return nil
@@ -110,14 +181,21 @@ func (s *Supervisor) Run(ctx context.Context, cmds <-chan Command,
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		// Updates made while disconnected are already included in dial's
+		// snapshot. A later signal, after this drain, still interrupts the
+		// session and triggers another full subscription.
+		select {
+		case <-s.changed:
+		default:
+		}
 
-		sock, err := s.dial(ctx)
+		sock, revision, err := s.dial(ctx)
 		if err != nil {
 			if e := emit(Event{Kind: EventDisconnected, At: s.clk.Now(),
-				Clean: false, Cause: err}); e != nil {
+				UniverseRevision: revision, Clean: false, Cause: err}); e != nil {
 				return e
 			}
-			if e := s.wait(ctx, backoffAt(attempt), &downSince, &reduceSent,
+			if e := s.wait(ctx, backoffAt(attempt), revision, &downSince, &reduceSent,
 				emit); e != nil {
 				return e
 			}
@@ -127,13 +205,13 @@ func (s *Supervisor) Run(ctx context.Context, cmds <-chan Command,
 
 		attempt = 0
 		reduceSent = false
-		if e := emit(Event{Kind: EventConnected, At: s.clk.Now()}); e != nil {
+		if e := emit(Event{Kind: EventConnected, At: s.clk.Now(), UniverseRevision: revision}); e != nil {
 			sock.Close()
 			return e
 		}
 
 		sessCtx, cancel := context.WithCancel(ctx)
-		sess := &session{sock: sock, clk: s.clk, p: s.p}
+		sess := &session{sock: sock, clk: s.clk, p: s.p, universeChanged: s.changed, revision: revision}
 		runErr := sess.run(sessCtx, cmds, events)
 		cancel()
 		sock.Close()
@@ -142,17 +220,17 @@ func (s *Supervisor) Run(ctx context.Context, cmds <-chan Command,
 			return ctx.Err()
 		}
 
-		clean := IsCleanClose(runErr)
+		clean := IsCleanClose(runErr) || runErr == errUniverseChanged
 		downSince = s.clk.Now().Mono
 		if e := emit(Event{Kind: EventDisconnected, At: s.clk.Now(),
-			Clean: clean, Cause: runErr}); e != nil {
+			UniverseRevision: revision, Clean: clean, Cause: runErr}); e != nil {
 			return e
 		}
 		if clean {
 			// Straight back around: no backoff, no ladder position consumed.
 			continue
 		}
-		if e := s.wait(ctx, backoffAt(attempt), &downSince, &reduceSent,
+		if e := s.wait(ctx, backoffAt(attempt), revision, &downSince, &reduceSent,
 			emit); e != nil {
 			return e
 		}
@@ -166,7 +244,7 @@ func (s *Supervisor) Run(ctx context.Context, cmds <-chan Command,
 // step. Five failed dials at eight seconds each is a forty-second outage, and a
 // per-step timer would never reach sixty. The event is emitted once per outage;
 // reconnect attempts and the independent REST poller carry on either way.
-func (s *Supervisor) wait(ctx context.Context, d time.Duration,
+func (s *Supervisor) wait(ctx context.Context, d time.Duration, revision uint64,
 	downSince *time.Duration, reduceSent *bool, emit func(Event) error) error {
 
 	deadline := s.clk.Now().Mono + d
@@ -177,7 +255,7 @@ func (s *Supervisor) wait(ctx context.Context, d time.Duration,
 		if !*reduceSent && down >= s.p.DisconnectReduce {
 			*reduceSent = true
 			if err := emit(Event{Kind: EventDisconnectReduce, At: now,
-				Down: down}); err != nil {
+				UniverseRevision: revision, Down: down}); err != nil {
 				return err
 			}
 		}
@@ -210,10 +288,14 @@ func (s *Supervisor) wait(ctx context.Context, d time.Duration,
 // The signature covers the websocket PATH with no query string, which is what
 // the exchange verifies. The wall clock comes from the injected Clock, so a
 // test signs against a known timestamp and a scenario replays one.
-func (s *Supervisor) dial(ctx context.Context) (Socket, error) {
+func (s *Supervisor) dial(ctx context.Context) (Socket, uint64, error) {
+	s.mu.Lock()
+	tickers := append([]string(nil), s.tickers...)
+	revision := s.revision
+	s.mu.Unlock()
 	hdr, err := s.signer.WSHeaders(s.clk.Now().WallMs)
 	if err != nil {
-		return nil, fmt.Errorf("sign handshake: %w", err)
+		return nil, revision, fmt.Errorf("sign handshake: %w", err)
 	}
 	h := http.Header{}
 	for k, v := range hdr {
@@ -227,18 +309,18 @@ func (s *Supervisor) dial(ctx context.Context) (Socket, error) {
 
 	sock, err := s.dialer.Dial(dialCtx, s.url, h)
 	if err != nil {
-		return nil, err
+		return nil, revision, err
 	}
 
-	delta, err := subscribeDelta(s.tickers)
+	delta, err := subscribeDelta(tickers)
 	if err != nil {
 		sock.Close()
-		return nil, err
+		return nil, revision, err
 	}
 	trade, err := subscribeTrade()
 	if err != nil {
 		sock.Close()
-		return nil, err
+		return nil, revision, err
 	}
 	// Both subscriptions, or neither. A connection carrying only the filtered
 	// delta stream looks healthy, answers pings and produces books -- and never
@@ -246,13 +328,13 @@ func (s *Supervisor) dial(ctx context.Context) (Socket, error) {
 	// reads zero.
 	if err := sock.Write(ctx, delta); err != nil {
 		sock.Close()
-		return nil, fmt.Errorf("subscribe orderbook_delta: %w", err)
+		return nil, revision, fmt.Errorf("subscribe orderbook_delta: %w", err)
 	}
 	if err := sock.Write(ctx, trade); err != nil {
 		sock.Close()
-		return nil, fmt.Errorf("subscribe trade: %w", err)
+		return nil, revision, fmt.Errorf("subscribe trade: %w", err)
 	}
-	return sock, nil
+	return sock, revision, nil
 }
 
 // confidence: high

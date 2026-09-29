@@ -1,0 +1,7 @@
+{
+  "at": "2026-09-27T18:35:12.588496+00:00",
+  "script_sha256": "291cb6e9317a5c17db3d8cbd0784393da55dbea63c0221bde175b5d69898abe9",
+  "scope": "independent scheduler also reads actual GET-only observer hstore SEV1; source exit1 still runs delivery",
+  "final_script_sha256": "bc2f0594166179b5da3830ee96baf4b4eb610037b58c6b5ca3d33a421f0061a2",
+  "updated_at": "2026-09-27T18:35:51.142000+00:00"
+}

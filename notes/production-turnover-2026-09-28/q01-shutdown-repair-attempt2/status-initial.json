@@ -1,0 +1,150 @@
+{
+  "pid": 64020,
+  "updated_at": "2026-09-28T17:41:48.708328Z",
+  "active_seconds": 15.000774246,
+  "segments": [
+    {
+      "id": "75f5710242c3e1d55969c4b485a67511",
+      "run_id": "20260928T174133SC1H2",
+      "pid": 64020,
+      "started_at": "2026-09-28T17:41:31.971845Z",
+      "active_nanos": 15000774246,
+      "monitor_slots": {
+        "observed": 14,
+        "fresh": 13
+      },
+      "portfolio_slots": {
+        "observed": 3,
+        "fresh_complete": 3,
+        "stale_walks": 0,
+        "incomplete_walks": 0
+      }
+    }
+  ],
+  "portfolio": {
+    "walks": 4,
+    "fresh": 4,
+    "stale": 0,
+    "complete": 4,
+    "incomplete": 0,
+    "fresh_complete": 4,
+    "last_walk_at": "2026-09-28T17:41:47.018809Z",
+    "last_fresh_at": "2026-09-28T17:41:47.018809Z",
+    "last_complete_at": "2026-09-28T17:41:47.018809Z"
+  },
+  "monitor": {
+    "checks": 14,
+    "fresh": 13,
+    "stale": 1,
+    "last_check_at": "2026-09-28T17:41:47.710034Z",
+    "last_fresh_at": "2026-09-28T17:41:47.710034Z"
+  },
+  "events": [
+    {
+      "category": "anomaly",
+      "name": "SEV2:FOREIGN_FILL_INHERITED",
+      "count": 15,
+      "first_at": "2026-09-28T17:41:35.548018Z",
+      "last_at": "2026-09-28T17:41:35.548076Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:FUNDING_LIMITS",
+      "count": 1,
+      "first_at": "2026-09-28T17:41:34.838933Z",
+      "last_at": "2026-09-28T17:41:34.838933Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:STARTUP",
+      "count": 1,
+      "first_at": "2026-09-28T17:41:34.838951Z",
+      "last_at": "2026-09-28T17:41:34.838951Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:TURNOVER_MANAGED",
+      "count": 1,
+      "first_at": "2026-09-28T17:41:34.838948Z",
+      "last_at": "2026-09-28T17:41:34.838948Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:TURNOVER_SELECTION",
+      "count": 1,
+      "first_at": "2026-09-28T17:41:36.321678Z",
+      "last_at": "2026-09-28T17:41:36.321678Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "deadman_checkin_sent",
+      "count": 1,
+      "first_at": "2026-09-28T17:41:34.583661Z",
+      "last_at": "2026-09-28T17:41:34.583661Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "sent",
+      "count": 1,
+      "first_at": "2026-09-28T17:41:34.583648Z",
+      "last_at": "2026-09-28T17:41:34.583648Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=1",
+      "count": 4,
+      "first_at": "2026-09-28T17:41:34.943254Z",
+      "last_at": "2026-09-28T17:41:35.091118Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=2",
+      "count": 90,
+      "first_at": "2026-09-28T17:41:35.124707Z",
+      "last_at": "2026-09-28T17:41:35.532435Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=3",
+      "count": 5,
+      "first_at": "2026-09-28T17:41:36.3217Z",
+      "last_at": "2026-09-28T17:41:36.340141Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=4",
+      "count": 83,
+      "first_at": "2026-09-28T17:41:36.582718Z",
+      "last_at": "2026-09-28T17:41:36.978875Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=2",
+      "count": 145,
+      "first_at": "2026-09-28T17:41:35.548047Z",
+      "last_at": "2026-09-28T17:41:36.306805Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=4",
+      "count": 2641,
+      "first_at": "2026-09-28T17:41:36.984809Z",
+      "last_at": "2026-09-28T17:41:48.708328Z"
+    },
+    {
+      "category": "state",
+      "name": "websocket:connected",
+      "count": 2,
+      "first_at": "2026-09-28T17:41:35.124598Z",
+      "last_at": "2026-09-28T17:41:36.582599Z"
+    }
+  ],
+  "metadata": {
+    "schema_version": 4,
+    "config_hash": "sha256:47b3b73244755998afab6d6d27376a15b96c6eb7d99fd680eafcef776ae67135",
+    "binary_identity": "sha256:e3f8a697a20c3153f5c2a8650094b949ff57b985f94b154a7defdad22e9ef361;vcs.revision=f7e9571547bb948418b7a27adc9c30ae38314b00;vcs.modified=true",
+    "ticker": "KXTOKENUSE-26OCT05-T168",
+    "rung": "sizing",
+    "live": false
+  }
+}

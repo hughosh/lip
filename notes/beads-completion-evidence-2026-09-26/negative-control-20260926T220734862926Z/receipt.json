@@ -1,0 +1,1726 @@
+{
+  "build_runs_planned": 44,
+  "catalogue_count": 333,
+  "catcher_packages": {
+    "TestATakerFillOnTheCanaryKeepsTheStrongerCause": "./cmd/harness",
+    "TestAnAckedOrderOccupiesTheAggregateBeforeAnyOrdersWalk": "./cmd/harness",
+    "TestAnIncompleteWriteReleasesItsIntentsRatherThanWedgingTheSide": "./cmd/harness",
+    "TestAnomalySubmissionFailureKeepsAFallbackCopy": "./cmd/harness",
+    "TestAnyStalePortfolioEndpointStopsAllPlacementButNotCancel": "./harness/wsx",
+    "TestCapitalDispatchSecondOppositeBuildCannotSpendInflightBudget": "./cmd/harness",
+    "TestCapitalDispatchUnknownRetryCountsSameCoidOnce": "./cmd/harness",
+    "TestComposedHardDriftLatchesSpecificCauseAndKeepsReducer": "./cmd/harness",
+    "TestComposedInventoryStuckUsesConfiguredDurationAndRearms": "./cmd/harness",
+    "TestComposedOperatorSignalKeepsServiceUntilFlatUnrestedExit": "./cmd/harness",
+    "TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount": "./cmd/harness",
+    "TestFinalBuildCannotCrossAnyPossiblyLiveOppositeOrder": "./cmd/harness",
+    "TestFirstCompletePositionDisagreementIsDurablyAttributable": "./cmd/harness",
+    "TestFullReconcileChannelEventuallyDeliversNewestGeneration": "./cmd/harness",
+    "TestHTTPDoerPassesEveryStatusThroughUnchanged": "./harness/rest",
+    "TestInsufficientBalanceReachesDurableGlobalStopAndKeepsReducerLive": "./cmd/harness",
+    "TestLiveForeignOrderStopsGloballyWithoutCancellingForeignExposure": "./cmd/harness",
+    "TestNoOrderIsSentWithoutACommittedPermit": "./cmd/harness",
+    "TestOpenRefusesForeignVersionZeroDatabaseWithoutWritingIt": "./harness/hstore",
+    "TestOperationsDiskRuntimeLatchesAndKeepsReducerAndObservation": "./cmd/harness",
+    "TestOperatorSignalsCommitBeforeDrainingAndWaitForEveryOrder": "./cmd/harness",
+    "TestOwnerCloseLeadRecomputesAfterWallClockCorrections": "./cmd/harness",
+    "TestOwnerF5ReducerSweepResizeRefreshAndRecovery": "./cmd/harness",
+    "TestOwnerF5SnapshotRequiresEveryNewPortfolioWalk": "./cmd/harness",
+    "TestOwnerRejectWindowMovesSelectedMarketToReducing": "./cmd/harness",
+    "TestOwnerSleepRelay": "./cmd/harness",
+    "TestOwnerThrottleHalvesActualRefillAndRestoresIt": "./cmd/harness",
+    "TestP1DispatchUnderCancelStormHungGeneralAnd429": "./cmd/harness",
+    "TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary": "./cmd/harness",
+    "TestPostOnlyCrossForcesActualRESTReadThroughF5": "./cmd/harness",
+    "TestProgramMembershipUsesCompleteActiveSetAtOwner": "./cmd/harness",
+    "TestProgramsFiltersActiveLiquidityOnEveryPage": "./harness/rest",
+    "TestRateLimitOnEveryRESTMethod": "./harness/rest",
+    "TestStoreRefusedDeliveryRecordStillRedeliversAtBucketWindow": "./harness/ping",
+    "TestSustainedGateFailureCancelsTheAddingSideAtTheConfiguredDebounce": "./cmd/harness",
+    "TestUnknownCreateComposesThroughDispatcherStoreAndOwner": "./cmd/harness"
+  },
+  "duration_seconds": 603.291,
+  "environment": {
+    "CGO_ENABLED": "0",
+    "GOCACHE": "/Users/hugh/Library/Caches/go-build",
+    "GOENV": "off",
+    "GOFLAGS": "-p=2",
+    "GOMAXPROCS": "2",
+    "GOMODCACHE": "/Users/hugh/go/pkg/mod",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off",
+    "HOME": "/Users/hugh",
+    "PATH": "/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/hugh/.codex/tmp/arg0/codex-arg0ZleeOX:/Users/hugh/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/hugh/.local/bin:/Users/hugh/.opencode/bin:/Users/hugh/.cargo/bin:/Users/hugh/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONUNBUFFERED": "1",
+    "TMPDIR": "/var/folders/48/pp0ngtc132qf3vf4c9k3sqdr0000gn/T/"
+  },
+  "focused": false,
+  "full_suite_runs_planned": 0,
+  "go_binary": "/usr/local/bin/go",
+  "go_sha256": "6890cf02fb958fc15a043022d5f29e2a2206ab08a73581eddc3f33c7c681a730",
+  "mode": "named",
+  "named_test_runs_planned": 45,
+  "outcomes": [
+    {
+      "accepted": true,
+      "expected": "TestHTTPDoerPassesEveryStatusThroughUnchanged",
+      "failed_tests": [
+        "TestHTTPDoerPassesEveryStatusThroughUnchanged"
+      ],
+      "id": "M-R-200",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestProgramsFiltersActiveLiquidityOnEveryPage",
+      "failed_tests": [
+        "TestProgramsFiltersActiveLiquidityOnEveryPage"
+      ],
+      "id": "M-R-PROGRAMTYPE",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestAnyStalePortfolioEndpointStopsAllPlacementButNotCancel",
+      "failed_tests": [
+        "TestAnyStalePortfolioEndpointStopsAllPlacementButNotCancel"
+      ],
+      "id": "M-W-TRUTH",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestOpenRefusesForeignVersionZeroDatabaseWithoutWritingIt",
+      "failed_tests": [
+        "TestOpenRefusesForeignVersionZeroDatabaseWithoutWritingIt"
+      ],
+      "id": "M-HS-WALBEFOREINSPECT",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestStoreRefusedDeliveryRecordStillRedeliversAtBucketWindow",
+      "failed_tests": [
+        "TestStoreRefusedDeliveryRecordStillRedeliversAtBucketWindow"
+      ],
+      "id": "M-P-REFUSESILENT",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestSustainedGateFailureCancelsTheAddingSideAtTheConfiguredDebounce",
+      "failed_tests": [
+        "TestSustainedGateFailureCancelsTheAddingSideAtTheConfiguredDebounce"
+      ],
+      "id": "M-HQ4A-DOUBLE-DEBOUNCE",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestNoOrderIsSentWithoutACommittedPermit",
+      "failed_tests": [
+        "TestNoOrderIsSentWithoutACommittedPermit"
+      ],
+      "id": "M-3AF-NOPERMIT",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestAnIncompleteWriteReleasesItsIntentsRatherThanWedgingTheSide",
+      "failed_tests": [
+        "TestAnIncompleteWriteReleasesItsIntentsRatherThanWedgingTheSide"
+      ],
+      "id": "M-3AF-WEDGE",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestAnAckedOrderOccupiesTheAggregateBeforeAnyOrdersWalk",
+      "failed_tests": [
+        "TestAnAckedOrderOccupiesTheAggregateBeforeAnyOrdersWalk"
+      ],
+      "id": "M-3AF-ACKGAP",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestATakerFillOnTheCanaryKeepsTheStrongerCause",
+      "failed_tests": [
+        "TestATakerFillOnTheCanaryKeepsTheStrongerCause"
+      ],
+      "id": "M-2T6-CANARYFIRST",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary",
+      "failed_tests": [
+        "TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary"
+      ],
+      "id": "M-GP8-RANK",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestOwnerSleepRelay",
+      "failed_tests": [
+        "TestOwnerSleepRelay"
+      ],
+      "id": "M-B7R-OWNER-SLEEP",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestInsufficientBalanceReachesDurableGlobalStopAndKeepsReducerLive",
+      "failed_tests": [
+        "TestInsufficientBalanceReachesDurableGlobalStopAndKeepsReducerLive"
+      ],
+      "id": "M-XP3-REJECT-STOP",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestComposedInventoryStuckUsesConfiguredDurationAndRearms",
+      "failed_tests": [
+        "TestComposedInventoryStuckUsesConfiguredDurationAndRearms"
+      ],
+      "id": "M-F16-STUCK-DURATION",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestLiveForeignOrderStopsGloballyWithoutCancellingForeignExposure",
+      "failed_tests": [
+        "TestLiveForeignOrderStopsGloballyWithoutCancellingForeignExposure"
+      ],
+      "id": "M-F15-FOREIGN-STOP",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestProgramMembershipUsesCompleteActiveSetAtOwner",
+      "failed_tests": [
+        "TestProgramMembershipUsesCompleteActiveSetAtOwner"
+      ],
+      "id": "M-CLOSE-PROGRAM-MEMBERSHIP",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestOwnerF5ReducerSweepResizeRefreshAndRecovery",
+      "failed_tests": [
+        "TestOwnerF5ReducerSweepResizeRefreshAndRecovery"
+      ],
+      "id": "M-F5-STALE-WS",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestOwnerF5ReducerSweepResizeRefreshAndRecovery",
+      "failed_tests": [
+        "TestOwnerF5ReducerSweepResizeRefreshAndRecovery"
+      ],
+      "id": "M-F5-ALLOW-ADDING",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestOwnerF5SnapshotRequiresEveryNewPortfolioWalk",
+      "failed_tests": [
+        "TestOwnerF5SnapshotRequiresEveryNewPortfolioWalk"
+      ],
+      "id": "M-F5-OLD-TRUTH",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestOwnerThrottleHalvesActualRefillAndRestoresIt",
+      "failed_tests": [
+        "TestOwnerThrottleHalvesActualRefillAndRestoresIt"
+      ],
+      "id": "M-F8-IMMUTABLE-RATE",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestRateLimitOnEveryRESTMethod",
+      "failed_tests": [
+        "TestRateLimitOnEveryRESTMethod"
+      ],
+      "id": "M-F8-429-REJECT",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestP1DispatchUnderCancelStormHungGeneralAnd429",
+      "failed_tests": [
+        "TestP1DispatchUnderCancelStormHungGeneralAnd429"
+      ],
+      "id": "M-F8-ONE-WORKER",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestP1DispatchUnderCancelStormHungGeneralAnd429",
+      "failed_tests": [
+        "TestP1DispatchUnderCancelStormHungGeneralAnd429"
+      ],
+      "id": "M-F8-SLEEPING-WORKER",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount",
+      "failed_tests": [
+        "TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount"
+      ],
+      "id": "M-SD-PERMIT",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount",
+      "failed_tests": [
+        "TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount"
+      ],
+      "id": "M-SD-TRUTH",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount",
+      "failed_tests": [
+        "TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount"
+      ],
+      "id": "M-SD-INVENTORY",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount",
+      "failed_tests": [
+        "TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount"
+      ],
+      "id": "M-SD-ORDER",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount",
+      "failed_tests": [
+        "TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount"
+      ],
+      "id": "M-SD-UNPLANNED",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestOperatorSignalsCommitBeforeDrainingAndWaitForEveryOrder",
+      "failed_tests": [
+        "TestOperatorSignalsCommitBeforeDrainingAndWaitForEveryOrder"
+      ],
+      "id": "M-SD-ORDERING",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestOperatorSignalsCommitBeforeDrainingAndWaitForEveryOrder",
+      "failed_tests": [
+        "TestOperatorSignalsCommitBeforeDrainingAndWaitForEveryOrder"
+      ],
+      "id": "M-SD-NOPLAN",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestAnomalySubmissionFailureKeepsAFallbackCopy",
+      "failed_tests": [
+        "TestAnomalySubmissionFailureKeepsAFallbackCopy"
+      ],
+      "id": "M-SD-FALLBACK",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestCapitalDispatchSecondOppositeBuildCannotSpendInflightBudget",
+      "failed_tests": [
+        "TestCapitalDispatchSecondOppositeBuildCannotSpendInflightBudget"
+      ],
+      "id": "M-DGG-A7-CANDIDATE",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestCapitalDispatchUnknownRetryCountsSameCoidOnce",
+      "failed_tests": [
+        "TestCapitalDispatchUnknownRetryCountsSameCoidOnce"
+      ],
+      "id": "M-DGG-A7-RETRY-ONCE",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestFirstCompletePositionDisagreementIsDurablyAttributable",
+      "failed_tests": [
+        "TestFirstCompletePositionDisagreementIsDurablyAttributable"
+      ],
+      "id": "M-DGG-A6-JOURNAL",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestUnknownCreateComposesThroughDispatcherStoreAndOwner",
+      "failed_tests": [
+        "TestUnknownCreateComposesThroughDispatcherStoreAndOwner"
+      ],
+      "id": "M-F12-OWNER-ESCALATION",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestUnknownCreateComposesThroughDispatcherStoreAndOwner",
+      "failed_tests": [
+        "TestUnknownCreateComposesThroughDispatcherStoreAndOwner"
+      ],
+      "id": "M-F12-ATTEMPT-BOUND",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestComposedHardDriftLatchesSpecificCauseAndKeepsReducer",
+      "failed_tests": [
+        "TestComposedHardDriftLatchesSpecificCauseAndKeepsReducer"
+      ],
+      "id": "M-F13-DRIFT-CAUSE",
+      "status": "caught"
+    },
+    {
+      "accepted": false,
+      "expected": "TestFullReconcileChannelEventuallyDeliversNewestGeneration",
+      "failed_tests": [],
+      "id": "M-F2-NEWEST-RECONCILE",
+      "status": "INCONCLUSIVE: panic, signal, timeout, or build failure"
+    },
+    {
+      "accepted": true,
+      "expected": "TestOwnerCloseLeadRecomputesAfterWallClockCorrections",
+      "failed_tests": [
+        "TestOwnerCloseLeadRecomputesAfterWallClockCorrections"
+      ],
+      "id": "M-F21-CLOSE-WALL",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestOwnerRejectWindowMovesSelectedMarketToReducing",
+      "failed_tests": [
+        "TestOwnerRejectWindowMovesSelectedMarketToReducing"
+      ],
+      "id": "M-F9-REJECT-THRESHOLD",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestPostOnlyCrossForcesActualRESTReadThroughF5",
+      "failed_tests": [
+        "TestPostOnlyCrossForcesActualRESTReadThroughF5"
+      ],
+      "id": "M-F11-NO-CROSSCHECK",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestOperationsDiskRuntimeLatchesAndKeepsReducerAndObservation",
+      "failed_tests": [
+        "TestOperationsDiskRuntimeLatchesAndKeepsReducerAndObservation"
+      ],
+      "id": "M-OPS-DISK-RELAY",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestFinalBuildCannotCrossAnyPossiblyLiveOppositeOrder",
+      "failed_tests": [
+        "TestFinalBuildCannotCrossAnyPossiblyLiveOppositeOrder"
+      ],
+      "id": "M-DGG-A3-FINAL-PRICE",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestComposedOperatorSignalKeepsServiceUntilFlatUnrestedExit",
+      "failed_tests": [
+        "TestComposedOperatorSignalKeepsServiceUntilFlatUnrestedExit"
+      ],
+      "id": "M-DGG-A11-LISTED-INFLIGHT",
+      "status": "caught"
+    }
+  ],
+  "partial": true,
+  "runner_sha256": "0cabd57c747fc36fd0dc98211768b8b30caf444ad1993ea04319bf9fd2012631",
+  "runs": [
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^(?:TestATakerFillOnTheCanaryKeepsTheStrongerCause|TestAnAckedOrderOccupiesTheAggregateBeforeAnyOrdersWalk|TestAnIncompleteWriteReleasesItsIntentsRatherThanWedgingTheSide|TestAnomalySubmissionFailureKeepsAFallbackCopy|TestAnyStalePortfolioEndpointStopsAllPlacementButNotCancel|TestCapitalDispatchSecondOppositeBuildCannotSpendInflightBudget|TestCapitalDispatchUnknownRetryCountsSameCoidOnce|TestComposedHardDriftLatchesSpecificCauseAndKeepsReducer|TestComposedInventoryStuckUsesConfiguredDurationAndRearms|TestComposedOperatorSignalKeepsServiceUntilFlatUnrestedExit|TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount|TestFinalBuildCannotCrossAnyPossiblyLiveOppositeOrder|TestFirstCompletePositionDisagreementIsDurablyAttributable|TestFullReconcileChannelEventuallyDeliversNewestGeneration|TestHTTPDoerPassesEveryStatusThroughUnchanged|TestInsufficientBalanceReachesDurableGlobalStopAndKeepsReducerLive|TestLiveForeignOrderStopsGloballyWithoutCancellingForeignExposure|TestNoOrderIsSentWithoutACommittedPermit|TestOpenRefusesForeignVersionZeroDatabaseWithoutWritingIt|TestOperationsDiskRuntimeLatchesAndKeepsReducerAndObservation|TestOperatorSignalsCommitBeforeDrainingAndWaitForEveryOrder|TestOwnerCloseLeadRecomputesAfterWallClockCorrections|TestOwnerF5ReducerSweepResizeRefreshAndRecovery|TestOwnerF5SnapshotRequiresEveryNewPortfolioWalk|TestOwnerRejectWindowMovesSelectedMarketToReducing|TestOwnerSleepRelay|TestOwnerThrottleHalvesActualRefillAndRestoresIt|TestP1DispatchUnderCancelStormHungGeneralAnd429|TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary|TestPostOnlyCrossForcesActualRESTReadThroughF5|TestProgramMembershipUsesCompleteActiveSetAtOwner|TestProgramsFiltersActiveLiquidityOnEveryPage|TestRateLimitOnEveryRESTMethod|TestStoreRefusedDeliveryRecordStillRedeliversAtBucketWindow|TestSustainedGateFailureCancelsTheAddingSideAtTheConfiguredDebounce|TestUnknownCreateComposesThroughDispatcherStoreAndOwner)$",
+        "./cmd/harness",
+        "./harness/hstore",
+        "./harness/ping",
+        "./harness/rest",
+        "./harness/wsx"
+      ],
+      "exit_code": 0,
+      "label": "baseline",
+      "log": "0000-baseline.log",
+      "seconds": 21.006
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-R-200-build",
+      "log": "0001-M-R-200-build.log",
+      "seconds": 3.712
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestHTTPDoerPassesEveryStatusThroughUnchanged$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-R-200-test",
+      "log": "0002-M-R-200-test.log",
+      "seconds": 1.886
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-R-PROGRAMTYPE-build",
+      "log": "0003-M-R-PROGRAMTYPE-build.log",
+      "seconds": 3.07
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestProgramsFiltersActiveLiquidityOnEveryPage$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-R-PROGRAMTYPE-test",
+      "log": "0004-M-R-PROGRAMTYPE-test.log",
+      "seconds": 2.266
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-W-TRUTH-build",
+      "log": "0005-M-W-TRUTH-build.log",
+      "seconds": 3.171
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestAnyStalePortfolioEndpointStopsAllPlacementButNotCancel$",
+        "./harness/wsx"
+      ],
+      "exit_code": 1,
+      "label": "M-W-TRUTH-test",
+      "log": "0006-M-W-TRUTH-test.log",
+      "seconds": 1.794
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-HS-WALBEFOREINSPECT-build",
+      "log": "0007-M-HS-WALBEFOREINSPECT-build.log",
+      "seconds": 3.062
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestOpenRefusesForeignVersionZeroDatabaseWithoutWritingIt$",
+        "./harness/hstore"
+      ],
+      "exit_code": 1,
+      "label": "M-HS-WALBEFOREINSPECT-test",
+      "log": "0008-M-HS-WALBEFOREINSPECT-test.log",
+      "seconds": 1.712
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-P-REFUSESILENT-build",
+      "log": "0009-M-P-REFUSESILENT-build.log",
+      "seconds": 3.257
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestStoreRefusedDeliveryRecordStillRedeliversAtBucketWindow$",
+        "./harness/ping"
+      ],
+      "exit_code": 1,
+      "label": "M-P-REFUSESILENT-test",
+      "log": "0010-M-P-REFUSESILENT-test.log",
+      "seconds": 1.758
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-HQ4A-DOUBLE-DEBOUNCE-build",
+      "log": "0011-M-HQ4A-DOUBLE-DEBOUNCE-build.log",
+      "seconds": 2.805
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestSustainedGateFailureCancelsTheAddingSideAtTheConfiguredDebounce$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-HQ4A-DOUBLE-DEBOUNCE-test",
+      "log": "0012-M-HQ4A-DOUBLE-DEBOUNCE-test.log",
+      "seconds": 19.958
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-3AF-NOPERMIT-build",
+      "log": "0013-M-3AF-NOPERMIT-build.log",
+      "seconds": 3.715
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestNoOrderIsSentWithoutACommittedPermit$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-3AF-NOPERMIT-test",
+      "log": "0014-M-3AF-NOPERMIT-test.log",
+      "seconds": 3.438
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-3AF-WEDGE-build",
+      "log": "0015-M-3AF-WEDGE-build.log",
+      "seconds": 2.841
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestAnIncompleteWriteReleasesItsIntentsRatherThanWedgingTheSide$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-3AF-WEDGE-test",
+      "log": "0016-M-3AF-WEDGE-test.log",
+      "seconds": 3.467
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-3AF-ACKGAP-build",
+      "log": "0017-M-3AF-ACKGAP-build.log",
+      "seconds": 2.749
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestAnAckedOrderOccupiesTheAggregateBeforeAnyOrdersWalk$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-3AF-ACKGAP-test",
+      "log": "0018-M-3AF-ACKGAP-test.log",
+      "seconds": 4.613
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-2T6-CANARYFIRST-build",
+      "log": "0019-M-2T6-CANARYFIRST-build.log",
+      "seconds": 2.82
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestATakerFillOnTheCanaryKeepsTheStrongerCause$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-2T6-CANARYFIRST-test",
+      "log": "0020-M-2T6-CANARYFIRST-test.log",
+      "seconds": 3.367
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-GP8-RANK-build",
+      "log": "0021-M-GP8-RANK-build.log",
+      "seconds": 2.73
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-GP8-RANK-test",
+      "log": "0022-M-GP8-RANK-test.log",
+      "seconds": 3.712
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-B7R-OWNER-SLEEP-build",
+      "log": "0023-M-B7R-OWNER-SLEEP-build.log",
+      "seconds": 2.82
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestOwnerSleepRelay$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-B7R-OWNER-SLEEP-test",
+      "log": "0024-M-B7R-OWNER-SLEEP-test.log",
+      "seconds": 18.679
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-XP3-REJECT-STOP-build",
+      "log": "0025-M-XP3-REJECT-STOP-build.log",
+      "seconds": 3.641
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestInsufficientBalanceReachesDurableGlobalStopAndKeepsReducerLive$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-XP3-REJECT-STOP-test",
+      "log": "0026-M-XP3-REJECT-STOP-test.log",
+      "seconds": 33.926
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-F16-STUCK-DURATION-build",
+      "log": "0027-M-F16-STUCK-DURATION-build.log",
+      "seconds": 3.677
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestComposedInventoryStuckUsesConfiguredDurationAndRearms$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-F16-STUCK-DURATION-test",
+      "log": "0028-M-F16-STUCK-DURATION-test.log",
+      "seconds": 20.114
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-F15-FOREIGN-STOP-build",
+      "log": "0029-M-F15-FOREIGN-STOP-build.log",
+      "seconds": 3.602
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestLiveForeignOrderStopsGloballyWithoutCancellingForeignExposure$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-F15-FOREIGN-STOP-test",
+      "log": "0030-M-F15-FOREIGN-STOP-test.log",
+      "seconds": 33.557
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-CLOSE-PROGRAM-MEMBERSHIP-build",
+      "log": "0031-M-CLOSE-PROGRAM-MEMBERSHIP-build.log",
+      "seconds": 3.668
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestProgramMembershipUsesCompleteActiveSetAtOwner$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-CLOSE-PROGRAM-MEMBERSHIP-test",
+      "log": "0032-M-CLOSE-PROGRAM-MEMBERSHIP-test.log",
+      "seconds": 3.63
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-F5-STALE-WS-build",
+      "log": "0033-M-F5-STALE-WS-build.log",
+      "seconds": 2.9
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestOwnerF5ReducerSweepResizeRefreshAndRecovery$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-F5-STALE-WS-test",
+      "log": "0034-M-F5-STALE-WS-test.log",
+      "seconds": 3.355
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-F5-ALLOW-ADDING-build",
+      "log": "0035-M-F5-ALLOW-ADDING-build.log",
+      "seconds": 2.728
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestOwnerF5ReducerSweepResizeRefreshAndRecovery$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-F5-ALLOW-ADDING-test",
+      "log": "0036-M-F5-ALLOW-ADDING-test.log",
+      "seconds": 3.477
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-F5-OLD-TRUTH-build",
+      "log": "0037-M-F5-OLD-TRUTH-build.log",
+      "seconds": 2.783
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestOwnerF5SnapshotRequiresEveryNewPortfolioWalk$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-F5-OLD-TRUTH-test",
+      "log": "0038-M-F5-OLD-TRUTH-test.log",
+      "seconds": 3.462
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-F8-IMMUTABLE-RATE-build",
+      "log": "0039-M-F8-IMMUTABLE-RATE-build.log",
+      "seconds": 2.717
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestOwnerThrottleHalvesActualRefillAndRestoresIt$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-F8-IMMUTABLE-RATE-test",
+      "log": "0040-M-F8-IMMUTABLE-RATE-test.log",
+      "seconds": 3.333
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-F8-429-REJECT-build",
+      "log": "0041-M-F8-429-REJECT-build.log",
+      "seconds": 2.701
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestRateLimitOnEveryRESTMethod$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-F8-429-REJECT-test",
+      "log": "0042-M-F8-429-REJECT-test.log",
+      "seconds": 1.699
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-F8-ONE-WORKER-build",
+      "log": "0043-M-F8-ONE-WORKER-build.log",
+      "seconds": 2.709
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestP1DispatchUnderCancelStormHungGeneralAnd429$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-F8-ONE-WORKER-test",
+      "log": "0044-M-F8-ONE-WORKER-test.log",
+      "seconds": 5.304
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-F8-SLEEPING-WORKER-build",
+      "log": "0045-M-F8-SLEEPING-WORKER-build.log",
+      "seconds": 2.75
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestP1DispatchUnderCancelStormHungGeneralAnd429$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-F8-SLEEPING-WORKER-test",
+      "log": "0046-M-F8-SLEEPING-WORKER-test.log",
+      "seconds": 5.35
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-SD-PERMIT-build",
+      "log": "0047-M-SD-PERMIT-build.log",
+      "seconds": 2.784
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-SD-PERMIT-test",
+      "log": "0048-M-SD-PERMIT-test.log",
+      "seconds": 3.502
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-SD-TRUTH-build",
+      "log": "0049-M-SD-TRUTH-build.log",
+      "seconds": 2.722
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-SD-TRUTH-test",
+      "log": "0050-M-SD-TRUTH-test.log",
+      "seconds": 3.437
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-SD-INVENTORY-build",
+      "log": "0051-M-SD-INVENTORY-build.log",
+      "seconds": 2.72
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-SD-INVENTORY-test",
+      "log": "0052-M-SD-INVENTORY-test.log",
+      "seconds": 3.814
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-SD-ORDER-build",
+      "log": "0053-M-SD-ORDER-build.log",
+      "seconds": 2.788
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-SD-ORDER-test",
+      "log": "0054-M-SD-ORDER-test.log",
+      "seconds": 3.555
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-SD-UNPLANNED-build",
+      "log": "0055-M-SD-UNPLANNED-build.log",
+      "seconds": 2.978
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-SD-UNPLANNED-test",
+      "log": "0056-M-SD-UNPLANNED-test.log",
+      "seconds": 3.557
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-SD-ORDERING-build",
+      "log": "0057-M-SD-ORDERING-build.log",
+      "seconds": 2.966
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestOperatorSignalsCommitBeforeDrainingAndWaitForEveryOrder$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-SD-ORDERING-test",
+      "log": "0058-M-SD-ORDERING-test.log",
+      "seconds": 3.625
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-SD-NOPLAN-build",
+      "log": "0059-M-SD-NOPLAN-build.log",
+      "seconds": 2.796
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestOperatorSignalsCommitBeforeDrainingAndWaitForEveryOrder$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-SD-NOPLAN-test",
+      "log": "0060-M-SD-NOPLAN-test.log",
+      "seconds": 3.491
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-SD-FALLBACK-build",
+      "log": "0061-M-SD-FALLBACK-build.log",
+      "seconds": 2.717
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestAnomalySubmissionFailureKeepsAFallbackCopy$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-SD-FALLBACK-test",
+      "log": "0062-M-SD-FALLBACK-test.log",
+      "seconds": 3.569
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-DGG-A7-CANDIDATE-build",
+      "log": "0063-M-DGG-A7-CANDIDATE-build.log",
+      "seconds": 2.961
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestCapitalDispatchSecondOppositeBuildCannotSpendInflightBudget$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-DGG-A7-CANDIDATE-test",
+      "log": "0064-M-DGG-A7-CANDIDATE-test.log",
+      "seconds": 3.323
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-DGG-A7-RETRY-ONCE-build",
+      "log": "0065-M-DGG-A7-RETRY-ONCE-build.log",
+      "seconds": 2.716
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestCapitalDispatchUnknownRetryCountsSameCoidOnce$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-DGG-A7-RETRY-ONCE-test",
+      "log": "0066-M-DGG-A7-RETRY-ONCE-test.log",
+      "seconds": 3.351
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-DGG-A6-JOURNAL-build",
+      "log": "0067-M-DGG-A6-JOURNAL-build.log",
+      "seconds": 2.7
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestFirstCompletePositionDisagreementIsDurablyAttributable$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-DGG-A6-JOURNAL-test",
+      "log": "0068-M-DGG-A6-JOURNAL-test.log",
+      "seconds": 18.83
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-F12-OWNER-ESCALATION-build",
+      "log": "0069-M-F12-OWNER-ESCALATION-build.log",
+      "seconds": 3.03
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestUnknownCreateComposesThroughDispatcherStoreAndOwner$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-F12-OWNER-ESCALATION-test",
+      "log": "0070-M-F12-OWNER-ESCALATION-test.log",
+      "seconds": 3.419
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-F12-ATTEMPT-BOUND-build",
+      "log": "0071-M-F12-ATTEMPT-BOUND-build.log",
+      "seconds": 2.776
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestUnknownCreateComposesThroughDispatcherStoreAndOwner$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-F12-ATTEMPT-BOUND-test",
+      "log": "0072-M-F12-ATTEMPT-BOUND-test.log",
+      "seconds": 3.537
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-F13-DRIFT-CAUSE-build",
+      "log": "0073-M-F13-DRIFT-CAUSE-build.log",
+      "seconds": 2.711
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestComposedHardDriftLatchesSpecificCauseAndKeepsReducer$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-F13-DRIFT-CAUSE-test",
+      "log": "0074-M-F13-DRIFT-CAUSE-test.log",
+      "seconds": 3.359
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-F2-NEWEST-RECONCILE-build",
+      "log": "0075-M-F2-NEWEST-RECONCILE-build.log",
+      "seconds": 2.858
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestFullReconcileChannelEventuallyDeliversNewestGeneration$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-F2-NEWEST-RECONCILE-test",
+      "log": "0076-M-F2-NEWEST-RECONCILE-test.log",
+      "seconds": 166.815
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-F21-CLOSE-WALL-build",
+      "log": "0077-M-F21-CLOSE-WALL-build.log",
+      "seconds": 3.585
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestOwnerCloseLeadRecomputesAfterWallClockCorrections$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-F21-CLOSE-WALL-test",
+      "log": "0078-M-F21-CLOSE-WALL-test.log",
+      "seconds": 3.468
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-F9-REJECT-THRESHOLD-build",
+      "log": "0079-M-F9-REJECT-THRESHOLD-build.log",
+      "seconds": 2.583
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestOwnerRejectWindowMovesSelectedMarketToReducing$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-F9-REJECT-THRESHOLD-test",
+      "log": "0080-M-F9-REJECT-THRESHOLD-test.log",
+      "seconds": 3.143
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-F11-NO-CROSSCHECK-build",
+      "log": "0081-M-F11-NO-CROSSCHECK-build.log",
+      "seconds": 2.565
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestPostOnlyCrossForcesActualRESTReadThroughF5$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-F11-NO-CROSSCHECK-test",
+      "log": "0082-M-F11-NO-CROSSCHECK-test.log",
+      "seconds": 6.191
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-OPS-DISK-RELAY-build",
+      "log": "0083-M-OPS-DISK-RELAY-build.log",
+      "seconds": 2.609
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestOperationsDiskRuntimeLatchesAndKeepsReducerAndObservation$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-OPS-DISK-RELAY-test",
+      "log": "0084-M-OPS-DISK-RELAY-test.log",
+      "seconds": 3.135
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-DGG-A3-FINAL-PRICE-build",
+      "log": "0085-M-DGG-A3-FINAL-PRICE-build.log",
+      "seconds": 2.715
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestFinalBuildCannotCrossAnyPossiblyLiveOppositeOrder$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-DGG-A3-FINAL-PRICE-test",
+      "log": "0086-M-DGG-A3-FINAL-PRICE-test.log",
+      "seconds": 3.241
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-DGG-A11-LISTED-INFLIGHT-build",
+      "log": "0087-M-DGG-A11-LISTED-INFLIGHT-build.log",
+      "seconds": 2.516
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestComposedOperatorSignalKeepsServiceUntilFlatUnrestedExit$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-DGG-A11-LISTED-INFLIGHT-test",
+      "log": "0088-M-DGG-A11-LISTED-INFLIGHT-test.log",
+      "seconds": 4.178
+    }
+  ],
+  "selected_count": 44,
+  "selected_ids": [
+    "M-R-200",
+    "M-R-PROGRAMTYPE",
+    "M-W-TRUTH",
+    "M-HS-WALBEFOREINSPECT",
+    "M-P-REFUSESILENT",
+    "M-HQ4A-DOUBLE-DEBOUNCE",
+    "M-3AF-NOPERMIT",
+    "M-3AF-WEDGE",
+    "M-3AF-ACKGAP",
+    "M-2T6-CANARYFIRST",
+    "M-GP8-RANK",
+    "M-B7R-OWNER-SLEEP",
+    "M-XP3-REJECT-STOP",
+    "M-F16-STUCK-DURATION",
+    "M-F15-FOREIGN-STOP",
+    "M-CLOSE-PROGRAM-MEMBERSHIP",
+    "M-F5-STALE-WS",
+    "M-F5-ALLOW-ADDING",
+    "M-F5-OLD-TRUTH",
+    "M-F8-IMMUTABLE-RATE",
+    "M-F8-429-REJECT",
+    "M-F8-ONE-WORKER",
+    "M-F8-SLEEPING-WORKER",
+    "M-SD-PERMIT",
+    "M-SD-TRUTH",
+    "M-SD-INVENTORY",
+    "M-SD-ORDER",
+    "M-SD-UNPLANNED",
+    "M-SD-ORDERING",
+    "M-SD-NOPLAN",
+    "M-SD-FALLBACK",
+    "M-DGG-A7-CANDIDATE",
+    "M-DGG-A7-RETRY-ONCE",
+    "M-DGG-A6-JOURNAL",
+    "M-F12-OWNER-ESCALATION",
+    "M-F12-ATTEMPT-BOUND",
+    "M-F13-DRIFT-CAUSE",
+    "M-F2-NEWEST-RECONCILE",
+    "M-F21-CLOSE-WALL",
+    "M-F9-REJECT-THRESHOLD",
+    "M-F11-NO-CROSSCHECK",
+    "M-OPS-DISK-RELAY",
+    "M-DGG-A3-FINAL-PRICE",
+    "M-DGG-A11-LISTED-INFLIGHT"
+  ],
+  "source_sha256_after": "a29b26e2624a06c37138d7c74f92968f8185705c7521d559005b7151778a7bec",
+  "source_sha256_before": "a29b26e2624a06c37138d7c74f92968f8185705c7521d559005b7151778a7bec",
+  "started_at_utc": "2026-09-26T22:07:34.906042+00:00",
+  "status": "FAIL",
+  "updated_at_utc": "2026-09-26T22:17:38.036958+00:00"
+}

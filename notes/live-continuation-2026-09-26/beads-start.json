@@ -1,0 +1,427 @@
+[
+  {
+    "id": "lip-8hn",
+    "title": "EPIC CR-1: one-market continuous runtime",
+    "description": "CR-1 means one operator-selected active-program market at S=12 may repeat\nmaker-entry, reduction, flat and requote cycles without synchronous operator\ninvolvement during one declared market assignment. It runs under launchd and\ncaffeinate, survives process and websocket restarts through safe adoption, and\neither continues safely or durably enters WINDING_DOWN while reduction,\nmonitoring, heartbeat and alert retry remain alive.\n\nThe closed operating envelope is: one selected ticker; dedicated account with\nonly declared capital and no unrelated cash, positions, orders or manual\nactivity; manual market replacement; no claim of automatic programme rotation.\nRequired evidence is a event-complete read-only qualification, clean balance-derived S\u003c=12 first-fill\nstage, clean attended repeated-cycle evidence, final scenario/invariant and operational\nreadiness, exact candidate checks under the faster verification workflow, active external dead man, and explicit\noperator review.\n\nNew work blocks CR-1 only after adjudication that its failure is reachable in\nthis operating envelope or that CR-1 acceptance cannot be evidenced without it.\nPriority labels alone do not move the finish line. Dynamic selection, rotation\nand automatic management of unrelated held markets belong to CR-2; CR-1 instead\nrefuses a dirty account and stops on foreign activity.\n\nAcceptance: record exact commit, config/rung, assignment window, dedicated-\naccount check, supervision state, runbook/drill evidence and links to all three\npromotion rungs. After closure, repeated cycles are authorised only inside that\nassignment.\n",
+    "notes": "Current target is CR2 continuous participation across turnover (user decision); CR1 alone insufficient. Final candidate gate PASS23:29:37Z, balance-derived limits observed and lip-wif closed; observed WS snapshot defect lip-bup repaired/closed. Primary and independent backup missed-deadman receipts acknowledged. Short read-only sizing, retained-latch and crash/restart observations recorded; q01 remains incomplete and no financial write occurred. Final complete accountflat23:28:58Z with98.580200 USD. Remaining: complete q01, operator-executed first-fill/reduction/repeated-cycle, acknowledgment-aware SEV1 escalation and operational recovery, CR2 managed-market selection/turnover, economics. No continuous operation started.",
+    "status": "blocked",
+    "priority": 0,
+    "issue_type": "epic",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-09T22:29:26Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T23:34:20Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-yca",
+    "title": "Revalidate LIP economics under July 30 terms and current per-series fees",
+    "description": "Revival verified current July 15 amendment effective July 30 and July 30 clean terms: reference at one fifth of target; per-side scores capped at full credit above reference; payout scaled by non-excluded/total snapshots. notes/economics.md assumes old intact pool and frozen core/score.py are historical. Active rewards verified Sept 26; no net profitable edge established. Build a separately versioned offline reward/EV analysis against timestamped data without altering frozen trees or harness-spec. Include attributable realized payouts, true private fills, round-trip fees, executable exit prices, inventory and settlement, and chronological held-out policy comparison.",
+    "acceptance_criteria": "Reproduce updated scoring on fixtures; reconcile estimated vs observed payout for bounded eligible account; report net EV and uncertainty for simple touch/offset quotes and immediate-vs-maker exits; momentum adds value only on timestamped out-of-sample data after latency and queue effects.",
+    "notes": "2026-09-26 authenticated complete retained fills walk:15 historical fills; fees retained separately. Visible logged-in portfolio Rewards popover showed July31 liquidity incentive credit $7.65 for event KXGENERICBALLOTVOTEHUB-26JUL31, lifetime$7.65 and Sep$0. No payment-ledger corroboration or chronological held-out net-EV attribution established. Current $200 selected-market pool is not personal earnings. No new fills/reward credit from this session.",
+    "status": "blocked",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-09-26T17:48:41Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T22:59:39Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-8hn.2",
+    "title": "R2 promotion gate: exact balance-derived repeated-cycle candidate",
+    "description": "Nominate the exact repeated-cycle candidate after the attended balance-derived first-fill stage. Preserve retained fault scenarios, reject policies, foreign-order stop, host-sleep/stuck-inventory handling, active-program membership and external operations readiness. Use affected checks and candidate safety controls under notes/verification-workflow.md; no full-catalogue prerequisite. CR-1 remains one assigned market. Requested CR-2 participation across turnover additionally depends on lip-1in implementation and observed cleanup/recovery.",
+    "acceptance_criteria": "Record exact source/working-tree/binary and config/rung identity plus account/funding/runbook evidence. Resolve relevant failed or inconclusive checks. Retain event-complete q01 and attended balance-derived S\u003c=12 first-fill/reduction/clean-exit evidence, then collect repeated-cycle/restart evidence. This gate does not establish CR-2 or authorize the assistant to execute financial trades.",
+    "notes": "2026-09-26 R2 retains real repeated-cycle/restart/recovery evidence and external alarms; superseded historical S1/$2 gate replaced with new sizing first-fill stage. No burn-in performed. Current requested outcome extends to CR2 turnover management; code/read evidence does not grant unattended readiness.",
+    "status": "blocked",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-11T20:00:34Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T23:18:04Z",
+    "labels": [
+      "cr1",
+      "promotion"
+    ],
+    "dependencies": [
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-2v0",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:57Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-34l",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:45Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-xp3",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:47Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-2gn",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:49Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-8qv",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:51Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-b7r",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:53Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-9vc",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:59Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-8hn",
+        "type": "parent-child",
+        "created_at": "2026-08-11T13:00:34Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-2da",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:55Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 8,
+    "dependent_count": 1,
+    "comment_count": 0,
+    "parent": "lip-8hn"
+  },
+  {
+    "id": "lip-8hn.1",
+    "title": "R1 promotion gate: exact balance-derived first-fill candidate",
+    "description": "Nominate the exact balance-derived sizing candidate after event-complete q01. Preserve 429/reserved reducer dispatch, sustained gate-failure cancel/reconcile, fresh selected-shard funding, and websocket quarantine recovery. The first writer now uses S\u003c=12 with a durable first-owned-fill stop; the historical S1/$2 profile is superseded. Use the faster repository verification workflow and relevant affected controls. User authorization is already present; missing observed behavior is the blocker.",
+    "acceptance_criteria": "Record exact source/working-tree/binary and config/rung identity. Resolve known relevant safety failures with normal integration, affected race/regression and useful mutation evidence; full catalogue is optional. Retain q01, fresh complete account-wide preflight, selected-shard spendable funds and recorded effective reserve/inventory/loss limits. Supplies evidence for lip-dwf; does not itself count unobserved placement/fill/reduction/cleanup.",
+    "notes": "Exact diagnostic candidate and config identified in candidate-identity.json/readiness-report.md. Final module/race/16-safety candidate gate and5 affected mutations PASS. Scoped funding lip-wif and observed snapshot defect lip-bup closed on actual code/authenticated evidence. R1 remains blocked by incomplete q01; live writer behavior is lip-dwf. Authorization is already provided; assistant cannot execute financial trades.",
+    "status": "blocked",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-11T20:00:31Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T23:34:16Z",
+    "labels": [
+      "canary",
+      "promotion"
+    ],
+    "dependencies": [
+      {
+        "issue_id": "lip-8hn.1",
+        "depends_on_id": "lip-732",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:40Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.1",
+        "depends_on_id": "lip-8hn",
+        "type": "parent-child",
+        "created_at": "2026-08-11T13:00:31Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.1",
+        "depends_on_id": "lip-bup",
+        "type": "blocks",
+        "created_at": "2026-09-26T16:18:11Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.1",
+        "depends_on_id": "lip-wif",
+        "type": "blocks",
+        "created_at": "2026-09-26T11:30:14Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.1",
+        "depends_on_id": "lip-ghg",
+        "type": "blocks",
+        "created_at": "2026-09-26T11:30:12Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.1",
+        "depends_on_id": "lip-q6r",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:38Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.1",
+        "depends_on_id": "lip-357",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:42Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 6,
+    "dependent_count": 1,
+    "comment_count": 0,
+    "parent": "lip-8hn"
+  },
+  {
+    "id": "lip-9vc",
+    "title": "CR-1 operations: recovery, disk headroom, runbook, and alert escalation",
+    "description": "CR-1 is authorised for unattended repeated cycles inside one declared market\nassignment. Before that authorization, make the operational recovery boundary\nexecutable rather than implicit.\n\nDeliver one concise operator runbook and its tested software checks: dedicated\naccount cleanliness; config/commit/rung confirmation; disk headroom and bounded\nstore/evidence growth; durable-latch stop/resume; recovery when the harness\nstore is unreadable while exchange orders or inventory may exist; disposition\nof every SEV1/SEV2; and escalation when a SEV1 or missed heartbeat is not\nacknowledged. No procedure may clear a latch or infer flatness from unavailable\ntruth.\n\nThis is one operational-readiness unit, not one bead per checklist row. It does\nnot run the live harness; operator drills and evidence remain operator actions.\n",
+    "acceptance_criteria": "The runbook names exact commands, preconditions, stop conditions and evidence\nfor normal start, planned stop, latched restart, corrupt/unreadable store,\ninsufficient disk headroom, missed heartbeat and unacknowledged SEV1. Automated\ntests prove unsafe states refuse or enter durable WINDING_DOWN while reduction\nand observation continue wherever authoritative truth permits. The final CR-1\nevidence links a completed operator drill for the external escalation path.",
+    "notes": "Healthchecks drill and acknowledgment details preserved in notes/live-readiness-2026-09-26/alarm-drill.json. Primary ntfy test received; actual missed-check-in DOWN email received and operator confirmed independent backup. Original1h/20m schedule restored, recovery UP observed. Real read-only latched restart stayed DRAINED with zero would-writes; crash/restart rebuilt fresh complete truth; all observers stopped. Still missing acknowledgment-aware SEV1 escalation/backup on primary nonack, deployed launchd recovery and store-loss recovery with real exposure. No continuous runtime claimed.",
+    "status": "blocked",
+    "priority": 1,
+    "issue_type": "task",
+    "assignee": "Hugh",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-11T19:54:38Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T23:34:17Z",
+    "started_at": "2026-09-26T21:23:36Z",
+    "labels": [
+      "cr1",
+      "operations"
+    ],
+    "dependencies": [
+      {
+        "issue_id": "lip-9vc",
+        "depends_on_id": "lip-8hn",
+        "type": "parent-child",
+        "created_at": "2026-08-11T13:02:39Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0,
+    "parent": "lip-8hn"
+  },
+  {
+    "id": "lip-9j3",
+    "title": "Pilot: attended balance-derived repeated-cycle test",
+    "description": "After an attended balance-derived first-fill stage, run a bounded attended S\u003c=12 repeated cycle using the same tested risk controls and a fresh selected-shard cap. Preserve external alerts, complete account-wide truth, placement/fill attribution, actual fees, cancellation, aggregate-capped reduction, reconciliation, restart/adoption and cleanup. End every stage with new adds stopped and fresh complete account-wide no-open-order/no-position evidence. A no-fill run is inconclusive for fill handling; incomplete flatness keeps the test attended. No continuous participation claim without CR-2 turnover evidence.",
+    "notes": "2026-09-26 historical prerequisite profile superseded: first writer is attended balance-derived sizing S\u003c=12 with first-fill stop and complete accountwide exit. Burn-in remains blocked by unobserved real placement/fill/reduction/restart and clean-exit evidence, not lack of user authorization.",
+    "status": "blocked",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-09T22:29:24Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T23:18:05Z",
+    "dependencies": [
+      {
+        "issue_id": "lip-9j3",
+        "depends_on_id": "lip-dwf",
+        "type": "blocks",
+        "created_at": "2026-08-09T15:30:34Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-9j3",
+        "depends_on_id": "lip-8hn.2",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:43Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-9j3",
+        "depends_on_id": "lip-8hn",
+        "type": "parent-child",
+        "created_at": "2026-08-09T17:58:22Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 2,
+    "dependent_count": 0,
+    "comment_count": 0,
+    "parent": "lip-8hn"
+  },
+  {
+    "id": "lip-dwf",
+    "title": "Attended balance-derived sizing and first-fill clean exit",
+    "description": "Run one attended live writer on a dedicated account containing only the canary\ncapital, one currently active operator-selected ticker, rung canary, and S=1.\n\nThe first post-adoption directional entry from acknowledgement, newly\nclassified owned fill, or complete-position fallback must durably latch\nWINDING_DOWN. Demonstrate create visibility, structural post_only, complete\ncancel sweep, correct fill attribution and backfilled provenance, zero taker\nfees, one-sided aggregate-capped reduction, monitor and alert continuity, flat\ncompletion, no new adding order, and restart that remains latched.\n\nAcceptance: retain run ID, config hash, gate commit, order/fill IDs, transition\ncauses, anomaly and notification evidence, final exchange position, and restart\nresult. Every UNKNOWN is resolved, every SEV2 is dispositioned, no SEV1 occurs\nexcept the expected canary stop cause, and the account ends flat and latched.\nThis bead does not authorise repeated cycles or S=12.",
+    "acceptance_criteria": "After code and read-only evidence, operator executes first sizing stage with authenticated selected-shard cap, S\u003c=12, existing reserve/inventory/loss stop, first-owned-fill durable stop, actual order/fill/reduce/restart observations and fresh complete account-wide no-orders/no-positions exit. No-fill stage inconclusive. See notes/attended-stages-2026-09-26.md.",
+    "notes": "2026-09-26 old S1/$2/one-contract prerequisite explicitly superseded by user. Balance-derived sizing path implemented and under candidate validation. No orders placed; actual sizing fills/reduction remain operator-executed evidence. Authorization is no longer the blocker.",
+    "status": "blocked",
+    "priority": 1,
+    "issue_type": "task",
+    "created_at": "2026-08-05T07:08:29Z",
+    "updated_at": "2026-09-26T22:59:37Z",
+    "dependencies": [
+      {
+        "issue_id": "lip-dwf",
+        "depends_on_id": "lip-q01",
+        "type": "blocks",
+        "created_at": "2026-08-05T00:08:59Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-dwf",
+        "depends_on_id": "lip-8hn.1",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:36Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-dwf",
+        "depends_on_id": "lip-8hn",
+        "type": "parent-child",
+        "created_at": "2026-08-11T13:02:49Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 2,
+    "dependent_count": 1,
+    "comment_count": 0,
+    "parent": "lip-8hn"
+  },
+  {
+    "id": "lip-q01",
+    "title": "Read-only qualification: staged event-complete real process, zero writes",
+    "description": "Revised 2026-09-26 under user direction. Use the current staged operational qualification in notes/attended-stages-2026-09-26.md. Minimum20min linked monotonic active observation, planned stop by45min, exact binary/config identity, zero transported non-GET, complete fresh account scope, \u003e=99% cadence coverage, genuine WS disconnect/reconcile and durable process restart. Preserve external provider missed-heartbeat and human primary/backup escalation evidence as separate required evidence before unattended operation. Short observation does not establish multi-hour soak, long-tail reliability or positive EV. Historical 4-6h design is superseded, not retroactively reinterpreted.",
+    "acceptance_criteria": "Current staged assessor passes with real evidence, zero writes, forced disconnect and restart, complete fresh account-wide exit; external alarm/escalation receipts separately reviewed. All other safety assertions retained. See notes/attended-stages-2026-09-26.md.",
+    "notes": "Final checkpoint: two short real read-only sequences plus retained-latch restart and separate authenticated WS protocol drill. Repaired observer23:23:40–23:28:50Z includes intentional SIGKILL23:25:55Z/resume23:26:00Z,4m58.008 linked active, zero above/below-guard non-GET,88123 would-writes,297/300 fresh monitor slots,60/61 fresh complete portfolio slots; no stale/incomplete actual walks. q01 still fails duration,99% portfolio-slot coverage and full-process WS disconnect cycle. Separate protocol probe has1 disconnect/2 connections/two requested snapshots, but is not full-process q01. Final accountflat23:28:58Z, cash98.580200, fills unchanged. No live writer. See notes/live-readiness-2026-09-26/readiness-report.md.",
+    "status": "blocked",
+    "priority": 1,
+    "issue_type": "task",
+    "created_at": "2026-08-05T07:08:28Z",
+    "updated_at": "2026-09-26T23:34:14Z",
+    "dependencies": [
+      {
+        "issue_id": "lip-q01",
+        "depends_on_id": "lip-8hn",
+        "type": "parent-child",
+        "created_at": "2026-08-11T13:02:33Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-q01",
+        "depends_on_id": "lip-9tr",
+        "type": "blocks",
+        "created_at": "2026-08-12T10:32:44Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-q01",
+        "depends_on_id": "lip-bup",
+        "type": "blocks",
+        "created_at": "2026-09-26T16:18:09Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-q01",
+        "depends_on_id": "lip-8hn.3",
+        "type": "blocks",
+        "created_at": "2026-08-11T14:03:55Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 3,
+    "dependent_count": 1,
+    "comment_count": 0,
+    "parent": "lip-8hn"
+  },
+  {
+    "id": "lip-1in",
+    "title": "CR-2: manage held non-selected markets across rotation",
+    "description": "CR-2, not the one-market pilot, owns dynamic management when complete account\ntruth contains positions or live orders outside the currently selected ticker.\nImplement the H-ORD-5b expansion only with selection/rotation semantics: derive\nthe managed set from authoritative truth, subscribe and maintain required books,\nmark every non-flat position honestly, reduce owned exposure, and never cancel a\nforeign order.\n\nCR-1 instead binds a dedicated clean-account precondition and refuses startup\nor durably stops on foreign activity. Do not pull this work back onto the CR-1\npath without a new operating-envelope decision.\n",
+    "acceptance_criteria": "On the future CR-2 tree, a held non-selected market is subscribed, marked and\nreduced from complete truth across restart and rotation, while foreign orders\nremain untouched. Multi-market caps, P\u0026L, schedule and monitor evidence remain\ncomplete. A selected-only mutation is caught by a composed scenario. This bead\ndoes not block q01, the S=1 canary, S=12 burn-in or one-market CR-1.",
+    "notes": "2026-09-26 user explicitly selected continuous participation across market/program turnover. CR-2 scope decision is resolved. Implementation remains open: managed set must include inherited exposure across rotation, per-market books/shard funding and caps, account-wide truth and clean exits, and restart/turnover qualification. Current one-market candidate refuses nonselected exposure; it is not continuous participation. Evidence: notes/live-readiness-2026-09-26; no trading started.",
+    "status": "open",
+    "priority": 2,
+    "issue_type": "feature",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-11T20:00:37Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T22:57:44Z",
+    "labels": [
+      "cr2",
+      "deferred"
+    ],
+    "dependencies": [
+      {
+        "issue_id": "lip-1in",
+        "depends_on_id": "lip-dgg",
+        "type": "discovered-from",
+        "created_at": "2026-08-11T13:07:38Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-0ns",
+    "title": "rest: Fills() walks all account history every call; backfill_h is client-side",
+    "description": "harness/rest/read.go Fills() does a COMPLETE cursor walk then filters by `since` client-side. That is correct per H-PAGE-1 clause 2 (a server-side early stop on timestamp would make the walk incomplete, and only a complete walk may replace state), and it is fine for the pilot: 15 fills on the account, one market, days. It does not scale — at a 5s poll over months the walk grows without bound. Options when it matters: (a) measure whether /portfolio/fills honours min_ts and whether a bounded read still counts as complete for its window, (b) keep a durable high-water mark in harness.db and walk only until the first already-seen fill_id, treating THAT as the completeness criterion. Neither is safe to assume; both need the V1.8a treatment (measure, record, then code).",
+    "notes": "2026-09-26 authenticated min_ts experiment over15 retained fills/one page matched inclusive boundaries at oldest and newest exact timestamp and +/-1s (nine probes); complete evidence account-selected.json. Small single-page retained history cannot establish boundary-tie/multi-page/concurrent-arrival or historical-retention completeness. Exhaustive production walk preserved; performance optimization remains deferred evidence work, not a blocker for this small account.",
+    "status": "open",
+    "priority": 4,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-05T21:08:40Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T23:32:39Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  }
+]

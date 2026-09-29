@@ -26,6 +26,42 @@ func TestConfigHashPinsTheExactInputBytes(t *testing.T) {
 	}
 }
 
+func TestSelectedShardCapitalConfigDefersFundingAndHasNoImplicitCeiling(t *testing.T) {
+	path := writeConfig(t, `{"ticker":"KXTEST-A","rung":"sizing","s":12,`+
+		`"capital_source":"selected_shard_balance",`+goodTail(t)+`}`)
+	c, err := loadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.CapitalSource != "selected_shard_balance" || c.CapitalCeiling != nil || !c.Rung.stopOnFirstOwnedFill {
+		t.Fatalf("selected source/rung: %+v", c)
+	}
+	if c.Funding != nil {
+		t.Fatalf("funding resolved before authenticated read: %+v", c.Funding)
+	}
+	ceiling := writeConfig(t, `{"ticker":"KXTEST-A","rung":"sizing","s":12,`+
+		`"capital_source":"selected_shard_balance","capital_max":18,`+goodTail(t)+`}`)
+	c, err = loadConfig(ceiling)
+	if err != nil || c.CapitalCeiling == nil || *c.CapitalCeiling != num.MoneyFromDollars(18) {
+		t.Fatalf("explicit ceiling: %+v %v", c.CapitalCeiling, err)
+	}
+}
+
+func TestCapitalSourceLegacyAndInvalid(t *testing.T) {
+	path := writeConfig(t, `{"ticker":"KXTEST-A","rung":"canary","s":1,`+goodTail(t)+`}`)
+	c, err := loadConfig(path)
+	if err != nil || c.CapitalSource != "configured" || c.Params.CapitalMax != num.MoneyFromDollars(100) {
+		t.Fatalf("legacy default changed: %+v %v", c, err)
+	}
+	for _, source := range []string{"balance", "", "Selected_Shard_Balance"} {
+		path := writeConfig(t, `{"ticker":"KXTEST-A","rung":"canary","s":1,`+
+			`"capital_source":"`+source+`",`+goodTail(t)+`}`)
+		if _, err := loadConfig(path); err == nil {
+			t.Fatalf("accepted source %q", source)
+		}
+	}
+}
+
 // writeConfig puts a config file in a temp dir and returns its path.
 func writeConfig(t *testing.T, body string) string {
 	t.Helper()

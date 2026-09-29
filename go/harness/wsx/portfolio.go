@@ -67,6 +67,22 @@ func (r PortfolioRead) Seq() uint64 { return r.seq }
 // decision may be taken from it.
 func (r PortfolioRead) CompletedAt() Stamp { return r.completedAt }
 
+// StartedAt reports when one endpoint began its walk. A caller deciding
+// whether a read followed a write must use this stamp, not CompletedAt: a
+// walk started before the write may complete afterwards with older truth.
+func (r PortfolioRead) StartedAt(kind Truth) Stamp {
+	switch kind {
+	case TruthFills:
+		return r.fillsAt
+	case TruthOrders:
+		return r.ordersAt
+	case TruthPositions:
+		return r.positionsAt
+	default:
+		return Stamp{}
+	}
+}
+
 // Poller reads the three portfolio endpoints on a fixed cadence.
 //
 // It is a SEPARATE goroutine with a SEPARATE context from any websocket
@@ -406,7 +422,9 @@ func applyFills(g *Gate, pf *risk.Portfolio, own risk.OwnershipLookup,
 			eff.Stop = true
 			return
 		}
-		fe := pf.ApplyFills(events, own, mode, read.fillsAt.WallMs)
+		// The 120s unresolved-fill escalation is elapsed process time. A wall
+		// correction must neither fire it early nor postpone it.
+		fe := pf.ApplyFills(events, own, mode, read.fillsAt.Mono.Milliseconds())
 		eff.OwnedFill = append(eff.OwnedFill, fe.Owned...)
 		eff.BackfilledFill = append(eff.BackfilledFill, fe.OwnedBackfilled...)
 		eff.DeferredFill = append(eff.DeferredFill, fe.Deferred...)

@@ -1,0 +1,797 @@
+{
+  "ticker": "KXCPICORE-26SEP-T0.1",
+  "read_only": true,
+  "calls": {
+    "market": {
+      "path": "/markets/KXCPICORE-26SEP-T0.1",
+      "at_utc": "2026-09-29T00:04:27.911393+00:00",
+      "status": 200,
+      "latency_ms": 244.501,
+      "body": {
+        "market": {
+          "can_close_early": true,
+          "cap_strike": 0.1,
+          "close_time": "2026-10-14T12:25:00Z",
+          "created_time": "2026-06-10T19:30:10.156376Z",
+          "event_ticker": "KXCPICORE-26SEP",
+          "exchange_index": 0,
+          "expected_expiration_time": "2026-10-14T14:00:00Z",
+          "expiration_time": "2026-10-21T14:00:00Z",
+          "expiration_value": "",
+          "floor_strike": 0.1,
+          "last_price_dollars": "0.7600",
+          "latest_expiration_time": "2026-10-21T14:00:00Z",
+          "liquidity_dollars": "0.0000",
+          "market_type": "binary",
+          "no_ask_dollars": "0.2700",
+          "no_bid_dollars": "0.2000",
+          "no_sub_title": "Above 0.1%",
+          "notional_value_dollars": "1.0000",
+          "occurrence_datetime": "2026-10-14T14:00:00Z",
+          "open_interest_fp": "16491.43",
+          "open_time": "2026-06-10T19:50:00Z",
+          "previous_price_dollars": "0.8900",
+          "previous_yes_ask_dollars": "0.8900",
+          "previous_yes_bid_dollars": "0.8800",
+          "price_level_structure": "linear_cent",
+          "price_ranges": [
+            {
+              "end": "1.0000",
+              "start": "0.0000",
+              "step": "0.0100"
+            }
+          ],
+          "result": "",
+          "rules_primary": "If the seasonally adjusted Consumer Price Index for All Urban Consumers: All Items less Food and Energy for September 2026, as published by the Bureau of Labor Statistics, increases by above 0.1%, then the market resolves to Yes.",
+          "rules_secondary": "Please note that the value of the Underlying is the single-decimal value reported by the BLS.\n\nIn the case of a delay in data caused by a federal government shutdown impacting the reliability of the Source Agency, the market\u2019s latest Expiration Date will be extended to the sooner of the release of the Underlying or six months after the end of the government shutdown.",
+          "settlement_timer_seconds": 3600,
+          "status": "active",
+          "strike_type": "greater",
+          "subtitle": "0.1",
+          "ticker": "KXCPICORE-26SEP-T0.1",
+          "title": "Will CPI Core rise more than 0.1% in September?",
+          "updated_time": "2026-06-10T19:50:00.704993Z",
+          "volume_24h_fp": "16112.78",
+          "volume_fp": "22068.51",
+          "yes_ask_dollars": "0.8000",
+          "yes_ask_size_fp": "9.00",
+          "yes_bid_dollars": "0.7300",
+          "yes_bid_size_fp": "132.50",
+          "yes_sub_title": "Above 0.1%"
+        }
+      }
+    },
+    "orderbook": {
+      "path": "/markets/KXCPICORE-26SEP-T0.1/orderbook",
+      "at_utc": "2026-09-29T00:04:28.156021+00:00",
+      "status": 200,
+      "latency_ms": 242.21,
+      "body": {
+        "orderbook_fp": {
+          "no_dollars": [
+            [
+              "0.0100",
+              "1000.00"
+            ],
+            [
+              "0.0200",
+              "588.00"
+            ],
+            [
+              "0.0700",
+              "1.00"
+            ],
+            [
+              "0.1100",
+              "1684.95"
+            ],
+            [
+              "0.1200",
+              "201.00"
+            ],
+            [
+              "0.1300",
+              "60.00"
+            ],
+            [
+              "0.1400",
+              "76.50"
+            ],
+            [
+              "0.1800",
+              "435.50"
+            ],
+            [
+              "0.1900",
+              "105.00"
+            ],
+            [
+              "0.2000",
+              "9.00"
+            ]
+          ],
+          "yes_dollars": [
+            [
+              "0.0100",
+              "1000.00"
+            ],
+            [
+              "0.1200",
+              "617.00"
+            ],
+            [
+              "0.1300",
+              "302.00"
+            ],
+            [
+              "0.1400",
+              "30.50"
+            ],
+            [
+              "0.1500",
+              "6.00"
+            ],
+            [
+              "0.6200",
+              "354.00"
+            ],
+            [
+              "0.6400",
+              "109.00"
+            ],
+            [
+              "0.6500",
+              "54.00"
+            ],
+            [
+              "0.6800",
+              "550.31"
+            ],
+            [
+              "0.6900",
+              "165.00"
+            ],
+            [
+              "0.7100",
+              "102.51"
+            ],
+            [
+              "0.7300",
+              "132.50"
+            ]
+          ]
+        }
+      }
+    },
+    "event": {
+      "path": "/events/KXCPICORE-26SEP",
+      "at_utc": "2026-09-29T00:04:28.398292+00:00",
+      "status": 200,
+      "latency_ms": 322.405,
+      "body": {
+        "event": {
+          "category": "Economics",
+          "collateral_return_type": "DIRECNET",
+          "event_ticker": "KXCPICORE-26SEP",
+          "exchange_index": 0,
+          "last_updated_ts": "0001-01-01T00:00:00Z",
+          "mutually_exclusive": false,
+          "series_ticker": "KXCPICORE",
+          "settlement_sources": [
+            {
+              "name": "Bureau of Labor Statistics",
+              "url": "https://www.bls.gov/cpi/"
+            }
+          ],
+          "strike_period": "September 2026",
+          "sub_title": "In Sep 2026",
+          "title": "CPI core in September"
+        },
+        "markets": [
+          {
+            "can_close_early": true,
+            "cap_strike": 0,
+            "close_time": "2026-10-14T12:25:00Z",
+            "created_time": "2026-06-10T19:30:10.156376Z",
+            "event_ticker": "KXCPICORE-26SEP",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-14T14:00:00Z",
+            "expiration_time": "2026-10-21T14:00:00Z",
+            "expiration_value": "",
+            "floor_strike": 0,
+            "last_price_dollars": "0.9300",
+            "latest_expiration_time": "2026-10-21T14:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.0900",
+            "no_bid_dollars": "0.0700",
+            "no_sub_title": "Above 0.0%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-10-14T14:00:00Z",
+            "open_interest_fp": "3807.94",
+            "open_time": "2026-06-10T19:50:00Z",
+            "previous_price_dollars": "0.9900",
+            "previous_yes_ask_dollars": "0.9900",
+            "previous_yes_bid_dollars": "0.9800",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the seasonally adjusted Consumer Price Index for All Urban Consumers: All Items less Food and Energy for September 2026, as published by the Bureau of Labor Statistics, increases by above 0.0%, then the market resolves to Yes.",
+            "rules_secondary": "Please note that the value of the Underlying is the single-decimal value reported by the BLS.\n\nIn the case of a delay in data caused by a federal government shutdown impacting the reliability of the Source Agency, the market\u2019s latest Expiration Date will be extended to the sooner of the release of the Underlying or six months after the end of the government shutdown.",
+            "settlement_timer_seconds": 3600,
+            "status": "active",
+            "strike_type": "greater",
+            "subtitle": "0.0",
+            "ticker": "KXCPICORE-26SEP-T0.0",
+            "title": "Will CPI Core rise more than 0.0% in September?",
+            "updated_time": "2026-06-10T19:50:00.704993Z",
+            "volume_24h_fp": "3388.11",
+            "volume_fp": "5948.06",
+            "yes_ask_dollars": "0.9300",
+            "yes_ask_size_fp": "116.35",
+            "yes_bid_dollars": "0.9100",
+            "yes_bid_size_fp": "100.00",
+            "yes_sub_title": "Above 0.0%"
+          },
+          {
+            "can_close_early": true,
+            "cap_strike": 0.1,
+            "close_time": "2026-10-14T12:25:00Z",
+            "created_time": "2026-06-10T19:30:10.156376Z",
+            "event_ticker": "KXCPICORE-26SEP",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-14T14:00:00Z",
+            "expiration_time": "2026-10-21T14:00:00Z",
+            "expiration_value": "",
+            "floor_strike": 0.1,
+            "last_price_dollars": "0.7600",
+            "latest_expiration_time": "2026-10-21T14:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.2700",
+            "no_bid_dollars": "0.2000",
+            "no_sub_title": "Above 0.1%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-10-14T14:00:00Z",
+            "open_interest_fp": "16491.43",
+            "open_time": "2026-06-10T19:50:00Z",
+            "previous_price_dollars": "0.8900",
+            "previous_yes_ask_dollars": "0.8900",
+            "previous_yes_bid_dollars": "0.8800",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the seasonally adjusted Consumer Price Index for All Urban Consumers: All Items less Food and Energy for September 2026, as published by the Bureau of Labor Statistics, increases by above 0.1%, then the market resolves to Yes.",
+            "rules_secondary": "Please note that the value of the Underlying is the single-decimal value reported by the BLS.\n\nIn the case of a delay in data caused by a federal government shutdown impacting the reliability of the Source Agency, the market\u2019s latest Expiration Date will be extended to the sooner of the release of the Underlying or six months after the end of the government shutdown.",
+            "settlement_timer_seconds": 3600,
+            "status": "active",
+            "strike_type": "greater",
+            "subtitle": "0.1",
+            "ticker": "KXCPICORE-26SEP-T0.1",
+            "title": "Will CPI Core rise more than 0.1% in September?",
+            "updated_time": "2026-06-10T19:50:00.704993Z",
+            "volume_24h_fp": "16112.78",
+            "volume_fp": "22068.51",
+            "yes_ask_dollars": "0.8000",
+            "yes_ask_size_fp": "9.00",
+            "yes_bid_dollars": "0.7300",
+            "yes_bid_size_fp": "130.00",
+            "yes_sub_title": "Above 0.1%"
+          },
+          {
+            "can_close_early": true,
+            "cap_strike": 0.2,
+            "close_time": "2026-10-14T12:25:00Z",
+            "created_time": "2026-06-10T19:30:10.156376Z",
+            "event_ticker": "KXCPICORE-26SEP",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-14T14:00:00Z",
+            "expiration_time": "2026-10-21T14:00:00Z",
+            "expiration_value": "",
+            "floor_strike": 0.2,
+            "last_price_dollars": "0.3600",
+            "latest_expiration_time": "2026-10-21T14:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.6600",
+            "no_bid_dollars": "0.6300",
+            "no_sub_title": "Above 0.2%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-10-14T14:00:00Z",
+            "open_interest_fp": "35881.10",
+            "open_time": "2026-06-10T19:50:00Z",
+            "previous_price_dollars": "0.3700",
+            "previous_yes_ask_dollars": "0.4000",
+            "previous_yes_bid_dollars": "0.3700",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the seasonally adjusted Consumer Price Index for All Urban Consumers: All Items less Food and Energy for September 2026, as published by the Bureau of Labor Statistics, increases by above 0.2%, then the market resolves to Yes.",
+            "rules_secondary": "Please note that the value of the Underlying is the single-decimal value reported by the BLS.\n\nIn the case of a delay in data caused by a federal government shutdown impacting the reliability of the Source Agency, the market\u2019s latest Expiration Date will be extended to the sooner of the release of the Underlying or six months after the end of the government shutdown.",
+            "settlement_timer_seconds": 3600,
+            "status": "active",
+            "strike_type": "greater",
+            "subtitle": "0.2",
+            "ticker": "KXCPICORE-26SEP-T0.2",
+            "title": "Will CPI Core rise more than 0.2% in September?",
+            "updated_time": "2026-06-10T19:50:00.704993Z",
+            "volume_24h_fp": "2562.23",
+            "volume_fp": "46619.97",
+            "yes_ask_dollars": "0.3700",
+            "yes_ask_size_fp": "3.00",
+            "yes_bid_dollars": "0.3400",
+            "yes_bid_size_fp": "621.41",
+            "yes_sub_title": "Above 0.2%"
+          },
+          {
+            "can_close_early": true,
+            "cap_strike": 0.3,
+            "close_time": "2026-10-14T12:25:00Z",
+            "created_time": "2026-06-10T19:30:10.156376Z",
+            "event_ticker": "KXCPICORE-26SEP",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-14T14:00:00Z",
+            "expiration_time": "2026-10-21T14:00:00Z",
+            "expiration_value": "",
+            "floor_strike": 0.3,
+            "last_price_dollars": "0.1000",
+            "latest_expiration_time": "2026-10-21T14:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9200",
+            "no_bid_dollars": "0.9000",
+            "no_sub_title": "Above 0.3%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-10-14T14:00:00Z",
+            "open_interest_fp": "49096.98",
+            "open_time": "2026-06-10T19:50:00Z",
+            "previous_price_dollars": "0.1100",
+            "previous_yes_ask_dollars": "0.1300",
+            "previous_yes_bid_dollars": "0.1100",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the seasonally adjusted Consumer Price Index for All Urban Consumers: All Items less Food and Energy for September 2026, as published by the Bureau of Labor Statistics, increases by above 0.3%, then the market resolves to Yes.",
+            "rules_secondary": "Please note that the value of the Underlying is the single-decimal value reported by the BLS.\n\nIn the case of a delay in data caused by a federal government shutdown impacting the reliability of the Source Agency, the market\u2019s latest Expiration Date will be extended to the sooner of the release of the Underlying or six months after the end of the government shutdown.",
+            "settlement_timer_seconds": 3600,
+            "status": "active",
+            "strike_type": "greater",
+            "subtitle": "0.3",
+            "ticker": "KXCPICORE-26SEP-T0.3",
+            "title": "Will CPI Core rise more than 0.3% in September?",
+            "updated_time": "2026-06-10T19:50:00.704993Z",
+            "volume_24h_fp": "951.68",
+            "volume_fp": "53660.43",
+            "yes_ask_dollars": "0.1000",
+            "yes_ask_size_fp": "102.50",
+            "yes_bid_dollars": "0.0800",
+            "yes_bid_size_fp": "205.00",
+            "yes_sub_title": "Above 0.3%"
+          },
+          {
+            "can_close_early": true,
+            "cap_strike": 0.4,
+            "close_time": "2026-10-14T12:25:00Z",
+            "created_time": "2026-06-10T19:30:10.156376Z",
+            "event_ticker": "KXCPICORE-26SEP",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-14T14:00:00Z",
+            "expiration_time": "2026-10-21T14:00:00Z",
+            "expiration_value": "",
+            "floor_strike": 0.4,
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2026-10-21T14:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9900",
+            "no_sub_title": "Above 0.4%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-10-14T14:00:00Z",
+            "open_interest_fp": "9387.93",
+            "open_time": "2026-06-10T19:50:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "0.0100",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the seasonally adjusted Consumer Price Index for All Urban Consumers: All Items less Food and Energy for September 2026, as published by the Bureau of Labor Statistics, increases by above 0.4%, then the market resolves to Yes.",
+            "rules_secondary": "Please note that the value of the Underlying is the single-decimal value reported by the BLS.\n\nIn the case of a delay in data caused by a federal government shutdown impacting the reliability of the Source Agency, the market\u2019s latest Expiration Date will be extended to the sooner of the release of the Underlying or six months after the end of the government shutdown.",
+            "settlement_timer_seconds": 3600,
+            "status": "active",
+            "strike_type": "greater",
+            "subtitle": "0.4",
+            "ticker": "KXCPICORE-26SEP-T0.4",
+            "title": "Will CPI Core rise more than 0.4% in September?",
+            "updated_time": "2026-06-10T19:50:00.704993Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "13928.75",
+            "yes_ask_dollars": "0.0100",
+            "yes_ask_size_fp": "6035.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Above 0.4%"
+          },
+          {
+            "can_close_early": true,
+            "cap_strike": 0.5,
+            "close_time": "2026-10-14T12:25:00Z",
+            "created_time": "2026-06-10T19:30:10.156376Z",
+            "event_ticker": "KXCPICORE-26SEP",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-14T14:00:00Z",
+            "expiration_time": "2026-10-21T14:00:00Z",
+            "expiration_value": "",
+            "floor_strike": 0.5,
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2026-10-21T14:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9900",
+            "no_sub_title": "Above 0.5%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-10-14T14:00:00Z",
+            "open_interest_fp": "4924.00",
+            "open_time": "2026-06-10T19:50:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "0.0100",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the seasonally adjusted Consumer Price Index for All Urban Consumers: All Items less Food and Energy for September 2026, as published by the Bureau of Labor Statistics, increases by above 0.5%, then the market resolves to Yes.",
+            "rules_secondary": "Please note that the value of the Underlying is the single-decimal value reported by the BLS.\n\nIn the case of a delay in data caused by a federal government shutdown impacting the reliability of the Source Agency, the market\u2019s latest Expiration Date will be extended to the sooner of the release of the Underlying or six months after the end of the government shutdown.",
+            "settlement_timer_seconds": 3600,
+            "status": "active",
+            "strike_type": "greater",
+            "subtitle": "0.5",
+            "ticker": "KXCPICORE-26SEP-T0.5",
+            "title": "Will CPI Core rise more than 0.5% in September?",
+            "updated_time": "2026-06-10T19:50:00.704993Z",
+            "volume_24h_fp": "100.00",
+            "volume_fp": "6352.90",
+            "yes_ask_dollars": "0.0100",
+            "yes_ask_size_fp": "3994.10",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Above 0.5%"
+          },
+          {
+            "can_close_early": true,
+            "cap_strike": 0.6,
+            "close_time": "2026-10-14T12:25:00Z",
+            "created_time": "2026-06-10T19:30:10.156376Z",
+            "event_ticker": "KXCPICORE-26SEP",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-14T14:00:00Z",
+            "expiration_time": "2026-10-21T14:00:00Z",
+            "expiration_value": "",
+            "floor_strike": 0.6,
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2026-10-21T14:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9900",
+            "no_sub_title": "Above 0.6%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-10-14T14:00:00Z",
+            "open_interest_fp": "6947.75",
+            "open_time": "2026-06-10T19:50:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "0.0100",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the seasonally adjusted Consumer Price Index for All Urban Consumers: All Items less Food and Energy for September 2026, as published by the Bureau of Labor Statistics, increases by above 0.6%, then the market resolves to Yes.",
+            "rules_secondary": "Please note that the value of the Underlying is the single-decimal value reported by the BLS.\n\nIn the case of a delay in data caused by a federal government shutdown impacting the reliability of the Source Agency, the market\u2019s latest Expiration Date will be extended to the sooner of the release of the Underlying or six months after the end of the government shutdown.",
+            "settlement_timer_seconds": 3600,
+            "status": "active",
+            "strike_type": "greater",
+            "subtitle": "0.6",
+            "ticker": "KXCPICORE-26SEP-T0.6",
+            "title": "Will CPI Core rise more than 0.6% in September?",
+            "updated_time": "2026-06-10T19:50:00.704993Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "10185.62",
+            "yes_ask_dollars": "0.0100",
+            "yes_ask_size_fp": "2896.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Above 0.6%"
+          },
+          {
+            "can_close_early": true,
+            "cap_strike": 0.7,
+            "close_time": "2026-10-14T12:25:00Z",
+            "created_time": "2026-06-10T19:30:10.156376Z",
+            "event_ticker": "KXCPICORE-26SEP",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-14T14:00:00Z",
+            "expiration_time": "2026-10-21T14:00:00Z",
+            "expiration_value": "",
+            "floor_strike": 0.7,
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2026-10-21T14:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9900",
+            "no_sub_title": "Above 0.7%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-10-14T14:00:00Z",
+            "open_interest_fp": "2700.00",
+            "open_time": "2026-06-10T19:50:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "0.0100",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the seasonally adjusted Consumer Price Index for All Urban Consumers: All Items less Food and Energy for September 2026, as published by the Bureau of Labor Statistics, increases by above 0.7%, then the market resolves to Yes.",
+            "rules_secondary": "Please note that the value of the Underlying is the single-decimal value reported by the BLS.\n\nIn the case of a delay in data caused by a federal government shutdown impacting the reliability of the Source Agency, the market\u2019s latest Expiration Date will be extended to the sooner of the release of the Underlying or six months after the end of the government shutdown.",
+            "settlement_timer_seconds": 3600,
+            "status": "active",
+            "strike_type": "greater",
+            "subtitle": "0.7",
+            "ticker": "KXCPICORE-26SEP-T0.7",
+            "title": "Will CPI Core rise more than 0.7% in September?",
+            "updated_time": "2026-06-10T19:50:00.704993Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "2752.00",
+            "yes_ask_dollars": "0.0100",
+            "yes_ask_size_fp": "2896.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Above 0.7%"
+          },
+          {
+            "can_close_early": true,
+            "cap_strike": 0.8,
+            "close_time": "2026-10-14T12:25:00Z",
+            "created_time": "2026-06-10T19:30:10.156376Z",
+            "event_ticker": "KXCPICORE-26SEP",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-14T14:00:00Z",
+            "expiration_time": "2026-10-21T14:00:00Z",
+            "expiration_value": "",
+            "floor_strike": 0.8,
+            "last_price_dollars": "0.0200",
+            "latest_expiration_time": "2026-10-21T14:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9900",
+            "no_sub_title": "Above 0.8%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-10-14T14:00:00Z",
+            "open_interest_fp": "55.00",
+            "open_time": "2026-06-10T19:50:00Z",
+            "previous_price_dollars": "0.0200",
+            "previous_yes_ask_dollars": "0.0100",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the seasonally adjusted Consumer Price Index for All Urban Consumers: All Items less Food and Energy for September 2026, as published by the Bureau of Labor Statistics, increases by above 0.8%, then the market resolves to Yes.",
+            "rules_secondary": "Please note that the value of the Underlying is the single-decimal value reported by the BLS.\n\nIn the case of a delay in data caused by a federal government shutdown impacting the reliability of the Source Agency, the market\u2019s latest Expiration Date will be extended to the sooner of the release of the Underlying or six months after the end of the government shutdown.",
+            "settlement_timer_seconds": 3600,
+            "status": "active",
+            "strike_type": "greater",
+            "subtitle": "0.8",
+            "ticker": "KXCPICORE-26SEP-T0.8",
+            "title": "Will CPI Core rise more than 0.8% in September?",
+            "updated_time": "2026-06-10T19:50:00.704993Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "73.00",
+            "yes_ask_dollars": "0.0100",
+            "yes_ask_size_fp": "19.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Above 0.8%"
+          },
+          {
+            "can_close_early": true,
+            "cap_strike": 0.9,
+            "close_time": "2026-10-14T12:25:00Z",
+            "created_time": "2026-06-10T19:30:10.156376Z",
+            "event_ticker": "KXCPICORE-26SEP",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-14T14:00:00Z",
+            "expiration_time": "2026-10-21T14:00:00Z",
+            "expiration_value": "",
+            "floor_strike": 0.9,
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2026-10-21T14:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9900",
+            "no_sub_title": "Above 0.9%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-10-14T14:00:00Z",
+            "open_interest_fp": "25.00",
+            "open_time": "2026-06-10T19:50:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "0.0100",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the seasonally adjusted Consumer Price Index for All Urban Consumers: All Items less Food and Energy for September 2026, as published by the Bureau of Labor Statistics, increases by above 0.9%, then the market resolves to Yes.",
+            "rules_secondary": "Please note that the value of the Underlying is the single-decimal value reported by the BLS.\n\nIn the case of a delay in data caused by a federal government shutdown impacting the reliability of the Source Agency, the market\u2019s latest Expiration Date will be extended to the sooner of the release of the Underlying or six months after the end of the government shutdown.",
+            "settlement_timer_seconds": 3600,
+            "status": "active",
+            "strike_type": "greater",
+            "subtitle": "0.9",
+            "ticker": "KXCPICORE-26SEP-T0.9",
+            "title": "Will CPI Core rise more than 0.9% in September?",
+            "updated_time": "2026-06-10T19:50:00.704993Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "43.00",
+            "yes_ask_dollars": "0.0100",
+            "yes_ask_size_fp": "9.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Above 0.9%"
+          },
+          {
+            "can_close_early": true,
+            "cap_strike": 1,
+            "close_time": "2026-10-14T12:25:00Z",
+            "created_time": "2026-06-10T19:30:10.156376Z",
+            "event_ticker": "KXCPICORE-26SEP",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-10-14T14:00:00Z",
+            "expiration_time": "2026-10-21T14:00:00Z",
+            "expiration_value": "",
+            "floor_strike": 1,
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2026-10-21T14:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9900",
+            "no_sub_title": "Above 1.0%",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-10-14T14:00:00Z",
+            "open_interest_fp": "25.00",
+            "open_time": "2026-06-10T19:50:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "0.0100",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the seasonally adjusted Consumer Price Index for All Urban Consumers: All Items less Food and Energy for September 2026, as published by the Bureau of Labor Statistics, increases by above 1.0%, then the market resolves to Yes.",
+            "rules_secondary": "Please note that the value of the Underlying is the single-decimal value reported by the BLS.\n\nIn the case of a delay in data caused by a federal government shutdown impacting the reliability of the Source Agency, the market\u2019s latest Expiration Date will be extended to the sooner of the release of the Underlying or six months after the end of the government shutdown.",
+            "settlement_timer_seconds": 3600,
+            "status": "active",
+            "strike_type": "greater",
+            "subtitle": "1.0",
+            "ticker": "KXCPICORE-26SEP-T1.0",
+            "title": "Will CPI Core rise more than 1.0% in September?",
+            "updated_time": "2026-06-10T19:50:00.704993Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "43.00",
+            "yes_ask_dollars": "0.0100",
+            "yes_ask_size_fp": "10.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Above 1.0%"
+          }
+        ]
+      }
+    },
+    "series": {
+      "path": "/series/KXCPICORE",
+      "at_utc": "2026-09-29T00:04:28.721067+00:00",
+      "status": 200,
+      "latency_ms": 247.08,
+      "body": {
+        "series": {
+          "additional_prohibitions": [
+            "Persons who are employed by any of the Source Agencies are not permitted to trade on the Contract.",
+            "Persons who hold any material, non-public information on the Underlying are not permitted to trade on the Contract."
+          ],
+          "categories": [
+            "Economics"
+          ],
+          "category": "Economics",
+          "contract_terms_url": "https://assets.kalshi.com/contract_terms/CORECPI.pdf",
+          "contract_url": "https://assets.kalshi.com/regulatory/product-certifications/CORECPI.pdf",
+          "exchange_index": 0,
+          "fee_multiplier": 1,
+          "fee_type": "quadratic",
+          "frequency": "monthly",
+          "last_updated_ts": "2026-08-10T17:13:45.542297Z",
+          "product_metadata": {
+            "scope": "Calendar"
+          },
+          "settlement_sources": [
+            {
+              "name": "Bureau of Labor Statistics",
+              "url": "https://www.bls.gov/cpi/"
+            }
+          ],
+          "tags": [
+            "Inflation"
+          ],
+          "ticker": "KXCPICORE",
+          "title": "CPI core"
+        }
+      }
+    }
+  },
+  "completed_at_utc": "2026-09-29T00:04:28.968196+00:00",
+  "note": "Sequential snapshots, not executable quotes or actual fees. Re-read immediately before arming."
+}

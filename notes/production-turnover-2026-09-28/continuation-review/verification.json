@@ -1,0 +1,6 @@
+{
+  "source_manifest_sha256": "6047b85a4306c70bd7048c8ed15e41e2ab87b8a21075a8a550747a8c13e1c709",
+  "source_matches_review": true,
+  "binary_sha256": "e3f8a697a20c3153f5c2a8650094b949ff57b985f94b154a7defdad22e9ef361",
+  "scope": "hash comparison and prose whitespace check only; no test/gate/q01 rerun"
+}

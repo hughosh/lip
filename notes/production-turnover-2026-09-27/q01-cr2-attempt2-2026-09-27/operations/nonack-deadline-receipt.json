@@ -1,0 +1,54 @@
+{
+  "at": "2026-09-27T18:35:01.027404+00:00",
+  "backup_configured": false,
+  "event": "tick_complete",
+  "incidents": {
+    "LIP-NONACK-20260927": {
+      "acknowledged": false,
+      "age_seconds": 303.97639892578127,
+      "backup": {
+        "attempts": 0,
+        "last_attempt_ms": null,
+        "sent_ms": null,
+        "unconfigured": true
+      },
+      "primary": {
+        "attempts": 1,
+        "last_attempt_ms": 1790533797142,
+        "sent_ms": 1790533797142
+      }
+    },
+    "LIP-PRIMARY-20260927": {
+      "acknowledged": false,
+      "age_seconds": 303.97640087890625,
+      "backup": {
+        "attempts": 0,
+        "last_attempt_ms": null,
+        "sent_ms": null,
+        "unconfigured": true
+      },
+      "primary": {
+        "attempts": 1,
+        "last_attempt_ms": 1790533797142,
+        "sent_ms": 1790533797142
+      }
+    },
+    "LIP-TRANSPORT-20260927": {
+      "acknowledged": false,
+      "age_seconds": 147.19140185546874,
+      "backup": {
+        "attempts": 0,
+        "last_attempt_ms": null,
+        "sent_ms": null,
+        "unconfigured": true
+      },
+      "primary": {
+        "attempts": 2,
+        "last_attempt_ms": 1790533995186,
+        "sent_ms": 1790533995186
+      }
+    }
+  },
+  "outcomes": [],
+  "pid": 99692
+}

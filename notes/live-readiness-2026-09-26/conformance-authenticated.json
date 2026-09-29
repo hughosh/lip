@@ -1,0 +1,509 @@
+{
+  "ran_at": "2026-09-26T22:36:29Z",
+  "endpoints": [
+    {
+      "name": "fills",
+      "path": "/portfolio/fills",
+      "latent": false,
+      "walk_outcome": "complete",
+      "pages": 1,
+      "records": 15,
+      "failed": 0,
+      "full_walk_decodes": true
+    },
+    {
+      "name": "orders",
+      "path": "/portfolio/orders",
+      "latent": false,
+      "walk_outcome": "complete",
+      "pages": 1,
+      "records": 0,
+      "failed": 0,
+      "full_walk_decodes": false,
+      "full_walk_error": "/portfolio/orders page 1: /portfolio/orders: declared item array \"orders\" is null; the measured empty page carries an empty array, not a null"
+    },
+    {
+      "name": "positions.market",
+      "path": "/portfolio/positions",
+      "latent": false,
+      "walk_outcome": "complete",
+      "pages": 1,
+      "records": 1,
+      "failed": 0,
+      "full_walk_decodes": true
+    },
+    {
+      "name": "positions.event",
+      "path": "/portfolio/positions",
+      "latent": false,
+      "walk_outcome": "complete",
+      "pages": 1,
+      "records": 1,
+      "failed": 0,
+      "full_walk_decodes": true
+    },
+    {
+      "name": "programs",
+      "path": "/incentive_programs",
+      "latent": false,
+      "walk_outcome": "complete",
+      "pages": 8,
+      "records": 7035,
+      "failed": 0,
+      "full_walk_decodes": true
+    },
+    {
+      "name": "programs.unfiltered",
+      "path": "/incentive_programs",
+      "latent": true,
+      "walk_outcome": "complete",
+      "pages": 252,
+      "records": 251187,
+      "failed": 22360,
+      "full_walk_decodes": false,
+      "full_walk_error": "KXMLBSEASONGAMES-27-0: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record_shapes": {
+        "liquidity / has target_size_fp": 228827,
+        "volume / NO target_size_fp": 22360
+      }
+    }
+  ],
+  "failures": [
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 39040,
+      "reason": "KXMLBSEASONGAMES-27-0: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-16T21:46:41.819707Z",
+        "id": "af849fdb-c616-41ad-9b70-030057cb28a7",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "ce74074c-bc45-49f7-b63d-5abb755a3173",
+        "market_ticker": "KXMLBSEASONGAMES-27-0",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-15T21:46:41.819707Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 39041,
+      "reason": "KXMLBSEASONGAMES-27-2425: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-16T21:46:41.819707Z",
+        "id": "875f3d08-a048-48e4-9b04-e9fbf0798f22",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "3423791c-8415-480b-ac0f-15efd38d9d5b",
+        "market_ticker": "KXMLBSEASONGAMES-27-2425",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-15T21:46:41.819707Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 39042,
+      "reason": "KXMLBSEASONGAMES-27-600: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-16T21:46:41.819707Z",
+        "id": "70180574-a7ed-4818-9b1b-e4be323c7102",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "a3b11a72-f355-4b18-a6b5-761c0b5a6ddf",
+        "market_ticker": "KXMLBSEASONGAMES-27-600",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-15T21:46:41.819707Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 39044,
+      "reason": "KXMLBSEASONGAMES-27-1215: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-16T21:46:41.819707Z",
+        "id": "518741d4-280f-42e2-8a1d-3eb744556a12",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "9e9ecfad-cf4f-428b-a8be-bd05d18d5a5f",
+        "market_ticker": "KXMLBSEASONGAMES-27-1215",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-15T21:46:41.819707Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 39048,
+      "reason": "KXMLBSEASONGAMES-27-1930: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-16T21:46:41.819707Z",
+        "id": "24a894db-3803-4038-8031-f253c78ca988",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "eb5401ff-fe75-4bfe-aa56-106c2c3b9ed5",
+        "market_ticker": "KXMLBSEASONGAMES-27-1930",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-15T21:46:41.819707Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 41826,
+      "reason": "KXRAINDNYC-260919-0: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-20T03:59:00Z",
+        "id": "336141f0-a3da-4924-a7ac-1f7a3c2368a3",
+        "incentive_description": "",
+        "incentive_type": "volume",
+        "market_id": "6ca4d7b8-c29c-4bda-b2bf-b33eee8d8365",
+        "market_ticker": "KXRAINDNYC-260919-0",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-14T22:40:00Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 41928,
+      "reason": "KXMLBSEASONGAMES-27-1215: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-15T21:32:31.231155Z",
+        "id": "9fd68909-df1b-4800-a4d5-1fff4d0081eb",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "9e9ecfad-cf4f-428b-a8be-bd05d18d5a5f",
+        "market_ticker": "KXMLBSEASONGAMES-27-1215",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-14T21:32:31.231155Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 41931,
+      "reason": "KXMLBSEASONGAMES-27-600: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-15T21:32:31.231155Z",
+        "id": "7a72e88b-9ced-4d74-be69-f0060742732d",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "a3b11a72-f355-4b18-a6b5-761c0b5a6ddf",
+        "market_ticker": "KXMLBSEASONGAMES-27-600",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-14T21:32:31.231155Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 41932,
+      "reason": "KXMLBSEASONGAMES-27-2425: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-15T21:32:31.231155Z",
+        "id": "75acd22b-6657-43b2-bbc1-f0d34363f010",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "3423791c-8415-480b-ac0f-15efd38d9d5b",
+        "market_ticker": "KXMLBSEASONGAMES-27-2425",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-14T21:32:31.231155Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 41933,
+      "reason": "KXMLBSEASONGAMES-27-1930: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-15T21:32:31.231155Z",
+        "id": "6b9e2c3a-18ee-445f-a437-5c8236d8ce17",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "eb5401ff-fe75-4bfe-aa56-106c2c3b9ed5",
+        "market_ticker": "KXMLBSEASONGAMES-27-1930",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-14T21:32:31.231155Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 41934,
+      "reason": "KXMLBSEASONGAMES-27-0: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-15T21:32:31.231155Z",
+        "id": "42b05489-c5f3-4d18-85b1-fc7c1a70f459",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "ce74074c-bc45-49f7-b63d-5abb755a3173",
+        "market_ticker": "KXMLBSEASONGAMES-27-0",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-14T21:32:31.231155Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 45285,
+      "reason": "KXMLBSEASONGAMES-27-1215: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-14T21:18:35.661844Z",
+        "id": "ebc3fa5d-692a-4d35-8d69-1fcb9f76a67a",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "9e9ecfad-cf4f-428b-a8be-bd05d18d5a5f",
+        "market_ticker": "KXMLBSEASONGAMES-27-1215",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-13T21:18:35.661844Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 45289,
+      "reason": "KXMLBSEASONGAMES-27-600: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-14T21:18:35.661844Z",
+        "id": "956500a2-6be6-42cc-91df-27487e7bb71c",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "a3b11a72-f355-4b18-a6b5-761c0b5a6ddf",
+        "market_ticker": "KXMLBSEASONGAMES-27-600",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-13T21:18:35.661844Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 45290,
+      "reason": "KXMLBSEASONGAMES-27-0: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-14T21:18:35.661844Z",
+        "id": "62fd9cb9-8f44-4b34-b8cf-32b8807b9711",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "ce74074c-bc45-49f7-b63d-5abb755a3173",
+        "market_ticker": "KXMLBSEASONGAMES-27-0",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-13T21:18:35.661844Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 45291,
+      "reason": "KXMLBSEASONGAMES-27-2425: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-14T21:18:35.661844Z",
+        "id": "46a9f5d8-ec92-4dc1-9880-942e957b4401",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "3423791c-8415-480b-ac0f-15efd38d9d5b",
+        "market_ticker": "KXMLBSEASONGAMES-27-2425",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-13T21:18:35.661844Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 45293,
+      "reason": "KXMLBSEASONGAMES-27-1930: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-14T21:18:35.661844Z",
+        "id": "24341cf5-2393-43d9-a8a5-3fb9212c1374",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "eb5401ff-fe75-4bfe-aa56-106c2c3b9ed5",
+        "market_ticker": "KXMLBSEASONGAMES-27-1930",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-13T21:18:35.661844Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 46868,
+      "reason": "KXMLBSEASONGAMES-27-0: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-13T21:01:58.660629Z",
+        "id": "ff719864-4b10-417c-8669-56cddcb363ce",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "ce74074c-bc45-49f7-b63d-5abb755a3173",
+        "market_ticker": "KXMLBSEASONGAMES-27-0",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-12T21:01:58.660629Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 46873,
+      "reason": "KXMLBSEASONGAMES-27-1930: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-13T21:01:58.660629Z",
+        "id": "6e89867b-9e0d-4367-b798-cbe8de977973",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "eb5401ff-fe75-4bfe-aa56-106c2c3b9ed5",
+        "market_ticker": "KXMLBSEASONGAMES-27-1930",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-12T21:01:58.660629Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 46874,
+      "reason": "KXMLBSEASONGAMES-27-2425: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-13T21:01:58.660629Z",
+        "id": "5a9c003d-b8f0-493a-9fc7-28e8fbf53a9a",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "3423791c-8415-480b-ac0f-15efd38d9d5b",
+        "market_ticker": "KXMLBSEASONGAMES-27-2425",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-12T21:01:58.660629Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 46875,
+      "reason": "KXMLBSEASONGAMES-27-600: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-13T21:01:58.660629Z",
+        "id": "3d942299-9e9c-4117-937d-6fd5868f077d",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "a3b11a72-f355-4b18-a6b5-761c0b5a6ddf",
+        "market_ticker": "KXMLBSEASONGAMES-27-600",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-12T21:01:58.660629Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 46876,
+      "reason": "KXMLBSEASONGAMES-27-1215: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-13T21:01:58.660629Z",
+        "id": "2f7bd522-ef11-40c8-9108-f04cf701b911",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "9e9ecfad-cf4f-428b-a8be-bd05d18d5a5f",
+        "market_ticker": "KXMLBSEASONGAMES-27-1215",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-12T21:01:58.660629Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 48703,
+      "reason": "KXMLBSEASONGAMES-27-1215: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-12T20:46:37.381367Z",
+        "id": "fbc2d7e7-005f-47d9-967a-f978b8ff7163",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "9e9ecfad-cf4f-428b-a8be-bd05d18d5a5f",
+        "market_ticker": "KXMLBSEASONGAMES-27-1215",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-11T20:46:37.381367Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 48706,
+      "reason": "KXMLBSEASONGAMES-27-0: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-12T20:46:37.381367Z",
+        "id": "8662371b-494e-4e90-9382-5877d31ef37a",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "ce74074c-bc45-49f7-b63d-5abb755a3173",
+        "market_ticker": "KXMLBSEASONGAMES-27-0",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-11T20:46:37.381367Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 48707,
+      "reason": "KXMLBSEASONGAMES-27-600: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-12T20:46:37.381367Z",
+        "id": "7f098d3e-d631-4edf-82d1-d28fb79116e5",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "a3b11a72-f355-4b18-a6b5-761c0b5a6ddf",
+        "market_ticker": "KXMLBSEASONGAMES-27-600",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-11T20:46:37.381367Z"
+      }
+    },
+    {
+      "endpoint": "programs.unfiltered",
+      "index": 48710,
+      "reason": "KXMLBSEASONGAMES-27-2425: no target_size_fp field; the Target Size is `Qualifies()`'s threshold and there is no defensible default for it",
+      "record": {
+        "end_date": "2026-09-12T20:46:37.381367Z",
+        "id": "485be75c-577b-4b70-9632-5d0f87cf44bc",
+        "incentive_description": "series_lip",
+        "incentive_type": "volume",
+        "market_id": "3423791c-8415-480b-ac0f-15efd38d9d5b",
+        "market_ticker": "KXMLBSEASONGAMES-27-2425",
+        "paid_out": true,
+        "period_reward": 5000000,
+        "start_date": "2026-09-11T20:46:37.381367Z"
+      }
+    }
+  ],
+  "fees": {
+    "fills": 15,
+    "fee_decimal_places": {
+      "6": 15
+    },
+    "max_decimals": 6,
+    "nonzero_fee": 8,
+    "is_taker_true": 8,
+    "would_trip_taker_fill": 8,
+    "distinct_fee_values": [
+      "0.000000",
+      "0.017200",
+      "0.017300",
+      "0.052500",
+      "0.140000",
+      "0.396800",
+      "0.431200",
+      "0.437400"
+    ],
+    "fee_values_ParsePrice4_refuses": [
+      "0.000000",
+      "0.017200",
+      "0.017300",
+      "0.052500",
+      "0.140000",
+      "0.396800",
+      "0.431200",
+      "0.437400"
+    ]
+  },
+  "prices": {
+    "records_with_both_price_fields": 15,
+    "complement_violations": 0,
+    "examples": null
+  },
+  "balance": "9858 cents decoded cleanly"
+}

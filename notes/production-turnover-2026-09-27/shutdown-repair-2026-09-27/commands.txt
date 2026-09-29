@@ -1,0 +1,8 @@
+2026-09-27 UTC; working directory /Users/hugh/kek/lip/go unless otherwise noted.
+Pre-fix reproduction: temporary single-condition variant (`if false && o.sd.orderlyClosed`), go test ./cmd/harness -run '^TestRuntimeStoreAuthorizedCloseDoesNotRaiseFailure$' -count=1 -v; exit 1, intended assertion failed; original file restored immediately.
+Focused: go test ./cmd/harness -run '^TestRuntimeStore(AuthorizedCloseDoesNotRaiseFailure|RefusedCloseRetainsFailureGuard|ObservesRealWriterExit)$' -count=1 -v; exit 0 (before adding in-flight probe test).
+Affected package: go test ./cmd/harness -count=1; exit 0.
+Race: go test -race ./cmd/harness -run '^TestRuntimeStore(AuthorizedCloseDoesNotRaiseFailure|ProbeBegunBeforeCloseCompletesBeforeWriterStops|RefusedCloseRetainsFailureGuard|ObservesRealWriterExit)$|^TestOnlyAnAuthorisedDrainReachesTheProcessExit$' -count=1 -v; exit 0.
+Formatting and diff: gofmt -l on four edited files returned empty; git diff --check for tracked shutdown.go and run.go returned empty.
+Final state: owner-pause experiment was removed after read-only review identified monitor/result-loop producers. go test -race ./cmd/harness -run '^TestRuntimeStore(AuthorizedCloseDoesNotRaiseFailure|ProbeBegunBeforeCloseCompletesBeforeWriterStops|RefusedCloseRetainsFailureGuard|ObservesRealWriterExit)$|^TestOnlyAnAuthorisedDrainReachesTheProcessExit$' -count=1 -v; exit 0 (race-final.log).
+The earlier package.log and race.log tested the intermediate owner-pause variant; both passed, but do not certify the final state.

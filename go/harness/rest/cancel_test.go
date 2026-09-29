@@ -62,7 +62,8 @@ func TestSweepCatchesAnIgnoredFirstCancel(t *testing.T) {
 	}
 }
 
-// A sweep that still finds our orders after its one retry pings SEV1.
+// A sweep that still finds our orders after its one retry pings SEV1 once the
+// order has stayed unconfirmed for sweepPageBound across sweeps (lip-9tt).
 func TestSweepEscalatesWhenTheOrderWillNotDie(t *testing.T) {
 	const coid = "lipH-run1-000-yes-00000002"
 	d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
@@ -74,7 +75,16 @@ func TestSweepEscalatesWhenTheOrderWillNotDie(t *testing.T) {
 		}), nil
 	}}
 
-	res := NewClient(d).CancelAndSweep(context.Background(), "T1",
+	c, clk := clockedClient(d)
+	first := c.CancelAndSweep(context.Background(), "T1",
+		[]Order{ourOrder("o1", coid)})
+	if first.Clean || sweepSEV1(first) || sweepPendings(first) != 1 {
+		t.Fatalf("first unconfirmed sweep: clean=%v SEV1=%v pending=%d, want "+
+			"not clean, one SEV3 SWEEP_PENDING, no SEV1", first.Clean,
+			sweepSEV1(first), sweepPendings(first))
+	}
+	clk.advance(sweepPageBound)
+	res := c.CancelAndSweep(context.Background(), "T1",
 		[]Order{ourOrder("o1", coid)})
 
 	if res.Clean {
@@ -234,10 +244,8 @@ func TestCancelOf404IsGoneNotFilled(t *testing.T) {
 // seam.
 //
 // A cancel is a write and the exchange refuses it through the same mechanism it
-// refuses a create, so a 429 on a DELETE is F8's detection condition arriving on
-// the one write that only ever reduces exposure. The status and the code must
-// survive together, and the classification is unchanged: every row here stays
-// CancelRejected, which is what §7.4 already said.
+// refuses a create. Definite cancel rejections carry the exchange code;
+// F8's 429 has separate unknown-outcome handling.
 func TestRejectedCancelCarriesTheExchangeErrorCode(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -245,9 +253,6 @@ func TestRejectedCancelCarriesTheExchangeErrorCode(t *testing.T) {
 		body   string
 		want   string
 	}{
-		{"429 rate limit", 429,
-			`{"error":{"code":"rate_limited","message":"too many requests"}}`,
-			"rate_limited"},
 		{"not cancelable", 400,
 			`{"error":{"code":"order_not_cancelable","message":"terminal"}}`,
 			"order_not_cancelable"},

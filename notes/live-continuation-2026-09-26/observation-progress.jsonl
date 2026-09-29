@@ -1,0 +1,1 @@
+{"at": "2026-09-26T23:55:28.515168+00:00", "active_seconds": 460.001766984, "segments": 3, "observed_monitor_slots": 457, "fresh_portfolio_slots": 92, "file_sizes": {"anomaly.jsonl": 38241, "harness.lock": 6, "harness.db-wal": 1771632, "harness.db": 57344, "harness.db-shm": 32768}, "evidence_bytes": 10923, "disk_available_bytes": 107089408000}

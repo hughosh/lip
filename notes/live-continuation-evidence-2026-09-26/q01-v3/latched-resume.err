@@ -1,0 +1,2 @@
+harness: starting with the halt latch SET at /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/q01-v3/runtime/harness.halt, on the operator's authority: Read-only retained-latch recovery observation; latch remains set
+The latch is NOT cleared. This process will wind the account down; it will not quote (H-HALT-4, §10.4).

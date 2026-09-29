@@ -1,0 +1,64 @@
+{
+  "started_at": "2026-09-26T22:40:22.331312Z",
+  "ended_at": "2026-09-26T22:40:22.981383Z",
+  "requests": [
+    {
+      "at": "2026-09-26T22:40:22.33132Z",
+      "path": "/portfolio/balance",
+      "status": 200
+    },
+    {
+      "at": "2026-09-26T22:40:22.568007Z",
+      "path": "/portfolio/subaccounts/balances",
+      "status": 200
+    },
+    {
+      "at": "2026-09-26T22:40:22.671183Z",
+      "path": "/portfolio/orders",
+      "status": 200
+    },
+    {
+      "at": "2026-09-26T22:40:22.780644Z",
+      "path": "/portfolio/orders",
+      "status": 200
+    },
+    {
+      "at": "2026-09-26T22:40:22.881623Z",
+      "path": "/portfolio/positions",
+      "status": 200
+    }
+  ],
+  "aggregate_balance_status": {
+    "outcome": "complete",
+    "count": 1
+  },
+  "aggregate_balance": "9858",
+  "subaccount_balances_status": {
+    "outcome": "malformed",
+    "count": 1
+  },
+  "market_status": {
+    "outcome": ""
+  },
+  "selected_balance_status": {
+    "outcome": ""
+  },
+  "resting_orders_status": {
+    "outcome": "complete",
+    "pages": 1
+  },
+  "positions_by_subaccount": {},
+  "account_scope_complete": false,
+  "flat": false,
+  "production_decoder": {
+    "orders": {
+      "outcome": "complete",
+      "pages": 1
+    },
+    "primary_positions": {
+      "outcome": "complete",
+      "pages": 1,
+      "count": 1
+    }
+  }
+}

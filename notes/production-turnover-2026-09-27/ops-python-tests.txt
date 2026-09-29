@@ -1,0 +1,26 @@
+test_atomic_state_is_private_json (scripts.test_ops_watchdog.WatchdogTest.test_atomic_state_is_private_json) ... ok
+test_backup_ack_and_conflicting_ack_refused (scripts.test_ops_watchdog.WatchdogTest.test_backup_ack_and_conflicting_ack_refused) ... ok
+test_clock_rewind_pages_backup_and_retries_failed_primary (scripts.test_ops_watchdog.WatchdogTest.test_clock_rewind_pages_backup_and_retries_failed_primary) ... ok
+test_corrupt_or_missing_state_refuses_all_mutations (scripts.test_ops_watchdog.WatchdogTest.test_corrupt_or_missing_state_refuses_all_mutations) ... ok
+test_endpoints_must_be_distinct_https (scripts.test_ops_watchdog.WatchdogTest.test_endpoints_must_be_distinct_https) ... ok
+test_failed_durable_write_prevents_external_send (scripts.test_ops_watchdog.WatchdogTest.test_failed_durable_write_prevents_external_send) ... ok
+test_failed_primary_still_pages_backup_and_retries (scripts.test_ops_watchdog.WatchdogTest.test_failed_primary_still_pages_backup_and_retries) ... ok
+test_local_http_receiver_ack_nonack_backup_failure_and_restart (scripts.test_ops_watchdog.WatchdogTest.test_local_http_receiver_ack_nonack_backup_failure_and_restart) ... ok
+test_primary_ack_suppresses_backup_and_recovery_does_not_resolve (scripts.test_ops_watchdog.WatchdogTest.test_primary_ack_suppresses_backup_and_recovery_does_not_resolve) ... ok
+test_primary_nonack_pages_backup_at_deadline (scripts.test_ops_watchdog.WatchdogTest.test_primary_nonack_pages_backup_at_deadline) ... ok
+test_restart_preserves_schedule_and_duplicate_event (scripts.test_ops_watchdog.WatchdogTest.test_restart_preserves_schedule_and_duplicate_event) ... ok
+test_imports_committed_sev1_even_if_unjournaled_or_delivered (scripts.test_ops_watchdog_source.SourceAdapterTest.test_imports_committed_sev1_even_if_unjournaled_or_delivered) ... ok
+test_live_wal_reads_committed_sev1_before_checkpoint (scripts.test_ops_watchdog_source.SourceAdapterTest.test_live_wal_reads_committed_sev1_before_checkpoint) ... ok
+test_missing_or_corrupt_source_persists_outage_and_recovery_does_not_ack (scripts.test_ops_watchdog_source.SourceAdapterTest.test_missing_or_corrupt_source_persists_outage_and_recovery_does_not_ack) ... ok
+test_missing_source_does_not_create_database (scripts.test_ops_watchdog_source.SourceAdapterTest.test_missing_source_does_not_create_database) ... ok
+test_mutable_journal_and_delivery_fields_do_not_change_event (scripts.test_ops_watchdog_source.SourceAdapterTest.test_mutable_journal_and_delivery_fields_do_not_change_event) ... ok
+test_source_identity_separates_incidents (scripts.test_ops_watchdog_source.SourceAdapterTest.test_source_identity_separates_incidents) ... ok
+test_wal_without_sidecars_refuses_before_readonly_open (scripts.test_ops_watchdog_source.SourceAdapterTest.test_wal_without_sidecars_refuses_before_readonly_open) ... ok
+test_missing_zero_and_corrupt_store_stay_blocked_and_unchanged (scripts.test_ops_recovery.RecoveryPreflightTest.test_missing_zero_and_corrupt_store_stay_blocked_and_unchanged) ... ok
+test_paths_must_be_explicit_absolute (scripts.test_ops_recovery.RecoveryPreflightTest.test_paths_must_be_explicit_absolute) ... ok
+test_restored_header_does_not_claim_integrity_or_flatness (scripts.test_ops_recovery.RecoveryPreflightTest.test_restored_header_does_not_claim_integrity_or_flatness) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 0.674s
+
+OK

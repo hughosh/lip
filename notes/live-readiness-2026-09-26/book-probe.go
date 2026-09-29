@@ -1,0 +1,5 @@
+package main
+import("context";"encoding/json";"fmt";"os";"time";"lip/feed";"lip/harness/rest")
+type readOnly struct{next rest.Doer}
+func(d readOnly)Do(ctx context.Context,r rest.Request)(rest.Response,error){if r.Method!="GET"||len(r.Body)!=0{return rest.Response{},fmt.Errorf("non-GET refused")};return d.next.Do(ctx,r)}
+func main(){s,e:=feed.NewSigner();if e!=nil{fmt.Println("credential initialization failed");os.Exit(1)}; c:=rest.NewClient(readOnly{rest.NewHTTPDoer(s,15*time.Second)}); start:=time.Now().UTC(); ctx,cancel:=context.WithTimeout(context.Background(),20*time.Second);defer cancel();r:=c.Orderbook(ctx,"KXTOKENUSE-26SEP28-T146");if !r.Read(){fmt.Println("orderbook read failed");os.Exit(1)}; y,n:=r.Snapshot();b,_:=json.MarshalIndent(map[string]any{"started_at":start,"ended_at":time.Now().UTC(),"ticker":r.Ticker,"read":r.Read(),"yes_bids_wire":y,"no_bids_wire":n,"note":"Visible resting bids at observation time; no execution or future liquidity guaranteed; fees not included."},"","  ");if os.WriteFile("/private/tmp/lip-selected-book.json",append(b,'\n'),0600)!=nil{os.Exit(1)}}

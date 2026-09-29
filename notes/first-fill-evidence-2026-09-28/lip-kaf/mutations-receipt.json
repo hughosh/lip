@@ -1,0 +1,892 @@
+{
+  "build_runs_planned": 22,
+  "catalogue_count": 387,
+  "catcher_packages": {
+    "TestAbsenceIsClaimedOnlyFromACompleteRead": "./cmd/harness",
+    "TestCancelSweepAutoRoutesByMarketAndVerifiesAbsence": "./harness/rest",
+    "TestCancelSweepInOneMarketHoldsPlacementsInEveryMarket": "./cmd/harness",
+    "TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides": "./cmd/harness",
+    "TestCompleteOrdersWalkRestoresPositiveOrderEvidence": "./cmd/harness",
+    "TestConfirmedAbsentReducerWaitsForFreshPosition": "./cmd/harness",
+    "TestGuardedCancelSweepIsUnsent": "./cmd/harness",
+    "TestInvalidAdoptedOrdersRequireVerifiedCleanSweep": "./harness/lifecycle",
+    "TestStartupNeverLicensesBeforeFourReadsPolicyAndCleanSweeps": "./harness/lifecycle",
+    "TestStartupRewalksAfterEveryCancelSweep": "./harness/lifecycle",
+    "TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder": "./harness/rest",
+    "TestSweepEscalatesAnOrderTheExchangeStillCallsResting": "./harness/rest",
+    "TestSweepMatchesRequestedIDBeforeOwnership": "./harness/rest",
+    "TestSweepRetiresAListLaggedCancelOnTheExchangesTerminalAnswer": "./harness/rest",
+    "TestSweepTraceRecordsEveryDeleteReadAndNamedRead": "./harness/rest",
+    "TestTheRigTracesItsCancelSweeps": "./cmd/harness"
+  },
+  "duration_seconds": 148.429,
+  "environment": {
+    "CGO_ENABLED": "0",
+    "GOCACHE": "/Users/hugh/Library/Caches/go-build",
+    "GOENV": "off",
+    "GOFLAGS": "-p=2",
+    "GOMAXPROCS": "2",
+    "GOMODCACHE": "/Users/hugh/go/pkg/mod",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off",
+    "HOME": "/Users/hugh",
+    "PATH": "/Users/hugh/.local/bin:/Users/hugh/.opencode/bin:/Users/hugh/.local/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Users/hugh/.cargo/bin",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONUNBUFFERED": "1",
+    "TMPDIR": "/var/folders/48/pp0ngtc132qf3vf4c9k3sqdr0000gn/T/"
+  },
+  "focused": false,
+  "full_suite_runs_planned": 0,
+  "go_binary": "/usr/local/bin/go",
+  "go_sha256": "6890cf02fb958fc15a043022d5f29e2a2206ab08a73581eddc3f33c7c681a730",
+  "mode": "named",
+  "named_test_runs_planned": 23,
+  "outcomes": [
+    {
+      "accepted": true,
+      "expected": "TestSweepMatchesRequestedIDBeforeOwnership",
+      "failed_tests": [
+        "TestSweepMatchesRequestedIDBeforeOwnership"
+      ],
+      "id": "M-R-SWEEP",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestStartupNeverLicensesBeforeFourReadsPolicyAndCleanSweeps",
+      "failed_tests": [
+        "TestStartupNeverLicensesBeforeFourReadsPolicyAndCleanSweeps"
+      ],
+      "id": "M11",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestInvalidAdoptedOrdersRequireVerifiedCleanSweep",
+      "failed_tests": [
+        "TestInvalidAdoptedOrdersRequireVerifiedCleanSweep"
+      ],
+      "id": "M-L-SWEEP",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestStartupRewalksAfterEveryCancelSweep",
+      "failed_tests": [
+        "TestStartupRewalksAfterEveryCancelSweep"
+      ],
+      "id": "M-L-SWEEPREPLAY",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestCancelSweepAutoRoutesByMarketAndVerifiesAbsence",
+      "failed_tests": [
+        "TestCancelSweepAutoRoutesByMarketAndVerifiesAbsence"
+      ],
+      "id": "M-R-CANCEL-SHARD-ROUTE",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestConfirmedAbsentReducerWaitsForFreshPosition",
+      "failed_tests": [
+        "TestConfirmedAbsentReducerWaitsForFreshPosition"
+      ],
+      "id": "M-D2-OMIT-ABSENT-STAMP",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestCompleteOrdersWalkRestoresPositiveOrderEvidence",
+      "failed_tests": [
+        "TestCompleteOrdersWalkRestoresPositiveOrderEvidence"
+      ],
+      "id": "M-D2-KEEP-ABSENT-AFTER-WALK",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestConfirmedAbsentReducerWaitsForFreshPosition",
+      "failed_tests": [
+        "TestConfirmedAbsentReducerWaitsForFreshPosition"
+      ],
+      "id": "M-D2-PLACE-BEFORE-FRESH-TRUTH",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestAbsenceIsClaimedOnlyFromACompleteRead",
+      "failed_tests": [
+        "TestAbsenceIsClaimedOnlyFromACompleteRead"
+      ],
+      "id": "M-3AF-ABSENT",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestGuardedCancelSweepIsUnsent",
+      "failed_tests": [
+        "TestGuardedCancelSweepIsUnsent"
+      ],
+      "id": "M-FY7-CANCELSENT",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestCancelSweepInOneMarketHoldsPlacementsInEveryMarket",
+      "failed_tests": [
+        "TestCancelSweepInOneMarketHoldsPlacementsInEveryMarket"
+      ],
+      "id": "M-MGH-PER-MARKET-HOLD",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestSweepRetiresAListLaggedCancelOnTheExchangesTerminalAnswer",
+      "failed_tests": [
+        "TestSweepRetiresAListLaggedCancelOnTheExchangesTerminalAnswer"
+      ],
+      "id": "M-KAF-NO-CONFIRM",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides",
+      "failed_tests": [
+        "TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides"
+      ],
+      "id": "M-KAF-NO-CONFIRM-DISPATCH",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder",
+      "failed_tests": [
+        "TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder"
+      ],
+      "id": "M-KAF-ANY-ANSWER",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder",
+      "failed_tests": [
+        "TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder"
+      ],
+      "id": "M-KAF-404",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder",
+      "failed_tests": [
+        "TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder"
+      ],
+      "id": "M-KAF-OTHER-ORDER",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder",
+      "failed_tests": [
+        "TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder"
+      ],
+      "id": "M-KAF-OTHER-MARKET",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder",
+      "failed_tests": [
+        "TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder"
+      ],
+      "id": "M-KAF-REMAINING",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestSweepEscalatesAnOrderTheExchangeStillCallsResting",
+      "failed_tests": [
+        "TestSweepEscalatesAnOrderTheExchangeStillCallsResting"
+      ],
+      "id": "M-KAF-LISTED-ANY",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestTheRigTracesItsCancelSweeps",
+      "failed_tests": [
+        "TestTheRigTracesItsCancelSweeps"
+      ],
+      "id": "M-KAF-TRACE-UNWIRED",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestSweepTraceRecordsEveryDeleteReadAndNamedRead",
+      "failed_tests": [
+        "TestSweepTraceRecordsEveryDeleteReadAndNamedRead"
+      ],
+      "id": "M-KAF-TRACE-CONFIRM",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestSweepTraceRecordsEveryDeleteReadAndNamedRead",
+      "failed_tests": [
+        "TestSweepTraceRecordsEveryDeleteReadAndNamedRead"
+      ],
+      "id": "M-KAF-TRACE-READ",
+      "status": "caught"
+    }
+  ],
+  "partial": true,
+  "runner_sha256": "432ab8dfd116a5d498b82f2b0e463b167cf31fb8f574fb5cca907195e18403fa",
+  "runs": [
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^(?:TestAbsenceIsClaimedOnlyFromACompleteRead|TestCancelSweepAutoRoutesByMarketAndVerifiesAbsence|TestCancelSweepInOneMarketHoldsPlacementsInEveryMarket|TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides|TestCompleteOrdersWalkRestoresPositiveOrderEvidence|TestConfirmedAbsentReducerWaitsForFreshPosition|TestGuardedCancelSweepIsUnsent|TestInvalidAdoptedOrdersRequireVerifiedCleanSweep|TestStartupNeverLicensesBeforeFourReadsPolicyAndCleanSweeps|TestStartupRewalksAfterEveryCancelSweep|TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder|TestSweepEscalatesAnOrderTheExchangeStillCallsResting|TestSweepMatchesRequestedIDBeforeOwnership|TestSweepRetiresAListLaggedCancelOnTheExchangesTerminalAnswer|TestSweepTraceRecordsEveryDeleteReadAndNamedRead|TestTheRigTracesItsCancelSweeps)$",
+        "./cmd/harness",
+        "./harness/lifecycle",
+        "./harness/rest"
+      ],
+      "exit_code": 0,
+      "label": "baseline",
+      "log": "0000-baseline.log",
+      "seconds": 6.963
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-R-SWEEP-build",
+      "log": "0001-M-R-SWEEP-build.log",
+      "seconds": 3.496
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestSweepMatchesRequestedIDBeforeOwnership$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-R-SWEEP-test",
+      "log": "0002-M-R-SWEEP-test.log",
+      "seconds": 1.918
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M11-build",
+      "log": "0003-M11-build.log",
+      "seconds": 3.37
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestStartupNeverLicensesBeforeFourReadsPolicyAndCleanSweeps$",
+        "./harness/lifecycle"
+      ],
+      "exit_code": 1,
+      "label": "M11-test",
+      "log": "0004-M11-test.log",
+      "seconds": 1.501
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-L-SWEEP-build",
+      "log": "0005-M-L-SWEEP-build.log",
+      "seconds": 3.25
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestInvalidAdoptedOrdersRequireVerifiedCleanSweep$",
+        "./harness/lifecycle"
+      ],
+      "exit_code": 1,
+      "label": "M-L-SWEEP-test",
+      "log": "0006-M-L-SWEEP-test.log",
+      "seconds": 1.661
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-L-SWEEPREPLAY-build",
+      "log": "0007-M-L-SWEEPREPLAY-build.log",
+      "seconds": 3.374
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestStartupRewalksAfterEveryCancelSweep$",
+        "./harness/lifecycle"
+      ],
+      "exit_code": 1,
+      "label": "M-L-SWEEPREPLAY-test",
+      "log": "0008-M-L-SWEEPREPLAY-test.log",
+      "seconds": 1.561
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-R-CANCEL-SHARD-ROUTE-build",
+      "log": "0009-M-R-CANCEL-SHARD-ROUTE-build.log",
+      "seconds": 3.175
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestCancelSweepAutoRoutesByMarketAndVerifiesAbsence$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-R-CANCEL-SHARD-ROUTE-test",
+      "log": "0010-M-R-CANCEL-SHARD-ROUTE-test.log",
+      "seconds": 1.83
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-D2-OMIT-ABSENT-STAMP-build",
+      "log": "0011-M-D2-OMIT-ABSENT-STAMP-build.log",
+      "seconds": 3.266
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestConfirmedAbsentReducerWaitsForFreshPosition$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-D2-OMIT-ABSENT-STAMP-test",
+      "log": "0012-M-D2-OMIT-ABSENT-STAMP-test.log",
+      "seconds": 3.978
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-D2-KEEP-ABSENT-AFTER-WALK-build",
+      "log": "0013-M-D2-KEEP-ABSENT-AFTER-WALK-build.log",
+      "seconds": 3.366
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestCompleteOrdersWalkRestoresPositiveOrderEvidence$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-D2-KEEP-ABSENT-AFTER-WALK-test",
+      "log": "0014-M-D2-KEEP-ABSENT-AFTER-WALK-test.log",
+      "seconds": 3.987
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-D2-PLACE-BEFORE-FRESH-TRUTH-build",
+      "log": "0015-M-D2-PLACE-BEFORE-FRESH-TRUTH-build.log",
+      "seconds": 3.249
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestConfirmedAbsentReducerWaitsForFreshPosition$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-D2-PLACE-BEFORE-FRESH-TRUTH-test",
+      "log": "0016-M-D2-PLACE-BEFORE-FRESH-TRUTH-test.log",
+      "seconds": 4.068
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-3AF-ABSENT-build",
+      "log": "0017-M-3AF-ABSENT-build.log",
+      "seconds": 3.486
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestAbsenceIsClaimedOnlyFromACompleteRead$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-3AF-ABSENT-test",
+      "log": "0018-M-3AF-ABSENT-test.log",
+      "seconds": 3.93
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-FY7-CANCELSENT-build",
+      "log": "0019-M-FY7-CANCELSENT-build.log",
+      "seconds": 3.323
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestGuardedCancelSweepIsUnsent$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-FY7-CANCELSENT-test",
+      "log": "0020-M-FY7-CANCELSENT-test.log",
+      "seconds": 3.85
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-MGH-PER-MARKET-HOLD-build",
+      "log": "0021-M-MGH-PER-MARKET-HOLD-build.log",
+      "seconds": 3.378
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestCancelSweepInOneMarketHoldsPlacementsInEveryMarket$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-MGH-PER-MARKET-HOLD-test",
+      "log": "0022-M-MGH-PER-MARKET-HOLD-test.log",
+      "seconds": 3.888
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-KAF-NO-CONFIRM-build",
+      "log": "0023-M-KAF-NO-CONFIRM-build.log",
+      "seconds": 3.431
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestSweepRetiresAListLaggedCancelOnTheExchangesTerminalAnswer$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-KAF-NO-CONFIRM-test",
+      "log": "0024-M-KAF-NO-CONFIRM-test.log",
+      "seconds": 2.071
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-KAF-NO-CONFIRM-DISPATCH-build",
+      "log": "0025-M-KAF-NO-CONFIRM-DISPATCH-build.log",
+      "seconds": 3.271
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-KAF-NO-CONFIRM-DISPATCH-test",
+      "log": "0026-M-KAF-NO-CONFIRM-DISPATCH-test.log",
+      "seconds": 3.933
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-KAF-ANY-ANSWER-build",
+      "log": "0027-M-KAF-ANY-ANSWER-build.log",
+      "seconds": 3.328
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-KAF-ANY-ANSWER-test",
+      "log": "0028-M-KAF-ANY-ANSWER-test.log",
+      "seconds": 1.885
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-KAF-404-build",
+      "log": "0029-M-KAF-404-build.log",
+      "seconds": 3.296
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-KAF-404-test",
+      "log": "0030-M-KAF-404-test.log",
+      "seconds": 1.868
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-KAF-OTHER-ORDER-build",
+      "log": "0031-M-KAF-OTHER-ORDER-build.log",
+      "seconds": 3.442
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-KAF-OTHER-ORDER-test",
+      "log": "0032-M-KAF-OTHER-ORDER-test.log",
+      "seconds": 1.858
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-KAF-OTHER-MARKET-build",
+      "log": "0033-M-KAF-OTHER-MARKET-build.log",
+      "seconds": 4.052
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-KAF-OTHER-MARKET-test",
+      "log": "0034-M-KAF-OTHER-MARKET-test.log",
+      "seconds": 2.218
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-KAF-REMAINING-build",
+      "log": "0035-M-KAF-REMAINING-build.log",
+      "seconds": 3.345
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-KAF-REMAINING-test",
+      "log": "0036-M-KAF-REMAINING-test.log",
+      "seconds": 1.742
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-KAF-LISTED-ANY-build",
+      "log": "0037-M-KAF-LISTED-ANY-build.log",
+      "seconds": 3.18
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestSweepEscalatesAnOrderTheExchangeStillCallsResting$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-KAF-LISTED-ANY-test",
+      "log": "0038-M-KAF-LISTED-ANY-test.log",
+      "seconds": 1.738
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-KAF-TRACE-UNWIRED-build",
+      "log": "0039-M-KAF-TRACE-UNWIRED-build.log",
+      "seconds": 3.345
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestTheRigTracesItsCancelSweeps$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-KAF-TRACE-UNWIRED-test",
+      "log": "0040-M-KAF-TRACE-UNWIRED-test.log",
+      "seconds": 3.942
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-KAF-TRACE-CONFIRM-build",
+      "log": "0041-M-KAF-TRACE-CONFIRM-build.log",
+      "seconds": 3.246
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestSweepTraceRecordsEveryDeleteReadAndNamedRead$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-KAF-TRACE-CONFIRM-test",
+      "log": "0042-M-KAF-TRACE-CONFIRM-test.log",
+      "seconds": 1.896
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-KAF-TRACE-READ-build",
+      "log": "0043-M-KAF-TRACE-READ-build.log",
+      "seconds": 3.246
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestSweepTraceRecordsEveryDeleteReadAndNamedRead$",
+        "./harness/rest"
+      ],
+      "exit_code": 1,
+      "label": "M-KAF-TRACE-READ-test",
+      "log": "0044-M-KAF-TRACE-READ-test.log",
+      "seconds": 1.828
+    }
+  ],
+  "selected_count": 22,
+  "selected_ids": [
+    "M-R-SWEEP",
+    "M11",
+    "M-L-SWEEP",
+    "M-L-SWEEPREPLAY",
+    "M-R-CANCEL-SHARD-ROUTE",
+    "M-D2-OMIT-ABSENT-STAMP",
+    "M-D2-KEEP-ABSENT-AFTER-WALK",
+    "M-D2-PLACE-BEFORE-FRESH-TRUTH",
+    "M-3AF-ABSENT",
+    "M-FY7-CANCELSENT",
+    "M-MGH-PER-MARKET-HOLD",
+    "M-KAF-NO-CONFIRM",
+    "M-KAF-NO-CONFIRM-DISPATCH",
+    "M-KAF-ANY-ANSWER",
+    "M-KAF-404",
+    "M-KAF-OTHER-ORDER",
+    "M-KAF-OTHER-MARKET",
+    "M-KAF-REMAINING",
+    "M-KAF-LISTED-ANY",
+    "M-KAF-TRACE-UNWIRED",
+    "M-KAF-TRACE-CONFIRM",
+    "M-KAF-TRACE-READ"
+  ],
+  "source_sha256_after": "8f75726f0898be24b89a41abce5eb4cba7ffc8d9fd32a1e9981c4fd65673796d",
+  "source_sha256_before": "8f75726f0898be24b89a41abce5eb4cba7ffc8d9fd32a1e9981c4fd65673796d",
+  "started_at_utc": "2026-09-28T23:49:00.676687+00:00",
+  "status": "PASS",
+  "updated_at_utc": "2026-09-28T23:51:28.878838+00:00"
+}

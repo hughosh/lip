@@ -1,0 +1,252 @@
+{
+  "selected_count": 22,
+  "full_catalogue_outcomes": false,
+  "batches": [
+    {
+      "batch": "a",
+      "baseline": "green",
+      "compilation": "passed",
+      "verdict": "all named catchers observed",
+      "reported_flaps": 0,
+      "rows": [
+        {
+          "id": "M-R-PROGRAMTYPE",
+          "expected_catcher": "TestProgramsFiltersActiveLiquidityOnEveryPage",
+          "observed_failures": [
+            "TestProgramsFiltersActiveLiquidityOnEveryPage",
+            "TestProgramsLiquidityFilterKeepsMalformedTargetRefusal"
+          ]
+        },
+        {
+          "id": "M-Y3Q-GATESTOPCAP",
+          "expected_catcher": "TestTheSettlingMarketRecapsAnOversizedReducerWithoutAGateFailure",
+          "observed_failures": [
+            "TestAnOversizedReducerIsRecappedAtTheGateFailureStop",
+            "TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown",
+            "TestTheSettlingMarketRecapsAnOversizedReducerWithoutAGateFailure"
+          ]
+        },
+        {
+          "id": "M-HQ4A-DOUBLE-DEBOUNCE",
+          "expected_catcher": "TestSustainedGateFailureCancelsTheAddingSideAtTheConfiguredDebounce",
+          "observed_failures": [
+            "TestARecoveryResetsTheDebounceAndOneAtTheDeadlineWins",
+            "TestAWallClockStepDoesNotMoveTheGateFailureInterval",
+            "TestAnAmbiguousCancelDoesNotRetireTheAddingOrder",
+            "TestAnOversizedReducerIsRecappedAtTheGateFailureStop",
+            "TestAnUnlistedAddingOrderIsStillCancelledAtExpiry",
+            "TestConfirmedAbsentReducerWaitsForFreshPosition",
+            "TestFillBeforeReducerCancelCannotPlaceFromStaleQ",
+            "TestOnlyAnAcceptedCurrentQualifyingBookClearsTheGateFailureEpisode",
+            "TestSustainedGateFailureCancelsTheAddingSideAtTheConfiguredDebounce",
+            "TestTheReducerAggregateStaysCappedThroughAGateFailureStop",
+            "TestTheStoppedMarketKeepsTheCappedExitOnEitherSign"
+          ]
+        },
+        {
+          "id": "M-D1-TARGETZERO-RECAP",
+          "expected_catcher": "TestAnAbnormalDisconnectDoesNotCancelTheCompliantExit",
+          "observed_failures": [
+            "TestAnAbnormalDisconnectDoesNotCancelTheCompliantExit"
+          ]
+        },
+        {
+          "id": "M-R-CANCEL-SHARD-ROUTE",
+          "expected_catcher": "TestCancelSweepAutoRoutesByMarketAndVerifiesAbsence",
+          "observed_failures": [
+            "TestCancelSweepAutoRoutesByMarketAndVerifiesAbsence"
+          ]
+        },
+        {
+          "id": "M-GP8-BALANCE",
+          "expected_catcher": "TestRewardArrivalCannotMoveTradingPnL",
+          "observed_failures": [
+            "TestPnLKillIsInclusiveAtTheExactNegativeFloor",
+            "TestPnLKillLatchesByNameAndKeepsTheReducerLive",
+            "TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary",
+            "TestPnLMarkExpiresAtThirtySecondsBeforeBothSixtySecondClocks",
+            "TestPnLRestartIncludesEveryOwnedFillRegardlessOfRunAndBackfilledFlag",
+            "TestRewardArrivalCannotMoveTradingPnL"
+          ]
+        }
+      ]
+    },
+    {
+      "batch": "b",
+      "baseline": "green",
+      "compilation": "passed",
+      "verdict": "all named catchers observed",
+      "reported_flaps": 0,
+      "rows": [
+        {
+          "id": "M-D2-OMIT-ABSENT-STAMP",
+          "expected_catcher": "TestConfirmedAbsentReducerWaitsForFreshPosition",
+          "observed_failures": [
+            "TestCompleteOrdersWalkRestoresPositiveOrderEvidence",
+            "TestConfirmedAbsenceDoesNotReleaseUnknownCreate",
+            "TestConfirmedAbsentReducerWaitsForFreshPosition",
+            "TestPreCancelStartedPortfolioReadCannotReleaseReducer"
+          ]
+        },
+        {
+          "id": "M-D2-RELEASE-UNKNOWN",
+          "expected_catcher": "TestConfirmedAbsenceDoesNotReleaseUnknownCreate",
+          "observed_failures": [
+            "TestConfirmedAbsenceDoesNotReleaseUnknownCreate"
+          ]
+        },
+        {
+          "id": "M-D2-KEEP-ABSENT-AFTER-WALK",
+          "expected_catcher": "TestCompleteOrdersWalkRestoresPositiveOrderEvidence",
+          "observed_failures": [
+            "TestCompleteOrdersWalkRestoresPositiveOrderEvidence"
+          ]
+        },
+        {
+          "id": "M-D2-COUNT-ABSENT-EXPOSURE",
+          "expected_catcher": "TestConfirmedAbsentReducerWaitsForFreshPosition",
+          "observed_failures": [
+            "TestConfirmedAbsentReducerWaitsForFreshPosition"
+          ]
+        },
+        {
+          "id": "M-D2-PLACE-BEFORE-FRESH-TRUTH",
+          "expected_catcher": "TestConfirmedAbsentReducerWaitsForFreshPosition",
+          "observed_failures": [
+            "TestAnOversizedReducerIsRecappedAtTheGateFailureStop",
+            "TestConfirmedAbsentReducerWaitsForFreshPosition",
+            "TestFlatToFillCancelCannotDeclareDrainedBeforeReconciliation",
+            "TestPreCancelStartedPortfolioReadCannotReleaseReducer",
+            "TestTheSettlingMarketRecapsAnOversizedReducerWithoutAGateFailure"
+          ]
+        },
+        {
+          "id": "M-D2-ACCEPT-PRECANCEL-READ",
+          "expected_catcher": "TestPreCancelStartedPortfolioReadCannotReleaseReducer",
+          "observed_failures": [
+            "TestPreCancelStartedPortfolioReadCannotReleaseReducer"
+          ]
+        },
+        {
+          "id": "M-D2-DRAIN-WITHOUT-CANCEL-TRUTH",
+          "expected_catcher": "TestFlatToFillCancelCannotDeclareDrainedBeforeReconciliation",
+          "observed_failures": [
+            "TestFlatToFillCancelCannotDeclareDrainedBeforeReconciliation",
+            "TestPreCancelStartedPortfolioReadCannotReleaseReducer"
+          ]
+        },
+        {
+          "id": "M-D2-DRAIN-BEFORE-FIRST-WALK",
+          "expected_catcher": "TestMissingFirstPortfolioWalkCannotAuthorizeDrain",
+          "observed_failures": [
+            "TestMissingFirstPortfolioWalkCannotAuthorizeDrain"
+          ]
+        },
+        {
+          "id": "M-2T6-CANARYFIRST",
+          "expected_catcher": "TestATakerFillOnTheCanaryKeepsTheStrongerCause",
+          "observed_failures": [
+            "TestATakerFillOnTheCanaryKeepsTheStrongerCause",
+            "TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary",
+            "TestTheCanaryLatchesOnAnyPositionItDidNotStartWith"
+          ]
+        }
+      ]
+    },
+    {
+      "batch": "c",
+      "baseline": "green",
+      "compilation": "passed",
+      "verdict": "all named catchers observed",
+      "reported_flaps": 0,
+      "rows": [
+        {
+          "id": "M-W-TRUTHSTAMP",
+          "expected_catcher": "TestEndpointTruthAgeStartsWhenItsWalkStarts",
+          "observed_failures": [
+            "TestEndpointTruthAgeStartsWhenItsWalkStarts"
+          ]
+        },
+        {
+          "id": "M-W-TRUTHFORGE",
+          "expected_catcher": "TestPortfolioTruthHasNoPublicBypass",
+          "observed_failures": [
+            "TestPortfolioTruthHasNoPublicBypass"
+          ]
+        },
+        {
+          "id": "M-W-READTOKEN",
+          "expected_catcher": "TestPortfolioTruthHasNoPublicBypass",
+          "observed_failures": [
+            "TestPortfolioTruthHasNoPublicBypass"
+          ]
+        },
+        {
+          "id": "M-XDQ-TRIGGER",
+          "expected_catcher": "TestEveryGlobalTransitionRecordsItsOwnCause",
+          "observed_failures": [
+            "TestAnIncompletePositionWalkNeverLatchesInvKill",
+            "TestAnIncompletePositionWalkNeverLatchesTheCanary",
+            "TestEveryGlobalTransitionRecordsItsOwnCause",
+            "TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive",
+            "TestInventoryBeyondInvKillLatchesTheGlobalHaltByName",
+            "TestLatchOutranksEveryOtherRule",
+            "TestPnLKillLatchesByNameAndKeepsTheReducerLive",
+            "TestPnLRestartIncludesEveryOwnedFillRegardlessOfRunAndBackfilledFlag",
+            "TestTheCanaryLatchesOnANewlyClassifiedOwnedFill",
+            "TestTheCanaryLatchesOnAnAcknowledgementThatCarriedAFill",
+            "TestTheCanaryLatchesOnAnyPositionItDidNotStartWith",
+            "TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown"
+          ]
+        },
+        {
+          "id": "M-XDQ-NOTICK",
+          "expected_catcher": "TestEveryGlobalTransitionRecordsItsOwnCause",
+          "observed_failures": [
+            "TestEveryGlobalTransitionRecordsItsOwnCause"
+          ]
+        },
+        {
+          "id": "M-XDQ-NOSTATE",
+          "expected_catcher": "TestEveryGlobalTransitionRecordsItsOwnCause",
+          "observed_failures": [
+            "TestAFillInsideAPollCycleIsNotDoubleCounted",
+            "TestAGateFailureResetNeverBypassesA13",
+            "TestARecoveryResetsTheDebounceAndOneAtTheDeadlineWins",
+            "TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs",
+            "TestASustainedOutageReachesTheGateAndTheDisconnectTokenReachesThePoller",
+            "TestAWallClockStepDoesNotMoveTheGateFailureInterval",
+            "TestAnAbnormalDisconnectDoesNotCancelTheCompliantExit",
+            "TestAnAmbiguousCancelDoesNotRetireTheAddingOrder",
+            "TestAnOversizedReducerIsRecappedAtTheGateFailureStop",
+            "TestAnUnknownCloseStopsAddingAndLeavesTheExitAlive",
+            "TestAnUnlistedAddingOrderIsStillCancelledAtExpiry",
+            "TestCompleteOrdersWalkRestoresPositiveOrderEvidence",
+            "TestConfirmedAbsenceDoesNotReleaseUnknownCreate",
+            "TestConfirmedAbsenceRetiresNamedAckBeforePortfolioWalk",
+            "TestConfirmedAbsentReducerWaitsForFreshPosition",
+            "TestEveryGlobalTransitionRecordsItsOwnCause",
+            "TestFillBeforeReducerCancelCannotPlaceFromStaleQ",
+            "TestFlatToFillCancelCannotDeclareDrainedBeforeReconciliation",
+            "TestMissingFirstPortfolioWalkCannotAuthorizeDrain",
+            "TestOnlyAnAcceptedCurrentQualifyingBookClearsTheGateFailureEpisode",
+            "TestPnLMarkExpiresAtThirtySecondsBeforeBothSixtySecondClocks",
+            "TestPreCancelStartedPortfolioReadCannotReleaseReducer",
+            "TestTheEarlyCloseBackoffStopsAddingOnlyInsideItsOwnWindow",
+            "TestTheReducerAggregateStaysCappedThroughAGateFailureStop",
+            "TestTheSettlingMarketRecapsAnOversizedReducerWithoutAGateFailure",
+            "TestTheStoppedMarketKeepsTheCappedExitOnEitherSign"
+          ]
+        },
+        {
+          "id": "M-XDQ-DRAINBLIND",
+          "expected_catcher": "TestEveryGlobalTransitionRecordsItsOwnCause",
+          "observed_failures": [
+            "TestEveryGlobalTransitionRecordsItsOwnCause",
+            "TestTheCanaryLatchesOnANewlyClassifiedOwnedFill"
+          ]
+        }
+      ]
+    }
+  ]
+}

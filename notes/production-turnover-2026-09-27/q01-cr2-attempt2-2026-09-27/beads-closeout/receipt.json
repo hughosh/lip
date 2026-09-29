@@ -1,0 +1,58 @@
+[
+  {
+    "bead": "lip-3dw",
+    "action": "comment",
+    "exit": 0,
+    "stdout": "Comment added to lip-3dw\n",
+    "stderr": ""
+  },
+  {
+    "bead": "lip-9vc",
+    "action": "comment",
+    "exit": 0,
+    "stdout": "Comment added to lip-9vc\n",
+    "stderr": ""
+  },
+  {
+    "bead": "lip-dwf",
+    "action": "comment",
+    "exit": 0,
+    "stdout": "Comment added to lip-dwf\n",
+    "stderr": ""
+  },
+  {
+    "bead": "lip-9j3",
+    "action": "comment",
+    "exit": 0,
+    "stdout": "Comment added to lip-9j3\n",
+    "stderr": ""
+  },
+  {
+    "bead": "lip-8hn.2",
+    "action": "comment",
+    "exit": 0,
+    "stdout": "Comment added to lip-8hn.2\n",
+    "stderr": ""
+  },
+  {
+    "bead": "lip-8hn",
+    "action": "comment",
+    "exit": 0,
+    "stdout": "Comment added to lip-8hn\n",
+    "stderr": ""
+  },
+  {
+    "bead": "lip-yca",
+    "action": "comment",
+    "exit": 0,
+    "stdout": "Comment added to lip-yca\n",
+    "stderr": ""
+  },
+  {
+    "bead": "lip-3dw",
+    "action": "open unresolved close boundary",
+    "exit": 0,
+    "stdout": "\u2713 Updated issue: lip-3dw \u2014 Coordinate runtime shutdown before final store close\n",
+    "stderr": ""
+  }
+]

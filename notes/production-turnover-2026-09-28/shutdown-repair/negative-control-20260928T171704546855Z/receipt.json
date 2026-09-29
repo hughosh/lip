@@ -1,0 +1,587 @@
+{
+  "build_runs_planned": 14,
+  "catalogue_count": 360,
+  "catcher_packages": {
+    "TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount": "./cmd/harness",
+    "TestFinalAlertResultFailureIsDrainedBeforeClose": "./cmd/harness",
+    "TestOperatorSignalsCommitBeforeDrainingAndWaitForEveryOrder": "./cmd/harness",
+    "TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore": "./cmd/harness",
+    "TestProductionWebSocketUsesF6Dialer": "./cmd/harness",
+    "TestRigCloseRefusalRetainsLockAndAlerts": "./cmd/harness",
+    "TestRuntimeStoreFailureAndStallStopWithOwnedInventory": "./cmd/harness",
+    "TestRuntimeStoreObservesRealWriterExit": "./cmd/harness",
+    "TestServingCloseJoinsCanceledBalanceCallbackBeforeStoreClose": "./cmd/harness",
+    "TestServingCloseRefusalRestoresObservationAndRetries": "./cmd/harness",
+    "TestServingCloseWaitsForDetachedDialReport": "./cmd/harness"
+  },
+  "duration_seconds": 151.251,
+  "environment": {
+    "CGO_ENABLED": "0",
+    "GOCACHE": "/Users/hugh/Library/Caches/go-build",
+    "GOENV": "off",
+    "GOFLAGS": "-p=2",
+    "GOMAXPROCS": "2",
+    "GOMODCACHE": "/Users/hugh/go/pkg/mod",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off",
+    "HOME": "/Users/hugh",
+    "PATH": "/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/hugh/.codex/tmp/arg0/codex-arg0ZleeOX:/Users/hugh/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/hugh/.local/bin:/Users/hugh/.opencode/bin:/Users/hugh/.cargo/bin:/Users/hugh/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONUNBUFFERED": "1",
+    "TMPDIR": "/var/folders/48/pp0ngtc132qf3vf4c9k3sqdr0000gn/T/"
+  },
+  "focused": false,
+  "full_suite_runs_planned": 0,
+  "go_binary": "/usr/local/bin/go",
+  "go_sha256": "6890cf02fb958fc15a043022d5f29e2a2206ab08a73581eddc3f33c7c681a730",
+  "mode": "named",
+  "named_test_runs_planned": 15,
+  "outcomes": [
+    {
+      "accepted": true,
+      "expected": "TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore",
+      "failed_tests": [
+        "TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore"
+      ],
+      "id": "M-6W5-CONCURRENTFINAL",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore",
+      "failed_tests": [
+        "TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore"
+      ],
+      "id": "M-6W5-CLOSEFIRST",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestProductionWebSocketUsesF6Dialer",
+      "failed_tests": [
+        "TestProductionWebSocketUsesF6Dialer"
+      ],
+      "id": "M-7ZT-WSBYPASS",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount",
+      "failed_tests": [
+        "TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount"
+      ],
+      "id": "M-SD-UNPLANNED",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestOperatorSignalsCommitBeforeDrainingAndWaitForEveryOrder",
+      "failed_tests": [
+        "TestOperatorSignalsCommitBeforeDrainingAndWaitForEveryOrder"
+      ],
+      "id": "M-SD-ORDERING",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestRuntimeStoreObservesRealWriterExit",
+      "failed_tests": [
+        "TestRuntimeStoreObservesRealWriterExit"
+      ],
+      "id": "M-OPS-STORE-STOP",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestRuntimeStoreFailureAndStallStopWithOwnedInventory",
+      "failed_tests": [
+        "TestRuntimeStoreFailureAndStallStopWithOwnedInventory"
+      ],
+      "id": "M-OPS-STORE-RECOVERED",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestServingCloseJoinsCanceledBalanceCallbackBeforeStoreClose",
+      "failed_tests": [
+        "TestServingCloseJoinsCanceledBalanceCallbackBeforeStoreClose"
+      ],
+      "id": "M-3DW-INPUT-JOIN",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestServingCloseRefusalRestoresObservationAndRetries",
+      "failed_tests": [
+        "TestServingCloseRefusalRestoresObservationAndRetries"
+      ],
+      "id": "M-3DW-INPUT-RESUME",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestRigCloseRefusalRetainsLockAndAlerts",
+      "failed_tests": [
+        "TestRigCloseRefusalRetainsLockAndAlerts"
+      ],
+      "id": "M-3DW-LOCK-REFUSAL",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestRigCloseRefusalRetainsLockAndAlerts",
+      "failed_tests": [
+        "TestRigCloseRefusalRetainsLockAndAlerts"
+      ],
+      "id": "M-3DW-ALERT-RESUME",
+      "status": "caught"
+    },
+    {
+      "accepted": false,
+      "expected": "TestServingCloseWaitsForDetachedDialReport",
+      "failed_tests": [],
+      "id": "M-3DW-DIAL-WAIT",
+      "status": "SURVIVED"
+    },
+    {
+      "accepted": true,
+      "expected": "TestServingCloseWaitsForDetachedDialReport",
+      "failed_tests": [
+        "TestServingCloseWaitsForDetachedDialReport"
+      ],
+      "id": "M-3DW-DIAL-FENCE",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestFinalAlertResultFailureIsDrainedBeforeClose",
+      "failed_tests": [
+        "TestFinalAlertResultFailureIsDrainedBeforeClose"
+      ],
+      "id": "M-3DW-FINAL-RESULTS",
+      "status": "caught"
+    }
+  ],
+  "partial": true,
+  "runner_sha256": "fa1b2c2539e153d7e8b851bc96f3dbafb57d5723a46757ccbabff901afe51582",
+  "runs": [
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^(?:TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount|TestFinalAlertResultFailureIsDrainedBeforeClose|TestOperatorSignalsCommitBeforeDrainingAndWaitForEveryOrder|TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore|TestProductionWebSocketUsesF6Dialer|TestRigCloseRefusalRetainsLockAndAlerts|TestRuntimeStoreFailureAndStallStopWithOwnedInventory|TestRuntimeStoreObservesRealWriterExit|TestServingCloseJoinsCanceledBalanceCallbackBeforeStoreClose|TestServingCloseRefusalRestoresObservationAndRetries|TestServingCloseWaitsForDetachedDialReport)$",
+        "./cmd/harness"
+      ],
+      "exit_code": 0,
+      "label": "baseline",
+      "log": "0000-baseline.log",
+      "seconds": 11.81
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-6W5-CONCURRENTFINAL-build",
+      "log": "0001-M-6W5-CONCURRENTFINAL-build.log",
+      "seconds": 2.987
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-6W5-CONCURRENTFINAL-test",
+      "log": "0002-M-6W5-CONCURRENTFINAL-test.log",
+      "seconds": 3.497
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-6W5-CLOSEFIRST-build",
+      "log": "0003-M-6W5-CLOSEFIRST-build.log",
+      "seconds": 3.135
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-6W5-CLOSEFIRST-test",
+      "log": "0004-M-6W5-CLOSEFIRST-test.log",
+      "seconds": 4.003
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-7ZT-WSBYPASS-build",
+      "log": "0005-M-7ZT-WSBYPASS-build.log",
+      "seconds": 3.185
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestProductionWebSocketUsesF6Dialer$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-7ZT-WSBYPASS-test",
+      "log": "0006-M-7ZT-WSBYPASS-test.log",
+      "seconds": 4.095
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-SD-UNPLANNED-build",
+      "log": "0007-M-SD-UNPLANNED-build.log",
+      "seconds": 2.947
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-SD-UNPLANNED-test",
+      "log": "0008-M-SD-UNPLANNED-test.log",
+      "seconds": 3.684
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-SD-ORDERING-build",
+      "log": "0009-M-SD-ORDERING-build.log",
+      "seconds": 2.969
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestOperatorSignalsCommitBeforeDrainingAndWaitForEveryOrder$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-SD-ORDERING-test",
+      "log": "0010-M-SD-ORDERING-test.log",
+      "seconds": 3.534
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-OPS-STORE-STOP-build",
+      "log": "0011-M-OPS-STORE-STOP-build.log",
+      "seconds": 2.964
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestRuntimeStoreObservesRealWriterExit$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-OPS-STORE-STOP-test",
+      "log": "0012-M-OPS-STORE-STOP-test.log",
+      "seconds": 3.46
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-OPS-STORE-RECOVERED-build",
+      "log": "0013-M-OPS-STORE-RECOVERED-build.log",
+      "seconds": 2.927
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestRuntimeStoreFailureAndStallStopWithOwnedInventory$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-OPS-STORE-RECOVERED-test",
+      "log": "0014-M-OPS-STORE-RECOVERED-test.log",
+      "seconds": 3.796
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-3DW-INPUT-JOIN-build",
+      "log": "0015-M-3DW-INPUT-JOIN-build.log",
+      "seconds": 2.899
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestServingCloseJoinsCanceledBalanceCallbackBeforeStoreClose$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-3DW-INPUT-JOIN-test",
+      "log": "0016-M-3DW-INPUT-JOIN-test.log",
+      "seconds": 3.647
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-3DW-INPUT-RESUME-build",
+      "log": "0017-M-3DW-INPUT-RESUME-build.log",
+      "seconds": 3.19
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestServingCloseRefusalRestoresObservationAndRetries$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-3DW-INPUT-RESUME-test",
+      "log": "0018-M-3DW-INPUT-RESUME-test.log",
+      "seconds": 22.602
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-3DW-LOCK-REFUSAL-build",
+      "log": "0019-M-3DW-LOCK-REFUSAL-build.log",
+      "seconds": 3.654
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestRigCloseRefusalRetainsLockAndAlerts$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-3DW-LOCK-REFUSAL-test",
+      "log": "0020-M-3DW-LOCK-REFUSAL-test.log",
+      "seconds": 3.974
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-3DW-ALERT-RESUME-build",
+      "log": "0021-M-3DW-ALERT-RESUME-build.log",
+      "seconds": 3.005
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestRigCloseRefusalRetainsLockAndAlerts$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-3DW-ALERT-RESUME-test",
+      "log": "0022-M-3DW-ALERT-RESUME-test.log",
+      "seconds": 22.461
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-3DW-DIAL-WAIT-build",
+      "log": "0023-M-3DW-DIAL-WAIT-build.log",
+      "seconds": 2.973
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestServingCloseWaitsForDetachedDialReport$",
+        "./cmd/harness"
+      ],
+      "exit_code": 0,
+      "label": "M-3DW-DIAL-WAIT-test",
+      "log": "0024-M-3DW-DIAL-WAIT-test.log",
+      "seconds": 3.699
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-3DW-DIAL-FENCE-build",
+      "log": "0025-M-3DW-DIAL-FENCE-build.log",
+      "seconds": 2.96
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestServingCloseWaitsForDetachedDialReport$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-3DW-DIAL-FENCE-test",
+      "log": "0026-M-3DW-DIAL-FENCE-test.log",
+      "seconds": 5.594
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-3DW-FINAL-RESULTS-build",
+      "log": "0027-M-3DW-FINAL-RESULTS-build.log",
+      "seconds": 3.021
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestFinalAlertResultFailureIsDrainedBeforeClose$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-3DW-FINAL-RESULTS-test",
+      "log": "0028-M-3DW-FINAL-RESULTS-test.log",
+      "seconds": 3.62
+    }
+  ],
+  "selected_count": 14,
+  "selected_ids": [
+    "M-6W5-CONCURRENTFINAL",
+    "M-6W5-CLOSEFIRST",
+    "M-7ZT-WSBYPASS",
+    "M-SD-UNPLANNED",
+    "M-SD-ORDERING",
+    "M-OPS-STORE-STOP",
+    "M-OPS-STORE-RECOVERED",
+    "M-3DW-INPUT-JOIN",
+    "M-3DW-INPUT-RESUME",
+    "M-3DW-LOCK-REFUSAL",
+    "M-3DW-ALERT-RESUME",
+    "M-3DW-DIAL-WAIT",
+    "M-3DW-DIAL-FENCE",
+    "M-3DW-FINAL-RESULTS"
+  ],
+  "source_sha256_after": "bf8cedadfc7d5fa85b1e6b963a86be54dbf0f938d93cfbdfaa9d36a204528d4d",
+  "source_sha256_before": "bf8cedadfc7d5fa85b1e6b963a86be54dbf0f938d93cfbdfaa9d36a204528d4d",
+  "started_at_utc": "2026-09-28T17:17:04.587661+00:00",
+  "status": "FAIL",
+  "updated_at_utc": "2026-09-28T17:19:35.681903+00:00"
+}

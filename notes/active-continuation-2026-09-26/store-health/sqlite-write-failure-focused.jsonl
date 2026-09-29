@@ -1,0 +1,8 @@
+{"Time":"2026-09-26T18:35:37.177482-07:00","Action":"start","Package":"lip/cmd/harness"}
+{"Time":"2026-09-26T18:35:37.891652-07:00","Action":"run","Package":"lip/cmd/harness","Test":"TestRuntimeStoreRealSQLiteWriteFailureLatchesStop"}
+{"Time":"2026-09-26T18:35:37.891749-07:00","Action":"output","Package":"lip/cmd/harness","Test":"TestRuntimeStoreRealSQLiteWriteFailureLatchesStop","Output":"=== RUN   TestRuntimeStoreRealSQLiteWriteFailureLatchesStop\n","OutputType":"frame"}
+{"Time":"2026-09-26T18:35:38.047146-07:00","Action":"output","Package":"lip/cmd/harness","Test":"TestRuntimeStoreRealSQLiteWriteFailureLatchesStop","Output":"--- PASS: TestRuntimeStoreRealSQLiteWriteFailureLatchesStop (0.16s)\n","OutputType":"frame"}
+{"Time":"2026-09-26T18:35:38.047181-07:00","Action":"pass","Package":"lip/cmd/harness","Test":"TestRuntimeStoreRealSQLiteWriteFailureLatchesStop","Elapsed":0.16}
+{"Time":"2026-09-26T18:35:38.047488-07:00","Action":"output","Package":"lip/cmd/harness","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-09-26T18:35:38.048048-07:00","Action":"output","Package":"lip/cmd/harness","Output":"ok  \tlip/cmd/harness\t0.870s\n"}
+{"Time":"2026-09-26T18:35:38.048076-07:00","Action":"pass","Package":"lip/cmd/harness","Elapsed":0.871}

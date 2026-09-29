@@ -44,18 +44,14 @@ func subscribeTrade() ([]byte, error) {
 	})
 }
 
-// resnapshotRequest asks the exchange to re-send a snapshot for every market on
-// every live subscription.
-//
-// `sids` is sent as an empty array and never as JSON null when there is
-// nothing to send. A null there is a different request, and the difference is
-// only visible in what does not arrive.
+// resnapshotRequest asks the exchange to re-send a book snapshot on exactly
+// one orderbook_delta subscription. Trade subscriptions cannot be snapshotted.
 func resnapshotRequest(sids []int64, tickers []string) ([]byte, error) {
 	if err := ValidateTickers(tickers); err != nil {
 		return nil, err
 	}
-	if sids == nil {
-		sids = []int64{}
+	if len(sids) != 1 || sids[0] <= 0 {
+		return nil, fmt.Errorf("get_snapshot requires exactly one positive orderbook subscription ID")
 	}
 	return json.Marshal(map[string]any{
 		"id": idResnapshot, "cmd": "update_subscription",

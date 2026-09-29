@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"lip/feed"
@@ -34,6 +35,8 @@ type Request struct {
 type Response struct {
 	Status int
 	Body   []byte
+	// Header preserves exchange retry guidance. Callers must not mutate it.
+	Header http.Header
 }
 
 // Doer is the whole I/O surface of this package, and the seam the scenario
@@ -379,18 +382,34 @@ func (d *HTTPDoer) Do(ctx context.Context, req Request) (Response, error) {
 		return Response{}, fmt.Errorf("%s %s: HTTP %d with an unreadable body: %w",
 			req.Method, req.Path, resp.StatusCode, err)
 	}
-	return Response{Status: resp.StatusCode, Body: raw}, nil
+	return Response{Status: resp.StatusCode, Body: raw, Header: resp.Header.Clone()}, nil
 }
 
 // ---------------------------------------------------------------------------
 // Client
 // ---------------------------------------------------------------------------
 
-// Client is the harness's exchange surface. It holds no mutable state: every
-// read returns a fresh result and every write is classified by its caller, so
-// two Clients over the same Doer cannot disagree about anything.
+// Client is the harness's exchange surface. Every read returns a fresh result
+// and every write is classified by its caller. Its one piece of mutable state
+// is `unconfirmed`, which decides only whether a not-clean sweep PAGES; it
+// never makes a sweep clean or retires an order (lip-9tt, H-FAIL-3).
 type Client struct {
 	Doer Doer
+	// SweepTrace, when set, receives each CancelAndSweep's trace once its
+	// result is final. It observes; it cannot change the result.
+	SweepTrace func(SweepTrace)
+	// Now is the clock the sweep's page bound reads; nil means time.Now. It is
+	// injected, like HTTPDoer.Now, so no clock read hides in the sweep. Its
+	// readings are subtracted as returned -- never .UTC() or .Round() first --
+	// so production ages are monotonic and immune to wall-clock steps (F21).
+	Now func() time.Time
+
+	// unconfirmedMu guards unconfirmed: one Client is shared by the
+	// dispatcher's concurrent write workers and startup's adoption sweep.
+	unconfirmedMu sync.Mutex
+	// unconfirmed maps an order id to when a sweep first ended with that order
+	// still unconfirmed. See `sweepPageBound`.
+	unconfirmed map[string]time.Time
 }
 
 // NewClient wraps a Doer.

@@ -20,6 +20,12 @@ type alertStepper interface {
 	Step(context.Context, int64, ping.Heartbeat) ping.Effects
 }
 
+// pairedAlertStepper is implemented by the production service. Test steppers
+// that only implement Step keep the original deterministic seam.
+type pairedAlertStepper interface {
+	StepAt(context.Context, int64, int64, ping.Heartbeat) ping.Effects
+}
+
 // alertFactory delays only the store-dependent half of construction.  The
 // production factory has already loaded and validated both destinations before
 // the first exchange request; NewService is called later, after the store's
@@ -29,20 +35,30 @@ type alertFactory func(*hstore.Reader, *hstore.Store, time.Duration) (alertStepp
 func productionAlertFactory(envPath string) (alertFactory, error) {
 	topic, err := ping.LoadNTFYTopic(envPath)
 	if err != nil {
-		return nil, fmt.Errorf("loading the alert topic: %w", err)
+		return nil, classifyAlertDestination(fmt.Errorf("loading the alert topic: %w", err))
 	}
 	sender, err := ping.NewNTFYSender(topic)
 	if err != nil {
-		return nil, fmt.Errorf("constructing the alert sender: %w", err)
+		return nil, classifyAlertDestination(fmt.Errorf("constructing the alert sender: %w", err))
 	}
 	dead, err := ping.LoadHTTPSDeadman(envPath)
 	if err != nil {
-		return nil, fmt.Errorf("loading the dead-man endpoint: %w", err)
+		return nil, classifyAlertDestination(fmt.Errorf("loading the dead-man endpoint: %w", err))
 	}
 	return func(reader *hstore.Reader, store *hstore.Store,
 		interval time.Duration) (alertStepper, error) {
 		return ping.NewService(reader, store, sender, dead, interval)
 	}, nil
+}
+
+// A read failure may clear on the next supervised launch. A readable file
+// with an absent, duplicate, or malformed destination needs an operator edit.
+func classifyAlertDestination(err error) error {
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) {
+		return err
+	}
+	return &refusal{err: err}
 }
 
 func (r *rig) startAlerts(ctx context.Context) error {
@@ -52,13 +68,26 @@ func (r *rig) startAlerts(ctx context.Context) error {
 	}
 	r.alertMu.Lock()
 	defer r.alertMu.Unlock()
-	if r.alertDone != nil {
+	if r.alertDone != nil && !r.alertStopped {
 		return errors.New("the alert loop was started more than once")
 	}
+	previous := r.alertDone
+	r.alertParent = ctx
+	r.alertStopped = false
 	alertCtx, cancel := context.WithCancel(ctx)
 	r.alertCancel = cancel
 	r.alertDone = make(chan struct{})
-	go r.runAlerts(alertCtx, r.alertDone)
+	done := r.alertDone
+	go func() {
+		if previous != nil {
+			<-previous
+		}
+		if alertCtx.Err() != nil {
+			close(done)
+			return
+		}
+		r.runAlerts(alertCtx, done)
+	}()
 	return nil
 }
 
@@ -117,7 +146,14 @@ func stopAlertTimer(timer *time.Timer) {
 }
 
 func (r *rig) stepAlerts(ctx context.Context) int64 {
-	eff := r.alerts.Step(ctx, r.ex.NowMs(), r.heartbeat())
+	wallMs, monoMs := r.ex.NowMs(), r.ex.Mono().Milliseconds()
+	hb := r.heartbeat()
+	var eff ping.Effects
+	if paired, ok := r.alerts.(pairedAlertStepper); ok {
+		eff = paired.StepAt(ctx, wallMs, monoMs, hb)
+	} else {
+		eff = r.alerts.Step(ctx, wallMs, hb)
+	}
 	r.observeAlertEffects(eff)
 	return eff.NextStepMs
 }
@@ -175,6 +211,22 @@ func (r *rig) stopAlerts(ctx context.Context) error {
 		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("waiting for the alert loop to stop: %w", ctx.Err())
+	}
+}
+
+// resumeAlerts preserves the service's retry/suppression state on a refused
+// close. A canceled step must join before a new sole owner can use that state.
+func (r *rig) resumeAlerts() {
+	r.alertMu.Lock()
+	parent, stopped := r.alertParent, r.alertStopped
+	r.alertMu.Unlock()
+	if parent == nil || !stopped {
+		return
+	}
+	if parent.Err() == nil {
+		if err := r.startAlerts(parent); err != nil {
+			fmt.Fprintf(os.Stderr, "harness: restoring alert delivery after refused stop: %v\n", err)
+		}
 	}
 }
 

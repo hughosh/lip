@@ -1,0 +1,52 @@
+# lip-kaf AFTER fix, 2026-09-28T23:47:23Z
+# cancel.go sha256 f03b28e91ce4dc0e8a93134ab924df4c5aeed31293d8c74583570ffca60e5581
+# go test ./harness/rest -run '^TestSweep(RetiresAListLagged|ListLagShorter|ListedTerminal|EscalatesAnOrderTheExchange|ConfirmationAccepts)' -count=1 -v
+=== RUN   TestSweepRetiresAListLaggedCancelOnTheExchangesTerminalAnswer
+--- PASS: TestSweepRetiresAListLaggedCancelOnTheExchangesTerminalAnswer (0.00s)
+=== RUN   TestSweepListLagShorterThanTheRetryNeedsNoNamedRead
+--- PASS: TestSweepListLagShorterThanTheRetryNeedsNoNamedRead (0.00s)
+=== RUN   TestSweepListedTerminalRecordIsNotResting
+--- PASS: TestSweepListedTerminalRecordIsNotResting (0.00s)
+=== RUN   TestSweepEscalatesAnOrderTheExchangeStillCallsResting
+--- PASS: TestSweepEscalatesAnOrderTheExchangeStillCallsResting (0.00s)
+=== RUN   TestSweepConfirmationAcceptsTheExchangesTerminalStatuses
+=== RUN   TestSweepConfirmationAcceptsTheExchangesTerminalStatuses/canceled
+=== RUN   TestSweepConfirmationAcceptsTheExchangesTerminalStatuses/executed
+--- PASS: TestSweepConfirmationAcceptsTheExchangesTerminalStatuses (0.00s)
+    --- PASS: TestSweepConfirmationAcceptsTheExchangesTerminalStatuses/canceled (0.00s)
+    --- PASS: TestSweepConfirmationAcceptsTheExchangesTerminalStatuses/executed (0.00s)
+=== RUN   TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder
+=== RUN   TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/404
+=== RUN   TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/429
+=== RUN   TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/null_order
+=== RUN   TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/no_order_key
+=== RUN   TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/transport_error
+=== RUN   TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/no_remaining_field
+=== RUN   TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/another_market
+=== RUN   TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/cancelled_with_quantity_remaining
+=== RUN   TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/500
+=== RUN   TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/another_order
+=== RUN   TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/unknown_status
+=== RUN   TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/misspelt_status
+=== RUN   TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/undecodable
+=== RUN   TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/resting
+=== RUN   TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/empty_status
+--- PASS: TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder (0.00s)
+    --- PASS: TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/404 (0.00s)
+    --- PASS: TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/429 (0.00s)
+    --- PASS: TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/null_order (0.00s)
+    --- PASS: TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/no_order_key (0.00s)
+    --- PASS: TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/transport_error (0.00s)
+    --- PASS: TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/no_remaining_field (0.00s)
+    --- PASS: TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/another_market (0.00s)
+    --- PASS: TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/cancelled_with_quantity_remaining (0.00s)
+    --- PASS: TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/500 (0.00s)
+    --- PASS: TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/another_order (0.00s)
+    --- PASS: TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/unknown_status (0.00s)
+    --- PASS: TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/misspelt_status (0.00s)
+    --- PASS: TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/undecodable (0.00s)
+    --- PASS: TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/resting (0.00s)
+    --- PASS: TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder/empty_status (0.00s)
+PASS
+ok  	lip/harness/rest	0.390s
+# exit 0

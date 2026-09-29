@@ -1,0 +1,261 @@
+{
+  "catalogue_count": 300,
+  "duration_seconds": 70.065,
+  "environment": {
+    "CGO_ENABLED": "0",
+    "GOCACHE": "/private/tmp/lip-readiness-gocache",
+    "GOENV": "off",
+    "GOFLAGS": "-p=2",
+    "GOMAXPROCS": "2",
+    "GOMODCACHE": "/Users/hugh/go/pkg/mod",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off",
+    "HOME": "/Users/hugh",
+    "PATH": "/usr/local/bin:/usr/bin:/bin",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONUNBUFFERED": "1"
+  },
+  "focused": true,
+  "go_binary": "/usr/local/bin/go",
+  "go_sha256": "6890cf02fb958fc15a043022d5f29e2a2206ab08a73581eddc3f33c7c681a730",
+  "outcomes": [
+    {
+      "accepted": true,
+      "expected": "TestWriteGuardTruthTable",
+      "failed_tests": [
+        "TestWriteGuardTruthTable"
+      ],
+      "id": "M-ES6-FLAG",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestWriteGuardTruthTable",
+      "failed_tests": [
+        "TestWriteGuardTruthTable"
+      ],
+      "id": "M-ES6-SENTINEL",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestRemovingLiveOKDisarmsTheNextWrite",
+      "failed_tests": [
+        "TestRemovingLiveOKDisarmsTheNextWrite"
+      ],
+      "id": "M-ES6-RECHECK",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestReadOnlyRigStillGuardsDirectRESTWrites",
+      "failed_tests": [
+        "TestReadOnlyRigStillGuardsDirectRESTWrites"
+      ],
+      "id": "M-ES6-NOGUARD",
+      "status": "caught"
+    }
+  ],
+  "partial": true,
+  "runner_sha256": "988786aab30cedb3bdff2e2219985e2da7d7c791d3f8a2140f143afcd588f113",
+  "runs": [
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "preflight",
+      "log": "0000-preflight.log",
+      "seconds": 3.422
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "preflight",
+      "log": "0001-preflight.log",
+      "seconds": 2.431
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "preflight",
+      "log": "0002-preflight.log",
+      "seconds": 2.447
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "preflight",
+      "log": "0003-preflight.log",
+      "seconds": 2.394
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "preflight",
+      "log": "0004-preflight.log",
+      "seconds": 2.428
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^(TestWriteGuardTruthTable|TestWriteGuardTruthTable|TestRemovingLiveOKDisarmsTheNextWrite|TestReadOnlyRigStillGuardsDirectRESTWrites)$",
+        "./harness/...",
+        "./cmd/harness/..."
+      ],
+      "exit_code": 0,
+      "label": "baseline",
+      "log": "0005-baseline.log",
+      "seconds": 9.489
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-ES6-FLAG-build",
+      "log": "0006-M-ES6-FLAG-build.log",
+      "seconds": 2.999
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestWriteGuardTruthTable$",
+        "./harness/...",
+        "./cmd/harness/..."
+      ],
+      "exit_code": 1,
+      "label": "M-ES6-FLAG-test",
+      "log": "0007-M-ES6-FLAG-test.log",
+      "seconds": 8.469
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-ES6-SENTINEL-build",
+      "log": "0008-M-ES6-SENTINEL-build.log",
+      "seconds": 2.509
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestWriteGuardTruthTable$",
+        "./harness/...",
+        "./cmd/harness/..."
+      ],
+      "exit_code": 1,
+      "label": "M-ES6-SENTINEL-test",
+      "log": "0009-M-ES6-SENTINEL-test.log",
+      "seconds": 8.456
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-ES6-RECHECK-build",
+      "log": "0010-M-ES6-RECHECK-build.log",
+      "seconds": 2.681
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestRemovingLiveOKDisarmsTheNextWrite$",
+        "./harness/...",
+        "./cmd/harness/..."
+      ],
+      "exit_code": 1,
+      "label": "M-ES6-RECHECK-test",
+      "log": "0011-M-ES6-RECHECK-test.log",
+      "seconds": 8.669
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-ES6-NOGUARD-build",
+      "log": "0012-M-ES6-NOGUARD-build.log",
+      "seconds": 2.569
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestReadOnlyRigStillGuardsDirectRESTWrites$",
+        "./harness/...",
+        "./cmd/harness/..."
+      ],
+      "exit_code": 1,
+      "label": "M-ES6-NOGUARD-test",
+      "log": "0013-M-ES6-NOGUARD-test.log",
+      "seconds": 8.744
+    }
+  ],
+  "selected_count": 4,
+  "selected_ids": [
+    "M-ES6-FLAG",
+    "M-ES6-SENTINEL",
+    "M-ES6-RECHECK",
+    "M-ES6-NOGUARD"
+  ],
+  "source_sha256_after": "7e0c87dd119a3b119b03e116aefa321216162869b7f757a9ec72c3065efad4a5",
+  "source_sha256_before": "7e0c87dd119a3b119b03e116aefa321216162869b7f757a9ec72c3065efad4a5",
+  "started_at_utc": "2026-09-26T19:56:06.954260+00:00",
+  "status": "PASS",
+  "updated_at_utc": "2026-09-26T19:57:16.808645+00:00"
+}

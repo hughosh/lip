@@ -1,0 +1,37 @@
+{
+  "started_at": "2026-09-27T17:02:02.790569Z",
+  "ended_at": "2026-09-27T17:02:04.656927Z",
+  "account_scope_complete": true,
+  "flat": true,
+  "subaccount_balances_status": {
+    "outcome": "complete",
+    "count": 1
+  },
+  "resting_orders_status": {
+    "outcome": "complete",
+    "pages": 1
+  },
+  "positions_by_subaccount": {
+    "0": {
+      "outcome": "complete",
+      "pages": 1,
+      "count": 2
+    }
+  },
+  "open_orders": null,
+  "nonzero_positions": null,
+  "fills_status": {
+    "outcome": "complete",
+    "pages": 1,
+    "count": 15
+  },
+  "fill_full_walk_requests": [
+    {
+      "at": "2026-09-27T17:02:03.529829Z",
+      "path": "/portfolio/fills",
+      "status": 200,
+      "duration_ms": 112.77584,
+      "response_bytes": 7996
+    }
+  ]
+}

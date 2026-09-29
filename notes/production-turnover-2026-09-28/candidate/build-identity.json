@@ -1,0 +1,22 @@
+{
+  "started_at_utc": "2026-09-28T17:24:36.733913+00:00",
+  "finished_at_utc": "2026-09-28T17:24:39.379369+00:00",
+  "git_head": "f7e9571547bb948418b7a27adc9c30ae38314b00",
+  "dirty_tree": true,
+  "source_manifest_sha256": "70b930e071c93947ca1c5120a8a7ce2240723e7287bd2a32fefb24248747016f",
+  "source_manifest_sha256_after": "70b930e071c93947ca1c5120a8a7ce2240723e7287bd2a32fefb24248747016f",
+  "binary_path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/candidate/harness",
+  "binary_sha256": "b844961d4e8eef00fe2e88861114e9f3be9c11e504fa14b1f911a6de996a5f46",
+  "go_source_archive_sha256": "063536abc506a8ade4af218a6f79c0a1accbcc147ebd4d49f1fcf6d92f3afdd9",
+  "build_command": [
+    "/usr/local/bin/go",
+    "build",
+    "-trimpath",
+    "-o",
+    "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/candidate/harness",
+    "./cmd/harness"
+  ],
+  "affected_mutations_receipt": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/shutdown-repair/negative-control-20260928T172101631625Z/receipt.json",
+  "affected_mutations_receipt_sha256": "b65931fa37e6be7bca2b6a1a22344f295fcf13714da65b62d342e93cd47da8e9",
+  "qualification_scope": "Shutdown repair candidate; candidate gate and fresh real GET-only q01 pending. No financial qualification."
+}

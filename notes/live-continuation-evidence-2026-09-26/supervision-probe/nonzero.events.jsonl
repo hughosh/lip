@@ -1,0 +1,4 @@
+{"event": "start", "mode": "nonzero", "pid": 36021, "ppid": 1, "at": 1790468486.281759, "argv": ["/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py", "nonzero", "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"], "elapsed": 0}
+{"event": "exit", "mode": "nonzero", "pid": 36021, "ppid": 1, "at": 1790468486.28203, "status": 17}
+{"event": "start", "mode": "nonzero", "pid": 36059, "ppid": 1, "at": 1790468489.347911, "argv": ["/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py", "nonzero", "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/nonzero.events.jsonl"], "elapsed": 0}
+{"event": "exit", "mode": "nonzero", "pid": 36059, "ppid": 1, "at": 1790468489.348143, "status": 17}

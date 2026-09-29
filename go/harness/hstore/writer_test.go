@@ -73,6 +73,9 @@ func TestAuditQueueNeverDropsWhileWriterIsStalled(t *testing.T) {
 	if hl.Pending() != n {
 		t.Fatalf("Health reports %d pending, want %d", hl.Pending(), n)
 	}
+	if hl.Stalls() != 1 || s.Health().Stalls() != 1 {
+		t.Fatalf("one blocked write was counted more than once or not at all: %+v", s.Health())
+	}
 
 	// The direct claim: every submitted record is still in the queue, in order.
 	s.mu.Lock()
@@ -117,8 +120,8 @@ func TestAuditQueueNeverDropsWhileWriterIsStalled(t *testing.T) {
 	}
 
 	// The failed record and its backlog are durable, so the store is healthy.
-	if hl := s.Health(); !hl.Healthy() || !hl.AllowsAdding() {
-		t.Fatalf("the store did not recover after draining: %+v", hl)
+	if hl := s.Health(); !hl.Healthy() || !hl.AllowsAdding() || hl.Stalled() || hl.Stalls() != 1 || hl.Failures() != 0 {
+		t.Fatalf("the drained store lost its observed stall or failed to recover: %+v", hl)
 	}
 }
 

@@ -1,0 +1,166 @@
+--- qualified/go/cmd/harness/shutdown.go
++++ working/go/cmd/harness/shutdown.go
+@@ -6,6 +6,7 @@
+ 	"os"
+ 	"os/signal"
+ 	"strconv"
++	"sync"
+ 	"sync/atomic"
+ 	"syscall"
+ 	"time"
+@@ -86,6 +87,11 @@
+ // rather than unlikely.
+ type shutdown struct {
+ 	r *rig
++	// finalClose serializes the owner's health probe with the authorized
++	// store close. A refused close leaves orderlyClosed false, so a writer
++	// failure remains visible to the owner and can still latch a stop.
++	finalClose    sync.RWMutex
++	orderlyClosed bool
+ 
+ 	// exit is `os.Exit`, injected.
+ 	//
+@@ -342,7 +348,13 @@
+ 	if err := s.r.flushAlerts(ctx); err != nil {
+ 		return err
+ 	}
+-	return s.r.close(ctx)
++	s.finalClose.Lock()
++	defer s.finalClose.Unlock()
++	if err := s.r.close(ctx); err != nil {
++		return err
++	}
++	s.orderlyClosed = true
++	return nil
+ }
+ 
+ // ---------------------------------------------------------------------------
+--- qualified/go/cmd/harness/store_health.go
++++ working/go/cmd/harness/store_health.go
+@@ -24,6 +24,15 @@
+ }
+ 
+ func (o *owner) checkRuntimeStore() {
++	if o.sd != nil {
++		o.sd.finalClose.RLock()
++		defer o.sd.finalClose.RUnlock()
++		// Only the successful, authorized stop can exempt a closed writer.
++		// Until then an unexpected exit still stops adding and raises SEV1.
++		if o.sd.orderlyClosed {
++			return
++		}
++	}
+ 	g := &o.storeHealth
+ 	if g.stopped {
+ 		return
+--- qualified/go/cmd/harness/store_health_test.go
++++ working/go/cmd/harness/store_health_test.go
+@@ -110,3 +110,108 @@
+ 		t.Fatalf("writer exit global=%s trigger=%q", o.global, h.latchTrigger())
+ 	}
+ }
++
++// The owner keeps evaluating until the drain goroutine reaches os.Exit. Its
++// next probe after a successful orderly close must not turn that close into a
++// store failure; the actual stop path also drains the anomaly sink first.
++func TestRuntimeStoreAuthorizedCloseDoesNotRaiseFailure(t *testing.T) {
++	h := newSeamHarness(t, seamOptions{})
++	o := h.ownerFor()
++	if err := h.rig.startAlerts(context.Background()); err != nil {
++		t.Fatalf("start alert loop: %v", err)
++	}
++	if err := o.sd.stop(context.Background()); err != nil {
++		t.Fatalf("authorized orderly stop: %v", err)
++	}
++	if h.rig.store.Health().AllowsAdding() {
++		t.Fatal("control: orderly stop left writer able to add")
++	}
++	o.checkRuntimeStore()
++	if o.storeHealth.stopped {
++		t.Fatal("authorized orderly close was classified as store failure")
++	}
++	select {
++	case a := <-h.rig.anom.ch:
++		t.Fatalf("authorized orderly close raised anomaly: %+v", a)
++	default:
++	}
++}
++
++func TestRuntimeStoreProbeBegunBeforeCloseCompletesBeforeWriterStops(t *testing.T) {
++	f := newFixture(t, nil)
++	o := newOwner(f.rig, f.sd)
++	entered := make(chan struct{})
++	release := make(chan struct{})
++	checked := make(chan struct{})
++	o.storeHealth.probe = func() storeHealthSnapshot {
++		close(entered)
++		<-release
++		return storeHealthSnapshot{healthy: true, adding: true}
++	}
++	go func() {
++		o.checkRuntimeStore()
++		close(checked)
++	}()
++	<-entered
++	stopped := make(chan error, 1)
++	go func() { stopped <- f.sd.stop(context.Background()) }()
++	// The owner started its probe before the authorized close. The close
++	// cannot overtake that probe and expose a half-closed writer to it.
++	select {
++	case err := <-stopped:
++		t.Fatalf("orderly stop passed an in-flight health probe: %v", err)
++	case <-time.After(25 * time.Millisecond):
++	}
++	close(release)
++	<-checked
++	if err := <-stopped; err != nil {
++		t.Fatalf("orderly stop after health probe: %v", err)
++	}
++	o.storeHealth.probe = nil
++	o.checkRuntimeStore()
++	if o.storeHealth.stopped {
++		t.Fatal("completed authorized close was classified as store failure")
++	}
++}
++
++func TestRuntimeStoreRefusedCloseRetainsFailureGuard(t *testing.T) {
++	h := newSeamHarness(t, seamOptions{})
++	o := h.ownerFor()
++	if err := h.rig.startAlerts(context.Background()); err != nil {
++		t.Fatalf("start alert loop: %v", err)
++	}
++	// Force the real Shutdown precondition to refuse, before it cancels the
++	// writer or closes the store. Restore the cancel for fixture cleanup.
++	cancel := h.rig.storeCancel
++	h.rig.storeCancel = nil
++	err := o.sd.stop(context.Background())
++	h.rig.storeCancel = cancel
++	if err == nil || !strings.Contains(err.Error(), "cancel") {
++		t.Fatalf("orderly close did not refuse missing writer cancel: %v", err)
++	}
++	if !h.rig.store.Health().AllowsAdding() {
++		t.Fatal("refused close stopped the writer")
++	}
++	cancel()
++	select {
++	case <-h.rig.storeDone:
++	case <-time.After(3 * time.Second):
++		t.Fatal("unexpected writer exit did not complete")
++	}
++	o.checkRuntimeStore()
++	if !o.storeHealth.stopped {
++		t.Fatal("refused close masked a subsequent unexpected writer exit")
++	}
++	record, present, loadErr := h.rig.latch.Load()
++	if loadErr != nil || !present || record.Trigger != "store_unhealthy" {
++		t.Fatalf("writer exit was not durably stopped: record=%+v present=%t err=%v", record, present, loadErr)
++	}
++	select {
++	case a := <-h.rig.anom.ch:
++		if a.Class != "STORE_UNHEALTHY" || a.Sev.String() != "SEV1" {
++			t.Fatalf("unexpected writer exit raised %+v", a)
++		}
++	default:
++		t.Fatal("unexpected writer exit raised no SEV1")
++	}
++}

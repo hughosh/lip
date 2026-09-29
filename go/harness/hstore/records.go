@@ -33,6 +33,7 @@ const (
 	KindStateEvent
 	KindAnomaly
 	KindDelivery
+	KindBalancePoll
 )
 
 func (k RecordKind) String() string {
@@ -53,6 +54,8 @@ func (k RecordKind) String() string {
 		return "anomaly"
 	case KindDelivery:
 		return "delivery"
+	case KindBalancePoll:
+		return "balance_poll"
 	}
 	return "invalid"
 }
@@ -223,6 +226,7 @@ type Health struct {
 	healthy   bool
 	adding    bool
 	stalled   bool
+	stalls    uint64
 	pending   int
 	failures  uint64
 	committed uint64
@@ -239,6 +243,11 @@ func (h Health) AllowsAdding() bool { return h.adding }
 // the progress bound. A stall is unhealthy for the same reason a failure is:
 // nothing behind it is durable.
 func (h Health) Stalled() bool { return h.stalled }
+
+// Stalls counts distinct writer stalls observed through Health. It remains
+// available after a stalled write completes, so a later owner poll can still
+// act on an interval that the writer recovered from between polls.
+func (h Health) Stalls() uint64 { return h.stalls }
 
 // Pending is how many submitted records are not yet durable.
 func (h Health) Pending() int { return h.pending }

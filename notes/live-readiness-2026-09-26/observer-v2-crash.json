@@ -1,0 +1,7 @@
+{
+  "utc": "2026-09-26T23:25:55.629785+00:00",
+  "action": "SIGKILL",
+  "pid": 26712,
+  "scope": "deliberate crash of unarmed read-only observer within attended restart stage",
+  "last_complete_portfolio_at": "2026-09-26T23:25:49.475962Z"
+}

@@ -1,0 +1,50 @@
+{
+  "at": "2026-09-27T01:06:59.970884+00:00",
+  "ticker": "KXFEATURE-26GTA6-DON",
+  "series_fee_type": "quadratic",
+  "series_fee_multiplier": 1,
+  "official_fee_schedule": "https://kalshi.com/docs/kalshi-fee-schedule.pdf",
+  "fee_schedule_effective": "2026-07-07",
+  "maker_multiplier": 0,
+  "taker_multiplier": 1,
+  "fee_rounding": "formula says fee plus cost rounds upward to centicent; PDF illustrative table has whole-cent examples; actual fill fees required",
+  "hypothetical_exits": {
+    "yes": {
+      "quantity": "12",
+      "filled_depth_quantity": "12",
+      "gross_proceeds_usd": "8.6400",
+      "fee_formula_estimate_usd": "0.1694",
+      "net_exit_proceeds_usd": "8.4706",
+      "consumed_levels": [
+        [
+          "0.7200",
+          "12"
+        ]
+      ],
+      "displayed_touch_depth": "660.45",
+      "next_bid": "0.7100",
+      "actual_execution": false
+    },
+    "no": {
+      "quantity": "12",
+      "filled_depth_quantity": "12",
+      "gross_proceeds_usd": "3.2400",
+      "fee_formula_estimate_usd": "0.1656",
+      "net_exit_proceeds_usd": "3.0744",
+      "consumed_levels": [
+        [
+          "0.2700",
+          "12"
+        ]
+      ],
+      "displayed_touch_depth": "37.00",
+      "next_bid": "0.2300",
+      "actual_execution": false
+    }
+  },
+  "selected_shard_cash_micro_usd": "98580200",
+  "reserve_micro_usd": "24645050.00",
+  "adding_ceiling_micro_usd": "73935150.00",
+  "shared_pool_is_not_personal_reward": true,
+  "profitability_demonstrated": false
+}

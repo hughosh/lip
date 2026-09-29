@@ -1,0 +1,36 @@
+[
+  {
+    "command": [
+      "/Users/hugh/kek/.venv/bin/python",
+      "scripts/public_market_snapshot.py",
+      "--ticker",
+      "KXOPENSOURCESHARE-26SEP29-T70",
+      "--out",
+      "/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/operator-preflight/KXOPENSOURCESHARE-26SEP29-T70-20260927T172808838681Z-market-book-series.json"
+    ],
+    "exit_code": 0,
+    "log": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/operator-preflight/20260927T172808838681Z-0.log"
+  },
+  {
+    "command": [
+      "/Users/hugh/kek/.venv/bin/python",
+      "scripts/operator_stage.py",
+      "--stage",
+      "first",
+      "--ticker",
+      "KXOPENSOURCESHARE-26SEP29-T70",
+      "--size",
+      "12",
+      "--binary",
+      "/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/candidate/harness",
+      "--candidate-receipt",
+      "/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/candidate/build-identity.json",
+      "--book",
+      "/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/operator-preflight/KXOPENSOURCESHARE-26SEP29-T70-20260927T172808838681Z-market-book-series.json",
+      "--evidence-root",
+      "/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/operator-stages"
+    ],
+    "exit_code": 0,
+    "log": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/operator-preflight/20260927T172808838681Z-1.log"
+  }
+]

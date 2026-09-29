@@ -1,0 +1,75 @@
+{
+  "started_at_utc": "2026-09-27T01:41:45.606960+00:00",
+  "scope": "Named exact Python assertions; no network/account calls, only injected senders and disposable databases",
+  "mutations": [
+    {
+      "name": "M-OPS-TRANSPORT-IS-ACK",
+      "catcher": "test_ops_watchdog.WatchdogTest.test_primary_nonack_pages_backup_at_deadline",
+      "result": {
+        "tests": 1,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0
+      },
+      "verdict": "CAUGHT"
+    },
+    {
+      "name": "M-OPS-NO-BACKUP",
+      "catcher": "test_ops_watchdog.WatchdogTest.test_failed_primary_still_pages_backup_and_retries",
+      "result": {
+        "tests": 1,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0
+      },
+      "verdict": "CAUGHT"
+    },
+    {
+      "name": "M-OPS-ATTEMPT-NOT-DURABLE",
+      "catcher": "test_ops_watchdog.WatchdogTest.test_failed_durable_write_prevents_external_send",
+      "result": {
+        "tests": 1,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0
+      },
+      "verdict": "CAUGHT"
+    },
+    {
+      "name": "M-OPS-CLOCK-REWIND",
+      "catcher": "test_ops_watchdog.WatchdogTest.test_clock_rewind_pages_backup_and_retries_failed_primary",
+      "result": {
+        "tests": 1,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0
+      },
+      "verdict": "CAUGHT"
+    },
+    {
+      "name": "M-OPS-UNJOURNALED-SEV1",
+      "catcher": "test_ops_watchdog_source.SourceAdapterTest.test_imports_committed_sev1_even_if_unjournaled_or_delivered",
+      "result": {
+        "tests": 1,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0
+      },
+      "verdict": "CAUGHT"
+    }
+  ],
+  "sources": {
+    "ops_watchdog.py": "f7b9f21b5c70831335b13c606024941b2a26bf8b6cc77da28b8a6b23c270f47f",
+    "ops_watchdog_source.py": "0e3d0a23205b12eae44067f6b09a4a2c6fa701b7faf605c8b4f1bcbe7ea6696a",
+    "test_ops_watchdog.py": "c67f9584c71620189c25faf511ca952acd59740318975b03af3f9ffe456822fb",
+    "test_ops_watchdog_source.py": "a3d046e2e787550aaf6ae1a152a1c2aeff477cf29537241d2dfbdcf69d784558"
+  },
+  "baseline": {
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "verdict": "PASS",
+  "finished_at_utc": "2026-09-27T01:41:46.334608+00:00"
+}

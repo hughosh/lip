@@ -1,0 +1,19 @@
+{
+  "started_at": "2026-09-28T17:24:01.502609+00:00",
+  "command": [
+    "/usr/local/bin/go",
+    "test",
+    "-race",
+    "./cmd/harness",
+    "-run",
+    "^(TestServingCloseWaitsForDetachedDialReport|TestDialFenceRefusalResumesWithoutOverlappingActiveDial)$",
+    "-count=10",
+    "-timeout=90s"
+  ],
+  "cwd": "/Users/hugh/kek/lip/go",
+  "source_manifest_before": "70b930e071c93947ca1c5120a8a7ce2240723e7287bd2a32fefb24248747016f",
+  "finished_at": "2026-09-28T17:24:11.690989+00:00",
+  "exit_code": 0,
+  "source_manifest_after": "70b930e071c93947ca1c5120a8a7ce2240723e7287bd2a32fefb24248747016f",
+  "log_sha256": "b9d2d7e3fe4dbff948c4847cb91caf8b4b67ac4bcf3b458d232d0fe90308e741"
+}

@@ -1,0 +1,87 @@
+{
+  "started_at": "2026-09-28T19:26:41.431729Z",
+  "ended_at": "2026-09-28T19:26:41.446844Z",
+  "requests": [
+    {
+      "at": "2026-09-28T19:26:41.431929Z",
+      "path": "/portfolio/balance",
+      "duration_ms": 6.806475,
+      "response_bytes": 0
+    },
+    {
+      "at": "2026-09-28T19:26:41.438736Z",
+      "path": "/portfolio/subaccounts/balances",
+      "duration_ms": 1.681679,
+      "response_bytes": 0
+    },
+    {
+      "at": "2026-09-28T19:26:41.440419Z",
+      "path": "/markets/KXBROSFT-26OCT08-T110",
+      "duration_ms": 1.218689,
+      "response_bytes": 0
+    },
+    {
+      "at": "2026-09-28T19:26:41.441653Z",
+      "path": "/portfolio/orders",
+      "query": {
+        "status": "resting"
+      },
+      "duration_ms": 1.524586,
+      "response_bytes": 0
+    },
+    {
+      "at": "2026-09-28T19:26:41.44319Z",
+      "path": "/portfolio/orders",
+      "query": {
+        "status": "resting"
+      },
+      "duration_ms": 1.222441,
+      "response_bytes": 0
+    },
+    {
+      "at": "2026-09-28T19:26:41.444427Z",
+      "path": "/portfolio/positions",
+      "duration_ms": 1.214481,
+      "response_bytes": 0
+    },
+    {
+      "at": "2026-09-28T19:26:41.445646Z",
+      "path": "/portfolio/fills",
+      "duration_ms": 1.195679,
+      "response_bytes": 0
+    }
+  ],
+  "aggregate_balance_status": {
+    "outcome": "transport_failed"
+  },
+  "subaccount_balances_status": {
+    "outcome": "transport_failed"
+  },
+  "selected_ticker": "KXBROSFT-26OCT08-T110",
+  "market_status": {
+    "outcome": "transport_failed"
+  },
+  "selected_balance_status": {
+    "outcome": ""
+  },
+  "market_funding_status": {
+    "outcome": ""
+  },
+  "fills_status": {
+    "outcome": "failed"
+  },
+  "resting_orders_status": {
+    "outcome": "failed"
+  },
+  "positions_by_subaccount": {},
+  "account_scope_complete": false,
+  "flat": false,
+  "production_decoder": {
+    "orders": {
+      "outcome": "failed"
+    },
+    "primary_positions": {
+      "outcome": "failed"
+    }
+  }
+}

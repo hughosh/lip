@@ -1,0 +1,919 @@
+{
+  "ticker": "KXDWTSFINALS-31DEC26-TAT",
+  "read_only": true,
+  "calls": {
+    "market": {
+      "path": "/markets/KXDWTSFINALS-31DEC26-TAT",
+      "at_utc": "2026-09-27T17:10:04.100819+00:00",
+      "status": 200,
+      "latency_ms": 268.808,
+      "body": {
+        "market": {
+          "can_close_early": true,
+          "close_time": "2027-01-07T15:00:00Z",
+          "created_time": "2026-09-24T15:44:48.130757Z",
+          "custom_strike": {
+            "Actor": "c947cd4c-fbc8-471d-898d-48b83f0bcfb1",
+            "Participant": "Tatyana Ali"
+          },
+          "early_close_condition": "This market will close and expire early when the contestant qualifies for the finale, is eliminated, withdraws, or is disqualified before qualifying.",
+          "event_ticker": "KXDWTSFINALS-31DEC26",
+          "exchange_index": 0,
+          "expected_expiration_time": "2026-12-31T15:00:00Z",
+          "expiration_time": "2027-01-07T15:00:00Z",
+          "expiration_value": "",
+          "last_price_dollars": "0.0300",
+          "latest_expiration_time": "2027-01-07T15:00:00Z",
+          "liquidity_dollars": "0.0000",
+          "market_type": "binary",
+          "no_ask_dollars": "0.9700",
+          "no_bid_dollars": "0.9600",
+          "no_sub_title": "Tatyana Ali",
+          "notional_value_dollars": "1.0000",
+          "occurrence_datetime": "2026-12-31T15:00:00Z",
+          "open_interest_fp": "2013.41",
+          "open_time": "2026-09-24T16:00:00Z",
+          "previous_price_dollars": "0.0500",
+          "previous_yes_ask_dollars": "0.0500",
+          "previous_yes_bid_dollars": "0.0300",
+          "price_level_structure": "linear_cent",
+          "price_ranges": [
+            {
+              "end": "1.0000",
+              "start": "0.0000",
+              "step": "0.0100"
+            }
+          ],
+          "result": "",
+          "rules_primary": "If Tatyana Ali qualifies for the finale of Dancing with the Stars Season 35 after market issuance and before Dec 31, 2026 at 10am EST, then the market resolves to Yes.",
+          "rules_secondary": "How this is resolved\nQualification for the finale must be officially announced or made evident through the program broadcast, official website, verified social media, or official press releases. Qualification counts regardless of whether the contestant subsequently appears in the finale.\nEach contestant who qualifies resolves to Yes. Multiple contestants can resolve to Yes, and payouts are not divided among finalists.\nThe qualification deadline is Dec 31, 2026 at 10am EST. The competition is Dancing with the Stars Season 35; other editions and seasons do not count.\n\nPayout criteria\nOfficial qualification by audience vote, judges' decision, challenge result, or rules-based advancement counts, including automatic advancement caused by another contestant's withdrawal or elimination.\nInitial qualification governs, even if the contestant is subsequently disqualified, removed, or withdraws.\nEach named contestant is tracked across partner changes.\n\nDoesn't count for payout\nElimination, withdrawal, or disqualification before qualification resolves to No. A later return requires a separate contract iteration.\nTemporary immunity, non-elimination status, rumors, leaks, or appearing as a guest or in a recap without qualification do not count.\nNo qualification before the deadline, or a season ending or being cancelled without official qualification, resolves to No.\nIf a contestant can no longer participate due to their death, the market resolves to the last fair price determined by the Exchange.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+          "settlement_timer_seconds": 1800,
+          "status": "active",
+          "strike_type": "custom",
+          "subtitle": "Tatyana Ali",
+          "ticker": "KXDWTSFINALS-31DEC26-TAT",
+          "title": "Will Tatyana Ali qualify for the DWTS Season 35 finale?",
+          "updated_time": "2026-09-24T16:00:01.535439Z",
+          "volume_24h_fp": "399.51",
+          "volume_fp": "3651.84",
+          "yes_ask_dollars": "0.0400",
+          "yes_ask_size_fp": "1218.75",
+          "yes_bid_dollars": "0.0300",
+          "yes_bid_size_fp": "3855.00",
+          "yes_sub_title": "Tatyana Ali"
+        }
+      }
+    },
+    "orderbook": {
+      "path": "/markets/KXDWTSFINALS-31DEC26-TAT/orderbook",
+      "at_utc": "2026-09-27T17:10:04.369700+00:00",
+      "status": 200,
+      "latency_ms": 277.831,
+      "body": {
+        "orderbook_fp": {
+          "no_dollars": [
+            [
+              "0.0100",
+              "1000.00"
+            ],
+            [
+              "0.1300",
+              "5000.00"
+            ],
+            [
+              "0.1400",
+              "106.00"
+            ],
+            [
+              "0.1500",
+              "74.00"
+            ],
+            [
+              "0.7000",
+              "26.82"
+            ],
+            [
+              "0.7100",
+              "12.00"
+            ],
+            [
+              "0.9400",
+              "1.00"
+            ],
+            [
+              "0.9500",
+              "1400.49"
+            ],
+            [
+              "0.9600",
+              "1218.75"
+            ]
+          ],
+          "yes_dollars": [
+            [
+              "0.0100",
+              "1201.00"
+            ],
+            [
+              "0.0200",
+              "100.00"
+            ],
+            [
+              "0.0300",
+              "3855.00"
+            ]
+          ]
+        }
+      }
+    },
+    "event": {
+      "path": "/events/KXDWTSFINALS-31DEC26",
+      "at_utc": "2026-09-27T17:10:04.647561+00:00",
+      "status": 200,
+      "latency_ms": 393.226,
+      "body": {
+        "event": {
+          "category": "Entertainment",
+          "collateral_return_type": "",
+          "event_ticker": "KXDWTSFINALS-31DEC26",
+          "exchange_index": 0,
+          "last_updated_ts": "0001-01-01T00:00:00Z",
+          "mutually_exclusive": false,
+          "product_metadata": {
+            "competition": "Dancing with the Stars Season 35",
+            "competition_scope": "Finalists"
+          },
+          "series_ticker": "KXDWTSFINALS",
+          "settlement_sources": [
+            {
+              "name": "ABC News",
+              "url": "https://abcnews.go.com"
+            },
+            {
+              "name": "Disney+",
+              "url": "https://disneyplus.com/"
+            }
+          ],
+          "strike_period": "",
+          "sub_title": "Qualify for the finale",
+          "title": "Dancing with the Stars Season 35 \u00b7 Finalists"
+        },
+        "markets": [
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-24T15:44:48.130757Z",
+            "custom_strike": {
+              "Actor": "c947cd4c-fbc8-471d-898d-48b83f0bcfb1",
+              "Participant": "Tatyana Ali"
+            },
+            "early_close_condition": "This market will close and expire early when the contestant qualifies for the finale, is eliminated, withdraws, or is disqualified before qualifying.",
+            "event_ticker": "KXDWTSFINALS-31DEC26",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0300",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9700",
+            "no_bid_dollars": "0.9600",
+            "no_sub_title": "Tatyana Ali",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "2013.41",
+            "open_time": "2026-09-24T16:00:00Z",
+            "previous_price_dollars": "0.0500",
+            "previous_yes_ask_dollars": "0.0500",
+            "previous_yes_bid_dollars": "0.0300",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Tatyana Ali qualifies for the finale of Dancing with the Stars Season 35 after market issuance and before Dec 31, 2026 at 10am EST, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nQualification for the finale must be officially announced or made evident through the program broadcast, official website, verified social media, or official press releases. Qualification counts regardless of whether the contestant subsequently appears in the finale.\nEach contestant who qualifies resolves to Yes. Multiple contestants can resolve to Yes, and payouts are not divided among finalists.\nThe qualification deadline is Dec 31, 2026 at 10am EST. The competition is Dancing with the Stars Season 35; other editions and seasons do not count.\n\nPayout criteria\nOfficial qualification by audience vote, judges' decision, challenge result, or rules-based advancement counts, including automatic advancement caused by another contestant's withdrawal or elimination.\nInitial qualification governs, even if the contestant is subsequently disqualified, removed, or withdraws.\nEach named contestant is tracked across partner changes.\n\nDoesn't count for payout\nElimination, withdrawal, or disqualification before qualification resolves to No. A later return requires a separate contract iteration.\nTemporary immunity, non-elimination status, rumors, leaks, or appearing as a guest or in a recap without qualification do not count.\nNo qualification before the deadline, or a season ending or being cancelled without official qualification, resolves to No.\nIf a contestant can no longer participate due to their death, the market resolves to the last fair price determined by the Exchange.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "subtitle": "Tatyana Ali",
+            "ticker": "KXDWTSFINALS-31DEC26-TAT",
+            "title": "Will Tatyana Ali qualify for the DWTS Season 35 finale?",
+            "updated_time": "2026-09-24T16:00:01.535439Z",
+            "volume_24h_fp": "399.51",
+            "volume_fp": "3651.84",
+            "yes_ask_dollars": "0.0400",
+            "yes_ask_size_fp": "1218.75",
+            "yes_bid_dollars": "0.0300",
+            "yes_bid_size_fp": "3855.00",
+            "yes_sub_title": "Tatyana Ali"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-24T15:44:48.130757Z",
+            "custom_strike": {
+              "Actor": "9a3ca817-1882-44a6-b5ad-56a72ff84df7",
+              "Participant": "Guillermo Rodriguez"
+            },
+            "early_close_condition": "This market will close and expire early when the contestant qualifies for the finale, is eliminated, withdraws, or is disqualified before qualifying.",
+            "event_ticker": "KXDWTSFINALS-31DEC26",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.4900",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.8200",
+            "no_bid_dollars": "0.6200",
+            "no_sub_title": "Guillermo Rodriguez",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "216.53",
+            "open_time": "2026-09-24T16:00:00Z",
+            "previous_price_dollars": "0.1200",
+            "previous_yes_ask_dollars": "0.6500",
+            "previous_yes_bid_dollars": "0.1200",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Guillermo Rodriguez qualifies for the finale of Dancing with the Stars Season 35 after market issuance and before Dec 31, 2026 at 10am EST, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nQualification for the finale must be officially announced or made evident through the program broadcast, official website, verified social media, or official press releases. Qualification counts regardless of whether the contestant subsequently appears in the finale.\nEach contestant who qualifies resolves to Yes. Multiple contestants can resolve to Yes, and payouts are not divided among finalists.\nThe qualification deadline is Dec 31, 2026 at 10am EST. The competition is Dancing with the Stars Season 35; other editions and seasons do not count.\n\nPayout criteria\nOfficial qualification by audience vote, judges' decision, challenge result, or rules-based advancement counts, including automatic advancement caused by another contestant's withdrawal or elimination.\nInitial qualification governs, even if the contestant is subsequently disqualified, removed, or withdraws.\nEach named contestant is tracked across partner changes.\n\nDoesn't count for payout\nElimination, withdrawal, or disqualification before qualification resolves to No. A later return requires a separate contract iteration.\nTemporary immunity, non-elimination status, rumors, leaks, or appearing as a guest or in a recap without qualification do not count.\nNo qualification before the deadline, or a season ending or being cancelled without official qualification, resolves to No.\nIf a contestant can no longer participate due to their death, the market resolves to the last fair price determined by the Exchange.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "subtitle": "Guillermo Rodriguez",
+            "ticker": "KXDWTSFINALS-31DEC26-GROD",
+            "title": "Will Guillermo Rodriguez qualify for the DWTS Season 35 finale?",
+            "updated_time": "2026-09-24T16:00:01.535439Z",
+            "volume_24h_fp": "109.34",
+            "volume_fp": "226.53",
+            "yes_ask_dollars": "0.3800",
+            "yes_ask_size_fp": "14.00",
+            "yes_bid_dollars": "0.1800",
+            "yes_bid_size_fp": "3.00",
+            "yes_sub_title": "Guillermo Rodriguez"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-24T15:44:48.130757Z",
+            "custom_strike": {
+              "Actor": "c144c05c-a588-4ccb-8ccd-3543445d4563",
+              "Participant": "Tyler Cameron"
+            },
+            "early_close_condition": "This market will close and expire early when the contestant qualifies for the finale, is eliminated, withdraws, or is disqualified before qualifying.",
+            "event_ticker": "KXDWTSFINALS-31DEC26",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.2100",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.8500",
+            "no_bid_dollars": "0.8000",
+            "no_sub_title": "Tyler Cameron",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "480.00",
+            "open_time": "2026-09-24T16:00:00Z",
+            "previous_price_dollars": "0.1400",
+            "previous_yes_ask_dollars": "0.1400",
+            "previous_yes_bid_dollars": "0.1200",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Tyler Cameron qualifies for the finale of Dancing with the Stars Season 35 after market issuance and before Dec 31, 2026 at 10am EST, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nQualification for the finale must be officially announced or made evident through the program broadcast, official website, verified social media, or official press releases. Qualification counts regardless of whether the contestant subsequently appears in the finale.\nEach contestant who qualifies resolves to Yes. Multiple contestants can resolve to Yes, and payouts are not divided among finalists.\nThe qualification deadline is Dec 31, 2026 at 10am EST. The competition is Dancing with the Stars Season 35; other editions and seasons do not count.\n\nPayout criteria\nOfficial qualification by audience vote, judges' decision, challenge result, or rules-based advancement counts, including automatic advancement caused by another contestant's withdrawal or elimination.\nInitial qualification governs, even if the contestant is subsequently disqualified, removed, or withdraws.\nEach named contestant is tracked across partner changes.\n\nDoesn't count for payout\nElimination, withdrawal, or disqualification before qualification resolves to No. A later return requires a separate contract iteration.\nTemporary immunity, non-elimination status, rumors, leaks, or appearing as a guest or in a recap without qualification do not count.\nNo qualification before the deadline, or a season ending or being cancelled without official qualification, resolves to No.\nIf a contestant can no longer participate due to their death, the market resolves to the last fair price determined by the Exchange.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "subtitle": "Tyler Cameron",
+            "ticker": "KXDWTSFINALS-31DEC26-TCAM",
+            "title": "Will Tyler Cameron qualify for the DWTS Season 35 finale?",
+            "updated_time": "2026-09-24T16:00:01.535439Z",
+            "volume_24h_fp": "150.99",
+            "volume_fp": "4269.12",
+            "yes_ask_dollars": "0.2000",
+            "yes_ask_size_fp": "51.00",
+            "yes_bid_dollars": "0.1500",
+            "yes_bid_size_fp": "5.00",
+            "yes_sub_title": "Tyler Cameron"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-24T15:44:48.130757Z",
+            "custom_strike": {
+              "Actor": "8843e454-08db-48ea-bbcc-8bde5e8929d9",
+              "Participant": "Ciara Miller"
+            },
+            "early_close_condition": "This market will close and expire early when the contestant qualifies for the finale, is eliminated, withdraws, or is disqualified before qualifying.",
+            "event_ticker": "KXDWTSFINALS-31DEC26",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0700",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9500",
+            "no_bid_dollars": "0.9300",
+            "no_sub_title": "Ciara Miller",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "1416.45",
+            "open_time": "2026-09-24T16:00:00Z",
+            "previous_price_dollars": "0.0800",
+            "previous_yes_ask_dollars": "0.1100",
+            "previous_yes_bid_dollars": "0.0500",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Ciara Miller qualifies for the finale of Dancing with the Stars Season 35 after market issuance and before Dec 31, 2026 at 10am EST, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nQualification for the finale must be officially announced or made evident through the program broadcast, official website, verified social media, or official press releases. Qualification counts regardless of whether the contestant subsequently appears in the finale.\nEach contestant who qualifies resolves to Yes. Multiple contestants can resolve to Yes, and payouts are not divided among finalists.\nThe qualification deadline is Dec 31, 2026 at 10am EST. The competition is Dancing with the Stars Season 35; other editions and seasons do not count.\n\nPayout criteria\nOfficial qualification by audience vote, judges' decision, challenge result, or rules-based advancement counts, including automatic advancement caused by another contestant's withdrawal or elimination.\nInitial qualification governs, even if the contestant is subsequently disqualified, removed, or withdraws.\nEach named contestant is tracked across partner changes.\n\nDoesn't count for payout\nElimination, withdrawal, or disqualification before qualification resolves to No. A later return requires a separate contract iteration.\nTemporary immunity, non-elimination status, rumors, leaks, or appearing as a guest or in a recap without qualification do not count.\nNo qualification before the deadline, or a season ending or being cancelled without official qualification, resolves to No.\nIf a contestant can no longer participate due to their death, the market resolves to the last fair price determined by the Exchange.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "subtitle": "Ciara Miller",
+            "ticker": "KXDWTSFINALS-31DEC26-CMIL",
+            "title": "Will Ciara Miller qualify for the DWTS Season 35 finale?",
+            "updated_time": "2026-09-24T16:00:01.535439Z",
+            "volume_24h_fp": "119.04",
+            "volume_fp": "1644.52",
+            "yes_ask_dollars": "0.0700",
+            "yes_ask_size_fp": "1281.02",
+            "yes_bid_dollars": "0.0500",
+            "yes_bid_size_fp": "2973.52",
+            "yes_sub_title": "Ciara Miller"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-24T15:44:48.130757Z",
+            "custom_strike": {
+              "Actor": "0580e289-5473-42a9-b164-094d098230b1",
+              "Participant": "Taylor Hanson"
+            },
+            "early_close_condition": "This market will close and expire early when the contestant qualifies for the finale, is eliminated, withdraws, or is disqualified before qualifying.",
+            "event_ticker": "KXDWTSFINALS-31DEC26",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0500",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9200",
+            "no_bid_dollars": "0.9100",
+            "no_sub_title": "Taylor Hanson",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "2591.19",
+            "open_time": "2026-09-24T16:00:00Z",
+            "previous_price_dollars": "0.1400",
+            "previous_yes_ask_dollars": "0.1100",
+            "previous_yes_bid_dollars": "0.1000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Taylor Hanson qualifies for the finale of Dancing with the Stars Season 35 after market issuance and before Dec 31, 2026 at 10am EST, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nQualification for the finale must be officially announced or made evident through the program broadcast, official website, verified social media, or official press releases. Qualification counts regardless of whether the contestant subsequently appears in the finale.\nEach contestant who qualifies resolves to Yes. Multiple contestants can resolve to Yes, and payouts are not divided among finalists.\nThe qualification deadline is Dec 31, 2026 at 10am EST. The competition is Dancing with the Stars Season 35; other editions and seasons do not count.\n\nPayout criteria\nOfficial qualification by audience vote, judges' decision, challenge result, or rules-based advancement counts, including automatic advancement caused by another contestant's withdrawal or elimination.\nInitial qualification governs, even if the contestant is subsequently disqualified, removed, or withdraws.\nEach named contestant is tracked across partner changes.\n\nDoesn't count for payout\nElimination, withdrawal, or disqualification before qualification resolves to No. A later return requires a separate contract iteration.\nTemporary immunity, non-elimination status, rumors, leaks, or appearing as a guest or in a recap without qualification do not count.\nNo qualification before the deadline, or a season ending or being cancelled without official qualification, resolves to No.\nIf a contestant can no longer participate due to their death, the market resolves to the last fair price determined by the Exchange.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "subtitle": "Taylor Hanson",
+            "ticker": "KXDWTSFINALS-31DEC26-THAN",
+            "title": "Will Taylor Hanson qualify for the DWTS Season 35 finale?",
+            "updated_time": "2026-09-24T16:00:01.535439Z",
+            "volume_24h_fp": "1312.37",
+            "volume_fp": "3854.20",
+            "yes_ask_dollars": "0.0900",
+            "yes_ask_size_fp": "220.63",
+            "yes_bid_dollars": "0.0800",
+            "yes_bid_size_fp": "1881.50",
+            "yes_sub_title": "Taylor Hanson"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-24T15:44:48.130757Z",
+            "custom_strike": {
+              "Actor": "57ffe648-dea6-4652-bc73-0441acd3a731",
+              "Participant": "Connor Wood"
+            },
+            "early_close_condition": "This market will close and expire early when the contestant qualifies for the finale, is eliminated, withdraws, or is disqualified before qualifying.",
+            "event_ticker": "KXDWTSFINALS-31DEC26",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.5100",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.5800",
+            "no_bid_dollars": "0.4900",
+            "no_sub_title": "Connor Wood",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "742.93",
+            "open_time": "2026-09-24T16:00:00Z",
+            "previous_price_dollars": "0.6200",
+            "previous_yes_ask_dollars": "0.6200",
+            "previous_yes_bid_dollars": "0.4100",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Connor Wood qualifies for the finale of Dancing with the Stars Season 35 after market issuance and before Dec 31, 2026 at 10am EST, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nQualification for the finale must be officially announced or made evident through the program broadcast, official website, verified social media, or official press releases. Qualification counts regardless of whether the contestant subsequently appears in the finale.\nEach contestant who qualifies resolves to Yes. Multiple contestants can resolve to Yes, and payouts are not divided among finalists.\nThe qualification deadline is Dec 31, 2026 at 10am EST. The competition is Dancing with the Stars Season 35; other editions and seasons do not count.\n\nPayout criteria\nOfficial qualification by audience vote, judges' decision, challenge result, or rules-based advancement counts, including automatic advancement caused by another contestant's withdrawal or elimination.\nInitial qualification governs, even if the contestant is subsequently disqualified, removed, or withdraws.\nEach named contestant is tracked across partner changes.\n\nDoesn't count for payout\nElimination, withdrawal, or disqualification before qualification resolves to No. A later return requires a separate contract iteration.\nTemporary immunity, non-elimination status, rumors, leaks, or appearing as a guest or in a recap without qualification do not count.\nNo qualification before the deadline, or a season ending or being cancelled without official qualification, resolves to No.\nIf a contestant can no longer participate due to their death, the market resolves to the last fair price determined by the Exchange.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "subtitle": "Connor Wood",
+            "ticker": "KXDWTSFINALS-31DEC26-CWOO",
+            "title": "Will Connor Wood qualify for the DWTS Season 35 finale?",
+            "updated_time": "2026-09-24T16:00:01.535439Z",
+            "volume_24h_fp": "210.79",
+            "volume_fp": "875.51",
+            "yes_ask_dollars": "0.5100",
+            "yes_ask_size_fp": "1938.82",
+            "yes_bid_dollars": "0.4200",
+            "yes_bid_size_fp": "1.00",
+            "yes_sub_title": "Connor Wood"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-24T15:44:48.130757Z",
+            "custom_strike": {
+              "Actor": "39fc8c3d-0651-4b88-8f77-6b11b448e5a0",
+              "Participant": "Jackson Olson"
+            },
+            "early_close_condition": "This market will close and expire early when the contestant qualifies for the finale, is eliminated, withdraws, or is disqualified before qualifying.",
+            "event_ticker": "KXDWTSFINALS-31DEC26",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.2500",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.7600",
+            "no_bid_dollars": "0.7500",
+            "no_sub_title": "Jackson Olson",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "765.66",
+            "open_time": "2026-09-24T16:00:00Z",
+            "previous_price_dollars": "0.2500",
+            "previous_yes_ask_dollars": "0.2300",
+            "previous_yes_bid_dollars": "0.1900",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Jackson Olson qualifies for the finale of Dancing with the Stars Season 35 after market issuance and before Dec 31, 2026 at 10am EST, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nQualification for the finale must be officially announced or made evident through the program broadcast, official website, verified social media, or official press releases. Qualification counts regardless of whether the contestant subsequently appears in the finale.\nEach contestant who qualifies resolves to Yes. Multiple contestants can resolve to Yes, and payouts are not divided among finalists.\nThe qualification deadline is Dec 31, 2026 at 10am EST. The competition is Dancing with the Stars Season 35; other editions and seasons do not count.\n\nPayout criteria\nOfficial qualification by audience vote, judges' decision, challenge result, or rules-based advancement counts, including automatic advancement caused by another contestant's withdrawal or elimination.\nInitial qualification governs, even if the contestant is subsequently disqualified, removed, or withdraws.\nEach named contestant is tracked across partner changes.\n\nDoesn't count for payout\nElimination, withdrawal, or disqualification before qualification resolves to No. A later return requires a separate contract iteration.\nTemporary immunity, non-elimination status, rumors, leaks, or appearing as a guest or in a recap without qualification do not count.\nNo qualification before the deadline, or a season ending or being cancelled without official qualification, resolves to No.\nIf a contestant can no longer participate due to their death, the market resolves to the last fair price determined by the Exchange.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "subtitle": "Jackson Olson",
+            "ticker": "KXDWTSFINALS-31DEC26-JOLS",
+            "title": "Will Jackson Olson qualify for the DWTS Season 35 finale?",
+            "updated_time": "2026-09-24T16:00:01.535439Z",
+            "volume_24h_fp": "107.26",
+            "volume_fp": "2703.90",
+            "yes_ask_dollars": "0.2500",
+            "yes_ask_size_fp": "1223.10",
+            "yes_bid_dollars": "0.2400",
+            "yes_bid_size_fp": "2184.93",
+            "yes_sub_title": "Jackson Olson"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-24T15:44:48.130757Z",
+            "custom_strike": {
+              "Actor": "aa9b93aa-ddff-430c-be5b-a78e4253840e",
+              "Participant": "Amber Glenn"
+            },
+            "early_close_condition": "This market will close and expire early when the contestant qualifies for the finale, is eliminated, withdraws, or is disqualified before qualifying.",
+            "event_ticker": "KXDWTSFINALS-31DEC26",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.7200",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.3100",
+            "no_bid_dollars": "0.2800",
+            "no_sub_title": "Amber Glenn",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "1449.96",
+            "open_time": "2026-09-24T16:00:00Z",
+            "previous_price_dollars": "0.7400",
+            "previous_yes_ask_dollars": "0.7400",
+            "previous_yes_bid_dollars": "0.6700",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Amber Glenn qualifies for the finale of Dancing with the Stars Season 35 after market issuance and before Dec 31, 2026 at 10am EST, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nQualification for the finale must be officially announced or made evident through the program broadcast, official website, verified social media, or official press releases. Qualification counts regardless of whether the contestant subsequently appears in the finale.\nEach contestant who qualifies resolves to Yes. Multiple contestants can resolve to Yes, and payouts are not divided among finalists.\nThe qualification deadline is Dec 31, 2026 at 10am EST. The competition is Dancing with the Stars Season 35; other editions and seasons do not count.\n\nPayout criteria\nOfficial qualification by audience vote, judges' decision, challenge result, or rules-based advancement counts, including automatic advancement caused by another contestant's withdrawal or elimination.\nInitial qualification governs, even if the contestant is subsequently disqualified, removed, or withdraws.\nEach named contestant is tracked across partner changes.\n\nDoesn't count for payout\nElimination, withdrawal, or disqualification before qualification resolves to No. A later return requires a separate contract iteration.\nTemporary immunity, non-elimination status, rumors, leaks, or appearing as a guest or in a recap without qualification do not count.\nNo qualification before the deadline, or a season ending or being cancelled without official qualification, resolves to No.\nIf a contestant can no longer participate due to their death, the market resolves to the last fair price determined by the Exchange.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "subtitle": "Amber Glenn",
+            "ticker": "KXDWTSFINALS-31DEC26-AGLE",
+            "title": "Will Amber Glenn qualify for the DWTS Season 35 finale?",
+            "updated_time": "2026-09-24T16:00:01.535439Z",
+            "volume_24h_fp": "77.53",
+            "volume_fp": "1670.75",
+            "yes_ask_dollars": "0.7200",
+            "yes_ask_size_fp": "2194.28",
+            "yes_bid_dollars": "0.6900",
+            "yes_bid_size_fp": "1.00",
+            "yes_sub_title": "Amber Glenn"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-24T15:44:48.130757Z",
+            "custom_strike": {
+              "Actor": "7807bbd5-206a-437a-80cd-cb9305744570",
+              "Participant": "Julia Stiles"
+            },
+            "early_close_condition": "This market will close and expire early when the contestant qualifies for the finale, is eliminated, withdraws, or is disqualified before qualifying.",
+            "event_ticker": "KXDWTSFINALS-31DEC26",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.7200",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.7400",
+            "no_bid_dollars": "0.4400",
+            "no_sub_title": "Julia Stiles",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "478.68",
+            "open_time": "2026-09-24T16:00:00Z",
+            "previous_price_dollars": "0.4000",
+            "previous_yes_ask_dollars": "0.7500",
+            "previous_yes_bid_dollars": "0.2600",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Julia Stiles qualifies for the finale of Dancing with the Stars Season 35 after market issuance and before Dec 31, 2026 at 10am EST, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nQualification for the finale must be officially announced or made evident through the program broadcast, official website, verified social media, or official press releases. Qualification counts regardless of whether the contestant subsequently appears in the finale.\nEach contestant who qualifies resolves to Yes. Multiple contestants can resolve to Yes, and payouts are not divided among finalists.\nThe qualification deadline is Dec 31, 2026 at 10am EST. The competition is Dancing with the Stars Season 35; other editions and seasons do not count.\n\nPayout criteria\nOfficial qualification by audience vote, judges' decision, challenge result, or rules-based advancement counts, including automatic advancement caused by another contestant's withdrawal or elimination.\nInitial qualification governs, even if the contestant is subsequently disqualified, removed, or withdraws.\nEach named contestant is tracked across partner changes.\n\nDoesn't count for payout\nElimination, withdrawal, or disqualification before qualification resolves to No. A later return requires a separate contract iteration.\nTemporary immunity, non-elimination status, rumors, leaks, or appearing as a guest or in a recap without qualification do not count.\nNo qualification before the deadline, or a season ending or being cancelled without official qualification, resolves to No.\nIf a contestant can no longer participate due to their death, the market resolves to the last fair price determined by the Exchange.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "subtitle": "Julia Stiles",
+            "ticker": "KXDWTSFINALS-31DEC26-JSTIL",
+            "title": "Will Julia Stiles qualify for the DWTS Season 35 finale?",
+            "updated_time": "2026-09-24T16:00:01.535439Z",
+            "volume_24h_fp": "11.14",
+            "volume_fp": "486.65",
+            "yes_ask_dollars": "0.5600",
+            "yes_ask_size_fp": "1.15",
+            "yes_bid_dollars": "0.2600",
+            "yes_bid_size_fp": "386.50",
+            "yes_sub_title": "Julia Stiles"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-24T15:44:48.130757Z",
+            "custom_strike": {
+              "Actor": "cd070939-aa10-47ee-8a3b-33d268dc5be0",
+              "Participant": "Ezra Frech"
+            },
+            "early_close_condition": "This market will close and expire early when the contestant qualifies for the finale, is eliminated, withdraws, or is disqualified before qualifying.",
+            "event_ticker": "KXDWTSFINALS-31DEC26",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.9000",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.1900",
+            "no_bid_dollars": "0.1000",
+            "no_sub_title": "Ezra Frech",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "436.71",
+            "open_time": "2026-09-24T16:00:00Z",
+            "previous_price_dollars": "0.8900",
+            "previous_yes_ask_dollars": "0.8900",
+            "previous_yes_bid_dollars": "0.7100",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Ezra Frech qualifies for the finale of Dancing with the Stars Season 35 after market issuance and before Dec 31, 2026 at 10am EST, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nQualification for the finale must be officially announced or made evident through the program broadcast, official website, verified social media, or official press releases. Qualification counts regardless of whether the contestant subsequently appears in the finale.\nEach contestant who qualifies resolves to Yes. Multiple contestants can resolve to Yes, and payouts are not divided among finalists.\nThe qualification deadline is Dec 31, 2026 at 10am EST. The competition is Dancing with the Stars Season 35; other editions and seasons do not count.\n\nPayout criteria\nOfficial qualification by audience vote, judges' decision, challenge result, or rules-based advancement counts, including automatic advancement caused by another contestant's withdrawal or elimination.\nInitial qualification governs, even if the contestant is subsequently disqualified, removed, or withdraws.\nEach named contestant is tracked across partner changes.\n\nDoesn't count for payout\nElimination, withdrawal, or disqualification before qualification resolves to No. A later return requires a separate contract iteration.\nTemporary immunity, non-elimination status, rumors, leaks, or appearing as a guest or in a recap without qualification do not count.\nNo qualification before the deadline, or a season ending or being cancelled without official qualification, resolves to No.\nIf a contestant can no longer participate due to their death, the market resolves to the last fair price determined by the Exchange.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "subtitle": "Ezra Frech",
+            "ticker": "KXDWTSFINALS-31DEC26-EFRE",
+            "title": "Will Ezra Frech qualify for the DWTS Season 35 finale?",
+            "updated_time": "2026-09-24T16:00:01.535439Z",
+            "volume_24h_fp": "43.57",
+            "volume_fp": "488.76",
+            "yes_ask_dollars": "0.9000",
+            "yes_ask_size_fp": "2721.56",
+            "yes_bid_dollars": "0.8100",
+            "yes_bid_size_fp": "0.47",
+            "yes_sub_title": "Ezra Frech"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-24T15:44:48.130757Z",
+            "custom_strike": {
+              "Actor": "6df2aafb-2d95-4210-9d92-9096611ff1ad",
+              "Participant": "Harry Shum Jr."
+            },
+            "early_close_condition": "This market will close and expire early when the contestant qualifies for the finale, is eliminated, withdraws, or is disqualified before qualifying.",
+            "event_ticker": "KXDWTSFINALS-31DEC26",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.9300",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.0800",
+            "no_bid_dollars": "0.0600",
+            "no_sub_title": "Harry Shum Jr.",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "2171.51",
+            "open_time": "2026-09-24T16:00:00Z",
+            "previous_price_dollars": "0.7800",
+            "previous_yes_ask_dollars": "0.8900",
+            "previous_yes_bid_dollars": "0.8200",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Harry Shum Jr. qualifies for the finale of Dancing with the Stars Season 35 after market issuance and before Dec 31, 2026 at 10am EST, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nQualification for the finale must be officially announced or made evident through the program broadcast, official website, verified social media, or official press releases. Qualification counts regardless of whether the contestant subsequently appears in the finale.\nEach contestant who qualifies resolves to Yes. Multiple contestants can resolve to Yes, and payouts are not divided among finalists.\nThe qualification deadline is Dec 31, 2026 at 10am EST. The competition is Dancing with the Stars Season 35; other editions and seasons do not count.\n\nPayout criteria\nOfficial qualification by audience vote, judges' decision, challenge result, or rules-based advancement counts, including automatic advancement caused by another contestant's withdrawal or elimination.\nInitial qualification governs, even if the contestant is subsequently disqualified, removed, or withdraws.\nEach named contestant is tracked across partner changes.\n\nDoesn't count for payout\nElimination, withdrawal, or disqualification before qualification resolves to No. A later return requires a separate contract iteration.\nTemporary immunity, non-elimination status, rumors, leaks, or appearing as a guest or in a recap without qualification do not count.\nNo qualification before the deadline, or a season ending or being cancelled without official qualification, resolves to No.\nIf a contestant can no longer participate due to their death, the market resolves to the last fair price determined by the Exchange.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "subtitle": "Harry Shum Jr.",
+            "ticker": "KXDWTSFINALS-31DEC26-HSHU",
+            "title": "Will Harry Shum Jr. qualify for the DWTS Season 35 finale?",
+            "updated_time": "2026-09-24T16:00:01.535439Z",
+            "volume_24h_fp": "526.77",
+            "volume_fp": "2794.72",
+            "yes_ask_dollars": "0.9400",
+            "yes_ask_size_fp": "2210.52",
+            "yes_bid_dollars": "0.9200",
+            "yes_bid_size_fp": "149.90",
+            "yes_sub_title": "Harry Shum Jr."
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-24T15:44:48.130757Z",
+            "custom_strike": {
+              "Actor": "66970b4b-516c-4b94-a075-48bb86f26e1e",
+              "Participant": "Jenna Dewan"
+            },
+            "early_close_condition": "This market will close and expire early when the contestant qualifies for the finale, is eliminated, withdraws, or is disqualified before qualifying.",
+            "event_ticker": "KXDWTSFINALS-31DEC26",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.6800",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.4100",
+            "no_bid_dollars": "0.3500",
+            "no_sub_title": "Jenna Dewan",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "1961.52",
+            "open_time": "2026-09-24T16:00:00Z",
+            "previous_price_dollars": "0.5500",
+            "previous_yes_ask_dollars": "0.6500",
+            "previous_yes_bid_dollars": "0.5600",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Jenna Dewan qualifies for the finale of Dancing with the Stars Season 35 after market issuance and before Dec 31, 2026 at 10am EST, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nQualification for the finale must be officially announced or made evident through the program broadcast, official website, verified social media, or official press releases. Qualification counts regardless of whether the contestant subsequently appears in the finale.\nEach contestant who qualifies resolves to Yes. Multiple contestants can resolve to Yes, and payouts are not divided among finalists.\nThe qualification deadline is Dec 31, 2026 at 10am EST. The competition is Dancing with the Stars Season 35; other editions and seasons do not count.\n\nPayout criteria\nOfficial qualification by audience vote, judges' decision, challenge result, or rules-based advancement counts, including automatic advancement caused by another contestant's withdrawal or elimination.\nInitial qualification governs, even if the contestant is subsequently disqualified, removed, or withdraws.\nEach named contestant is tracked across partner changes.\n\nDoesn't count for payout\nElimination, withdrawal, or disqualification before qualification resolves to No. A later return requires a separate contract iteration.\nTemporary immunity, non-elimination status, rumors, leaks, or appearing as a guest or in a recap without qualification do not count.\nNo qualification before the deadline, or a season ending or being cancelled without official qualification, resolves to No.\nIf a contestant can no longer participate due to their death, the market resolves to the last fair price determined by the Exchange.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "subtitle": "Jenna Dewan",
+            "ticker": "KXDWTSFINALS-31DEC26-JDEW",
+            "title": "Will Jenna Dewan qualify for the DWTS Season 35 finale?",
+            "updated_time": "2026-09-24T16:00:01.535439Z",
+            "volume_24h_fp": "55.93",
+            "volume_fp": "2008.90",
+            "yes_ask_dollars": "0.6500",
+            "yes_ask_size_fp": "7.24",
+            "yes_bid_dollars": "0.5900",
+            "yes_bid_size_fp": "9.39",
+            "yes_sub_title": "Jenna Dewan"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-24T15:44:48.130757Z",
+            "custom_strike": {
+              "Actor": "ec2f1865-c479-4685-bb5e-6cbe89b7e871",
+              "Participant": "Maura Higgins"
+            },
+            "early_close_condition": "This market will close and expire early when the contestant qualifies for the finale, is eliminated, withdraws, or is disqualified before qualifying.",
+            "event_ticker": "KXDWTSFINALS-31DEC26",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.9000",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.2000",
+            "no_bid_dollars": "0.1200",
+            "no_sub_title": "Maura Higgins",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "2049.27",
+            "open_time": "2026-09-24T16:00:00Z",
+            "previous_price_dollars": "0.9000",
+            "previous_yes_ask_dollars": "0.8900",
+            "previous_yes_bid_dollars": "0.7800",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If  Maura Higgins qualifies for the finale of Dancing with the Stars Season 35 after market issuance and before Dec 31, 2026 at 10am EST, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nQualification for the finale must be officially announced or made evident through the program broadcast, official website, verified social media, or official press releases. Qualification counts regardless of whether the contestant subsequently appears in the finale.\nEach contestant who qualifies resolves to Yes. Multiple contestants can resolve to Yes, and payouts are not divided among finalists.\nThe qualification deadline is Dec 31, 2026 at 10am EST. The competition is Dancing with the Stars Season 35; other editions and seasons do not count.\n\nPayout criteria\nOfficial qualification by audience vote, judges' decision, challenge result, or rules-based advancement counts, including automatic advancement caused by another contestant's withdrawal or elimination.\nInitial qualification governs, even if the contestant is subsequently disqualified, removed, or withdraws.\nEach named contestant is tracked across partner changes.\n\nDoesn't count for payout\nElimination, withdrawal, or disqualification before qualification resolves to No. A later return requires a separate contract iteration.\nTemporary immunity, non-elimination status, rumors, leaks, or appearing as a guest or in a recap without qualification do not count.\nNo qualification before the deadline, or a season ending or being cancelled without official qualification, resolves to No.\nIf a contestant can no longer participate due to their death, the market resolves to the last fair price determined by the Exchange.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "subtitle": "Maura Higgins",
+            "ticker": "KXDWTSFINALS-31DEC26-MHIG",
+            "title": "Will Maura Higgins qualify for the DWTS Season 35 finale?",
+            "updated_time": "2026-09-24T16:00:01.535439Z",
+            "volume_24h_fp": "44.94",
+            "volume_fp": "2084.26",
+            "yes_ask_dollars": "0.8800",
+            "yes_ask_size_fp": "2.00",
+            "yes_bid_dollars": "0.8000",
+            "yes_bid_size_fp": "117.00",
+            "yes_sub_title": "Maura Higgins"
+          }
+        ]
+      }
+    },
+    "series": {
+      "path": "/series/KXDWTSFINALS",
+      "at_utc": "2026-09-27T17:10:05.041028+00:00",
+      "status": 200,
+      "latency_ms": 233.31,
+      "body": {
+        "series": {
+          "additional_prohibitions": [
+            "Current players, coaches, and staff of the league, association, or organization(s) governing the event. For college leagues/associations specifically, or where otherwise appropriate (as identified by the Exchange), this applies to current players/coaches/staff of the specific sport in <event> rather than the league/association as a whole (e.g., if the Division I Gonzaga Men\u2019s Basketball Team is playing in <event>, this prohibition will restrict trades by current players/coaches/staff on NCAA Basketball, rather than all current players/coaches/staff in any NCAA sport).",
+            "Paid employees of the league and league participants",
+            "Owners of teams and the league",
+            "and household members and immediate family of all above",
+            "Persons who are employed by any of the Source Agencies are not permitted to trade on the Contract.",
+            "Persons who hold any material, non-public information on the Underlying are not permitted to trade on the Contract."
+          ],
+          "categories": [
+            "Entertainment"
+          ],
+          "category": "Entertainment",
+          "contract_terms_url": "https://assets.kalshi.com/contract_terms/COMPETITIONREALITYPROGRESS.pdf",
+          "contract_url": "https://assets.kalshi.com/regulatory/product-certifications/COMPETITIONREALITYPROGRESS.pdf",
+          "exchange_index": 0,
+          "fee_multiplier": 1,
+          "fee_type": "quadratic",
+          "frequency": "one_off",
+          "last_updated_ts": "2026-09-24T17:03:15.026741Z",
+          "product_metadata": {
+            "scope": "Finalists"
+          },
+          "settlement_sources": [
+            {
+              "name": "ABC News",
+              "url": "https://abcnews.go.com"
+            },
+            {
+              "name": "Disney+",
+              "url": "https://disneyplus.com/"
+            }
+          ],
+          "tags": [
+            "Reality TV",
+            "Television",
+            "Dancing with the Stars"
+          ],
+          "ticker": "KXDWTSFINALS",
+          "title": "Dancing with the Stars finalists"
+        }
+      }
+    }
+  },
+  "completed_at_utc": "2026-09-27T17:10:05.274373+00:00",
+  "note": "Sequential snapshots, not executable quotes or actual fees. Re-read immediately before arming."
+}

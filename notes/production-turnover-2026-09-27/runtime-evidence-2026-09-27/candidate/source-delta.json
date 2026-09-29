@@ -1,0 +1,36 @@
+{
+  "old_source_manifest": "c9b5101a87ec4c55d26f925ef9c5c0290c16b089e038511e3a28d68d5c4f2490",
+  "new_source_manifest": "74f8ee7634c406f0e4279429b4e8bbdca9cab31bc2f3a1564163b1d42c4263c2",
+  "added": [
+    "go/cmd/harness/turnover_accounting.go",
+    "go/cmd/harness/turnover_active_composition_test.go",
+    "go/cmd/harness/turnover_composition_test.go",
+    "go/cmd/harness/turnover_config_test.go",
+    "go/cmd/harness/turnover_funding.go",
+    "go/cmd/harness/turnover_funding_test.go",
+    "go/cmd/harness/turnover_restart.go",
+    "go/cmd/harness/turnover_restart_test.go",
+    "go/cmd/harness/turnover_runtime.go",
+    "go/cmd/harness/turnover_safety_test.go",
+    "go/cmd/harness/turnover_selection.go",
+    "go/cmd/harness/turnover_selection_test.go",
+    "go/harness/wsx/dynamic_universe_test.go"
+  ],
+  "changed": [
+    "go/cmd/harness/capital_dispatch.go",
+    "go/cmd/harness/config.go",
+    "go/cmd/harness/crosscheck.go",
+    "go/cmd/harness/dispatch_throttle.go",
+    "go/cmd/harness/funding_cap.go",
+    "go/cmd/harness/funding_runtime.go",
+    "go/cmd/harness/program_membership.go",
+    "go/cmd/harness/run.go",
+    "go/cmd/harness/runtime.go",
+    "go/harness/risk/monitor.go",
+    "go/harness/risk/snapshot.go",
+    "go/harness/wsx/gate.go",
+    "go/harness/wsx/session.go",
+    "go/harness/wsx/supervisor.go"
+  ],
+  "removed": []
+}

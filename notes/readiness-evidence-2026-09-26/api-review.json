@@ -1,0 +1,36 @@
+{
+  "observed_at_utc": "2026-09-26T18:28:52.575929+00:00",
+  "scope": "Public official documentation only; no account access, endpoint probing or order writes",
+  "sources": [
+    {
+      "url": "https://docs.kalshi.com/api-reference/orders/cancel-order-v2",
+      "finding": "Cancellation without market_ticker or exchange_index defaults to shard 0. Supply market_ticker with exchange_index omitted to auto-route."
+    },
+    {
+      "url": "https://docs.kalshi.com/getting_started/exchange_sharding",
+      "finding": "Shards introduced after August corpus; market exchange_index is authoritative. Collateral must be preallocated on the selected matching engine."
+    },
+    {
+      "url": "https://docs.kalshi.com/api-reference/orders/create-order-v2",
+      "finding": "Create with ticker and omitted exchange_index auto-routes."
+    },
+    {
+      "url": "https://docs.kalshi.com/api-reference/portfolio/get-balance",
+      "finding": "Omitting exchange_index returns an aggregate across shards; current client parses only aggregate cents."
+    },
+    {
+      "url": "https://docs.kalshi.com/getting_started/rate_limits",
+      "finding": "Authenticated requests have token costs. Current 429 responses have no Retry-After header; clients must back off. Existing lip-q6r scope remains needed."
+    },
+    {
+      "url": "https://docs.kalshi.com/api-reference/orders/get-orders",
+      "finding": "GET /portfolio/orders omits exchange_index to include all shards; ticker filters the market. This supports the existing sweep read query shape; no authenticated completeness measurement was performed."
+    },
+    {
+      "url": "https://docs.kalshi.com/api-reference/portfolio/get-positions",
+      "finding": "Omitted exchange_index includes all shards, but omitted subaccount defaults to primary 0. The client has no explicit subaccount query; account-wide cleanliness needs proof that non-primary subaccounts have no exposure or complete scoped reads."
+    }
+  ],
+  "limitation": "Documentation compatibility evidence, not authenticated conformance or a live failure observation.",
+  "followup_read_contract_check_utc": "2026-09-26T19:12:49.854523+00:00"
+}

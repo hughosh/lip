@@ -1,0 +1,30 @@
+{
+  "at": "2026-09-27T18:59:34.850255+00:00",
+  "manifest_sha256": "bd13406abe7317ca524e07a63b1367de900922a917d6d533962e9da37190b426",
+  "changed_from_run_candidate": [
+    {
+      "path": "go/cmd/harness/shutdown.go",
+      "sha256": "30473efcc1ec370ab465bec4d94b55c040488e701655228e593e5b5c327af212"
+    },
+    {
+      "path": "go/cmd/harness/store_health.go",
+      "sha256": "cbc3d342f5660dda2b57d72bda6c87f6db07c3e13ab3457a34508e4d8132f7ae"
+    },
+    {
+      "path": "go/cmd/harness/store_health_test.go",
+      "sha256": "b862b789663cf10c183129275590b7a3baadfed16adbd01f91da5afb41a9249f"
+    }
+  ],
+  "candidate_rebuilt": false,
+  "q01_requalified": false,
+  "full_package_after_final_edit": false,
+  "final_state_focused_race_pass": true,
+  "known_blocker": "Runtime producer quiescence and refused-close alert/instance-lock retention remain unresolved",
+  "logs": {
+    "focused.log": "ab49bfc580abbdee32579f032b725dadeca7dbbfd492502ba3b30724d1f60edb",
+    "package.log": "133ebc67f4c7543fc1cc5187902b6b3f880e78ddc9d9fdfb88a33a94f4e9da34",
+    "pre-fix-reproduction.log": "30638737a0767ce91e496792c422b17f3d338c7c26cc4aaac055cfe7a383b88a",
+    "race-final.log": "e3f832078b77e78791cb00d66feb6872b80747a3059c2259ccd4895afbf0001d",
+    "race.log": "5fa1890213425968323a900067a6ccbf1d6db79bc7fb040960823c27ffc727fd"
+  }
+}

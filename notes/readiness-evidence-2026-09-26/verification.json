@@ -1,0 +1,157 @@
+{
+  "recorded_at_utc": "2026-09-26T19:21:09.009328+00:00",
+  "status": "paused_at_clean_checkpoint",
+  "head": "f7e9571547bb948418b7a27adc9c30ae38314b00",
+  "source_freeze": "final/source-freeze.json",
+  "preservation": "preservation-check.json",
+  "live_orders": false,
+  "authenticated_exchange_probes": false,
+  "release_promotion": false,
+  "primary_environment": {
+    "inherited_environment_cleared": true,
+    "variables": {
+      "PATH": "/usr/local/bin:/usr/bin:/bin",
+      "GOMODCACHE": "/Users/hugh/go/pkg/mod",
+      "GOCACHE": "/private/tmp/lip-readiness-gocache",
+      "GOPROXY": "off",
+      "GOSUMDB": "off",
+      "GOTOOLCHAIN": "local"
+    },
+    "loopback_permission": "escalated only for local test fixtures"
+  },
+  "checks": [
+    {
+      "name": "full Go module",
+      "cwd": "/Users/hugh/kek/lip/go",
+      "command": "go test -count=1 ./...",
+      "exit_code": 0,
+      "log": "final/final-module-test.log"
+    },
+    {
+      "name": "full Go vet",
+      "cwd": "/Users/hugh/kek/lip/go",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "log": "final/final-vet-all.log"
+    },
+    {
+      "name": "formatting",
+      "cwd": "/Users/hugh/kek/lip/go",
+      "command": "gofmt -l harness cmd/harness cmd/incentives cmd/conform",
+      "exit_code": 0,
+      "output": "empty"
+    },
+    {
+      "name": "first quick gate",
+      "cwd": "/Users/hugh/kek/lip",
+      "command": "bash loop/gates.sh --quick",
+      "exit_code": 1,
+      "log": "intermediate/first-quick-gate.log",
+      "details": "Only race step failed. Anomaly-buffer fixture Drain reached unchanged 20-second deadline with 8 records pending under concurrent verification load; no data-race or write-failure diagnostic. Other steps passed, including 300/300 mutation compilation."
+    },
+    {
+      "name": "standalone race step on unchanged source",
+      "cwd": "/Users/hugh/kek/lip/go",
+      "command": "CGO_ENABLED=0 go test -race -count=1 ./harness/... ./cmd/harness/...",
+      "exit_code": 0,
+      "log": "final/standalone-test-race.log",
+      "details": "Run by the unchanged quick-gate script after all three mutation batches ended; cmd/harness completed in 77.409s. The prior concurrent-load timeout is retained, not erased."
+    },
+    {
+      "name": "standalone unchanged quick-gate rerun",
+      "cwd": "/Users/hugh/kek/lip",
+      "command": "bash loop/gates.sh --quick",
+      "status": "passed",
+      "exit_code": 0,
+      "log": "final/final-quick-gate.log",
+      "step_logs": "final/quick-gates-out",
+      "verdict": "GREEN",
+      "advance_eligible": false,
+      "compiled_mutations": 300
+    },
+    {
+      "name": "affected mutation outcomes",
+      "selected": 22,
+      "exit_code": 0,
+      "green_baselines": 3,
+      "reported_flaps": 0,
+      "results": "final/affected-mutation-results.json"
+    },
+    {
+      "name": "patch and tracking",
+      "commands": [
+        "git diff --check",
+        "bd dep cycles"
+      ],
+      "exit_code": 0,
+      "details": "No whitespace errors or dependency cycles."
+    }
+  ],
+  "mutation_batches": {
+    "a": {
+      "ids": [
+        "M-Y3Q-GATESTOPCAP",
+        "M-HQ4A-DOUBLE-DEBOUNCE",
+        "M-D1-TARGETZERO-RECAP",
+        "M-R-CANCEL-SHARD-ROUTE",
+        "M-GP8-BALANCE",
+        "M-R-PROGRAMTYPE"
+      ],
+      "command": "env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/Users/hugh GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOCACHE=/private/tmp/lip-readiness-gocache PYTHONDONTWRITEBYTECODE=1 python3 scripts/harness_negative_control.py --only M-Y3Q-GATESTOPCAP,M-HQ4A-DOUBLE-DEBOUNCE,M-D1-TARGETZERO-RECAP,M-R-CANCEL-SHARD-ROUTE,M-GP8-BALANCE,M-R-PROGRAMTYPE --out /private/tmp/lip-readiness-verification/affected-mutations-a.md",
+      "environment_cleared": true,
+      "report": "final/affected-mutations-a.partial.md",
+      "log": "final/affected-mutations-a.log",
+      "initial_attempt": "Loopback bind denied; no verdict. Receipt reconstructed from tool output, not the original overwritten log."
+    },
+    "b": {
+      "ids": [
+        "M-D2-OMIT-ABSENT-STAMP",
+        "M-D2-RELEASE-UNKNOWN",
+        "M-D2-KEEP-ABSENT-AFTER-WALK",
+        "M-D2-COUNT-ABSENT-EXPOSURE",
+        "M-D2-PLACE-BEFORE-FRESH-TRUTH",
+        "M-D2-ACCEPT-PRECANCEL-READ",
+        "M-D2-DRAIN-WITHOUT-CANCEL-TRUTH",
+        "M-D2-DRAIN-BEFORE-FIRST-WALK",
+        "M-2T6-CANARYFIRST"
+      ],
+      "command": "GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOMODCACHE=/Users/hugh/go/pkg/mod GOCACHE=/private/tmp/lip-readiness-gocache /Users/hugh/kek/.venv/bin/python scripts/harness_negative_control.py --only M-D2-OMIT-ABSENT-STAMP,M-D2-RELEASE-UNKNOWN,M-D2-KEEP-ABSENT-AFTER-WALK,M-D2-COUNT-ABSENT-EXPOSURE,M-D2-PLACE-BEFORE-FRESH-TRUTH,M-D2-ACCEPT-PRECANCEL-READ,M-D2-DRAIN-WITHOUT-CANCEL-TRUTH,M-D2-DRAIN-BEFORE-FIRST-WALK,M-2T6-CANARYFIRST --out /private/tmp/lip-readiness-verification/affected-mutations-b.md",
+      "environment_cleared": false,
+      "report": "final/affected-mutations-b.partial.md",
+      "log": "final/affected-mutations-b.log"
+    },
+    "c": {
+      "ids": [
+        "M-W-TRUTHFORGE",
+        "M-W-READTOKEN",
+        "M-W-TRUTHSTAMP",
+        "M-XDQ-TRIGGER",
+        "M-XDQ-NOTICK",
+        "M-XDQ-NOSTATE",
+        "M-XDQ-DRAINBLIND"
+      ],
+      "command": "/Users/hugh/kek/.venv/bin/python scripts/harness_negative_control.py --only M-W-TRUTHFORGE,M-W-READTOKEN,M-W-TRUTHSTAMP,M-XDQ-TRIGGER,M-XDQ-NOTICK,M-XDQ-NOSTATE,M-XDQ-DRAINBLIND --out /private/tmp/lip-readiness-verification/affected-mutations-c.md",
+      "environment_cleared": false,
+      "cache": "default /Users/hugh/Library/Caches/go-build",
+      "report": "final/affected-mutations-c.partial.md",
+      "log": "final/affected-mutations-c.log"
+    }
+  },
+  "not_run": [
+    {
+      "gate": "full 300-mutation outcomes / promotion",
+      "reason": "R1 permits affected checks for coherent repairs; cumulative full catalogue is required on the nominated completed candidate. Other P0/P1 prerequisites remain; no promotion is claimed."
+    },
+    {
+      "gate": "real 4\u20136-hour q01 and external operational evidence",
+      "reason": "Code prerequisites remain open; no live account/feed/launchd qualification or provider alarm exercise was run."
+    },
+    {
+      "gate": "attended S=1 / $2 canary",
+      "reason": "User forbade live orders; release, read-only operational, selected-market/account/shard funding and clean-exit evidence still required."
+    }
+  ],
+  "paused_at_utc": "2026-09-26T19:31:27.815156+00:00",
+  "background_verification_jobs": 0,
+  "source_unchanged_through_final_gate": true
+}

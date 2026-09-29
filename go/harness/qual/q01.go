@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	q01MinimumActive     = 4 * time.Hour
-	q01TargetMaximum     = 6 * time.Hour
+	q01MinimumActive     = 20 * time.Minute
+	q01TargetMaximum     = 45 * time.Minute
 	q01MonitorCadence    = time.Second
 	q01PortfolioCadence  = 5 * time.Second
 	q01MinimumPercentage = uint64(99)
@@ -33,8 +33,8 @@ const (
 )
 
 // Q01ProtocolDeviation is visible operator-review material that does not erase
-// otherwise valid evidence. In particular, six hours is the intended stop
-// target, while four hours is the minimum evidence threshold.
+// otherwise valid evidence. The revised event test targets a stop by 45
+// minutes, while 20 minutes is the minimum active observation threshold.
 type Q01ProtocolDeviation struct {
 	Code   string `json:"code"`
 	Detail string `json:"detail"`
@@ -71,8 +71,8 @@ var q01ExternalOutstanding = [...]string{
 }
 
 // AssessQ01Local applies the fixed local portion of pilot-plan q01. It accepts
-// no Requirements argument: a caller cannot shorten the run, slow the expected
-// cadences, lower 99%, or change the required events.
+// no Requirements argument: a caller cannot shorten the 20-minute run, slow
+// the expected cadences, lower 99%, or change the required events.
 func AssessQ01Local(e Evidence) (Q01LocalAssessment, error) {
 	result := Q01LocalAssessment{
 		Scope:               Q01LocalScope,

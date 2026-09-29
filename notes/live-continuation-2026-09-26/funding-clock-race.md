@@ -1,0 +1,11 @@
+# Funding observation clock ordering repair
+
+The real v2 read-only observer latched `funding_unavailable` at 2026-09-26 23:57:21.140Z and entered DRAINED at 23:57:21.323Z. No balance-read failure anomaly was recorded. Its exact concurrent operands were not logged, so the clock-order race is consistent with the observation, not proven to be its cause. The failed run remains evidence: 23m25.893s linked process time, only about 9m48s before this stop, 280/284 portfolio slots, zero financial writes. DRAINED monitoring is not active quoting qualification.
+
+A deterministic owner-level regression reproduced the defect before repair: the owner samples tick T; a successful balance reader publishes at T+1ms; evaluate(T) loads that observation and treats it as future cash. The owner enters WINDING_DOWN and writes funding_unavailable despite fresh valid cash. See `funding-regression-before.log`.
+
+The owner now loads the immutable atomic cash observation before sampling its own current monotonic time. Validity, future-time rejection, maximum age, frozen capital, conservative commitment reservation, cancellation and funded reduction rules are retained. Missing/invalid/stale/truly-future cash still requests the same durable stop and now raises `FUNDING_UNAVAILABLE` SEV1 with non-secret reason/age diagnostics. This makes the failure visible to immediate alert delivery and the q01 assessor rather than only in the latch/heartbeat.
+
+Baseline affected tests passed before edits. The new regression failed for the expected false stop; its invalid/stale/future/missing controls passed. Focused funding tests passed under the race detector after clock repair; final diagnostic/race log and integration candidate receipt are separate evidence. The prior unretained os.Exit anomaly is separately addressed by test-helper containment, not explained by this defect.
+
+Independent review found that the added diagnostic would repeat each tick if a failed latch write kept the owner RUNNING. `funding-diagnostic-before.log` reproduces 20 diagnostics for one held stop. An owner-owned per-run flag now emits the funding SEV1 once while preserving every durable-latch retry. `TestFundingHealthDiagnosticDoesNotFloodWhenLatchWriteFails` covers that storage-failure path. Final affected race output: `funding-regression-reviewed-race.log`.

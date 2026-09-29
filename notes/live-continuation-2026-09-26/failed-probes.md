@@ -1,0 +1,1 @@
+Initial accountcheck read completed but could not persist its output because the new output directory was not yet created. This failed attempt is not flatness evidence. Subsequent account-initial.json is a fresh complete successful probe.

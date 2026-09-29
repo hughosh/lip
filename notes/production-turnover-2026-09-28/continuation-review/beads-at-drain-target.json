@@ -1,0 +1,42 @@
+[
+  {
+    "id": "lip-3dw",
+    "status": "closed",
+    "closed_at": "2026-09-28T18:06:04Z"
+  },
+  {
+    "id": "lip-1in",
+    "status": "closed",
+    "closed_at": "2026-09-27T17:35:43Z"
+  },
+  {
+    "id": "lip-dwf",
+    "status": "blocked",
+    "closed_at": null
+  },
+  {
+    "id": "lip-9vc",
+    "status": "blocked",
+    "closed_at": null
+  },
+  {
+    "id": "lip-9j3",
+    "status": "blocked",
+    "closed_at": null
+  },
+  {
+    "id": "lip-8hn.2",
+    "status": "blocked",
+    "closed_at": null
+  },
+  {
+    "id": "lip-8hn",
+    "status": "blocked",
+    "closed_at": null
+  },
+  {
+    "id": "lip-yca",
+    "status": "blocked",
+    "closed_at": null
+  }
+]

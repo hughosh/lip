@@ -1,0 +1,34 @@
+--- /private/tmp/lip-readiness-d2/seam_test.go.pre-edit	2026-09-26 11:48:07
++++ /Users/hugh/kek/lip/go/cmd/harness/seam_test.go	2026-09-26 11:53:24
+@@ -3811,7 +3811,12 @@
+ 			// Flat and unrested, so the stop drains on the very next tick.
+ 			h := newSeamHarness(t, seamOptions{})
+ 			o := h.ownerFor()
+-			h.connectGate()
++			// DRAINED requires a complete live account walk. Adoption's flat
++			// portfolio alone is not post-start truth, so obtain one through
++			// the real poller before testing the halted flat transition.
++			tokens := make(chan wsx.ReconcileToken, 1)
++			o.applyEvent(wsx.Event{Kind: wsx.EventConnected, At: h.clk.Now()}, tokens)
++			reducerConfirmationPoll(t, &gateFailOwner{h: h, o: o, tokens: tokens})
+ 			h.installBook([][]string{{"0.4000", "20.00"}},
+ 				[][]string{{"0.5500", "20.00"}})
+ 			o.closeAt = time.Now().Add(24 * time.Hour)
+@@ -6765,7 +6770,16 @@
+ 		h.start()
+ 		h.awaitActionable()
+ 
+-		h.seedPnLFills(append(seamFloorLegs(), seamMicroLegs(true)...)...)
++		legs := append(seamFloorLegs(), seamMicroLegs(true)...)
++		// Keep one quantum of real inventory after the loss. The reward
++		// comparison runs for 65s after the halt; a flat, order-free account
++		// correctly reaches DRAINED in that interval, which says nothing about
++		// whether reward income contaminated trading P&L.
++		legs = append(legs, seamPnLLeg{trade: "SEAM-PNL-HELD",
++			side: quote.SideYes, yesFP: "0.5000", noFP: "0.5000",
++			count: 1, cents: 50})
++		h.seedPnLFills(legs...)
++		h.ex.setPosition(seamTicker, "0.01")
+ 		h.clk.Advance(h.cfg.Params.PositionPoll)
+ 
+ 		h.await("the durable §12 cause to reach the latch", func() bool {

@@ -12,31 +12,13 @@ import (
 	"lip/harness/quote"
 )
 
-// Side indexes the two book sides. Both are BIDS in book terms (§4): yes bids
-// at cents and no bids at cents. The wire's bid/ask asymmetry is a property of
-// the YES leg only and is applied at the edge, in harness/rest, never here.
-type Side uint8
+// Side is the shared book-side type, independent of quote and risk layering.
+type Side = num.Side
 
 const (
-	Yes Side = iota
-	No
+	Yes = num.SideYes
+	No  = num.SideNo
 )
-
-func (s Side) String() string {
-	if s == Yes {
-		return "yes"
-	}
-	return "no"
-}
-
-// Opposite is the reducing side for a position of the given sign, and the
-// adding side for its opposite.
-func (s Side) Opposite() Side {
-	if s == Yes {
-		return No
-	}
-	return Yes
-}
 
 // SideSnap is our own resting presence on one side of one market.
 type SideSnap struct {
@@ -99,6 +81,13 @@ type MarketSnap struct {
 //
 // I3: the monitor must be able to detect that its own input has stopped
 // advancing, and must say so rather than continue republishing it.
+type AccountSnapshot struct {
+	TruthFresh bool
+	CapitalMax num.Money
+	Exposures  []Exposure
+	TradingPnL PnLResult
+}
+
 type Snapshot struct {
 	// Seq advances by at least one on every publication. A repeat means the
 	// owner has not published since we last looked.
@@ -111,6 +100,9 @@ type Snapshot struct {
 
 	Global  quote.GlobalState
 	Markets []MarketSnap
+	// Account is immutable aggregate evidence from the same owner publication.
+	// TradingPnL.Evaluable is false when basis, marks or truth are unavailable.
+	Account AccountSnapshot
 }
 
 // Selected returns the markets A5 must find a sample for.

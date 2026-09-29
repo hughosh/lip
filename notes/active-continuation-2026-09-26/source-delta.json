@@ -1,0 +1,21 @@
+{
+  "modified_since_continuation_start": [
+    "go/cmd/accountcheck/main.go",
+    "go/cmd/harness/run.go",
+    "go/harness/hstore/records.go",
+    "go/harness/hstore/writer.go",
+    "go/harness/hstore/writer_test.go"
+  ],
+  "new_go_files": [
+    "go/cmd/harness/store_health_test.go",
+    "go/cmd/harness/store_write_failure_test.go",
+    "go/cmd/harness/store_health.go",
+    "go/harness/turnover/plan.go",
+    "go/harness/turnover/coordinator.go",
+    "go/harness/turnover/coordinator_test.go",
+    "go/harness/turnover/plan_test.go",
+    "go/harness/turnover/file_state_test.go",
+    "go/harness/turnover/file_state.go"
+  ],
+  "frozen_trees_changed": false
+}

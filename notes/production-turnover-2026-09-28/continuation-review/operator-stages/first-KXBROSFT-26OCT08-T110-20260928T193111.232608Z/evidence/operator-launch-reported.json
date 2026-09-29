@@ -1,0 +1,7 @@
+{
+  "observed_at": "2026-09-28T19:34:46.649696+00:00",
+  "operator": "Hugh",
+  "reported_pid": 70087,
+  "operator_report": "User pasted terminal provision/arm/launch output; provision succeeded and shell printed PID70087",
+  "assistant_executed_financial_action": false
+}

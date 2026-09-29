@@ -1,0 +1,35 @@
+wsx dynamic-universe verification, 2026-09-27
+
+All commands ran from /Users/hugh/kek/lip/go unless noted.
+
+go test ./harness/wsx -run '^TestDynamicUniverse' -count=1
+PASS: ok lip/harness/wsx 0.577s (initial implementation)
+
+go test -race ./harness/wsx -run '^TestDynamicUniverse' -count=1
+PASS: ok lip/harness/wsx 1.525s (initial implementation)
+
+go test ./harness/wsx -run '^TestDynamicUniverse' -count=1
+PASS: ok lip/harness/wsx 0.540s (after initial revision-0 compatibility and frame assertions)
+
+go test -race ./harness/wsx -run '^TestDynamicUniverse' -count=1
+PASS: ok lip/harness/wsx 1.513s (same input)
+
+gofmt -w go/harness/wsx/dynamic_universe_test.go && go test ./harness/wsx -run '^TestDynamicUniverse' -count=1
+FAILED before test: lstat go/harness/wsx/dynamic_universe_test.go: no such file or directory; command was run from go/ with an extra go/ prefix. No test executed.
+
+gofmt -w harness/wsx/dynamic_universe_test.go && go test ./harness/wsx -count=1
+PASS: ok lip/harness/wsx 0.756s (before same-set refresh API)
+
+gofmt -w harness/wsx/gate.go harness/wsx/supervisor.go harness/wsx/dynamic_universe_test.go && go test ./harness/wsx -run '^TestDynamicUniverse' -count=1
+PASS: ok lip/harness/wsx 0.510s (final input, including same-set refresh)
+
+go test ./harness/wsx -count=1
+PASS: ok lip/harness/wsx 0.662s (final input)
+
+go test -race ./harness/wsx -run '^TestDynamicUniverse' -count=1
+PASS: ok lip/harness/wsx 1.528s (final input)
+
+git diff --check -- go/harness/wsx
+PASS: no output (final input, run from repository root)
+
+No live socket, account, writer, service, or broad gate was started.

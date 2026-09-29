@@ -1,0 +1,202 @@
+{
+  "pid": 64173,
+  "updated_at": "2026-09-28T17:43:25.064428Z",
+  "active_seconds": 105.003113449,
+  "segments": [
+    {
+      "id": "75f5710242c3e1d55969c4b485a67511",
+      "run_id": "20260928T174133SC1H2",
+      "pid": 64020,
+      "started_at": "2026-09-28T17:41:31.971845Z",
+      "active_nanos": 90000466193,
+      "monitor_slots": {
+        "observed": 90,
+        "fresh": 89
+      },
+      "portfolio_slots": {
+        "observed": 18,
+        "fresh_complete": 18,
+        "stale_walks": 0,
+        "incomplete_walks": 0
+      }
+    },
+    {
+      "id": "bfceff304eaa8766b7adaa8e4f29548f",
+      "run_id": "20260928T174310XV36P",
+      "pid": 64173,
+      "started_at": "2026-09-28T17:43:08.006138Z",
+      "active_nanos": 15002647256,
+      "monitor_slots": {
+        "observed": 14,
+        "fresh": 13
+      },
+      "portfolio_slots": {
+        "observed": 3,
+        "fresh_complete": 3,
+        "stale_walks": 0,
+        "incomplete_walks": 0
+      }
+    }
+  ],
+  "portfolio": {
+    "walks": 24,
+    "fresh": 24,
+    "stale": 0,
+    "complete": 24,
+    "incomplete": 0,
+    "fresh_complete": 24,
+    "last_walk_at": "2026-09-28T17:43:23.134791Z",
+    "last_fresh_at": "2026-09-28T17:43:23.134791Z",
+    "last_complete_at": "2026-09-28T17:43:23.134791Z"
+  },
+  "monitor": {
+    "checks": 104,
+    "fresh": 102,
+    "stale": 2,
+    "last_check_at": "2026-09-28T17:43:24.083684Z",
+    "last_fresh_at": "2026-09-28T17:43:24.083684Z"
+  },
+  "events": [
+    {
+      "category": "anomaly",
+      "name": "SEV2:FOREIGN_FILL_INHERITED",
+      "count": 30,
+      "first_at": "2026-09-28T17:41:35.548018Z",
+      "last_at": "2026-09-28T17:43:11.902417Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:WS_DISCONNECT",
+      "count": 1,
+      "first_at": "2026-09-28T17:42:34.798608Z",
+      "last_at": "2026-09-28T17:42:34.798608Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:FUNDING_LIMITS",
+      "count": 2,
+      "first_at": "2026-09-28T17:41:34.838933Z",
+      "last_at": "2026-09-28T17:43:11.207964Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:STARTUP",
+      "count": 2,
+      "first_at": "2026-09-28T17:41:34.838951Z",
+      "last_at": "2026-09-28T17:43:11.20798Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:TURNOVER_MANAGED",
+      "count": 2,
+      "first_at": "2026-09-28T17:41:34.838948Z",
+      "last_at": "2026-09-28T17:43:11.207978Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:TURNOVER_SELECTION",
+      "count": 2,
+      "first_at": "2026-09-28T17:41:36.321678Z",
+      "last_at": "2026-09-28T17:43:12.465045Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "deadman_checkin_sent",
+      "count": 4,
+      "first_at": "2026-09-28T17:41:34.583661Z",
+      "last_at": "2026-09-28T17:43:11.155554Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "sent",
+      "count": 4,
+      "first_at": "2026-09-28T17:41:34.583648Z",
+      "last_at": "2026-09-28T17:43:11.155544Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=1",
+      "count": 8,
+      "first_at": "2026-09-28T17:41:34.943254Z",
+      "last_at": "2026-09-28T17:43:11.460519Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=2",
+      "count": 211,
+      "first_at": "2026-09-28T17:41:35.124707Z",
+      "last_at": "2026-09-28T17:43:11.896995Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=3",
+      "count": 8,
+      "first_at": "2026-09-28T17:41:36.3217Z",
+      "last_at": "2026-09-28T17:43:12.708533Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=4",
+      "count": 183,
+      "first_at": "2026-09-28T17:41:36.582718Z",
+      "last_at": "2026-09-28T17:43:13.096456Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=5",
+      "count": 11,
+      "first_at": "2026-09-28T17:42:34.798654Z",
+      "last_at": "2026-09-28T17:42:35.83863Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=6",
+      "count": 57,
+      "first_at": "2026-09-28T17:42:36.08033Z",
+      "last_at": "2026-09-28T17:42:36.489115Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=2",
+      "count": 299,
+      "first_at": "2026-09-28T17:41:35.548047Z",
+      "last_at": "2026-09-28T17:43:12.458605Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=4",
+      "count": 17747,
+      "first_at": "2026-09-28T17:41:36.984809Z",
+      "last_at": "2026-09-28T17:43:25.064428Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=6",
+      "count": 6042,
+      "first_at": "2026-09-28T17:42:36.507207Z",
+      "last_at": "2026-09-28T17:43:03.705302Z"
+    },
+    {
+      "category": "state",
+      "name": "websocket:connected",
+      "count": 5,
+      "first_at": "2026-09-28T17:41:35.124598Z",
+      "last_at": "2026-09-28T17:43:12.719726Z"
+    },
+    {
+      "category": "state",
+      "name": "websocket:disconnected",
+      "count": 1,
+      "first_at": "2026-09-28T17:42:34.798589Z",
+      "last_at": "2026-09-28T17:42:34.798589Z"
+    }
+  ],
+  "metadata": {
+    "schema_version": 4,
+    "config_hash": "sha256:47b3b73244755998afab6d6d27376a15b96c6eb7d99fd680eafcef776ae67135",
+    "binary_identity": "sha256:e3f8a697a20c3153f5c2a8650094b949ff57b985f94b154a7defdad22e9ef361;vcs.revision=f7e9571547bb948418b7a27adc9c30ae38314b00;vcs.modified=true",
+    "ticker": "KXTOKENUSE-26OCT05-T168",
+    "rung": "sizing",
+    "live": false
+  }
+}

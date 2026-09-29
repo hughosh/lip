@@ -1,0 +1,12 @@
+{
+  "recorded_at": "2026-09-28T19:36:30.266121+00:00",
+  "actual_operator_start_utc": "2026-09-28T19:33:03Z",
+  "public_preparation_began_utc": "2026-09-28T19:31:09Z",
+  "latest_prepared_account_ended_utc": "2026-09-28T19:31:16.904132Z",
+  "advertised_refresh_deadline_utc": "2026-09-28T19:32:09Z",
+  "preparation_exceeded_60_seconds_at_launch": true,
+  "decision": "Preserve deviation; cannot claim complete immediately-before-stage refresh. Runtime fresh funding/complete truth is narrower; current post-launch public reads cannot retroactively repair preflight timing. Financial observations remain real and retain their limits. No live action executed by assistant.",
+  "run_id": "20260928T1933054SN2H",
+  "pid": 70087,
+  "drain_target_utc": "2026-09-28T20:18:03Z"
+}

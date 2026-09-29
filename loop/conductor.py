@@ -493,6 +493,12 @@ def changed_paths() -> list[str]:
 
 
 def main() -> int:
+    # Process audit 2026-09-26: refuse before any historical side effect.
+    print("RETIRED: unattended conductor disabled; see loop/START.md",
+          file=sys.stderr)
+    return 2
+
+    # Historical implementation retained below for audit, not execution.
     global MAX_ITERATIONS, DEADLINE_HOURS
     import argparse
     ap = argparse.ArgumentParser()

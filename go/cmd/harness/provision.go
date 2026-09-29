@@ -24,7 +24,7 @@ import (
 // existence, and it is a separate operator act rather than a step of starting
 // up.
 //
-// `hstore.Open` creates the five-table schema when the file is absent, and
+// `hstore.Open` creates the known schema when the file is absent, and
 // `hstore.StoreConfig.DBPath` states the resulting rule in one line -- "It is
 // opened, never created fresh and never deleted". The reason is that an absent
 // path and a MISTYPED path are the same thing to `Open`. The ledger it would
@@ -49,7 +49,7 @@ import (
 // away.
 const provisionDirMode = 0o700
 
-// pilotTables is §15's cut as this step expects to find it, RESTATED.
+// pilotTables is the pilot set plus restored balance telemetry, RESTATED.
 //
 // `hstore.userTables` is unexported, and this is deliberately not a copy
 // reached by an import even if it were: a verification that reads its
@@ -57,7 +57,7 @@ const provisionDirMode = 0o700
 // ever disagree, provisioning refuses while an operator is standing in front of
 // it -- the one moment in this system's life when a schema surprise is cheap.
 var pilotTables = []string{
-	"anomaly", "our_fill", "owned_order", "run", "state_event",
+	"anomaly", "balance_poll", "our_fill", "owned_order", "run", "state_event",
 }
 
 // pilotSchemaVersion and pilotJournalMode are `PRAGMA user_version` and
@@ -72,7 +72,7 @@ var pilotTables = []string{
 // `foreign_keys` from here is the reference it enforces, and that is checked
 // below instead.
 const (
-	pilotSchemaVersion = 2
+	pilotSchemaVersion = 3
 	pilotJournalMode   = "wal"
 )
 
@@ -124,9 +124,9 @@ func provision(c config, out io.Writer) error {
 			c.Paths.DB, closeErr)
 	}
 	if !reflect.DeepEqual(tables, pilotTables) {
-		return fmt.Errorf("%s was created with tables %v, not the pilot five "+
-			"%v; §15's cut is five records and this process does not know what "+
-			"the rows of a sixth mean", c.Paths.DB, tables, pilotTables)
+		return fmt.Errorf("%s was created with tables %v, not the known set "+
+			"%v; this process does not know what unexpected rows mean",
+			c.Paths.DB, tables, pilotTables)
 	}
 
 	facts, err := readDatabaseFacts(c.Paths.DB)
@@ -168,7 +168,7 @@ func provision(c config, out io.Writer) error {
 // refuseExistingArtifacts is the refusal this whole file exists for.
 //
 // Provisioning is a FIRST-RUN act. Re-running it over a live ledger has to be
-// impossible rather than discouraged: `hstore.Open` on an existing version-2
+// impossible rather than discouraged: `hstore.Open` on an existing harness
 // database is a perfectly ordinary open, so a second `-provision` would report
 // success, print a record of having created something, and leave the operator
 // believing a fresh store exists where months of `owned_order` rows actually
@@ -192,7 +192,7 @@ func refuseExistingArtifacts(p paths) error {
 		return fmt.Errorf("refusing to provision: %s already exists (%s, %d "+
 			"bytes).\n\n"+
 			"Creation is a first-run act and this is not a first run. Opening "+
-			"an existing version-2 database is an ordinary open, so a second "+
+			"an existing harness database is an ordinary open, so a second "+
 			"provision would report success over the top of a ledger that "+
 			"already classifies every fill on the account. If this really is a "+
 			"fresh deployment, move %s aside deliberately and by hand; there "+

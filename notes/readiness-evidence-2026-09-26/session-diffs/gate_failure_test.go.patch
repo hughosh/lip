@@ -1,0 +1,95 @@
+--- /private/tmp/lip-readiness-d2/gate_failure_test.go.pre-edit	2026-09-26 11:52:10
++++ /Users/hugh/kek/lip/go/cmd/harness/gate_failure_test.go	2026-09-26 11:53:11
+@@ -1791,8 +1791,9 @@
+ 					len(places))
+ 			}
+ 
+-			// The verifying read confirms the side absent. Only THEN does the
+-			// replacement leg become eligible (H-Q-9 clause 3, H-FAIL-3).
++			// The verifying read confirms the side absent, but it carries no
++			// position/fill truth. A fill just before DELETE may have changed q,
++			// so replacement waits for a subsequent complete portfolio cycle.
+ 			g.o.applyWriteResult(writeResult{
+ 				Req: req,
+ 				Sweep: rest.SweepResult{
+@@ -1804,9 +1805,9 @@
+ 				t.Fatal("the reducing side is not recorded confirmed-absent after " +
+ 					"a complete verifying read found nothing of ours resting")
+ 			}
+-			if places := seamPlaces(g.o.r.queue); len(places) != 1 {
+-				t.Fatalf("%d placement leg(s) after the sweep confirmed absence, "+
+-					"want 1: the cancel-confirm-place advances to its replacement",
++			if places := seamPlaces(g.o.r.queue); len(places) != 0 || !g.o.awaitCancelTruth {
++				t.Fatalf("%d placement leg(s) after absence with pending position truth, "+
++					"want none until a fresh complete poll",
+ 					len(places))
+ 			}
+ 			if again := seamCancelsOn(g.o.r.queue, tc.reduceSide); len(again) != 0 {
+@@ -1814,8 +1815,8 @@
+ 					"absence, want 0", len(again))
+ 			}
+ 
+-			// The next complete orders walk lists the cancelled order gone. The
+-			// replacement `build` now sizes the remainder against a clean
++			// Model the next complete orders walk listing the cancelled order gone.
++			// Target arithmetic now sizes the remainder against a clean
+ 			// aggregate: exactly one contract -- |q| -- never the twelve.
+ 			g.h.installResting()
+ 			if got := g.o.atRisk(tc.reduceSide); got != 0 {
+@@ -1988,8 +1989,8 @@
+ 					len(places))
+ 			}
+ 
+-			// The verifying read confirms the side absent. Only THEN does the
+-			// replacement leg become eligible (H-Q-9 clause 3, H-FAIL-3).
++			// The verifying read confirms absence, but a possible fill before
++			// DELETE means the replacement waits for fresh positions and fills.
+ 			g.o.applyWriteResult(writeResult{
+ 				Req: req,
+ 				Sweep: rest.SweepResult{
+@@ -2001,14 +2002,14 @@
+ 				t.Fatal("the reducing side is not recorded confirmed-absent after " +
+ 					"a complete verifying read found nothing of ours resting")
+ 			}
+-			if places := seamPlaces(g.o.r.queue); len(places) != 1 {
+-				t.Fatalf("%d placement leg(s) after the sweep confirmed absence, "+
+-					"want 1: the cancel-confirm-place advances to its replacement",
++			if places := seamPlaces(g.o.r.queue); len(places) != 0 || !g.o.awaitCancelTruth {
++				t.Fatalf("%d placement leg(s) after absence with pending position truth, "+
++					"want none until a fresh complete poll",
+ 					len(places))
+ 			}
+ 
+-			// The next complete orders walk lists the cancelled order gone. The
+-			// replacement `build` now sizes the remainder against a clean
++			// Model the next complete orders walk listing the cancelled order gone.
++			// Target arithmetic now sizes the remainder against a clean
+ 			// aggregate: exactly one contract -- |q| -- never the twelve.
+ 			g.h.installResting()
+ 			if got := g.o.atRisk(tc.reduceSide); got != 0 {
+@@ -2027,11 +2028,9 @@
+ 					bound.Wire(), tc.q.Abs().Wire())
+ 			}
+ 
+-			// A13 withholds every PLACEMENT from this owner-level fixture --
+-			// `Gate.noteTruth` is private, so no test may forge a reconciliation --
+-			// so the queued replacement leg is held (Conditions.Valid) and drops on
+-			// the next dispatch rather than reaching the wire. Draining it leaves a
+-			// clean queue to prove convergence over.
++			// Neither A13 nor the post-cancel position/fill reconciliation has
++			// licensed placement in this owner-level fixture. The dependent leg
++			// was discarded, and a later fresh poll must rederive any replacement.
+ 			drain := make(chan writeRequest, 1)
+ 			g.o.pump(now, drain)
+ 			select {
+@@ -2041,8 +2040,8 @@
+ 			default:
+ 			}
+ 			if n := g.o.r.queue.Len(); n != 0 {
+-				t.Fatalf("%d intent(s) remain after the held replacement was "+
+-					"drained, want 0", n)
++				t.Fatalf("%d intent(s) remain while the replacement awaits fresh "+
++					"position truth, want 0", n)
+ 			}
+ 
+ 			// The replacement rests the way a complete walk reports the

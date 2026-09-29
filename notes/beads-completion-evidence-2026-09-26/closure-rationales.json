@@ -1,0 +1,120 @@
+{
+  "status": "closed after final verification",
+  "issues": [
+    {
+      "id": "lip-732",
+      "title": "H-Q-4a: sustained gate-failure cancel and sweep",
+      "reason": "Sustained gate failure reaches adding cancel/sweep with capped reduction. Cancel confirmation retires named orders but replacement and drain wait for complete portfolio reads started after confirmation; UNKNOWN remains reserved. Gate-failure and reducer-confirmation composed tests plus safety D2/Y3Q controls cover the revised safe acceptance."
+    },
+    {
+      "id": "lip-q6r",
+      "title": "F8/H-QUE-3: 429 recovery with reserved P1 dispatch",
+      "reason": "All REST reads/writes classify 429 without false rejection/absence; owner backoff releases transport slots, preserves same-coid exposure, halves/restores rate and escalates. Reserved P1 worker and atomic reservations are exercised under cancel storm, hung general request and repeated 429. F8 named controls discriminate each obligation."
+    },
+    {
+      "id": "lip-ghg",
+      "title": "Route event-market cancellation by ticker across exchange shards",
+      "reason": "Every initial/retry cancel leg supplies market_ticker; complete sweep remains absence authority. Shard-aware fake and M-R-CANCEL-SHARD-ROUTE verify routing. Real selected-shard funding remains separately blocked in lip-wif."
+    },
+    {
+      "id": "lip-y3q",
+      "title": "Add a negative-control mutation for the gateStopped-restricted reducer aggregate check",
+      "reason": "M-Y3Q-GATESTOPCAP reintroduces the gateStopped-only cap defect and is caught by the deployed S=12/SETTLING composed regression in the safety smoke."
+    },
+    {
+      "id": "lip-bca",
+      "title": "Negative control attributes any suite flake to the mutation in flight",
+      "reason": "Mutation verdicts require the exact named catcher failure with complete clean package evidence; unrelated failures, malformed/incomplete output, timeouts and compile failures are inconclusive. Runner tests cover these cases. Ping clock/retry fixture and integration race/identity findings were repaired causally, with failures preserved."
+    },
+    {
+      "id": "lip-44s",
+      "title": "Programs() refuses volume-type incentive programmes; one active volume programme stops the harness booting",
+      "reason": "Programs accepts/filter-parses only liquidity incentives; active volume rows neither become LIP members nor refuse a valid liquidity programme. Dedicated REST tests and M-R-PROGRAMTYPE cover behavior."
+    },
+    {
+      "id": "lip-one",
+      "title": "Shutdown composition and mutation ratchet",
+      "reason": "Planned shutdown commits the durable latch before publishing, continues capped reduction and observation, and exits only with valid permit, current truth, flat inventory and no live orders. Signal composition, restart, concurrent DrainTracker regression and eight shutdown controls cover the final consumers."
+    },
+    {
+      "id": "lip-357",
+      "title": "F5: H-FAIL-6's REST cross-check does not exist, and quarantine strands the reducer",
+      "reason": "F5 performs full-target REST book cross-checks, retains independent fresh reducer authority, quarantines mismatch, cancels adding, resnapshots/reconciles, and requires new snapshot plus every newer complete portfolio walk before recovery. Quiet agreement and mismatch/resize/refresh tests plus F5 controls pass."
+    },
+    {
+      "id": "lip-zpo",
+      "title": "\u00a712 inv_hard relay unproven: no composed test shows the market-scoped adding-off/reducer-live pair",
+      "reason": "Composed inv_hard breach verifies market REDUCING, actual adding cancellation, retained aggregate-capped reducer and continuing monitor/heartbeat while global state remains RUNNING."
+    },
+    {
+      "id": "lip-8qv",
+      "title": "F15/H-ORD-9: live foreign orders do not reach the durable global stop",
+      "reason": "Live foreign owned-account orders in selected or other ticker durably stop global adding and emit FOREIGN_ORDER without cancelling an unowned order. Full-service composed tests and F15 relay control verify it."
+    },
+    {
+      "id": "lip-xp3",
+      "title": "F10 unproven: no composed test shows insufficient_balance reaching a durable global WINDING_DOWN",
+      "reason": "Definite structured insufficient_balance rejection reaches durable global WINDING_DOWN with specific cause and SEV1, preserving capped exits for both position signs. Composed tests and XP3 relay control verify it."
+    },
+    {
+      "id": "lip-2gn",
+      "title": "F9/F11 unproven: no detector or consumer found for reject-rate REDUCING or post_only-cross cross-check",
+      "reason": "Per-market last-50 distinct sent coid window counts genuine rejects only, including requests initially UNKNOWN/429 once; above 10 percent moves that market to REDUCING. post_only_would_cross immediately forces actual F5 REST cross-check. Threshold/isolation/upgrade tests and F9/F11 controls verify consumers."
+    },
+    {
+      "id": "lip-r90",
+      "title": "F13 relay unproven: no composed test shows position drift reaching market REDUCING or a hard global stop",
+      "reason": "Two complete tolerance-drift polls cause market REDUCING; hard drift preserves its specific durable global cause. Failed pages do not masquerade as a complete poll; composed cases preserve reduction/observation. F13 control verifies cause relay."
+    },
+    {
+      "id": "lip-b7r",
+      "title": "F7: SleepDetector has no runtime caller, so host-sleep detection cannot fire in production",
+      "reason": "Owner paired wall/monotonic clock samples invoke SleepDetector, durably record downtime, invalidate old book/read generations and force actual resnapshot/reconciliation. Composed owner test and B7R relay control verify runtime wiring."
+    },
+    {
+      "id": "lip-ytr",
+      "title": "F1-F3: disconnect and half-open composed recovery",
+      "reason": "Composed clean/unclean disconnect and half-open recovery keep orders withheld until fresh snapshot and all current-generation portfolio truth. Saturated reconcile-token channel retains and eventually delivers the newest generation, with F2 mutation."
+    },
+    {
+      "id": "lip-2da",
+      "title": "F16: sustained inventory-stuck detection and alert",
+      "reason": "Current complete per-market position truth drives monotonic strictly-above-inv_hard stuck duration and once-per-episode SEV2. Both signs, boundaries, incomplete/stale truth, wall steps, restart and rearming are covered, with F16 duration control."
+    },
+    {
+      "id": "lip-2v0",
+      "title": "H-CLOSE-1: stop adding when the ticker leaves the active LIP programme set",
+      "reason": "Complete active liquidity programme membership, rather than a single reward period end_date, drives adding-off. Failed/partial polls do not infer absence; reducer continues. Owner membership test and final-consumer mutation cover it."
+    },
+    {
+      "id": "lip-b1r",
+      "title": "Scenario exchange replacing V2 (pilot-plan \u00a73)",
+      "reason": "Existing deterministic exchange seam now has scripted REST/WS faults, injected clock, explicit fills, restartable ledger and durable coid idempotency. Existing captured-wire corpus and scenario tests supply parser and composition evidence without inventing fills from public prints."
+    },
+    {
+      "id": "lip-dgg",
+      "title": "Production invariants A1-A14: compose remaining enforcement",
+      "reason": "A1-A14 matrix identifies common enforcement and composed evidence. Added final dispatch capital checks, attributable complete-position disagreement journal and listed-create identity deduplication; self-cross/reducer/UNKNOWN/restart safeguards exercised. One-market account precondition retained; current shard funding is lip-wif."
+    },
+    {
+      "id": "lip-34l",
+      "title": "Eight retained pilot release scenarios end to end",
+      "reason": "Eight retained faults mapped to current composed production-seam tests and named controls in scenario-map.md. Restart uses actual second rig with preserved durable store and external fake state after abrupt cancellation/resource teardown; no claim of a host SIGKILL drill. Acceptance uses the updated integration/race/safety workflow."
+    },
+    {
+      "id": "lip-o7a",
+      "title": "\u00a715: restore 60s balance-poll telemetry",
+      "reason": "Configured periodic balance poll writes schema-v3 balance_poll telemetry via the sole writer, with atomic v2 migration and throttle handling. No balance delta feeds trading PnL or capital. Package and owner telemetry tests cover this."
+    },
+    {
+      "id": "lip-t9u",
+      "title": "F12 partial: the \u00a77.2 UNKNOWN protocol has no composed final-consumer test",
+      "reason": "UNKNOWN composition verifies bounded identical-coid attempts, maximum aggregate/capital reservation, reconciliation, no inferred absence, and exactly one SEV2 at 120 seconds. Accepted order with lost responses resolves through real portfolio binding without duplicate order; F12 and ACK-gap controls cover it."
+    },
+    {
+      "id": "lip-jw1",
+      "title": "F21 partial: the general deadline recompute after a clock step is unproven",
+      "reason": "Civil close deadlines recompute from current injected wall time; elapsed drain/heartbeat/retry/suppression/unresolved-fill/stuck intervals use monotonic time. Owner clock-step tests verify actual adding cancellation, retained exit, drain and heartbeat; F21/ping controls verify the changed consumers."
+    }
+  ]
+}

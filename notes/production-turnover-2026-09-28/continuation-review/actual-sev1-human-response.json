@@ -1,0 +1,12 @@
+{
+  "recorded_at_utc": "2026-09-28T20:33:57.398397+00:00",
+  "operator": "Hugh",
+  "question": "Did ntfy show a SWEEP_INCOMPLETE/cancel-sweep alert around 1:19\u20131:21 PM PDT today?",
+  "verbatim_answer": "Did not notice an alert",
+  "human_receipt_established": false,
+  "human_acknowledgment_established": false,
+  "provider_delivery_failure_established": false,
+  "earlier_three_messages_receipt": "previously confirmed without receipt times; separate evidence",
+  "route": "primary-only ntfy; no independent backup",
+  "consequence": "Cannot claim incident human response or unattended monitoring; provider transport delivery timestamp is insufficient."
+}

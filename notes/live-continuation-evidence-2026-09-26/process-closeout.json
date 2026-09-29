@@ -1,0 +1,21 @@
+{
+  "at": "2026-09-27T00:46:11.595795+00:00",
+  "jobs": {
+    "com.lip.harness": {
+      "exit_code": 113,
+      "absent": true
+    },
+    "com.lip.q01.20260926": {
+      "exit_code": 113,
+      "absent": true
+    },
+    "com.lip.q01.v3.20260926": {
+      "exit_code": 113,
+      "absent": true
+    }
+  },
+  "relevant_processes": [
+    "35100 35098       29:41 caffeinate -i modal run /Users/hugh/sow/verification/capacity/kld/modal_kld.py::run_stage",
+    "39700 47609       02:53 caffeinate -i -t 300"
+  ]
+}

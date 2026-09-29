@@ -25,12 +25,19 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
+import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
+from datetime import datetime, timezone
 from pathlib import Path
+from verification_support import verification_lock, local_environment
 
 HERE = Path(__file__).resolve().parent
 LIP = HERE.parent
@@ -144,8 +151,8 @@ MUTATIONS = [
      "-- the H-ORD-2b recovery 409 becomes a fake ack",
      [
          ("harness/rest/client.go",
-          "\treturn Response{Status: resp.StatusCode, Body: raw}, nil",
-          "\treturn Response{Status: http.StatusOK, Body: raw}, nil"),
+          "\treturn Response{Status: resp.StatusCode, Body: raw, Header: resp.Header.Clone()}, nil",
+          "\treturn Response{Status: http.StatusOK, Body: raw, Header: resp.Header.Clone()}, nil"),
      ],
      "TestHTTPDoerPassesEveryStatusThroughUnchanged"),
 
@@ -284,6 +291,16 @@ MUTATIONS = [
           '\t\tours = json.RawMessage(`""`)'),
      ],
      "TestMalformedPageIsNeverAnEmptyAccount"),
+
+    # `productionExchange` walks Programs before startup can adopt the selected
+    # ticker. The API defaults type to all; an active volume record without
+    # target_size_fp would fail the whole walk. Active volume count was zero
+    # when checked on 2026-09-26, so this is a latent compatibility ratchet.
+    ("M-R-PROGRAMTYPE",
+     "omit the liquidity type filter from the active-program walk",
+     [("harness/rest/read.go",
+       '\tfilters.Set("type", "liquidity")\n', "")],
+     "TestProgramsFiltersActiveLiquidityOnEveryPage"),
 
     ("M-R-WALKZERO",
      "make WalkComplete the zero value again "
@@ -447,8 +464,8 @@ MUTATIONS = [
      "-- orders and fills may be arbitrarily stale (A13)",
      [
          ("harness/wsx/gate.go",
-          "\tfor k := Truth(0); k < truthCount; k++ {\n",
-          "\tfor k := Truth(0); k <= TruthPositions; k++ {\n"),
+          "\tif m.snapGen != g.gen {\n\t\treturn false\n\t}\n\tfor k := Truth(0); k < truthCount; k++ {\n",
+          "\tif m.snapGen != g.gen {\n\t\treturn false\n\t}\n\tfor k := Truth(0); k <= TruthPositions; k++ {\n"),
      ],
      "TestAnyStalePortfolioEndpointStopsAllPlacementButNotCancel"),
 
@@ -782,18 +799,12 @@ MUTATIONS = [
      "TestClockDivergenceForcesResnapshotAndReconcile"),
 
     ("M-L-KEEPALIVE",
-     "the launchd plan renders KeepAlive false "
-     "-- F18's supervision becomes a one-shot launcher",
+     "the launchd plan restarts successful exits instead of failed exits "
+     "-- crash recovery is lost and terminal refusals retry",
      [
-         # Written directly rather than through `plistBool`, which lip-83o
-         # removed along with the paired-element rendering it existed for.
          ("harness/lifecycle/launchd.go",
-          "\tif err := emitKey(\"KeepAlive\"); err != nil {\n\t\treturn nil, err\n\t}\n"
-          "\tif err := emitTrue(); err != nil {\n\t\treturn nil, err\n\t}\n",
-          "\tif err := emitKey(\"KeepAlive\"); err != nil {\n\t\treturn nil, err\n\t}\n"
-          "\tif err := enc.Flush(); err != nil {\n\t\treturn nil, err\n\t}\n"
-          "\tif _, err := body.WriteString(\"\\n\\t<false/>\"); err != nil {\n"
-          "\t\treturn nil, err\n\t}\n"),
+          "\t\t_, err := body.WriteString(\"\\n\\t<false/>\")\n",
+          "\t\t_, err := body.WriteString(\"\\n\\t<true/>\")\n"),
      ],
      "TestLaunchdPlanUsesKeepAliveAndCaffeinateIS"),
 
@@ -1846,7 +1857,7 @@ MUTATIONS = [
      [
          ('harness/hstore/sqlite.go',
           '\tif !fresh {\n'
-          '\t\tfresh, err = inspectDatabase(db, path)\n'
+          '\t\tfresh, migratePilot, err = inspectDatabase(db, path)\n'
           '\t\tif err != nil {\n'
           '\t\t\tdb.Close()\n'
           '\t\t\treturn nil, err\n'
@@ -1861,7 +1872,7 @@ MUTATIONS = [
           '\t\treturn nil, err\n'
           '\t}\n'
           '\tif !fresh {\n'
-          '\t\tfresh, err = inspectDatabase(db, path)\n'
+          '\t\tfresh, migratePilot, err = inspectDatabase(db, path)\n'
           '\t\tif err != nil {\n'
           '\t\t\tdb.Close()\n'
           '\t\t\treturn nil, err\n'
@@ -1971,7 +1982,7 @@ MUTATIONS = [
      [
          ('cmd/harness/main.go',
           '\t\tif _, err := productionAlertFactory(c.Paths.Env); err != nil {\n'
-          '\t\t\treturn &refusal{err: err}\n'
+          '\t\t\treturn err\n'
           '\t\t}\n',
           ''),
      ],
@@ -2030,34 +2041,20 @@ MUTATIONS = [
      ],
      'TestAlertFailureLoggingCannotRevealTransportSecrets'),
 
+    # The final close now has additional result/producer barriers. Mutate
+    # the same delivery-order property at the current flush boundary.
     ('M-6W5-CONCURRENTFINAL',
-     'call the stateful alert Step directly from shutdown while its goroutine '
-     'may already own it, racing retry ladders and suppression buckets',
-     [
-         ('cmd/harness/shutdown.go',
-          '\tif err := s.r.flushAlerts(ctx); err != nil {\n'
-          '\t\treturn err\n'
-          '\t}\n'
-          '\treturn s.r.close(ctx)\n',
-          '\ts.r.stepAlerts(ctx)\n'
-          '\treturn s.r.close(ctx)\n'),
-     ],
+     'call the stateful alert Step directly while its goroutine may own it',
+     [('cmd/harness/shutdown.go',
+       '\tif err := s.r.flushAlerts(ctx); err != nil {\n\t\treturn err\n\t}\n',
+       '\ts.r.stepAlerts(ctx)\n')],
      'TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore'),
-
     ('M-6W5-CLOSEFIRST',
-     'close the alert loop and store before the final delivery pass, so the '
-     'last durable anomaly can be stranded precisely during orderly shutdown',
-     [
-         ('cmd/harness/shutdown.go',
-          '\tif err := s.r.flushAlerts(ctx); err != nil {\n'
-          '\t\treturn err\n'
-          '\t}\n'
-          '\treturn s.r.close(ctx)\n',
-          '\tif err := s.r.close(ctx); err != nil {\n'
-          '\t\treturn err\n'
-          '\t}\n'
-          '\treturn s.r.flushAlerts(ctx)\n'),
-     ],
+     'close the alert loop and store before the final delivery pass',
+     [('cmd/harness/shutdown.go',
+       '\tif err := s.r.flushAlerts(ctx); err != nil {\n\t\treturn err\n\t}\n',
+       '\tif err := s.r.close(ctx); err != nil { return err }\n'
+       '\tif err := s.r.flushAlerts(ctx); err != nil { return err }\n')],
      'TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore'),
 
     # --- v3 items 11-13: the ping scheduling repairs --------------------------
@@ -2109,6 +2106,7 @@ MUTATIONS = [
           '\t\ts.markBucket(g, nowMs)\n'
           '\t\tfor _, id := range ids {\n'
           '\t\t\tdelete(s.retryAt, id)\n'
+          '\t\t\tdelete(s.persistedRetry, id)\n'
           '\t\t}\n'
           '\t} else {\n',
           '\tif !s.record(ids, nowMs, err == nil) {\n'
@@ -2119,6 +2117,7 @@ MUTATIONS = [
           '\t\ts.markBucket(g, nowMs)\n'
           '\t\tfor _, id := range ids {\n'
           '\t\t\tdelete(s.retryAt, id)\n'
+          '\t\t\tdelete(s.persistedRetry, id)\n'
           '\t\t}\n'
           '\t} else {\n'),
      ],
@@ -2177,10 +2176,11 @@ MUTATIONS = [
      ],
      'TestWindingDownRequiresKnownFlatTruthBeforeDrained'),
 
-    # §3.8 / §2. The coordinator's state is the whole point of the rewrite: a
-    # Step that resets to STARTING has no memory, so a process that reconciled
-    # and reached RUNNING re-enters adoption on the next pass, and a latched one
-    # is handed STARTING by the very procedure H-HALT-4 exists to gate.
+    # H-HALT-2 requires central ownership of global state transitions; it does
+    # not prescribe one transition per owner tick. The startup coordinator must
+    # retain state across Step calls: resetting to STARTING re-enters adoption
+    # after RUNNING and can hand a latched process back to startup despite
+    # H-HALT-4's durable gate.
     ('M-L-STATERESET',
      'reset the coordinator state to STARTING at the top of every Step, so '
      'the startup transaction has no memory across attempts',
@@ -2236,6 +2236,205 @@ MUTATIONS = [
      ],
      'TestAdoptionPolicyReceivesEffectiveSelectionAndExclusionsAsDefensiveCopies'),
 
+    # lip-y3q: the reducing aggregate cap is an invariant of every reducing
+    # state, including SETTLING when no gate-failure episode is open. Under the
+    # deployed §10.3 S=12 profile, an ordinary fill can leave |q|=1 and
+    # H-CLOSE-2 enters SETTLING with gateStopped=false; an at-touch 12-contract
+    # reducer then has an eleven-contract adding overhang. Reintroducing the old
+    # gateStopped condition would leave that overhang live, so the symmetric
+    # long/short settling seam must catch it.
+    ('M-Y3Q-GATESTOPCAP',
+     'make the reducing aggregate recap conditional on gateStopped, leaving an oversized at-touch reducer live in SETTLING when the gate is healthy',
+     [
+         ('cmd/harness/run.go',
+          '\t\tif role == quote.RoleReducing && target > 0 &&\n\t\t\t!o.cancelConfirmed[side] && o.atRisk(side) > target {\n',
+          '\t\tif role == quote.RoleReducing && gateStopped && target > 0 &&\n\t\t\t!o.cancelConfirmed[side] && o.atRisk(side) > target {\n'),
+     ],
+     'TestTheSettlingMarketRecapsAnOversizedReducerWithoutAGateFailure'),
+
+    # H-Q-4a's production consumer must use the configured debounce rather than
+    # extend it silently. Under the deployed 30-second default, doubling the
+    # configured interval postpones cancellation to 60 seconds. The deterministic
+    # seam uses a distinct four-second setting and checks the configured deadline.
+    ('M-HQ4A-DOUBLE-DEBOUNCE',
+     'double configured gate_fail_debounce_s and leave adding orders resting twice as long',
+     [
+         ('cmd/harness/run.go',
+          'return open && d >= o.p.GateFailDebounce',
+          'return open && d >= 2*o.p.GateFailDebounce'),
+     ],
+     'TestSustainedGateFailureCancelsTheAddingSideAtTheConfiguredDebounce'),
+
+    # D1 / I1: SizesFor has target zero when inventory exists but the reducing
+    # side has no current book depth (startup adoption before first snapshot, or
+    # immediately after an abnormal disconnect). Such a target cannot fund a
+    # replacement, but does not make a compliant resting exit an overshoot to
+    # cancel. This is reachable in the deployed canary and pilot; the symmetric
+    # disconnect seam distinguishes target-zero protection from the independent
+    # oversized-reducer recap.
+    ('M-D1-TARGETZERO-RECAP',
+     'drop the target-positive guard and cancel a compliant reducer when a disconnect makes funded target zero',
+     [
+         ('cmd/harness/run.go',
+          '\t\tif role == quote.RoleReducing && target > 0 &&\n\t\t\t!o.cancelConfirmed[side] && o.atRisk(side) > target {\n',
+          '\t\tif role == quote.RoleReducing &&\n\t\t\t!o.cancelConfirmed[side] && o.atRisk(side) > target {\n'),
+     ],
+     'TestAnAbnormalDisconnectDoesNotCancelTheCompliantExit'),
+
+    # A deployed canary or pilot stop reaches CancelAndSweep through the
+    # dispatcher and startup adoption sweep. Exchange orders are sharded by
+    # market; dropping ticker-aware routing sends an order-id-only cancel to
+    # shard zero, where it can receive an irrelevant success while the selected
+    # market's order remains live. The complete verifying walk is what catches
+    # the stranded order, not the HTTP status.
+    ('M-R-CANCEL-SHARD-ROUTE',
+     'route a cancel sweep by order id alone and leave a selected-market order resting on its actual shard',
+     [
+         ('harness/rest/cancel.go',
+          '\t\t\tcancel := c.cancelForMarket(ctx, ticker, o.OrderID)\n',
+          '\t\t\tcancel := c.Cancel(ctx, o.OrderID)\n'),
+     ],
+     'TestCancelSweepAutoRoutesByMarketAndVerifiesAbsence'),
+
+    # H-Q-5a's dependent replacement can be built before the next portfolio
+    # orders walk. A completed CancelAndSweep is positive absence evidence for
+    # the selected market/side, and the canary/pilot dispatcher reaches this
+    # path whenever it resizes or drains a reducer. If either source of known
+    # IDs is not stamped, the preceding complete walk still shows the retired
+    # reducer and blocks the replacement (or keeps it in the cap).
+    ('M-D2-OMIT-ABSENT-STAMP',
+     'do not remember ids proved absent by a complete cancel sweep, so the stale portfolio reducer blocks its replacement',
+     [
+         ('cmd/harness/run.go',
+          '\t\t\tfor _, lo := range o.r.pf.LiveOrders() {\n'
+          '\t\t\t\tif lo.Ticker == res.Req.Market && lo.Side == res.Req.Side {\n'
+          '\t\t\t\t\to.absentOrders[lo.OrderID] = struct{}{}\n'
+          '\t\t\t\t}\n'
+          '\t\t\t}\n',
+          ''),
+         ('cmd/harness/run.go',
+          '\t\t\t\t\to.absentOrders[ord.OrderID] = struct{}{}\n',
+          ''),
+     ],
+     'TestConfirmedAbsentReducerWaitsForFreshPosition'),
+
+    # An UNKNOWN create may have reached the exchange without an ACK or ID. A
+    # cancel sweep only proves the known resting orders absent; it cannot
+    # discharge that unknown maximum. Under §10.3, the dedicated account's
+    # reducing capacity remains reserved until a complete orders walk resolves
+    # the create, so clearing every pending row on cancel would authorize an
+    # overlapping replacement.
+    ('M-D2-RELEASE-UNKNOWN',
+     'release every pending create on the side after a cancel sweep, including an UNKNOWN create with no exchange id',
+     [
+         ('cmd/harness/run.go',
+          '\t\t\tfor coid, p := range o.pending {\n'
+          '\t\t\t\tif o.pendingTicker(p) != res.Req.Market || p.side != res.Req.Side || !p.acked || p.id == "" {\n'
+          '\t\t\t\t\tcontinue\n'
+          '\t\t\t\t}\n'
+          '\t\t\t\tif _, named := requested[p.id]; named {\n'
+          '\t\t\t\t\to.resolveTurnoverOrder(coid)\n'
+          '\t\t\t\t\tdelete(o.pending, coid)\n'
+          '\t\t\t\t}\n'
+          '\t\t\t}\n',
+          '\t\t\tfor coid, p := range o.pending {\n'
+          '\t\t\t\tif p.side == res.Req.Side {\n'
+          '\t\t\t\t\tdelete(o.pending, coid)\n'
+          '\t\t\t\t}\n'
+          '\t\t\t}\n'),
+     ],
+     'TestConfirmedAbsenceDoesNotReleaseUnknownCreate'),
+
+    # A later COMPLETE orders walk is newer positive truth and supersedes every
+    # tombstone. If the same order id has reappeared on the selected market, it
+    # is live again and must re-enter the deployed canary/pilot's exposure and
+    # reducer calculations. This is distinct from an incomplete walk, which may
+    # not clear absence evidence.
+    ('M-D2-KEEP-ABSENT-AFTER-WALK',
+     'retain cancel-sweep absence tombstones after a complete orders walk positively lists the order again',
+     [
+         ('cmd/harness/run.go',
+          '\t\tclear(o.absentOrders)\n',
+          ''),
+     ],
+     'TestCompleteOrdersWalkRestoresPositiveOrderEvidence'),
+
+    # Exposure aggregation is the capital gate's independent view of resting
+    # orders. Without this exclusion, a stale pre-sweep portfolio row continues
+    # reserving capital after a complete cancel verification, even though the
+    # replacement path correctly excludes it. The primary D2 seam asserts this
+    # exposure is zero before dispatch, so this separate consumer omission is
+    # deterministically visible on the deployed one-market canary.
+    ('M-D2-COUNT-ABSENT-EXPOSURE',
+     'count a reducer id proved absent by the complete cancel sweep in aggregate exposure',
+     [
+         ('cmd/harness/run.go',
+          '\t\tif _, absent := o.absentOrders[lo.OrderID]; absent {\n'
+          '\t\t\tcontinue\n'
+          '\t\t}\n\t\te := get(lo.Ticker)\n',
+          '\t\te := get(lo.Ticker)\n'),
+     ],
+     'TestConfirmedAbsentReducerWaitsForFreshPosition'),
+
+    # A completed cancel sweep proves order absence, not inventory. The order
+    # can fill just before DELETE, so the deployed canary/pilot must hold the
+    # dependent quote until fresh fills, orders, and positions all start after
+    # the sweep. This removes only that hold; the named test checks both the
+    # immediate no-placement state and replacement sizing after reconciliation.
+    ('M-D2-PLACE-BEFORE-FRESH-TRUTH',
+     'allow a replacement reducer immediately after an absent cancel sweep, before fresh fills, orders, and positions reconcile a possible fill',
+     [
+         ('cmd/harness/run.go',
+          '\t\t\to.awaitCancelTruth = true\n',
+          ''),
+     ],
+     'TestConfirmedAbsentReducerWaitsForFreshPosition'),
+
+    # A cycle may have started before DELETE and finish afterwards. Completion
+    # time alone cannot prove that its portfolio views include the possible
+    # fill. Requiring all three starts to postdate the sweep is reachable on
+    # the one-market canary whenever an in-flight cycle overlaps cancellation.
+    ('M-D2-ACCEPT-PRECANCEL-READ',
+     'let a portfolio cycle that started before the absent cancel sweep release the placement hold when it completes afterwards',
+     [
+         ('cmd/harness/run.go',
+         '\t\tread.StartedAt(wsx.TruthFills).Mono > o.cancelTruthAfter &&\n'
+         '\t\tread.StartedAt(wsx.TruthOrders).Mono > o.cancelTruthAfter &&\n'
+         '\t\tread.StartedAt(wsx.TruthPositions).Mono > o.cancelTruthAfter {\n',
+          '\t\ttrue {\n'),
+     ],
+     'TestPreCancelStartedPortfolioReadCannotReleaseReducer'),
+
+    # The same uncertainty must keep lifecycle truth unknown so a flat stale
+    # position cannot declare a drained stop while the canceled order may have
+    # filled. This mutation targets the drain gate independently of the quote
+    # placement hold.
+    ('M-D2-DRAIN-WITHOUT-CANCEL-TRUTH',
+     'treat reducer truth as known for drain decisions while an absent cancel still awaits fresh portfolio reconciliation',
+     [
+         ('cmd/harness/run.go',
+          '\tif o.awaitCancelTruth {\n'
+          '\t\treturn false\n'
+          '\t}\n'
+          '\tnow := o.r.ex.Clock.Now()\n',
+          '\tnow := o.r.ex.Clock.Now()\n'),
+     ],
+     'TestFlatToFillCancelCannotDeclareDrainedBeforeReconciliation'),
+
+    # Before the first complete portfolio cycle, no truth is known at all.
+    # The deployed service can receive a stop or signal before that poll; its
+    # initially flat local snapshot cannot authorize DRAINED until each truth
+    # age is nonnegative. This is separate from cancel uncertainty after a
+    # poll has previously established known truth.
+    ('M-D2-DRAIN-BEFORE-FIRST-WALK',
+     'treat a never-observed portfolio endpoint as fresh enough to authorize drain before the first complete walk',
+     [
+         ('cmd/harness/run.go',
+          '\t\tif age < 0 || age > o.p.TruthMaxAge {\n',
+          '\t\tif age > o.p.TruthMaxAge {\n'),
+     ],
+     'TestMissingFirstPortfolioWalkCannotAuthorizeDrain'),
+
     # -----------------------------------------------------------------------
     # lip-3af -- the seams. Every component below was already individually
     # guarded here; what was NOT guarded, because it did not exist, is the
@@ -2265,8 +2464,8 @@ MUTATIONS = [
      'fill it produces is one H-ORD-9 must classify as foreign',
      [
          ('cmd/harness/dispatch.go',
-          '\tpermit, err := awaitPermit(ctx, rcpt, reserves)\n\tif err != nil {\n',
-          '\tpermit, err := awaitPermit(ctx, rcpt, reserves)\n\t_ = permit\n\tif false {\n'),
+          '\t\tpermit, errPermit = awaitPermit(ctx, rcpt, reserves)\n\t\terr = errPermit\n\t\tif err != nil {\n',
+          '\t\tpermit, errPermit = awaitPermit(ctx, rcpt, reserves)\n\t\terr = errPermit\n\t\tif false {\n'),
          ('cmd/harness/dispatch.go',
           '\tbody, err := permit.Order()\n\tif err != nil {\n',
           '\tbody, err := req.Order, error(nil)\n\tif err != nil {\n'),
@@ -2332,8 +2531,8 @@ MUTATIONS = [
      'the same account and neither can tell whose fills moved the position',
      [
          ('cmd/harness/qualification.go',
-          'func acquireHarnessLock(c config) (*lifecycle.InstanceLock, error) {\n\treturn lifecycle.AcquireInstanceLock(c.Paths.Lock)\n}\n',
-          'func acquireHarnessLock(c config) (*lifecycle.InstanceLock, error) {\n\treturn nil, nil\n}\n'),
+          '\tlock, err := lifecycle.AcquireInstanceLock(c.Paths.Lock)\n',
+          '\tlock, err := (*lifecycle.InstanceLock)(nil), error(nil)\n'),
      ],
      'TestTheInstanceLockIsHeldForTheWholeRunAndRefusesASecondRig'),
 
@@ -2365,7 +2564,7 @@ MUTATIONS = [
           '\tif r.boot.Latched && !resume {\n',
           '\tif false && r.boot.Latched && !resume {\n'),
      ],
-     'TestASetLatchRefusesWithoutResumeAndWindsDownWithIt'),
+     'TestComposedAbruptStopRestartAdoptsOwnedReducerAndHistoricalFill'),
 
     # H-TOP-5 / I3. I2 makes the monitor unstoppable but does NOT make it
     # truthful: an owner that stops publishing while continuing to run leaves the
@@ -2394,8 +2593,13 @@ MUTATIONS = [
      'at stage-first-sent and can never be quoted again',
      [
          ('cmd/harness/run.go',
-          '\tif res.Err != nil {\n\t\tfor _, id := range res.Req.IDs {\n\t\t\to.r.queue.Drop(id)\n\t\t}\n',
-          '\tif res.Err != nil {\n'),
+          '\tif res.Err != nil {\n'
+          '\t\tif res.Req.Op == quote.OpPlace && !res.Sent && res.Req.attempts == 0 {\n'
+          '\t\t\to.resolveTurnoverOrder(res.Req.Order.ClientOrderID())\n\t\t}\n'
+          '\t\tfor _, id := range res.Req.IDs {\n\t\t\to.r.queue.Drop(id)\n\t\t}\n',
+          '\tif res.Err != nil {\n'
+          '\t\tif res.Req.Op == quote.OpPlace && !res.Sent && res.Req.attempts == 0 {\n'
+          '\t\t\to.resolveTurnoverOrder(res.Req.Order.ClientOrderID())\n\t\t}\n'),
      ],
      'TestAnIncompleteWriteReleasesItsIntentsRatherThanWedgingTheSide'),
 
@@ -2753,10 +2957,21 @@ MUTATIONS = [
      'by §16 numbers that provably cannot bound it',
      [
          ('cmd/harness/config.go',
+          '"canary": {name: "canary", maxS: num.QtyFromFloat(1),\n'
           '\t\tstopOnFirstOwnedFill: true,\n',
-          ''),
+          '"canary": {name: "canary", maxS: num.QtyFromFloat(1),\n'),
      ],
      'TestTheCanaryLatchesOnAnyPositionItDidNotStartWith'),
+
+    ('M-SIZING-FIRSTFILL',
+     'remove the sizing rung first-fill stop while leaving the canary stop intact',
+     [
+         ('cmd/harness/config.go',
+          '"sizing": {name: "sizing", maxS: num.QtyFromFloat(12),\n'
+          '\t\tstopOnFirstOwnedFill: true,\n',
+          '"sizing": {name: "sizing", maxS: num.QtyFromFloat(12),\n'),
+     ],
+     'TestTheSizingRungLatchesOnFirstPosition'),
 
     # The other direction: a rule that fires on every rung collapses the whole
     # capital ladder into one step, and the pilot stops at the quantum.
@@ -2867,12 +3082,14 @@ MUTATIONS = [
      'or foreign fill latches as `canary_owned_fill`',
      [
          ('cmd/harness/run.go',
-          '\tif eff.Stop {\n\t\to.requestStop("portfolio_read", "")\n\t}\n',
+          '\to.stopForPortfolio(eff)\n',
           ''),
          ('cmd/harness/run.go',
-          '\tif eff.Applied[wsx.TruthOrders] {\n',
-          '\tif eff.Stop {\n\t\to.requestStop("portfolio_read", "")\n\t}\n'
-          '\tif eff.Applied[wsx.TruthOrders] {\n'),
+          '\tif eff.Applied[wsx.TruthOrders] &&\n'
+          '\t\t(!o.awaitCancelTruth || read.StartedAt(wsx.TruthOrders).Mono > o.cancelTruthAfter) {\n',
+          '\to.stopForPortfolio(eff)\n'
+          '\tif eff.Applied[wsx.TruthOrders] &&\n'
+          '\t\t(!o.awaitCancelTruth || read.StartedAt(wsx.TruthOrders).Mono > o.cancelTruthAfter) {\n'),
      ],
      'TestATakerFillOnTheCanaryKeepsTheStrongerCause'),
 
@@ -3017,7 +3234,7 @@ MUTATIONS = [
      'system stack that is broken',
      [
          ('cmd/harness/runtime.go',
-          '\t\tDialer: wsx.NewLiveDialerWithTransport(nt.ws),\n',
+          '\t\tDialer:  wsx.NewLiveDialerWithTransport(nt.ws),\n',
           '\t\tDialer: wsx.NewLiveDialer(),\n'),
      ],
      'TestProductionWebSocketUsesF6Dialer'),
@@ -3182,10 +3399,12 @@ MUTATIONS = [
      'first fill',
      [
          ('cmd/harness/config.go',
-          '\tif err := risk.CheckFundable(p); err != nil {\n'
-          '\t\treturn config{}, fmt.Errorf("config %s cannot fund its own reducer: %w",\n'
-          '\t\t\tpath, err)\n\t}\n',
-          '\trisk.CheckFundable(p)\n'),
+          '\tif capitalSource == "configured" {\n'
+          '\t\tif err := risk.CheckFundable(p); err != nil {\n'
+          '\t\t\treturn config{}, fmt.Errorf("config %s cannot fund its own reducer: %w",\n'
+          '\t\t\t\tpath, err)\n\t\t}\n\t}\n',
+          '\tif capitalSource == "configured" {\n'
+          '\t\trisk.CheckFundable(p)\n\t}\n'),
      ],
      'TestLoadConfigRefusesAConfigurationItCannotFund'),
 
@@ -3509,9 +3728,9 @@ MUTATIONS = [
           '`eff.Stop` on purpose.',
           '\t// §7.9\'s canary bound, and it comes AFTER `eff.Stop` on purpose.'),
          ('cmd/harness/run.go',
-          '\tif eff.Stop {\n\t\to.requestStop("portfolio_read", "")\n\t}\n',
+          '\to.stopForPortfolio(eff)\n',
           '\to.evaluatePnL()\n'
-          '\tif eff.Stop {\n\t\to.requestStop("portfolio_read", "")\n\t}\n'),
+          '\to.stopForPortfolio(eff)\n'),
      ],
      'TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary'),
 
@@ -3582,9 +3801,9 @@ MUTATIONS = [
      'file before launch and fails the only scenario the bead exists for',
      [
          ('cmd/harness/run.go',
-          '\to.checkHarnessStop()\n\n\tticker := o.r.cfg.Ticker',
-          '\tif o.snapSeq == 0 {\n\t\to.checkHarnessStop()\n\t}\n\n'
-          '\tticker := o.r.cfg.Ticker'),
+          '\to.checkHarnessStop()\n\tfor _, ticker := range o.managedTickers() {',
+          '\tif o.snapSeq == 0 {\n\t\to.checkHarnessStop()\n\t}\n'
+          '\tfor _, ticker := range o.managedTickers() {'),
      ],
      'TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive'),
 
@@ -4135,15 +4354,15 @@ MUTATIONS = [
      'TestLinkCurrentSegmentRunResetsPreAuthorityActiveOrigin'),
 
     ('M-Q01-SHORTRUN',
-     'reduce the fixed four-hour q01 minimum to one nanosecond. Every other '
+     'reduce the fixed 20-minute q01 minimum to one nanosecond. Every other '
      'requirement still applies, so a rehearsal that ran for seconds produces '
      'an otherwise complete-looking local pass',
      [
          ('harness/qual/q01.go',
-          '\tq01MinimumActive     = 4 * time.Hour\n',
+          '\tq01MinimumActive     = 20 * time.Minute\n',
           '\tq01MinimumActive     = time.Nanosecond\n'),
      ],
-     'TestAssessQ01LocalRejectsOneNanosecondBelowFourHours'),
+     'TestAssessQ01LocalRejectsOneNanosecondBelowTwentyMinutes'),
 
     ('M-Q01-PERCENTAGE',
      'reduce the fixed q01 slot-coverage minimum from 99 percent to 1 percent, '
@@ -4175,9 +4394,475 @@ MUTATIONS = [
           '\t\tExternalOutstanding: append([]string(nil), q01ExternalOutstanding[:]...),\n',
           '\t\tExternalOutstanding: nil,\n'),
      ],
-     'TestAssessQ01LocalPassesExactFourHourRestartBoundary'),
+     'TestAssessQ01LocalPassesExactTwentyMinuteRestartBoundary'),
 ]
 
+
+MUTATIONS.extend([
+    ("M-B7R-OWNER-SLEEP", "disconnect the owner's host-sleep detector",
+     [("cmd/harness/run.go", "\t\to.observeSleep(r.ex.NowMs(), now, tokens)\n", "")],
+     "TestOwnerSleepRelay"),
+    ("M-XP3-REJECT-STOP", "ignore a structured insufficient_balance rejection at the owner",
+     [("cmd/harness/run.go", "\to.stopForInsufficientBalance(res.Req.Market, create)\n", "")],
+     "TestInsufficientBalanceReachesDurableGlobalStopAndKeepsReducerLive"),
+])
+
+
+MUTATIONS.extend([
+    ("M-F16-STUCK-DURATION", "double configured stuck duration at owner consumer",
+     [("cmd/harness/run.go", "\t\to.p.TruthMaxAge, o.p.Stuck); ok {", "\t\to.p.TruthMaxAge, 2*o.p.Stuck); ok {")],
+     "TestComposedInventoryStuckUsesConfiguredDurationAndRearms"),
+    ("M-F15-FOREIGN-STOP", "drop complete live foreign order stop relay",
+     [("cmd/harness/run.go", "\to.stopForForeignOrders(eff.Foreign)\n", "\t// mutated foreign order stop relay\n")],
+     "TestLiveForeignOrderStopsGloballyWithoutCancellingForeignExposure"),
+    ("M-CLOSE-PROGRAM-MEMBERSHIP", "ignore complete active program absence",
+     [("cmd/harness/run.go", "ProgramEnded:  o.programMembership.ended || !o.isSelected(ticker),", "ProgramEnded:  !o.isSelected(ticker),")],
+     "TestProgramMembershipUsesCompleteActiveSetAtOwner"),
+])
+
+MUTATIONS.extend([('M-F5-STALE-WS',
+  'price F5 reducer using quarantined websocket source',
+  [('cmd/harness/crosscheck.go',
+    'return o.restReducer.Snapshot(ticker, ws.Target, stamp.Mono, o.p.Quiet)',
+    'return ws, true')],
+  'TestOwnerF5ReducerSweepResizeRefreshAndRecovery'),
+ ('M-F5-ALLOW-ADDING',
+  'allow adding while F5 quarantined',
+  [('cmd/harness/crosscheck.go',
+    'role != quote.RoleReducing || !o.r.gate.RESTReducerActionable',
+    '!o.r.gate.RESTReducerActionable')],
+  'TestOwnerF5ReducerSweepResizeRefreshAndRecovery'),
+ ('M-F5-OLD-TRUTH',
+  'accept pre-mismatch truth for F5 recovery',
+  [('harness/wsx/gate.go', ' || g.truthAt[k] <= m.f5At', '')],
+  'TestOwnerF5SnapshotRequiresEveryNewPortfolioWalk'),
+ ('M-F8-IMMUTABLE-RATE',
+  'ignore actual write rate halving',
+  [('cmd/harness/run.go', '\t\tparams.WriteRate /= 2\n', '\t\tparams.WriteRate /= 1\n')],
+  'TestOwnerThrottleHalvesActualRefillAndRestoresIt'),
+ ('M-F8-429-REJECT',
+  'misclassify create 429 as definite reject',
+  [('harness/rest/write.go',
+    '\t\tcase resp.Status == http.StatusTooManyRequests:\n',
+    '\t\tcase false && resp.Status == http.StatusTooManyRequests:\n')],
+  'TestRateLimitOnEveryRESTMethod'),
+ ('M-F8-ONE-WORKER',
+  'remove reserved transport capacity',
+  [('cmd/harness/runtime.go', 'const dispatchWorkers = 2', 'const dispatchWorkers = 1')],
+  'TestP1DispatchUnderCancelStormHungGeneralAnd429'),
+ ('M-F8-SLEEPING-WORKER',
+  'retain transport slot during 429 backoff',
+  [('cmd/harness/dispatch.go',
+    '\t\t\t\tres := r.executeWrite(writeCtx, req)\n',
+    '\t\t\t\tres := r.executeWrite(writeCtx, req)\n'
+    '\t\t\t\tif res.Create.Status == 429 { select { case <-time.After(61*time.Second): case '
+    '<-writeCtx.Done(): } }\n')],
+  'TestP1DispatchUnderCancelStormHungGeneralAnd429')])
+
+MUTATIONS.extend([('M-SD-PERMIT',
+  'exit without a durable stop permit',
+  [('harness/lifecycle/drain.go',
+    '\tif d.permit.Valid() && obs.TruthKnown && !obs.AnyInventory && !obs.AnyLiveOrder {',
+    '\tif true && obs.TruthKnown && !obs.AnyInventory && !obs.AnyLiveOrder {')],
+  'TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount'),
+ ('M-SD-TRUTH',
+  'exit from stale or unknown portfolio truth',
+  [('harness/lifecycle/drain.go',
+    '\tif d.permit.Valid() && obs.TruthKnown && !obs.AnyInventory && !obs.AnyLiveOrder {',
+    '\tif d.permit.Valid() && true && !obs.AnyInventory && !obs.AnyLiveOrder {')],
+  'TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount'),
+ ('M-SD-INVENTORY',
+  'exit while inventory remains open',
+  [('harness/lifecycle/drain.go',
+    '\tif d.permit.Valid() && obs.TruthKnown && !obs.AnyInventory && !obs.AnyLiveOrder {',
+    '\tif d.permit.Valid() && obs.TruthKnown && true && !obs.AnyLiveOrder {')],
+  'TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount'),
+ ('M-SD-ORDER',
+  'exit while an owned order still rests',
+  [('harness/lifecycle/drain.go',
+    '\tif d.permit.Valid() && obs.TruthKnown && !obs.AnyInventory && !obs.AnyLiveOrder {',
+    '\tif d.permit.Valid() && obs.TruthKnown && !obs.AnyInventory && true {')],
+  'TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount'),
+ ('M-SD-UNPLANNED',
+  'grant an exit permit to an unplanned drain',
+  [('harness/lifecycle/drain.go',
+    '\td.start(DrainPermit{}, mono)',
+    '\td.start(DrainPermit{valid: true, trigger: triggerSigterm}, mono)')],
+  'TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount'),
+ ('M-SD-ORDERING',
+  'advance global state before committing signal stop',
+  [('harness/lifecycle/drain.go',
+    '\tcommit := c.ctrl.CommitStop(eff.Cause)\n'
+    '\teff.Anomalies = append(eff.Anomalies, commit.Anomalies...)\n'
+    '\teff.Decision = c.ctrl.Advance(in)',
+    '\teff.Decision = c.ctrl.Advance(in)\n'
+    '\tcommit := c.ctrl.CommitStop(eff.Cause)\n'
+    '\teff.Anomalies = append(eff.Anomalies, commit.Anomalies...)')],
+  'TestOperatorSignalsCommitBeforeDrainingAndWaitForEveryOrder'),
+ ('M-SD-NOPLAN',
+  "discard the signal's valid drain permit at the composed shutdown seam",
+  [('cmd/harness/shutdown.go',
+    '\tif err := s.r.drain.BeginPlanned(eff.Permit, mono); err != nil {',
+    '\tif err := s.r.drain.BeginPlanned(lifecycle.DrainPermit{}, mono); err != nil {')],
+  'TestOperatorSignalsCommitBeforeDrainingAndWaitForEveryOrder'),
+ ('M-SD-FALLBACK',
+  'discard the final stderr copy when anomaly submission is refused',
+  [('cmd/harness/shutdown.go',
+    '\t\tfmt.Fprintf(os.Stderr, "harness: anomaly %s (%s, %s, %s) could not be "+\n'
+    '\t\t\t"submitted to either journal and is now only in this line: %s (%v)\\n",\n'
+    '\t\t\tid, a.Class, a.Sev.String(), ticker, a.Text, err)',
+    '\t\t_ = ticker\n\t\t_ = err')],
+  'TestAnomalySubmissionFailureKeepsAFallbackCopy')])
+
+
+MUTATIONS.extend([
+    ("M-DGG-A7-CANDIDATE", "bypass final candidate capital admission",
+     [("cmd/harness/capital_dispatch.go", "\tif cost > budget {", "\tif false && cost > budget {")],
+     "TestCapitalDispatchSecondOppositeBuildCannotSpendInflightBudget"),
+    ("M-DGG-A7-RETRY-ONCE", "count same-coid UNKNOWN reservation twice on retry",
+     [("cmd/harness/capital_dispatch.go", "\tif reserved > 0 {", "\tif false && reserved > 0 {")],
+     "TestCapitalDispatchUnknownRetryCountsSameCoidOnce"),
+    ("M-DGG-A6-JOURNAL", "drop first authoritative position disagreement record",
+     [("cmd/harness/run.go", "\t\to.recordPositionDisagreements(eff.Records)\n", "")],
+     "TestFirstCompletePositionDisagreementIsDurablyAttributable"),
+    ("M-F12-OWNER-ESCALATION", "disconnect periodic unresolved-order escalation",
+     [("cmd/harness/run.go", "\to.retryReconcile()\n\to.escalateUnresolved()\n", "\to.retryReconcile()\n")],
+     "TestUnknownCreateComposesThroughDispatcherStoreAndOwner"),
+    ("M-F12-ATTEMPT-BOUND", "allow one extra same-coid recovery attempt",
+     [("harness/rest/write.go", "\tmax := p.RetrySameCoidMax\n", "\tmax := p.RetrySameCoidMax + 1\n")],
+     "TestUnknownCreateComposesThroughDispatcherStoreAndOwner"),
+    ("M-F13-DRIFT-CAUSE", "lose specific hard drift durable cause",
+     [("cmd/harness/portfolio_stop.go", 'o.requestStop("position_drift", anomaly.Ticker)', 'o.requestStop("portfolio_read", "")')],
+     "TestComposedHardDriftLatchesSpecificCauseAndKeepsReducer"),
+    ("M-F2-NEWEST-RECONCILE", "lose newest generation behind a full token channel",
+     [("cmd/harness/run.go",
+       "\tcase o.reconcileOut <- o.reconcileToken:\n\t\to.reconcilePending = false\n\tdefault:\n",
+       "\tcase o.reconcileOut <- o.reconcileToken:\n\t\to.reconcilePending = false\n\tdefault:\n\t\to.reconcilePending = false\n")],
+     "TestFullReconcileChannelEventuallyDeliversNewestGeneration"),
+    ("M-F21-CLOSE-WALL", "read system wall time instead of the paired injected clock",
+     [("cmd/harness/run.go", "o.closeAt.Sub(time.UnixMilli(o.r.ex.NowMs()))", "time.Until(o.closeAt)")],
+     "TestOwnerCloseLeadRecomputesAfterWallClockCorrections"),
+])
+
+
+MUTATIONS.extend([
+    ("M-F9-REJECT-THRESHOLD", "raise the reject-rate threshold beyond six of fifty",
+     [("cmd/harness/reject_window.go", "m.rejects > rejectWindowSize/10", "m.rejects > rejectWindowSize/5")],
+     "TestOwnerRejectWindowMovesSelectedMarketToReducing"),
+    ("M-F11-NO-CROSSCHECK", "drop immediate REST comparison on post-only rejection",
+     [("cmd/harness/reject_window.go", "\t\to.requestCrossChecks([]wsx.CrossCheckRequest{req})\n", "\t\t_ = req\n\t\to.requestCrossChecks([]wsx.CrossCheckRequest{})\n")],
+     "TestPostOnlyCrossForcesActualRESTReadThroughF5"),
+    ("M-OPS-DISK-RELAY", "disconnect periodic runtime disk headroom stop",
+     [("cmd/harness/run.go", "\to.checkRuntimeDisk(now)\n", "")],
+     "TestOperationsDiskRuntimeLatchesAndKeepsReducerAndObservation"),
+    ("M-OPS-STORE-STOP", "disconnect durable store-failure stop from the owner",
+     [("cmd/harness/run.go", "\to.checkRuntimeStore()\n", "")],
+     "TestRuntimeStoreObservesRealWriterExit"),
+    ("M-OPS-STORE-RECOVERED", "forget a store write failure recovered between owner ticks",
+     [("cmd/harness/store_health.go", "h.healthy && h.adding && h.failures == 0", "h.healthy && h.adding")],
+     "TestRuntimeStoreFailureAndStallStopWithOwnedInventory"),
+    ("M-OPS-STORE-STALL", "forget a previously observed store stall after recovery",
+     [("cmd/harness/store_health.go", "h.failures == 0 && h.stalls == 0", "h.failures == 0")],
+     "TestRuntimeStoreFailureAndStallStopWithOwnedInventory"),
+    ("M-CR2-SELECTED-ONLY", "drop inherited inventory outside selection from the managed plan",
+     [("harness/turnover/plan.go", "\t\tif q != 0 {\n\t\t\tmanaged[ticker] = true\n", "\t\tif q != 0 && selected[ticker] {\n\t\t\tmanaged[ticker] = true\n")],
+     "TestCoordinatorTurnoverRestartObservesOldAndNewMarkets"),
+    ("M-CR2-UNKNOWN-RESTART", "drop a persisted unresolved owned order when REST omits it",
+     [("harness/turnover/coordinator.go", "\t\t\tin.Orders = append(in.Orders, order)\n", "\t\t\t_ = order // mutant drops unresolved restart commitment\n")],
+     "TestCoordinatorTurnoverRestartObservesOldAndNewMarkets"),
+    ("M-CR2-SHARD-CASH", "omit shard-local cash from coordinator admission",
+     [("harness/turnover/coordinator.go", "budget = min(budget, max(num.Money(0), shard.PlacementLimit-foreignReserved[market.Shard]))", "budget = budget + 0*shard.PlacementLimit + 0*foreignReserved[market.Shard]")],
+     "TestCoordinatorReservationsRespectCashAndPersistBeforeAdmission"),
+    ("M-CR2-RESERVATION-DURABLE", "admit an accounting reservation without durable state replacement",
+     [("harness/turnover/coordinator.go", "next.Snapshot = snapshot\n\tif err := c.store.Replace(ctx, cloneState(next)); err != nil {", "next.Snapshot = snapshot\n\tif err := error(nil); err != nil {")],
+     "TestCoordinatorReservationsRespectCashAndPersistBeforeAdmission"),
+    ("M-CR2-REDUCING-CANCEL", "retain selected-market adding orders after transition to reducing",
+     [("harness/turnover/coordinator.go", "if c.blocked || c.state.StopAdding || !market.Selected || market.State == quote.Reducing {", "if c.blocked || c.state.StopAdding || !market.Selected {")],
+     "TestCoordinatorCancelCandidatesSelectedReducingMarket"),
+])
+
+
+MUTATIONS.extend([
+    ("M-DGG-A3-FINAL-PRICE", "let final dispatch price meet the possibly-live opposite order",
+     [("cmd/harness/run.go", "\t\t\tprice = max\n", "\t\t\tprice = max + 1\n")],
+     "TestFinalBuildCannotCrossAnyPossiblyLiveOppositeOrder"),
+])
+
+
+MUTATIONS.extend([
+    ("M-DGG-A11-LISTED-INFLIGHT", "double-count a positively listed create while its worker result is delayed",
+     [("cmd/harness/exposure_identity.go", "\t\tif bound == coid {\n", "\t\tif false && bound == coid {\n")],
+     "TestComposedOperatorSignalKeepsServiceUntilFlatUnrestedExit"),
+])
+
+
+MUTATIONS.extend([
+    ("M-FUND-WRONG-SHARD", "use an unscoped aggregate balance to fund a market whose own shard has no cash",
+     [("harness/rest/funding.go",
+       '\tq.Set("exchange_index", strconv.FormatInt(index, 10))\n',
+       '')],
+     "TestStartupWrongShardCashCannotFundSelectedMarket"),
+])
+
+
+MUTATIONS.extend([
+    ("M-CR2-RUNTIME-SELECTED-ONLY", "drop old exposure from the production owner after selection rotates",
+     [("cmd/harness/turnover_runtime.go", "func (o *owner) managedTickers() []string {\n", "func (o *owner) managedTickers() []string {\n\tif o.r.cfg.Turnover && o.selectionSeen { return sortedSelection(o.selected) }\n")],
+     "TestComposedTurnoverKeepsHeldOldMarketWhenSelectionMoves"),
+    ("M-CR2-RUNTIME-SHARD-SIZE", "size an old-market reducer using another shard cash",
+     [("cmd/harness/run.go", "\t\tnow = min(now, o.turnoverPlacementBudget(o.ticker()))\n", "")],
+     "TestTurnoverReducerSizesFromItsOwnShardCash"),
+    ("M-CR2-RUNTIME-PENDING-SCOPE", "put A pending orders into B cancellation targets",
+     [("cmd/harness/run.go", "o.pendingTicker(u) != market || u.side != side", "u.side != side")],
+     "TestTurnoverPendingOrderIdentityDoesNotLeakAcrossMarkets"),
+    ("M-CR2-RUNTIME-OMISSION", "release production pending obligations on a complete resting omission",
+     [("cmd/harness/turnover_accounting.go", "func (o *owner) rememberTurnoverOrders() {\n", "func (o *owner) rememberTurnoverOrders() {\n\to.pending = map[string]pendingOrder{}\n")],
+     "TestTurnoverCompleteOmissionRetainsOwnedObligation"),
+    ("M-CR2-RUNTIME-LATE-ACK", "allow terminal retirement before a delayed create result",
+     [("cmd/harness/turnover_accounting.go", "if o.turnoverCreateInFlight(ord.ClientOrderID) {", "if false && o.turnoverCreateInFlight(ord.ClientOrderID) {")],
+     "TestTurnoverPositiveTerminalWaitsForInflightResult"),
+    ("M-CR2-RUNTIME-FUNDING-AGE", "renew old shard cash freshness after a slow scan",
+     [("cmd/harness/turnover_funding.go", "at: started, valid: true", "at: s.mono() + 0*started, valid: true")],
+     "TestTurnoverFundingObservationKeepsScanStartAge"),
+    ("M-CR2-RUNTIME-RESTART-OMISSION", "drop inherited durable old orders omitted by current exchange truth",
+     [("cmd/harness/turnover_runtime.go", "\tfor _, row := range o.r.turnoverInherited {\n", "\tfor _, row := range o.r.turnoverInherited[:0] {\n")],
+     "TestComposedTurnoverRestartRetainsOmittedBoundOldOrder"),
+    ("M-CR2-MONITOR-STALE-PNL", "publish stale aggregate PnL as currently evaluable",
+     [("harness/risk/monitor.go", "\t\tres.Account.TradingPnL.Evaluable = false\n", "")],
+     "TestTurnoverMonitorPreservesAggregateAndInvalidatesStalledPnL"),
+    ("M-CR2-BOOK-OLD-UNIVERSE", "accept delayed books from an obsolete subscription universe",
+     [("harness/wsx/gate.go", "return revision == g.universeRevision", "return revision <= g.universeRevision")],
+     "TestDynamicUniverseRetiresOldEvidenceAndKeepsHeldMarket"),
+    ("M-CR2-SWEEP-FOREIGN-PREFIX", "accept a named but unowned order as sweep ownership evidence",
+     [("cmd/harness/turnover_accounting.go", "func (o *owner) acceptTurnoverOwnedSighting(ord rest.Order) bool {\n", "func (o *owner) acceptTurnoverOwnedSighting(ord rest.Order) bool {\n\tif ord.ClientOrderID != \"\" { return true }\n")],
+     "TestTurnoverForeignPrefixIsNotOwnedSweepEvidence"),
+])
+
+# lip-3dw: final-close producer, evidence and refusal boundaries.
+MUTATIONS.extend([('M-3DW-INPUT-JOIN',
+  'close without joining runtime input producers',
+  [('cmd/harness/run.go', '\t\t\terr := inputs.pause(closeCtx)\n', '\t\t\tvar err error\n')],
+  'TestServingCloseJoinsCanceledBalanceCallbackBeforeStoreClose'),
+ ('M-3DW-INPUT-RESUME',
+  'leave account observation stopped after close refuses',
+  [('cmd/harness/run.go', '\t\t\tinputs.resume(ctx)\n', '')],
+  'TestServingCloseRefusalRestoresObservationAndRetries'),
+ ('M-3DW-LOCK-REFUSAL',
+  'release instance ownership when store shutdown refuses',
+  [('cmd/harness/runtime.go',
+    '\tif err != nil {\n\t\t// Close can fail',
+    '\tif err != nil {\n\t\tif r.lock != nil { _ = r.lock.Close() }\n\t\t// Close can fail')],
+  'TestRigCloseRefusalRetainsLockAndAlerts'),
+ ('M-3DW-ALERT-RESUME',
+  'leave alert service canceled after store close refuses',
+  [('cmd/harness/runtime.go',
+    '\t\tif writerStopped {\n\t\t\tr.closeFailure = err\n\t\t}\n\t\tr.resumeAlerts()',
+    '\t\tif writerStopped {\n\t\t\tr.closeFailure = err\n\t\t}')],
+  'TestRigCloseRefusalRetainsLockAndAlerts'),
+ ('M-3DW-DIAL-WAIT',
+  'final close skips detached in-flight dial reports',
+  [('cmd/harness/dial_barrier.go', '\tif active == 0 {', '\tif active >= 0 {')],
+  'TestServingCloseWaitsForDetachedDialReport'),
+ ('M-3DW-DIAL-FENCE',
+  'a late scheduled transport dial crosses the close fence',
+  [('cmd/harness/dial_barrier.go', '\tif b.paused {', '\tif false && b.paused {')],
+  'TestServingCloseWaitsForDetachedDialReport'),
+ ('M-3DW-FINAL-RESULTS',
+  'discard terminal outcomes from the final alert pass',
+  [('cmd/harness/shutdown.go',
+    '\tif err := s.drainResults(ctx); err != nil {',
+    '\tif err := error(nil); err != nil {')],
+  'TestFinalAlertResultFailureIsDrainedBeforeClose')])
+
+# lip-9nq: the fence must be wired by exchangeOver itself; the lip-3dw catchers
+# install quiesce/resume by hand, so this deletion survived the whole suite.
+MUTATIONS.extend([
+    ("M-9NQ-FENCE-UNWIRED", "build the production exchange without the final-close dial fence",
+     [("cmd/harness/runtime.go", "\t\tquiesce: nt.dials.pause,\n\t\tresume:  nt.dials.resume,\n", "")],
+     "TestProductionExchangeFencesDialsOnBothTransports"),
+])
+
+# lip-r0g: a universe refresh must hand the poller a new-generation token, or a
+# failed re-dial leaves every portfolio read stale until a connection succeeds.
+MUTATIONS.extend([
+    ("M-R0G-GATE-TOKEN", "retire the generation on a universe refresh without minting a token for the new one",
+     [("harness/wsx/gate.go", "\treturn ReconcileToken{gen: g.gen, valid: true}\n", "\treturn ReconcileToken{}\n")],
+     "TestDynamicUniverseRetiresOldEvidenceAndKeepsHeldMarket"),
+    ("M-R0G-TARGET-TOKEN", "leave the poller on the retired token after a target refresh",
+     [("cmd/harness/turnover_runtime.go",
+       "\t\to.offerToken(o.reconcileOut, o.r.gate.RefreshUniverse(o.r.ex.Clock.Now()))\n",
+       "\t\to.r.gate.RefreshUniverse(o.r.ex.Clock.Now())\n")],
+     "TestComposedTurnoverUniverseRefreshKeepsPortfolioTruthWhileRedialFails"),
+    ("M-R0G-GROWTH-TOKEN", "leave the poller on the retired token after adding a managed market",
+     [("cmd/harness/turnover_runtime.go", "\to.offerToken(o.reconcileOut, tok)\n", "\t_ = tok\n")],
+     "TestTurnoverUniverseGrowthKeepsPortfolioReadsApplying"),
+])
+
+# lip-mgh: the post-sweep placement hold is account-wide (H-ORD-4b). This scopes
+# it to the swept market, which the single-market D2 catchers cannot see.
+MUTATIONS.extend([
+    ("M-MGH-PER-MARKET-HOLD", "hold placements after an absent cancel sweep only in the swept market",
+     [("cmd/harness/run.go", "\tawaitCancelTruth bool\n", "\tawaitCancelTruth bool\n\tsweptMarket string\n"),
+      ("cmd/harness/run.go",
+       "\t\t\to.awaitCancelTruth = true\n\t\t\to.cancelTruthAfter = o.r.ex.Clock.Now().Mono\n",
+       "\t\t\to.awaitCancelTruth = true\n\t\t\to.cancelTruthAfter = o.r.ex.Clock.Now().Mono\n"
+       "\t\t\to.sweptMarket = res.Req.Market\n"),
+      ("cmd/harness/run.go", "\tactionable := !o.awaitCancelTruth &&\n",
+       "\tactionable := !(o.awaitCancelTruth && o.sweptMarket == o.ticker()) &&\n"),
+      ("cmd/harness/run.go", "roleActionable && !o.awaitCancelTruth)",
+       "roleActionable && !(o.awaitCancelTruth && o.sweptMarket == o.ticker()))"),
+      ("cmd/harness/run.go", "\t\t\tif o.awaitCancelTruth {\n",
+       "\t\t\tif o.awaitCancelTruth && o.sweptMarket == o.ticker() {\n")],
+     "TestCancelSweepInOneMarketHoldsPlacementsInEveryMarket"),
+])
+
+# lip-pcr: a sticky gate reduce must tell the operator that only a restart
+# resumes adding (H-FAIL-1a).
+MUTATIONS.extend([
+    ("M-PCR-NO-RESTART-NOTICE", "leave a market in sticky REDUCING without saying adding waits for a restart",
+     [("cmd/harness/run.go", "\t\t\to.pingStickyReduce(t)\n", "")],
+     "TestStickyGateReduceTellsTheOperatorAddingWaitsForRestart"),
+])
+
+# lip-d3e: turnover outputs describe their own market, not the active one.
+MUTATIONS.extend([
+    ("M-D3E-UNKNOWN-TICKER", "report another market's unresolved create under the active market",
+     [("cmd/harness/run.go", "Sev: risk.SEV2, Ticker: o.pendingTicker(u),",
+       "Sev: risk.SEV2, Ticker: o.ticker(),")],
+     "TestTurnoverOrderUnknownNamesThePendingOrdersOwnMarket"),
+    ("M-D3E-WOULDWRITE-STATE", "fingerprint another market's would-write with the active market's state",
+     [("cmd/harness/run.go", "\t\t\t\trestore := o.marketContext(req.Market)\n",
+       "\t\t\t\trestore := func() {}\n")],
+     "TestTurnoverWouldWriteFingerprintCarriesItsOwnMarketState"),
+])
+
+# lip-opm: an observation gap retires pre-gap portfolio truth; mono ages alone
+# would call pre-sleep reads seconds old.
+MUTATIONS.extend([
+    ("M-OPM-PREGAP-TRUTH", "keep pre-sleep portfolio truth known across an observation gap",
+     [("harness/wsx/observation_gap.go", "\tg.truthOK = [truthCount]bool{}\n", "")],
+     "TestObservationGapRetiresPreGapPortfolioTruth"),
+])
+
+# lip-6w8: a recorded close failure is permanent; retrying it must neither tear
+# the inputs down nor repeat, and the refusal must say whether the lock is held.
+MUTATIONS.extend([
+    ("M-6W8-OWNER-TEARDOWN", "pause and resume every input for a close failure no retry can change",
+     [("cmd/harness/run.go",
+       "\t\t\tif _, err := r.closeFailed(); err != nil {\n\t\t\t\trequest.done <- err\n\t\t\t\tcontinue\n\t\t\t}\n",
+       "")],
+     "TestStickyCloseFailureIsReportedOnceWithoutRestartingInputs"),
+    ("M-6W8-DRAIN-RETRY", "re-request an orderly stop every second after a permanent close failure",
+     [("cmd/harness/shutdown.go", "\t\t\tpermanent = recorded != nil\n", "\t\t\tpermanent = false && recorded != nil\n")],
+     "TestStickyCloseFailureIsReportedOnceWithoutRestartingInputs"),
+    ("M-6W8-LOCK-RELEASED", "forget that closing the instance lock released it",
+     [("cmd/harness/runtime.go", "\t\tr.lockReleased = true\n", "")],
+     "TestRigCloseRefusalRetainsLockAndAlerts"),
+])
+
+# lip-tdz: the four nil-collaborator branches are gone; each replacement keeps a
+# guard that production never reaches and a test that pins it.
+MUTATIONS.extend([
+    ("M-TDZ-ROUTER-GUARD", "let a placement without the permit router reach the reservation step",
+     [("cmd/harness/dispatch.go", "\t\tif req.router == nil {\n",
+       "\t\tif req.router == nil {\n\t\t\treq.router = &permitRouter{waiters: map[uint64]chan hstore.Result{}}\n"
+       "\t\t}\n\t\tif false {\n")],
+     "TestPlacementWithoutThePermitRouterIsRefusedUnsent"),
+    ("M-TDZ-STOP-NOOWNER", "close the store on the caller's goroutine when no owner serves stop requests",
+     [("cmd/harness/shutdown.go",
+       'return errors.New("the orderly stop has no owner to join its inputs; nothing was closed")',
+       "return errors.Join(s.stopStore(ctx))")],
+     "TestOrderlyStopWithoutTheOwnerClosesNothing"),
+    ("M-TDZ-FENCE-OPTIONAL", "build a rig on an exchange without the final-close dial fence",
+     [("cmd/harness/runtime.go", "\tif e.quiesce == nil {\n", "\tif false && e.quiesce == nil {\n")],
+     "TestRigRefusesAnExchangeWithoutTheDialFence"),
+    ("M-TDZ-QUAL-SERVE", "keep serving after qualification evidence has failed",
+     [("cmd/harness/run.go", 'return fmt.Errorf("qualification evidence failed: %w", err)', "_ = err")],
+     "TestQualificationFailureEndsServe"),
+])
+
+# lip-kaf: a resting list that lags a cancel paged SEV1 on every sweep of the
+# 2026-09-28 first stage. Only the exchange's own terminal record of the order
+# may retire it (H-ORD-4c); every weaker reading must stay a page.
+MUTATIONS.extend([
+    ("M-KAF-NO-CONFIRM", "page on a lagging list without asking the exchange about the order by id",
+     [("harness/rest/cancel.go", "\t\tconf := c.confirmRetired(ctx, ticker, o.OrderID)\n",
+       "\t\tconf := Confirmation{OrderID: o.OrderID}\n")],
+     "TestSweepRetiresAListLaggedCancelOnTheExchangesTerminalAnswer"),
+    ("M-KAF-NO-CONFIRM-DISPATCH", "page on a lagging list without the named read, seen through the dispatcher",
+     [("harness/rest/cancel.go", "\t\tconf := c.confirmRetired(ctx, ticker, o.OrderID)\n",
+       "\t\tconf := Confirmation{OrderID: o.OrderID}\n")],
+     "TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides"),
+    ("M-KAF-ANY-ANSWER", "retire an order on any decodable named answer, whatever its status",
+     [("harness/rest/cancel.go", "\t\tconf.Retired = exchangeRetired(o)\n", "\t\tconf.Retired = true\n")],
+     "TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder"),
+    ("M-KAF-404", "read a named 404 as the exchange confirming the order gone",
+     [("harness/rest/cancel.go", "\tif resp.Status != http.StatusOK {\n\t\tconf.Err =",
+       "\tif resp.Status == http.StatusNotFound {\n\t\tconf.Retired = true\n\t\treturn conf\n\t}\n"
+       "\tif resp.Status != http.StatusOK {\n\t\tconf.Err =")],
+     "TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder"),
+    ("M-KAF-OTHER-ORDER", "accept a named answer about a different order",
+     [("harness/rest/cancel.go", "\tcase o.OrderID != orderID:\n", "\tcase o.OrderID == \"\":\n")],
+     "TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder"),
+    ("M-KAF-OTHER-MARKET", "accept a named answer about the order in a different market",
+     [("harness/rest/cancel.go", "\tcase o.Ticker != ticker:\n", "\tcase o.Ticker == \"\" && ticker == \"\":\n")],
+     "TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder"),
+    ("M-KAF-REMAINING", "retire a terminal record that still carries quantity",
+     [("harness/rest/cancel.go", "\t\to.Remaining == 0\n", "\t\to.Remaining >= 0\n")],
+     "TestSweepConfirmationAcceptsOnlyATerminalAnswerForThatOrder"),
+    ("M-KAF-LISTED-ANY", "treat any listed status as the record retiring the order",
+     [("harness/rest/cancel.go", "\t\tcase requested[o.OrderID] && exchangeRetired(o):\n",
+       "\t\tcase requested[o.OrderID] && o.Status != \"\":\n")],
+     "TestSweepEscalatesAnOrderTheExchangeStillCallsResting"),
+    ("M-KAF-TRACE-UNWIRED", "build the rig's exchange client without the sweep trace",
+     [("cmd/harness/runtime.go", "\tr.api.SweepTrace = sweepTraceWriter(os.Stderr)\n", "")],
+     "TestTheRigTracesItsCancelSweeps"),
+    ("M-KAF-TRACE-CONFIRM", "leave the named read out of the sweep trace",
+     [("harness/rest/cancel.go", "\t\ttr.Confirms = append(tr.Confirms, traceConfirm(conf, at))\n",
+       "\t\t_ = at\n")],
+     "TestSweepTraceRecordsEveryDeleteReadAndNamedRead"),
+    ("M-KAF-TRACE-READ", "leave the verifying read out of the sweep trace",
+     [("harness/rest/cancel.go", "\t\trt.Read = traceRead(read, requested, at)\n", "\t\t_ = at\n")],
+     "TestSweepTraceRecordsEveryDeleteReadAndNamedRead"),
+])
+
+# lip-9tt: both the resting list and the named read lag our own full cancel by
+# about 1.4 s, so the SEV1 page waits for sweepPageBound. Only the page waits:
+# the sweep stays not Clean, and an episode starts or ends only on a complete read.
+MUTATIONS.extend([
+    ("M-9TT-PAGE-NOW", "page SEV1 on the first unconfirmed sweep, ignoring the bound",
+     [("harness/rest/cancel.go", "\tif oldest >= sweepPageBound {\n", "\tif oldest >= 0 {\n")],
+     "TestSweepFirstUnconfirmedSweepIsPendingNotPaged"),
+    ("M-9TT-NEVER-PAGE", "never page an order that stays unconfirmed past the bound",
+     [("harness/rest/cancel.go", "\tif oldest >= sweepPageBound {\n", "\tif oldest < 0 {\n")],
+     "TestSweepPagesAStillUnconfirmedOrderAtTheBound"),
+    ("M-9TT-PENDING-CLEAN", "declare a still-unconfirmed sweep clean while its page waits",
+     [("harness/rest/cancel.go", "\tres.Clean = false\n\tif oldest >= sweepPageBound {\n",
+       "\tres.Clean = oldest < sweepPageBound\n\tif oldest >= sweepPageBound {\n")],
+     "TestCancelWriteFollowsTheExchangesRecordThroughAListLagOnBothSides"),
+    ("M-9TT-NO-CLEAR", "keep an episode after the exchange retires the order",
+     [("harness/rest/cancel.go", "\t\t\tdelete(c.unconfirmed, id)\n", "\t\t\t_ = id\n")],
+     "TestSweepRetirementByNamedReadEndsTheEpisode"),
+    ("M-9TT-UNVERIFIED-SETTLES", "end every episode on an incomplete verifying read",
+     [("harness/rest/cancel.go", "\t\t\t\t\"otherwise (H-FAIL-3)\", read.Outcome, read.Err),\n\t\t\t})\n\t\t\treturn res\n",
+       "\t\t\t\t\"otherwise (H-FAIL-3)\", read.Outcome, read.Err),\n\t\t\t})\n\t\t\tc.settleUnconfirmed(requested, nil)\n\t\t\treturn res\n")],
+     "TestSweepUnverifiedReadNeitherStartsNorEndsAnEpisode"),
+])
+
+# lip-2w3: the F5 cross-check forgives exactly one adjacent floating-point step
+# below half a cent. A wider tolerance hides a real size disagreement.
+MUTATIONS.extend([
+    ("M-2W3-WIDE-TOLERANCE", "treat any size within two cents as the same book size",
+     [("harness/rest/orderbook.go",
+       "\treturn a == b || (math.Nextafter(a, b) == b && math.Abs(a-b) < 0.005)\n",
+       "\treturn a == b || math.Abs(a-b) < 0.02\n")],
+     "TestCompareBooksSizePrecisionAtDepth"),
+    ("M-2W3-OWNED-UNDERSHOOT", "accept a book that shows up to two cents less than our own resting size",
+     [("harness/rest/orderbook.go",
+       "if !validBookSize(have) || (have < own.Size.Float() && !sameBookSize(have, own.Size.Float())) {",
+       "if !validBookSize(have) || have < own.Size.Float()-0.02 {")],
+     "TestCompareBooksOwnedSizePrecision"),
+])
 
 # Files OUTSIDE `go/` that the Go tests read, and which the mutation sandbox
 # must therefore reproduce.
@@ -4198,13 +4883,104 @@ MUTATIONS = [
 ROOT_ARTIFACTS = ("config.example.json",)
 
 
+COMMAND_TIMEOUT_S = 900
+TIMEOUT_MARKER = "HARNESS_COMMAND_TIMEOUT"
+
+
 def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
-    p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
-    return p.returncode, p.stdout + p.stderr
+    """Bound every Go command and reap its process group on timeout."""
+    p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, text=True,
+                         start_new_session=True, env=local_environment())
+    try:
+        out, _ = p.communicate(timeout=COMMAND_TIMEOUT_S)
+        return p.returncode, out
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGKILL)
+        out, _ = p.communicate()
+        return 124, out + f"\n{TIMEOUT_MARKER} after {COMMAND_TIMEOUT_S}s\n"
 
 
-def failed_tests(output: str) -> list[str]:
-    return sorted(set(re.findall(r"^--- FAIL: (\S+)", output, re.M)))
+def classify_test_json(code: int, output: str, expected: str | None = None
+                       ) -> tuple[str, list[str], str]:
+    """Return GREEN, CAUGHT, SURVIVED, or INCONCLUSIVE from one Go JSON run."""
+    if code not in (0, 1):
+        return "INCONCLUSIVE", [], f"unexpected process exit {code}"
+    if TIMEOUT_MARKER in output:
+        return "INCONCLUSIVE", [], "command timed out"
+    packages: dict[str, str] = {}
+    observed_packages: set[str] = set()
+    started: set[tuple[str, str]] = set()
+    failures: set[tuple[str, str]] = set()
+    completed: dict[tuple[str, str], str] = {}
+    saw_test = False
+    for line in output.splitlines():
+        try:
+            event = json.loads(line)
+        except (ValueError, TypeError):
+            return "INCONCLUSIVE", [], "malformed go test JSON"
+        if not isinstance(event, dict) or not isinstance(event.get("Action"), str):
+            return "INCONCLUSIVE", [], "invalid go test event"
+        action, pkg, test = event["Action"], event.get("Package"), event.get("Test")
+        if not isinstance(pkg, str) or not pkg:
+            return "INCONCLUSIVE", [], "missing package in go test event"
+        observed_packages.add(pkg)
+        if action == "output" and re.search(
+                r"panic:|fatal error:|signal:|test timed out|build failed|FAIL\s+.*\[build failed\]",
+                str(event.get("Output", "")), re.I):
+            return "INCONCLUSIVE", [], "panic, signal, timeout, or build failure"
+        if test:
+            if not isinstance(test, str):
+                return "INCONCLUSIVE", [], "invalid test name"
+            top = test.split("/", 1)[0]
+            if action == "run":
+                started.add((pkg, top))
+                saw_test = True
+            if action in ("pass", "fail", "skip") and test == top:
+                completed[(pkg, top)] = action
+            if action == "fail":
+                failures.add((pkg, top))
+        elif action in ("pass", "fail", "skip"):
+            packages[pkg] = action
+    names = sorted({name for _, name in failures})
+    if not saw_test or not packages:
+        return "INCONCLUSIVE", names, "no executed test or completed package"
+    if started - completed.keys():
+        return "INCONCLUSIVE", names, "test did not complete"
+    if any(action == "skip" for action in completed.values()):
+        return "INCONCLUSIVE", names, "executed test was skipped"
+    if expected and expected != "inert" and not any(n == expected for _, n in started):
+        return "INCONCLUSIVE", names, "named catcher did not run"
+    if observed_packages - packages.keys():
+        return "INCONCLUSIVE", names, "package did not complete"
+    if any(packages[pkg] == "skip" for pkg, _ in started):
+        return "INCONCLUSIVE", names, "package skipped after executing tests"
+    if any(key not in started for key in failures):
+        return "INCONCLUSIVE", names, "failure without test execution"
+    if code == 0:
+        if failures or any(v not in ("pass", "skip") for v in packages.values()):
+            return "INCONCLUSIVE", names, "exit status contradicts events"
+        return ("GREEN" if expected is None else "SURVIVED"), names, ""
+    if code != 1:
+        return "INCONCLUSIVE", names, "unexpected process exit status"
+    if not failures or not any(v == "fail" for v in packages.values()):
+        return "INCONCLUSIVE", names, "process failed without a test failure"
+    if expected is None:
+        return "INCONCLUSIVE", names, "baseline test failed"
+    if expected == "inert":
+        return "INCONCLUSIVE", names, "inert mutation has test failure"
+    if expected not in names:
+        return "INCONCLUSIVE", names, "named catcher absent or unrelated test failed"
+    # In --suite mode the named catcher may fail alongside an independent
+    # flake. A failure of that other test cannot be credited to this mutation;
+    # keep the complete observation and require a separate investigation.
+    if len(failures) != 1:
+        return "INCONCLUSIVE", names, "additional test failed alongside named catcher"
+    failed_packages = {pkg for pkg, action in packages.items() if action == "fail"}
+    catcher_packages = {pkg for pkg, name in failures}
+    if failed_packages != catcher_packages:
+        return "INCONCLUSIVE", names, "unrelated package failed"
+    return "CAUGHT", names, ""
 
 
 # ---------------------------------------------------------------------------
@@ -4248,6 +5024,36 @@ def select_mutations(only: set[str], mutations=None) -> list:
     return [m for m in muts if not only or m[0].upper() in only]
 
 
+def catcher_packages(selected, go_src: Path = None) -> dict[str, str]:
+    """Resolve each declared top-level test to exactly one Go package directory."""
+    go_src = GO_SRC if go_src is None else go_src
+    names = {m[3] for m in selected if m[3] != "inert"}
+    found: dict[str, list[str]] = {name: [] for name in names}
+    declaration = re.compile(r"^func\s+(Test\w+)\s*\(\s*t\s+\*testing\.T\s*\)", re.M)
+    for path in go_src.rglob("*_test.go"):
+        for name in declaration.findall(path.read_text()):
+            if name in found:
+                found[name].append("./" + path.parent.relative_to(go_src).as_posix())
+    problems = {name: paths for name, paths in found.items() if len(paths) != 1}
+    if problems:
+        raise ValueError("missing or ambiguous named catcher(s): " + repr(problems))
+    return {name: paths[0] for name, paths in sorted(found.items())}
+
+
+def validate_anchors(selected, go_src: Path = None) -> None:
+    """Check the complete selected patch inventory without invoking Go."""
+    go_src = GO_SRC if go_src is None else go_src
+    for mid, _, patches, _ in selected:
+        files: dict[str, str] = {}
+        for rel, old, new in patches:
+            if rel not in files:
+                files[rel] = (go_src / rel).read_text()
+            count = files[rel].count(old)
+            if count != 1:
+                raise AnchorError(f"{mid}: anchor appears {count}x in {rel}, need exactly 1")
+            files[rel] = files[rel].replace(old, new)
+
+
 def apply_patches(dst: Path, patches) -> None:
     """Apply one mutation's edits to a tree, refusing an ambiguous anchor."""
     for rel, old, new in patches:
@@ -4273,7 +5079,7 @@ def make_sandbox(td: Path, go_src: Path, lip: Path, artifacts=None) -> Path:
 
 
 def build_mutation(patches, go_src: Path, lip: Path,
-                   artifacts=None) -> tuple[bool, str]:
+                   artifacts=None, runner=None) -> tuple[bool, str]:
     """Apply one mutation to its own sandbox and compile it."""
     with tempfile.TemporaryDirectory() as td:
         try:
@@ -4281,12 +5087,12 @@ def build_mutation(patches, go_src: Path, lip: Path,
             apply_patches(dst, patches)
         except AnchorError as e:
             return False, str(e)
-        code, out = run([GO_BIN, "build", "./..."], dst)
+        code, out = (runner or run)([GO_BIN, "build", "./..."], dst)
         return code == 0, out.strip()
 
 
 def preflight(selected, go_src: Path = None, lip: Path = None,
-              artifacts=None) -> list[tuple[str, str]]:
+              artifacts=None, runner=None) -> list[tuple[str, str]]:
     """Compile the pristine tree and every selected mutation.
 
     Returns one `(id, output)` pair per mutation that does not build, EMPTY when
@@ -4302,12 +5108,14 @@ def preflight(selected, go_src: Path = None, lip: Path = None,
     lip = LIP if lip is None else lip
 
     bad: list[tuple[str, str]] = []
-    code, out = run([GO_BIN, "build", "./..."], go_src)
+    with tempfile.TemporaryDirectory() as td:
+        baseline = make_sandbox(Path(td), go_src, lip, artifacts)
+        code, out = (runner or run)([GO_BIN, "build", "./..."], baseline)
     if code != 0:
         return [("<baseline>", out.strip())]
 
     for mid, _name, patches, _expected in selected:
-        ok, out = build_mutation(patches, go_src, lip, artifacts)
+        ok, out = build_mutation(patches, go_src, lip, artifacts, runner)
         if not ok:
             bad.append((mid, out))
             print(f"!! {mid}: replacement does not compile")
@@ -4316,20 +5124,58 @@ def preflight(selected, go_src: Path = None, lip: Path = None,
     return bad
 
 
+def source_fingerprint(go_src: Path = None, lip: Path = None) -> str:
+    """Hash inputs copied into each sandbox, in stable path order."""
+    go_src = GO_SRC if go_src is None else go_src
+    lip = LIP if lip is None else lip
+    digest = hashlib.sha256()
+    paths = sorted(p for p in go_src.rglob("*") if p.is_file())
+    paths += [lip / name for name in ROOT_ARTIFACTS]
+    paths += [HERE / "harness_negative_control.py", HERE / "verification_support.py"]
+    for path in paths:
+        digest.update(str(path.relative_to(lip) if path.is_relative_to(lip) else path.name).encode())
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def test_command(pattern: str | None = None, packages: list[str] | None = None) -> list[str]:
+    cmd = [GO_BIN, "test", "-json", "-count=1", "-timeout=5m"]
+    if pattern:
+        cmd += ["-run", pattern]
+    return cmd + (PKGS if packages is None else packages)
+
+
 def main() -> int:
+    if "--plan" in sys.argv[1:]:
+        return main_locked()
+    try:
+        with verification_lock(LIP):
+            return main_locked()
+    except RuntimeError as exc:
+        print(f"INCONCLUSIVE: {exc}", file=sys.stderr)
+        return 2
+
+
+def main_locked() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--out", default=str(LIP / "notes" /
-                                         "harness-negative-control.md"))
+    ap.add_argument("--out", default=None,
+                    help="optional markdown output; default is inside a unique receipt directory")
     ap.add_argument("--only", default="")
-    # --build-only stops after the preflight. There is deliberately NO flag that
-    # goes the other way: nothing may skip the preflight and proceed to the
-    # tests, because the whole point is that a stale replacement is discovered
-    # in seconds rather than at minute 95 of a round.
+    ap.add_argument("--focused", action="store_true",
+                    help="compatibility alias for --only subset execution")
+    ap.add_argument("--suite", action="store_true",
+                    help="diagnostic: run the full harness suite for every mutation")
+    ap.add_argument("--plan", action="store_true",
+                    help="print selection, catcher packages, and full-suite cost without running Go")
+    # Build-only diagnoses catalogue compilation. Normal execution validates
+    # anchors up front and compiles each mutant immediately before its test.
     ap.add_argument("--build-only", action="store_true",
                     help="compile every selected mutation and stop; writes no "
                          "report and runs no Go test")
     a = ap.parse_args()
     only = {x.strip().upper() for x in a.only.split(",") if x.strip()}
+    if a.focused and not only:
+        ap.error("--focused requires nonempty --only")
 
     # An --only value that matches nothing selects ZERO mutations, and a run of
     # zero mutations trivially "passes". That is the same false-green this
@@ -4341,41 +5187,114 @@ def main() -> int:
     except SystemExit as e:
         print(str(e), file=sys.stderr)
         return 2
+    try:
+        validate_anchors(selected)
+        mapping = catcher_packages(selected)
+    except (AnchorError, ValueError, OSError) as e:
+        print(f"invalid mutation inventory: {e}", file=sys.stderr)
+        return 2
+    baseline_full = a.suite or not only or any(m[3] == "inert" for m in selected)
+    full_suite_runs = (0 if a.build_only else int(baseline_full) +
+                       (len(selected) if a.suite else sum(m[3] == "inert" for m in selected)))
+    build_runs = len(selected) + int(a.build_only)
+    named_test_runs = (0 if a.build_only else len(selected) + 1 - full_suite_runs)
+    if a.plan:
+        print(json.dumps({"selected_ids": [m[0] for m in selected],
+                          "partial": bool(only), "mode": "suite" if a.suite else "named",
+                          "build_only": a.build_only, "catcher_packages": mapping,
+                          "build_runs": build_runs,
+                          "named_test_runs": named_test_runs,
+                          "full_suite_runs": full_suite_runs}, indent=2, sort_keys=True))
+        return 0
+    started_at = time.monotonic()
+    source_before = source_fingerprint()
+    output_parent = Path(a.out).parent if a.out else LIP / "loop" / "gates-out"
+    receipt_dir = output_parent / ("negative-control-" +
+                  datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ"))
+    receipt_dir.mkdir(parents=True, exist_ok=False)
+    a.out = a.out or str(receipt_dir / "mutations.md")
+    receipt = {"catalogue_count": len(MUTATIONS),
+               "selected_ids": [m[0] for m in selected],
+               "selected_count": len(selected),
+               "partial": bool(only), "focused": a.focused,
+               "mode": "suite" if a.suite else "named",
+               "catcher_packages": mapping,
+               "build_runs_planned": build_runs,
+               "named_test_runs_planned": named_test_runs,
+               "full_suite_runs_planned": full_suite_runs,
+               "source_sha256_before": source_before,
+               "go_binary": GO_BIN, "go_sha256": hashlib.sha256(
+                   Path(GO_BIN).read_bytes()).hexdigest(),
+               "runner_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+               "started_at_utc": datetime.now(timezone.utc).isoformat(),
+               "environment": local_environment(),
+               "runs": [], "status": "INCOMPLETE"}
 
-    # THE PREFLIGHT (lip-xl7). Every selected replacement must COMPILE before
-    # any test runs. `old` matching is not evidence that `new` still does, and a
-    # DID-NOT-BUILD does not count as caught -- so without this the run spends
-    # ~105 minutes to report a defect in the catalogue rather than in the tree.
-    bad_build = preflight(selected)
-    if bad_build:
-        print(f"\n{len(bad_build)} selected mutation(s) do not compile. A "
-              f"mutation that does not build cannot be caught, so this is a "
-              f"defect in the CATALOGUE and no test below would mean anything:",
-              file=sys.stderr)
-        for mid, out in bad_build:
-            head = "\n".join(out.splitlines()[:3])
-            print(f"  {mid}:\n    " + head.replace("\n", "\n    "),
-                  file=sys.stderr)
-        print("\nA `new` that names a production symbol is a second copy of "
-              "that symbol's signature. Update the replacement, then re-run.",
-              file=sys.stderr)
-        return 1
-    print(f"preflight: {len(selected)} selected mutation(s) compile")
+    def save_receipt() -> None:
+        receipt["updated_at_utc"] = datetime.now(timezone.utc).isoformat()
+        receipt["duration_seconds"] = round(time.monotonic() - started_at, 3)
+        receipt["source_sha256_after"] = source_fingerprint()
+        (receipt_dir / "receipt.json").write_text(
+            json.dumps(receipt, indent=2, sort_keys=True) + "\n")
 
+    def recorded_run(label: str, cmd: list[str], cwd: Path) -> tuple[int, str]:
+        start = time.monotonic()
+        receipt["active_command"] = {"label": label, "command": cmd}
+        save_receipt()
+        code, output = run(cmd, cwd)
+        log = receipt_dir / f"{len(receipt['runs']):04d}-{label}.log"
+        log.write_text(output)
+        receipt["runs"].append({"label": label, "command": cmd,
+                                "exit_code": code, "seconds": round(time.monotonic() - start, 3), "log": log.name})
+        receipt.pop("active_command", None)
+        save_receipt()
+        return code, output
+
+    save_receipt()
     if a.build_only:
+        bad_build = preflight(selected, runner=lambda cmd, cwd: recorded_run("preflight", cmd, cwd))
+        if bad_build:
+            receipt["status"] = "PREFLIGHT_FAILED"
+            receipt["preflight_failures"] = bad_build
+            save_receipt()
+            for mid, out in bad_build:
+                print(f"{mid}: {out[:500]}", file=sys.stderr)
+            return 1
+        print(f"preflight: {len(selected)} selected mutation(s) compile")
         # Deliberately writes NO report, canonical or partial. A build preflight
         # is not evidence about catching anything, and a file that says
         # "negative control" must never be produced by a run that executed no
         # test.
-        return 0
+        receipt["status"] = ("BUILD_ONLY" if source_fingerprint() == source_before
+                             else "SOURCE_DRIFT")
+        save_receipt()
+        return 0 if receipt["status"] == "BUILD_ONLY" else 1
 
     # Baseline: the pristine tree must be green, or nothing below means
     # anything. A mutation "caught" by an already-red suite is not evidence.
-    code, out = run([GO_BIN, "test", "-count=1", *PKGS], GO_SRC)
-    if code != 0:
-        print("BASELINE IS RED -- refusing to run mutations.\n" + out[-3000:],
+    focused_names = list(mapping)
+    baseline_pattern = None if baseline_full else ("^(?:" + "|".join(re.escape(n) for n in focused_names) + ")$")
+    baseline_packages = PKGS if baseline_full else sorted(set(mapping.values()))
+    with tempfile.TemporaryDirectory() as td:
+        baseline = make_sandbox(Path(td), GO_SRC, LIP)
+        code, out = recorded_run("baseline", test_command(baseline_pattern, baseline_packages), baseline)
+    baseline_verdict, _, baseline_reason = classify_test_json(code, out)
+    if baseline_verdict != "GREEN":
+        receipt["status"] = "BASELINE_INCONCLUSIVE"
+        receipt["baseline_reason"] = baseline_reason
+        save_receipt()
+        print("BASELINE IS NOT PROVEN GREEN -- " + baseline_reason + "\n" + out[-3000:],
               file=sys.stderr)
         return 1
+    # Every declared catcher must run on the unmodified tree too.
+    for expected in set(focused_names):
+        verdict, _, reason = classify_test_json(code, out, expected)
+        if verdict != "SURVIVED":
+            receipt["status"] = "BASELINE_INCONCLUSIVE"
+            receipt["baseline_reason"] = reason
+            save_receipt()
+            print(f"BASELINE catcher {expected}: {reason}", file=sys.stderr)
+            return 1
     print("baseline: green")
 
     rows = []
@@ -4388,57 +5307,20 @@ def main() -> int:
                 print(f"{mid}: {e}", file=sys.stderr)
                 return 1
 
-            # Kept as a DEFENSIVE RECHECK even though the preflight already
-            # compiled this exact mutation. The preflight is the early warning;
-            # this is the guarantee that the tree these tests run against is the
-            # tree that built.
-            build, bout = run([GO_BIN, "build", "./..."], dst)
+            build, bout = recorded_run(mid + "-build", [GO_BIN, "build", "./..."], dst)
             if build != 0:
                 rows.append((mid, name, expected, "DID NOT BUILD",
                              bout.strip().splitlines()[:2], False))
                 print(f"!! {mid}: DID NOT BUILD (does not count as caught)")
                 continue
 
-            # A real verdict is DETERMINISTIC: the mutation either changes an
-            # asserted behaviour or it does not. A disagreement with the
-            # catalogue is therefore CONFIRMED by a second run before it is
-            # recorded, because in a single sample a flaky test anywhere in
-            # PKGS is indistinguishable from a real verdict.
-            #
-            # Measured 2026-08-15, iteration 24: M26 was reported NOT INERT,
-            # naming TestSEV2IsLimitedPerClassMarketAndReportsSuppression. M26
-            # rewrites `q == 0` as `q.Float() == 0.0` on an int64-backed Qty
-            # scaled by 100, and those agree on EVERY representable value -- so
-            # no test can distinguish them and the row could not have been a
-            # real catch. `caught` is the exit status of ONE `go test` across
-            # all of PKGS, so a flake anywhere in the suite is attributed to
-            # whichever mutation was in flight. At 287 mutations x one run each,
-            # a per-run flake rate of a few tenths of a percent yields about one
-            # spurious row per gate -- and one spurious row costs a six-hour
-            # authoritative run and one of a unit's three rounds.
-            #
-            # This strictly removes single-sample noise without weakening
-            # detection: a real survivor is green twice, a real catch fails
-            # twice. Only the flapping row pays the second run. The flap is
-            # REPORTED, never silently swallowed -- a suite that flakes is
-            # itself a defect, and hiding it here would trade a loud wrong
-            # answer for a quiet one.
-            flapped = False
-            for attempt in (0, 1):
-                code, out = run([GO_BIN, "test", "-count=1", *PKGS], dst)
-                fails = failed_tests(out)
-                caught = code != 0
-                ok = ((not caught) if expected == "inert"
-                      else (caught and expected in fails))
-                if ok:
-                    break
-                if attempt == 0:
-                    flapped = True
-                    print(f"?? {mid}: disagreed with the catalogue -- "
-                          f"confirming with a second run")
-            else:
-                # It disagreed twice. The verdict stands on its own.
-                flapped = False
+            # One sampled observation is retained. A disagreement is never
+            # retried into a passing verdict; re-run as a separate audit.
+            cmd_pattern = None if a.suite or expected == "inert" else f"^{re.escape(expected)}$"
+            packages = PKGS if a.suite or expected == "inert" else [mapping[expected]]
+            code, out = recorded_run(mid + "-test", test_command(cmd_pattern, packages), dst)
+            verdict, fails, reason = classify_test_json(code, out, expected)
+            ok = verdict == ("SURVIVED" if expected == "inert" else "CAUGHT")
 
             if expected == "inert":
                 # An inert mutation is CORRECT to survive. It is kept in the
@@ -4446,13 +5328,10 @@ def main() -> int:
                 # a finding worth re-verifying whenever the code around it
                 # changes -- and because an inert declaration is exactly how a
                 # real gate hole would hide.
-                status = "inert, as expected" if ok else "NOT INERT"
+                status = "inert, as expected" if ok else ("INCONCLUSIVE: " + reason)
             else:
-                status = "caught" if caught else "SURVIVED"
-                if caught and not ok:
-                    status = "caught, but NOT by the named test"
-            if flapped:
-                status += " (FLAKED once, confirmed by re-run)"
+                status = "caught" if ok else ("SURVIVED" if verdict == "SURVIVED"
+                                                    else "INCONCLUSIVE: " + reason)
             rows.append((mid, name, expected, status, fails, ok))
             print(f"{'ok' if ok else '!!'} {mid}: {status} -> {fails}")
 
@@ -4461,12 +5340,12 @@ def main() -> int:
         "",
         "Generated by `scripts/harness_negative_control.py`. Each row is a",
         "deliberate violation of one invariant from `harness-spec.md` §17 V3,",
-        "applied to a pristine copy of `lip/go`, then run through the harness",
-        "test suite.",
+        "applied to a pristine copy of `lip/go`, then compiled and run through",
+        "the named catcher package (the full suite for inert controls).",
         "",
-        "A mutation that SURVIVES is a defect in the verification, not a",
-        "curiosity. A mutation that DID NOT BUILD does not count as caught —",
-        "the Go compiler is not a gate.",
+        "Unexpected survival needs review before relying on that control.",
+        "A mutation that DID NOT BUILD does not count as caught —",
+        "compilation proves validity, not hazard detection.",
         "",
         "| id | mutation | expected catching test | result | tests that failed |",
         "|---|---|---|---|---|",
@@ -4480,9 +5359,9 @@ def main() -> int:
               f"**{good} of {len(rows)} mutations produced their expected "
               f"outcome.**",
               "",
-              "A mutation that SURVIVES unexpectedly is a defect in the",
-              "verification and the harness does not ship until the gate is",
-              "strengthened. A mutation declared `inert` must carry a positive",
+              "Unexpected survival requires reachability/equivalence/test review; it",
+              "is not by itself proof of a production defect. A mutation",
+              "declared `inert` must carry a positive",
               "argument in `harness_negative_control.py` — never an assumption,",
               "because an inert declaration is exactly how a real gate hole",
               "would hide.",
@@ -4497,8 +5376,13 @@ def main() -> int:
               f"not the canonical report")
     else:
         out_path = Path(a.out)
-    out_path.write_text("\n".join(lines) + "\n")
-    print(f"\nwrote {out_path}")
+    source_drifted = source_fingerprint() != source_before
+    if source_drifted:
+        print("source changed during audit; refusing to write report",
+              file=sys.stderr)
+    else:
+        out_path.write_text("\n".join(lines) + "\n")
+        print(f"\nwrote {out_path}")
 
     # THE EXIT CODE. This function previously returned 0 unconditionally: it
     # counted `good`, printed "!! SURVIVED", wrote the report -- and exited
@@ -4509,20 +5393,14 @@ def main() -> int:
     # because "a gate that has never been shown to fail is not evidence", and
     # the gate on the gate could not fail. Found by an independent model reading
     # the source, not by any test here.
-    # A flap does not fail the gate -- the confirming run settled what the
-    # mutation actually does -- but it is a defect in the ORACLE and must not
-    # vanish just because the row ended up correct. This is the only place a
-    # reader of gates.txt would ever learn the suite is unstable.
-    flaked = [r for r in rows if "FLAKED" in r[3]]
-    if flaked:
-        print(f"\n{len(flaked)} mutation(s) disagreed with the catalogue on the "
-              f"first run and agreed on a second:", file=sys.stderr)
-        for mid, _, _, status, _, _ in flaked:
-            print(f"  {mid}: {status}", file=sys.stderr)
-        print("A flap is a FLAKY TEST somewhere in PKGS, not a verdict about "
-              "the mutation named. The gate still passes, but the flake is "
-              "real and belongs in bd.", file=sys.stderr)
-
+    receipt["outcomes"] = [{"id": r[0], "expected": r[2], "status": r[3],
+                            "failed_tests": r[4], "accepted": r[5]} for r in rows]
+    receipt["status"] = "PASS" if all(r[5] for r in rows) else "FAIL"
+    if source_drifted:
+        receipt["status"] = "SOURCE_DRIFT"
+        print("source changed during audit; results invalid", file=sys.stderr)
+    save_receipt()
+    print(f"machine receipt and raw logs: {receipt_dir}")
     bad = [r for r in rows if not r[5]]
     if bad:
         print(f"\n{len(bad)} of {len(rows)} mutations did NOT produce their "
@@ -4530,9 +5408,12 @@ def main() -> int:
         for mid, name, expected, status, fails, _ in bad:
             print(f"  {mid}: {status} (expected to be caught by {expected})",
                   file=sys.stderr)
-        print("\nA mutation that SURVIVES is a defect in the VERIFICATION. The "
-              "harness does not ship until the gate is strengthened.",
+        print("\nThese controls are not verified. Review the failed observations "
+              "before relying on them for the intended change.",
               file=sys.stderr)
+        return 1
+
+    if receipt["status"] != "PASS":
         return 1
 
     # A full run must have exercised every mutation in the catalogue. A

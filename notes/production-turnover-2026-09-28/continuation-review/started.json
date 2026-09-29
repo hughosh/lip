@@ -1,0 +1,5 @@
+{
+  "at": "2026-09-28T19:26:28.130685+00:00",
+  "scope": "read-only review; no writer or financial actions",
+  "initial_process_probe": "sandbox denied ps; retried scoped read with escalation"
+}

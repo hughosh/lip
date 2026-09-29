@@ -1,0 +1,41 @@
+{
+  "started_at_utc": "2026-09-27T01:51:41.839792+00:00",
+  "finished_at_utc": "2026-09-27T01:52:04.520202+00:00",
+  "git_head": "f7e9571547bb948418b7a27adc9c30ae38314b00",
+  "dirty_tree": true,
+  "source_manifest_sha256": "c9b5101a87ec4c55d26f925ef9c5c0290c16b089e038511e3a28d68d5c4f2490",
+  "source_manifest_sha256_after": "c9b5101a87ec4c55d26f925ef9c5c0290c16b089e038511e3a28d68d5c4f2490",
+  "binary_path": "/Users/hugh/kek/lip/notes/active-continuation-2026-09-26/candidate/harness",
+  "binary_sha256": "2d8de985f4fa5204fdac0021a98121ae6a2436f8c288bd70e797f1e7130aba7c",
+  "go_source_archive_sha256": "37a403aee397c5e4daedfc886ca526bbe7e010f9b7af840d7a0287765d6b016a",
+  "build_command": [
+    "/usr/local/bin/go",
+    "build",
+    "-trimpath",
+    "-o",
+    "/Users/hugh/kek/lip/notes/active-continuation-2026-09-26/candidate/harness",
+    "./cmd/harness"
+  ],
+  "build_environment": {
+    "PATH": "/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/hugh/.codex/tmp/arg0/codex-arg0ZleeOX:/Users/hugh/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/hugh/.local/bin:/Users/hugh/.opencode/bin:/Users/hugh/.cargo/bin:/Users/hugh/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS",
+    "HOME": "/Users/hugh",
+    "GOMODCACHE": "/Users/hugh/go/pkg/mod",
+    "GOCACHE": "/Users/hugh/Library/Caches/go-build",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOTOOLCHAIN": "local",
+    "GOENV": "off",
+    "GOWORK": "off",
+    "GOMAXPROCS": "2",
+    "GOFLAGS": "-p=2",
+    "CGO_ENABLED": "0",
+    "PYTHONUNBUFFERED": "1",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "TMPDIR": "/var/folders/48/pp0ngtc132qf3vf4c9k3sqdr0000gn/T/"
+  },
+  "candidate_gate": "/Users/hugh/kek/lip/loop/gates-out/20260927T014340787325Z-9f7918c1/receipt.json",
+  "candidate_gate_sha256": "afc1f42c8c5bc6159f5667ee6bbef38914526b1edc842adb1873235bbcfea68c",
+  "candidate_gate_verdict": "PASS",
+  "operator_helper_sha256": "1fd42d195ce3eb5265e2bdc31a08a10ab7f14f848d32746bf0cca28186833bcf",
+  "qualification_scope": "Changed Go runtime passes candidate gate; turnover package is not connected to the runtime. Python command rendering revised and separately tested after gate. No live trading qualification."
+}

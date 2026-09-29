@@ -1,0 +1,6 @@
+{
+  "at": "2026-09-27T18:31:13.345191+00:00",
+  "action": "SIGKILL independently scheduled account-free watchdog tick after persisted delivery state, before 300-second nonack deadline",
+  "pid": 99524,
+  "argv": "/Users/hugh/kek/.venv/bin/python /Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/operations/scheduled_drill.py"
+}

@@ -1,0 +1,31 @@
+{
+  "provider": "Healthchecks.io",
+  "monitor_name": "lip harness heartbeat",
+  "initial_status": "down",
+  "initial_last_ping": "over one month ago",
+  "original_period_seconds": 3600,
+  "original_grace_seconds": 1200,
+  "notification_routes_observed": [
+    "one enabled email route"
+  ],
+  "configured_application_checkin_identified_monitor": true,
+  "checkin_at": "2026-09-26T23:05:37.624145Z",
+  "short_schedule_saved_at": "2026-09-26T23:06:10.965Z",
+  "test_period_seconds": 60,
+  "test_grace_seconds": 60,
+  "late_observed_at": "2026-09-26T23:07:29.316Z",
+  "down_observed_at": "2026-09-26T23:07:51.796Z",
+  "human_down_email_acknowledgment": "done (chat)",
+  "independent_backup_confirmed": "Yes, independent backup (chat)",
+  "original_schedule_restored_at": "2026-09-26T23:08:48.189Z",
+  "recovery_checkin_at": "2026-09-26T23:08:57.188066Z",
+  "up_observed_at": "2026-09-26T23:09:41.972Z",
+  "primary_test_id": "LIP20260926A",
+  "primary_acknowledgment": "Received on primary (chat)",
+  "limits": [
+    "Provider dashboard state and human email receipt observed; no exported provider event ledger.",
+    "Backup is independent according to operator; no primary-nonack SEV1 escalation timer or acknowledgment service was configured or tested.",
+    "The check was down before testing; later observer pings use restored production schedule. A stopped observer will eventually cause a genuine missed-check-in alert."
+  ],
+  "secrets_retained": false
+}

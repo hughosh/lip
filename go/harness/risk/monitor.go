@@ -58,6 +58,7 @@ type MonitorState struct {
 type StepResult struct {
 	Samples   []Sample
 	Anomalies []Anomaly
+	Account   AccountSnapshot
 	// Stale is true when the source snapshot has not advanced for longer than
 	// stallAfter. Rows and heartbeats derived from this tick are marked stale=1
 	// and the tick is not integrated into uptime.
@@ -118,6 +119,11 @@ func (m *MonitorState) Step(now time.Duration, snap *Snapshot,
 
 	res.Stale = m.stalled
 	res.IntegrateUptime = !m.stalled
+	res.Account = snap.Account
+	if m.stalled {
+		res.Account.TruthFresh = false
+		res.Account.TradingPnL.Evaluable = false
+	}
 
 	// Steps 1-3 -- produce one sample per market, in EVERY global state. The
 	// clause "in every global state" is what would have caught 2 snapshots in

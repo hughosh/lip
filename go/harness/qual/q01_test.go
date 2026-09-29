@@ -7,8 +7,8 @@ import (
 )
 
 func validQ01Evidence() Evidence {
-	firstActive := 2 * time.Hour
-	secondActive := 2 * time.Hour
+	firstActive := 10 * time.Minute
+	secondActive := 10 * time.Minute
 	secondStart := testStart.Add(firstActive)
 	ended := secondStart.Add(secondActive)
 	finalized := ended
@@ -99,7 +99,7 @@ func removeQ01Event(e *Evidence, category EventCategory, name string) {
 	e.Events = out
 }
 
-func TestAssessQ01LocalPassesExactFourHourRestartBoundary(t *testing.T) {
+func TestAssessQ01LocalPassesExactTwentyMinuteRestartBoundary(t *testing.T) {
 	result, err := AssessQ01Local(validQ01Evidence())
 	if err != nil {
 		t.Fatal(err)
@@ -107,11 +107,11 @@ func TestAssessQ01LocalPassesExactFourHourRestartBoundary(t *testing.T) {
 	if !result.LocalRequirementsMet || len(result.Failures) != 0 {
 		t.Fatalf("exact q01 boundary did not pass locally: %+v", result)
 	}
-	if result.Scope != Q01LocalScope || result.Elapsed != 4*time.Hour ||
+	if result.Scope != Q01LocalScope || result.Elapsed != 20*time.Minute ||
 		result.HistoricalUncleanSegments != 1 ||
-		result.ExpectedMonitorSlots != 4*60*60 ||
+		result.ExpectedMonitorSlots != 20*60 ||
 		result.FreshMonitorSlots != result.ExpectedMonitorSlots ||
-		result.ExpectedPortfolioSlots != 4*60*60/5 ||
+		result.ExpectedPortfolioSlots != 20*60/5 ||
 		result.FreshCompletePortfolioSlots != result.ExpectedPortfolioSlots {
 		t.Fatalf("q01 local measurements = %+v", result)
 	}
@@ -126,29 +126,29 @@ func TestAssessQ01LocalPassesExactFourHourRestartBoundary(t *testing.T) {
 	}
 }
 
-func TestAssessQ01LocalRejectsOneNanosecondBelowFourHours(t *testing.T) {
+func TestAssessQ01LocalRejectsOneNanosecondBelowTwentyMinutes(t *testing.T) {
 	e := validQ01Evidence()
-	setQ01Durations(&e, 2*time.Hour, 2*time.Hour-time.Nanosecond)
+	setQ01Durations(&e, 10*time.Minute, 10*time.Minute-time.Nanosecond)
 	result, err := AssessQ01Local(e)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if result.LocalRequirementsMet || q01FailureCodes(result)[FailureTooShort] != 1 {
-		t.Fatalf("sub-four-hour q01 passed: %+v", result)
+		t.Fatalf("sub-twenty-minute q01 passed: %+v", result)
 	}
 }
 
 func TestAssessQ01LocalNinetyNinePercentSlotBoundary(t *testing.T) {
 	boundary := validQ01Evidence()
-	// Monitor: 14,256/14,400 is exactly 99%. Portfolio: ceil(99% of
-	// 2,880)=2,852; the missing 28 slots are silence, not bad observed walks.
-	boundary.Segments[1].MonitorSlots.Fresh = 7056
-	boundary.Monitor.Fresh = 14256
-	boundary.Monitor.Stale = 144
-	boundary.Segments[1].PortfolioSlots.Observed = 1412
-	boundary.Segments[1].PortfolioSlots.FreshComplete = 1412
+	// Monitor: 1,188/1,200 is exactly 99%. Portfolio: ceil(99% of
+	// 240)=238; the missing two slots are silence, not bad observed walks.
+	boundary.Segments[1].MonitorSlots.Fresh = 588
+	boundary.Monitor.Fresh = 1188
+	boundary.Monitor.Stale = 12
+	boundary.Segments[1].PortfolioSlots.Observed = 118
+	boundary.Segments[1].PortfolioSlots.FreshComplete = 118
 	boundary.Portfolio = PortfolioCounters{
-		Walks: 2852, Fresh: 2852, Complete: 2852, FreshComplete: 2852,
+		Walks: 238, Fresh: 238, Complete: 238, FreshComplete: 238,
 		LastWalkAt: boundary.UpdatedAt, LastFreshAt: boundary.UpdatedAt,
 		LastCompleteAt: boundary.UpdatedAt,
 	}
@@ -183,9 +183,9 @@ func TestAssessQ01LocalNinetyNinePercentSlotBoundary(t *testing.T) {
 	}
 }
 
-func TestAssessQ01LocalAboveSixHoursIsDeviationOnly(t *testing.T) {
+func TestAssessQ01LocalAboveFortyFiveMinutesIsDeviationOnly(t *testing.T) {
 	e := validQ01Evidence()
-	setQ01Durations(&e, 3*time.Hour, 3*time.Hour+time.Second)
+	setQ01Durations(&e, 20*time.Minute, 25*time.Minute+time.Second)
 	result, err := AssessQ01Local(e)
 	if err != nil {
 		t.Fatal(err)
@@ -193,7 +193,7 @@ func TestAssessQ01LocalAboveSixHoursIsDeviationOnly(t *testing.T) {
 	if !result.LocalRequirementsMet || len(result.Failures) != 0 ||
 		len(result.ProtocolDeviations) != 1 ||
 		result.ProtocolDeviations[0].Code != DeviationQ01AboveTargetWindow {
-		t.Fatalf("above-six-hour assessment = %+v", result)
+		t.Fatalf("above-forty-five-minute assessment = %+v", result)
 	}
 }
 
@@ -207,7 +207,7 @@ func TestAssessQ01LocalBurstThenSilenceCannotFillSlots(t *testing.T) {
 	}
 	if result.LocalRequirementsMet ||
 		q01FailureCodes(result)[FailureQ01MonitorSlots] != 1 ||
-		result.FreshMonitorSlots != 1 || result.ExpectedMonitorSlots != 4*60*60 {
+		result.FreshMonitorSlots != 1 || result.ExpectedMonitorSlots != 20*60 {
 		t.Fatalf("burst stood in for silent monitor slots: %+v", result)
 	}
 }

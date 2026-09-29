@@ -1,0 +1,21 @@
+{
+  "started_at": "2026-09-28T17:12:36.138162+00:00",
+  "command": [
+    "/usr/local/bin/go",
+    "test",
+    "./cmd/harness",
+    "./harness/hstore",
+    "./harness/lifecycle",
+    "./harness/ping",
+    "./harness/wsx",
+    "./harness/netx",
+    "-count=1",
+    "-timeout=180s"
+  ],
+  "cwd": "/Users/hugh/kek/lip/go",
+  "source_manifest_before": "3fdcb1f6f72dac1c08147e7d9490d28baffb5d70d0c7741b2ae0cee8de9591f6",
+  "finished_at": "2026-09-28T17:14:23.579316+00:00",
+  "exit_code": 0,
+  "source_manifest_after": "3fdcb1f6f72dac1c08147e7d9490d28baffb5d70d0c7741b2ae0cee8de9591f6",
+  "log_sha256": "c80ae245ee49379257dc8bb2d32d39cf3a58368e91d37e7bae1fe88c40fd04ef"
+}

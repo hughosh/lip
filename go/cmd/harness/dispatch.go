@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"lip/harness/cfg"
@@ -13,43 +14,10 @@ import (
 	"lip/harness/risk"
 )
 
-// This file is D3: the single REST writer, and NOTHING ELSE.
-//
-// D3, H-ORD-6 and "ONE REST writer" are the same requirement written three
-// times, and one goroutine is how it is enforced rather than remembered. That
-// goroutine owns the two-stage commit end to end -- reserve, await the
-// COMMITTED permit, create, bind -- and there is deliberately no second path in
-// this package that reaches `rest.Client.Create` or `rest.Client.Cancel`.
-//
-// # What this goroutine deliberately does NOT own
-//
-// Not `quote.Queue`, not `quote.Capacity`, not `risk.Portfolio`, not
-// `core.Rig`, not `wsx.Gate`. Those belong to the OWNER goroutine, and the
-// division is not stylistic:
-//
-//   - none of them carries a mutex. `Queue`'s own doc says so -- "safety here
-//     is single-writer, and the owner goroutine is that writer" (H-TOP-4) --
-//     and `quote.Grant` states the division from the other side: "It is
-//     returned rather than applied because this package owns no state that
-//     ticks. cmd/harness owns the workers and the bucket and calls
-//     Capacity.Take." Workers, plural, executing while the owner accounts.
-//
-//   - `rest.Create` blocks for up to `restTimeout` (10 s) and repeats the SAME
-//     coid up to `retry_same_coid_max` times, so a write can hold its goroutine
-//     for half a minute. An owner parked inside one is an owner that has
-//     stopped publishing `risk.Snapshot`, and `owner_stall_s` is 3 s -- so
-//     every single order the harness placed would raise SEV1 `OWNER_STALLED`.
-//     A chronic false SEV1 is how a real one stops being read, which is
-//     probebot.py's observable reached by a new route.
-//
-// So the seam is two channels of plain values. The owner decides WHAT to write
-// (dequeue, classify, price, size, mint the coid, charge the capacity); this
-// goroutine decides nothing and executes exactly one write at a time.
-//
-// # The one thing that must not move
-//
-// `BindOrder` is submitted INLINE, immediately after the create returns and
-// before the outcome is handed back. See `placeWrite`.
+// D3 has one dispatch authority and a bounded transport pool. The owner alone
+// selects work and charges capacity; workers own only transport and durable
+// reservation/binding. Receipt routing prevents concurrent permit waiters from
+// consuming one another's commit results.
 
 // ---------------------------------------------------------------------------
 // The seam
@@ -66,6 +34,14 @@ import (
 // a sequence the owner controls -- two writers minting coids from one run id
 // would collide, and H-ORD-1 permits at most one order per coid.
 type writeRequest struct {
+	// Retry state travels with the original immutable body and coid.
+	permit   *hstore.DispatchPermit
+	router   *permitRouter
+	attempts int
+	retryAt  time.Duration
+	retryN   int
+	class    quote.Class
+
 	// IDs is every `quote.Intent` this single write discharges, echoed back on
 	// the result so the owner can call `AckPlace`, `ConfirmAbsent` or `Drop`
 	// against them WITHOUT having to remember what it sent.
@@ -167,36 +143,78 @@ type writeResult struct {
 // failure that recovers is not abandoned for having been slow once.
 const permitWait = restTimeout
 
-// dispatchLoop is the single REST writer (D3). It returns when ctx is done or
-// when the owner closes `in`.
-//
-// One request at a time, in order, with no internal concurrency. That is the
-// pilot's `dispatchWorkers` = 1 made structural: `Capacity.BusyGeneral` counts
-// what is in flight, and a writer that fanned out would have to invent a worker
-// pool the owner is not accounting for.
-//
-// `reserves` is how H-ORD-6's permit reaches this goroutine, and its direction
-// is the important part. `hstore.Store.TakeResults` drains the WHOLE batch
-// under one mutex, so two goroutines calling it would each silently take the
-// other's results -- and the two losses are not symmetric. A dispatcher that
-// swallowed somebody else's terminal result would delete a SEV1 that
-// `reject.go` argues is observable exactly once, per record, from `Result.Err`.
-// So the result loop is the SOLE consumer of the FIFO and forwards a COPY of
-// every reservation outcome here; nothing on this side takes ownership of
-// anything, and a result that is not ours is simply ignored.
-//
-// It carries the whole `hstore.Result` and not a bare permit, because a
-// reservation that FAILS produces no permit at all: a permit-only channel would
-// leave this goroutine waiting out `permitWait` on the one path where the answer
-// is already known.
-//
-// It never sends on `out` without also honouring ctx, because the owner can be
-// gone: a writer blocked forever on an unread result channel is a writer that
-// cannot be stopped, and `hstore.Shutdown` refuses to close over records this
-// goroutine still holds.
+// permitRouter registers the receipt while holding the same lock delivery uses.
+// A fast commit cannot arrive between submission and registration.
+type permitRouter struct {
+	mu      sync.Mutex
+	waiters map[uint64]chan hstore.Result
+}
+
+func (p *permitRouter) reserve(r *rig, req writeRequest) (hstore.Receipt, <-chan hstore.Result, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	rcpt, err := r.store.ReserveOrder(r.run, req.Order, req.Role, r.ex.NowMs())
+	if err != nil {
+		return rcpt, nil, err
+	}
+	ch := make(chan hstore.Result, 1)
+	p.waiters[rcpt.Seq()] = ch
+	return rcpt, ch, nil
+}
+
+func (p *permitRouter) forget(seq uint64) {
+	p.mu.Lock()
+	delete(p.waiters, seq)
+	p.mu.Unlock()
+}
+
+// newPermitRouter hands each worker only its own reservation outcome from the
+// store's single result stream. When ctx ends it releases every waiter, then
+// closes done.
+func newPermitRouter(ctx context.Context, reserves <-chan hstore.Result) (*permitRouter, <-chan struct{}) {
+	router := &permitRouter{waiters: make(map[uint64]chan hstore.Result)}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		defer func() {
+			router.mu.Lock()
+			defer router.mu.Unlock()
+			for seq, ch := range router.waiters {
+				close(ch)
+				delete(router.waiters, seq)
+			}
+		}()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case res, ok := <-reserves:
+				if !ok {
+					return
+				}
+				router.mu.Lock()
+				if ch := router.waiters[res.Receipt.Seq()]; ch != nil {
+					ch <- res
+					delete(router.waiters, res.Receipt.Seq())
+				}
+				router.mu.Unlock()
+			}
+		}
+	}()
+	return router, done
+}
+
+// dispatchLoop launches only admitted work, with an independent hard pool cap.
+// Backoff belongs to the owner, so no sleeping retry owns a transport slot.
 func (r *rig) dispatchLoop(ctx context.Context, in <-chan writeRequest,
 	reserves <-chan hstore.Result, out chan<- writeResult) {
-
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	slots := make(chan struct{}, dispatchWorkers)
+	var workers sync.WaitGroup
+	defer workers.Wait()
+	defer cancel()
+	router, _ := newPermitRouter(ctx, reserves)
 	for {
 		select {
 		case <-ctx.Done():
@@ -205,24 +223,35 @@ func (r *rig) dispatchLoop(ctx context.Context, in <-chan writeRequest,
 			if !ok {
 				return
 			}
-			res := r.executeWrite(ctx, req, reserves)
 			select {
-			case out <- res:
+			case slots <- struct{}{}:
 			case <-ctx.Done():
 				return
 			}
+			req.router = router
+			workers.Add(1)
+			go func(req writeRequest) {
+				defer workers.Done()
+				defer func() { <-slots }()
+				writeCtx, stop := context.WithTimeout(ctx, permitWait+time.Duration(r.cfg.Params.RetrySameCoidMax)*restTimeout)
+				defer stop()
+				res := r.executeWrite(writeCtx, req)
+				res.Req.router = nil
+				select {
+				case out <- res:
+				case <-ctx.Done():
+				}
+			}(req)
 		}
 	}
 }
 
 // executeWrite performs exactly one write and classifies it.
-func (r *rig) executeWrite(ctx context.Context, req writeRequest,
-	reserves <-chan hstore.Result) writeResult {
-
+func (r *rig) executeWrite(ctx context.Context, req writeRequest) writeResult {
 	if req.Op == quote.OpCancel {
 		return r.cancelWrite(ctx, req)
 	}
-	return r.placeWrite(ctx, req, reserves)
+	return r.placeWrite(ctx, req)
 }
 
 // ---------------------------------------------------------------------------
@@ -234,9 +263,7 @@ func (r *rig) executeWrite(ctx context.Context, req writeRequest,
 //	RESERVE -> await the COMMIT -> permit.Order() -> create -> BIND, inline
 //
 // Every arrow is load-bearing and none of them may be reordered.
-func (r *rig) placeWrite(ctx context.Context, req writeRequest,
-	reserves <-chan hstore.Result) writeResult {
-
+func (r *rig) placeWrite(ctx context.Context, req writeRequest) writeResult {
 	res := writeResult{Req: req}
 
 	coid := req.Order.ClientOrderID()
@@ -261,36 +288,55 @@ func (r *rig) placeWrite(ctx context.Context, req writeRequest,
 	// (1) STAGE ONE. This returns a RECEIPT and not a permit, and that is the
 	// entire mechanism: there is no path from "I want to place an order" to "I
 	// may place this order" that does not pass through a SQLite commit.
-	rcpt, err := r.store.ReserveOrder(r.run, req.Order, req.Role, r.ex.NowMs())
-	if err != nil {
-		res.Err = fmt.Errorf("the ownership reservation for %s could not be "+
-			"submitted, so H-ORD-6 forbids dispatching it: %w", coid, err)
-		res.Anomalies = append(res.Anomalies, risk.Anomaly{
-			Class: "RESERVATION_NOT_SUBMITTED", Sev: risk.SEV1, Ticker: req.Market,
-			Text: fmt.Sprintf("the coid reservation for %s was refused by the "+
-				"store (%v); no order was placed, because an order whose "+
-				"ownership is unrecorded produces a fill H-ORD-9 must classify "+
-				"as foreign", coid, err),
-		})
-		return res
-	}
+	var permit hstore.DispatchPermit
+	if req.permit != nil {
+		permit = *req.permit
+	} else {
+		// dispatchLoop attaches its router to every request. A worker that read
+		// the shared reservation stream itself could take another's permit.
+		if req.router == nil {
+			res.Err = fmt.Errorf("the placement for %s reached the REST writer "+
+				"without the permit router; nothing was reserved or sent", coid)
+			return res
+		}
+		rcpt, reserves, err := req.router.reserve(r, req)
+		if err == nil {
+			defer req.router.forget(rcpt.Seq())
+		}
+		if err != nil {
+			res.Err = fmt.Errorf("the ownership reservation for %s could not be "+
+				"submitted, so H-ORD-6 forbids dispatching it: %w", coid, err)
+			res.Anomalies = append(res.Anomalies, risk.Anomaly{
+				Class: "RESERVATION_NOT_SUBMITTED", Sev: risk.SEV1, Ticker: req.Market,
+				Text: fmt.Sprintf("the coid reservation for %s was refused by the "+
+					"store (%v); no order was placed, because an order whose "+
+					"ownership is unrecorded produces a fill H-ORD-9 must classify "+
+					"as foreign", coid, err),
+			})
+			return res
+		}
 
-	// (2) The commit, AWAITED. This is the barrier, and there is no way to
-	// shorten it: the permit is issued by a committed transaction and by
-	// nothing else, which is what makes the argument `Create` needs
-	// unobtainable any other way.
-	permit, err := awaitPermit(ctx, rcpt, reserves)
-	if err != nil {
-		res.Err = fmt.Errorf("the coid reservation for %s never became "+
-			"durable: %w", coid, err)
-		res.Anomalies = append(res.Anomalies, risk.Anomaly{
-			Class: hstore.RecordRejectedClass, Sev: risk.SEV1, Ticker: req.Market,
-			Text: fmt.Sprintf("no dispatch permit was issued for %s (%v); "+
-				"H-ORD-6's permit exists only because a reservation committed, "+
-				"so the order is not placed", coid, err),
-		})
-		return res
+		// (2) The commit, AWAITED. This is the barrier, and there is no way to
+		// shorten it: the permit is issued by a committed transaction and by
+		// nothing else, which is what makes the argument `Create` needs
+		// unobtainable any other way.
+		var errPermit error
+		permit, errPermit = awaitPermit(ctx, rcpt, reserves)
+		err = errPermit
+		if err != nil {
+			res.Err = fmt.Errorf("the coid reservation for %s never became "+
+				"durable: %w", coid, err)
+			res.Anomalies = append(res.Anomalies, risk.Anomaly{
+				Class: hstore.RecordRejectedClass, Sev: risk.SEV1, Ticker: req.Market,
+				Text: fmt.Sprintf("no dispatch permit was issued for %s (%v); "+
+					"H-ORD-6's permit exists only because a reservation committed, "+
+					"so the order is not placed", coid, err),
+			})
+			return res
+		}
+
 	}
+	res.Req.permit = &permit
 
 	// (3) H-STORE-3, enforced by the only thing that can enforce it.
 	//
@@ -315,13 +361,23 @@ func (r *rig) placeWrite(ctx context.Context, req writeRequest,
 		// drains the set; leaving it would make one refused placement defer
 		// every fill for the life of the deployment, which converts H-ORD-9's
 		// repair from "no false foreign" into "no foreign ever".
-		res.Anomalies = append(res.Anomalies,
-			r.abandonReservation(permit.Coid(), req.Market)...)
+		if req.attempts == 0 {
+			res.Anomalies = append(res.Anomalies,
+				r.abandonReservation(permit.Coid(), req.Market)...)
+		}
 		return res
 	}
 
 	// (4) The write.
-	create := r.api.Create(ctx, body, r.cfg.Params)
+	params := r.cfg.Params
+	params.RetrySameCoidMax -= req.attempts
+	create := r.api.Create(ctx, body, params)
+	res.Req.attempts += create.Attempts
+	// A later definite response cannot disprove an earlier ambiguous attempt.
+	if req.attempts > 0 && create.Outcome == rest.CreateRejected {
+		create.Outcome = rest.CreateUnknown
+		create.MaxLive = req.Order.Count()
+	}
 	res.Create = create
 	res.Sent = create.Attempts > 0
 	res.Anomalies = append(res.Anomalies, create.Anomalies...)
@@ -599,9 +655,8 @@ func refillWrites(c quote.Capacity, p cfg.Params, elapsed time.Duration,
 // releaseWrite returns the worker slot a grant occupied, and returns the token
 // too when no request left the process.
 //
-// The worker is released because with one REST writer at most one write is ever
-// in flight: occupancy is real while `Create` or `CancelAndSweep` is running and
-// is honestly zero the instant it returns. Modelling it as permanently idle
+// Only the completing request releases its worker. Other in-flight writes
+// continue to occupy their own slots until their transport attempts finish. Modelling it as permanently idle
 // would make `Capacity.Admit`'s worker arm dead code and quietly delete
 // H-QUE-3's worker reserve.
 //

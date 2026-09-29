@@ -198,6 +198,10 @@ func (c *Client) Schedule(ctx context.Context, ticker string) ScheduleResult {
 		return scheduleFailed(ticker, fmt.Errorf("schedule %s: %w", ticker, err), nil)
 	}
 	if resp.Status != 200 {
+		if resp.Status == 429 {
+			return scheduleFailed(ticker, fmt.Errorf("schedule %s: %w",
+				ticker, rateLimitError(resp)), nil)
+		}
 		return scheduleFailed(ticker, fmt.Errorf("schedule %s: HTTP %d: %s",
 			ticker, resp.Status, snippet(resp.Body)), nil)
 	}

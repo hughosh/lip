@@ -1,0 +1,221 @@
+--- /private/tmp/lip-readiness-mutations/catalogue.pre-session.py.txt	2026-09-26 12:05:52
++++ /Users/hugh/kek/lip/scripts/harness_negative_control.py	2026-09-26 11:55:40
+@@ -2245,6 +2245,204 @@
+           '\t\tSelected:        s.selected,\n'),
+      ],
+      'TestAdoptionPolicyReceivesEffectiveSelectionAndExclusionsAsDefensiveCopies'),
++
++    # lip-y3q: the reducing aggregate cap is an invariant of every reducing
++    # state, including SETTLING when no gate-failure episode is open. Under the
++    # deployed §10.3 S=12 profile, an ordinary fill can leave |q|=1 and
++    # H-CLOSE-2 enters SETTLING with gateStopped=false; an at-touch 12-contract
++    # reducer then has an eleven-contract adding overhang. Reintroducing the old
++    # gateStopped condition would leave that overhang live, so the symmetric
++    # long/short settling seam must catch it.
++    ('M-Y3Q-GATESTOPCAP',
++     'make the reducing aggregate recap conditional on gateStopped, leaving an oversized at-touch reducer live in SETTLING when the gate is healthy',
++     [
++         ('cmd/harness/run.go',
++          '\t\tif role == quote.RoleReducing && target > 0 &&\n\t\t\t!o.cancelConfirmed[side] && o.atRisk(side) > target {\n',
++          '\t\tif role == quote.RoleReducing && gateStopped && target > 0 &&\n\t\t\t!o.cancelConfirmed[side] && o.atRisk(side) > target {\n'),
++     ],
++     'TestTheSettlingMarketRecapsAnOversizedReducerWithoutAGateFailure'),
++
++    # H-Q-4a's production consumer must use the configured debounce rather than
++    # extend it silently. Under the deployed 30-second default, doubling the
++    # configured interval postpones cancellation to 60 seconds. The deterministic
++    # seam uses a distinct four-second setting and checks the configured deadline.
++    ('M-HQ4A-DOUBLE-DEBOUNCE',
++     'double configured gate_fail_debounce_s and leave adding orders resting twice as long',
++     [
++         ('cmd/harness/run.go',
++          'return open && d >= o.p.GateFailDebounce',
++          'return open && d >= 2*o.p.GateFailDebounce'),
++     ],
++     'TestSustainedGateFailureCancelsTheAddingSideAtTheConfiguredDebounce'),
++
++    # D1 / I1: SizesFor has target zero when inventory exists but the reducing
++    # side has no current book depth (startup adoption before first snapshot, or
++    # immediately after an abnormal disconnect). Such a target cannot fund a
++    # replacement, but does not make a compliant resting exit an overshoot to
++    # cancel. This is reachable in the deployed canary and pilot; the symmetric
++    # disconnect seam distinguishes target-zero protection from the independent
++    # oversized-reducer recap.
++    ('M-D1-TARGETZERO-RECAP',
++     'drop the target-positive guard and cancel a compliant reducer when a disconnect makes funded target zero',
++     [
++         ('cmd/harness/run.go',
++          '\t\tif role == quote.RoleReducing && target > 0 &&\n\t\t\t!o.cancelConfirmed[side] && o.atRisk(side) > target {\n',
++          '\t\tif role == quote.RoleReducing &&\n\t\t\t!o.cancelConfirmed[side] && o.atRisk(side) > target {\n'),
++     ],
++     'TestAnAbnormalDisconnectDoesNotCancelTheCompliantExit'),
++
++    # A deployed canary or pilot stop reaches CancelAndSweep through the
++    # dispatcher and startup adoption sweep. Exchange orders are sharded by
++    # market; dropping ticker-aware routing sends an order-id-only cancel to
++    # shard zero, where it can receive an irrelevant success while the selected
++    # market's order remains live. The complete verifying walk is what catches
++    # the stranded order, not the HTTP status.
++    ('M-R-CANCEL-SHARD-ROUTE',
++     'route a cancel sweep by order id alone and leave a selected-market order resting on its actual shard',
++     [
++         ('harness/rest/cancel.go',
++          '\t\t\tres.Cancels = append(res.Cancels, c.cancelForMarket(ctx, ticker,\n\t\t\t\to.OrderID))\n',
++          '\t\t\tres.Cancels = append(res.Cancels, c.Cancel(ctx, o.OrderID))\n'),
++     ],
++     'TestCancelSweepAutoRoutesByMarketAndVerifiesAbsence'),
++
++    # H-Q-5a's dependent replacement can be built before the next portfolio
++    # orders walk. A completed CancelAndSweep is positive absence evidence for
++    # the selected market/side, and the canary/pilot dispatcher reaches this
++    # path whenever it resizes or drains a reducer. If either source of known
++    # IDs is not stamped, the preceding complete walk still shows the retired
++    # reducer and blocks the replacement (or keeps it in the cap).
++    ('M-D2-OMIT-ABSENT-STAMP',
++     'do not remember ids proved absent by a complete cancel sweep, so the stale portfolio reducer blocks its replacement',
++     [
++         ('cmd/harness/run.go',
++          '\t\t\tfor _, lo := range o.r.pf.LiveOrders() {\n'
++          '\t\t\t\tif lo.Ticker == res.Req.Market && lo.Side == res.Req.Side {\n'
++          '\t\t\t\t\to.absentOrders[lo.OrderID] = struct{}{}\n'
++          '\t\t\t\t}\n'
++          '\t\t\t}\n',
++          ''),
++         ('cmd/harness/run.go',
++          '\t\t\t\t\to.absentOrders[ord.OrderID] = struct{}{}\n',
++          ''),
++     ],
++     'TestConfirmedAbsentReducerWaitsForFreshPosition'),
++
++    # An UNKNOWN create may have reached the exchange without an ACK or ID. A
++    # cancel sweep only proves the known resting orders absent; it cannot
++    # discharge that unknown maximum. Under §10.3, the dedicated account's
++    # reducing capacity remains reserved until a complete orders walk resolves
++    # the create, so clearing every pending row on cancel would authorize an
++    # overlapping replacement.
++    ('M-D2-RELEASE-UNKNOWN',
++     'release every pending create on the side after a cancel sweep, including an UNKNOWN create with no exchange id',
++     [
++         ('cmd/harness/run.go',
++          '\t\t\tfor coid, p := range o.pending {\n'
++          '\t\t\t\tif p.side != res.Req.Side || !p.acked || p.id == "" {\n'
++          '\t\t\t\t\tcontinue\n'
++          '\t\t\t\t}\n'
++          '\t\t\t\tif _, named := requested[p.id]; named {\n'
++          '\t\t\t\t\tdelete(o.pending, coid)\n'
++          '\t\t\t\t}\n'
++          '\t\t\t}\n',
++          '\t\t\tfor coid, p := range o.pending {\n'
++          '\t\t\t\tif p.side == res.Req.Side {\n'
++          '\t\t\t\t\tdelete(o.pending, coid)\n'
++          '\t\t\t\t}\n'
++          '\t\t\t}\n'),
++     ],
++     'TestConfirmedAbsenceDoesNotReleaseUnknownCreate'),
++
++    # A later COMPLETE orders walk is newer positive truth and supersedes every
++    # tombstone. If the same order id has reappeared on the selected market, it
++    # is live again and must re-enter the deployed canary/pilot's exposure and
++    # reducer calculations. This is distinct from an incomplete walk, which may
++    # not clear absence evidence.
++    ('M-D2-KEEP-ABSENT-AFTER-WALK',
++     'retain cancel-sweep absence tombstones after a complete orders walk positively lists the order again',
++     [
++         ('cmd/harness/run.go',
++          '\t\tclear(o.absentOrders)\n',
++          ''),
++     ],
++     'TestCompleteOrdersWalkRestoresPositiveOrderEvidence'),
++
++    # Exposure aggregation is the capital gate's independent view of resting
++    # orders. Without this exclusion, a stale pre-sweep portfolio row continues
++    # reserving capital after a complete cancel verification, even though the
++    # replacement path correctly excludes it. The primary D2 seam asserts this
++    # exposure is zero before dispatch, so this separate consumer omission is
++    # deterministically visible on the deployed one-market canary.
++    ('M-D2-COUNT-ABSENT-EXPOSURE',
++     'count a reducer id proved absent by the complete cancel sweep in aggregate exposure',
++     [
++         ('cmd/harness/run.go',
++          '\t\tif _, absent := o.absentOrders[lo.OrderID]; absent {\n'
++          '\t\t\tcontinue\n'
++          '\t\t}\n\t\te := get(lo.Ticker)\n',
++          '\t\te := get(lo.Ticker)\n'),
++     ],
++     'TestConfirmedAbsentReducerWaitsForFreshPosition'),
++
++    # A completed cancel sweep proves order absence, not inventory. The order
++    # can fill just before DELETE, so the deployed canary/pilot must hold the
++    # dependent quote until fresh fills, orders, and positions all start after
++    # the sweep. This removes only that hold; the named test checks both the
++    # immediate no-placement state and replacement sizing after reconciliation.
++    ('M-D2-PLACE-BEFORE-FRESH-TRUTH',
++     'allow a replacement reducer immediately after an absent cancel sweep, before fresh fills, orders, and positions reconcile a possible fill',
++     [
++         ('cmd/harness/run.go',
++          '\t\t\to.awaitCancelTruth = true\n',
++          ''),
++     ],
++     'TestConfirmedAbsentReducerWaitsForFreshPosition'),
++
++    # A cycle may have started before DELETE and finish afterwards. Completion
++    # time alone cannot prove that its portfolio views include the possible
++    # fill. Requiring all three starts to postdate the sweep is reachable on
++    # the one-market canary whenever an in-flight cycle overlaps cancellation.
++    ('M-D2-ACCEPT-PRECANCEL-READ',
++     'let a portfolio cycle that started before the absent cancel sweep release the placement hold when it completes afterwards',
++     [
++         ('cmd/harness/run.go',
++         '\t\tread.StartedAt(wsx.TruthFills).Mono > o.cancelTruthAfter &&\n'
++         '\t\tread.StartedAt(wsx.TruthOrders).Mono > o.cancelTruthAfter &&\n'
++         '\t\tread.StartedAt(wsx.TruthPositions).Mono > o.cancelTruthAfter {\n',
++          '\t\ttrue {\n'),
++     ],
++     'TestPreCancelStartedPortfolioReadCannotReleaseReducer'),
++
++    # The same uncertainty must keep lifecycle truth unknown so a flat stale
++    # position cannot declare a drained stop while the canceled order may have
++    # filled. This mutation targets the drain gate independently of the quote
++    # placement hold.
++    ('M-D2-DRAIN-WITHOUT-CANCEL-TRUTH',
++     'treat reducer truth as known for drain decisions while an absent cancel still awaits fresh portfolio reconciliation',
++     [
++         ('cmd/harness/run.go',
++          '\tif o.awaitCancelTruth {\n'
++          '\t\treturn false\n'
++          '\t}\n'
++          '\tnow := o.r.ex.Clock.Now()\n',
++          '\tnow := o.r.ex.Clock.Now()\n'),
++     ],
++     'TestFlatToFillCancelCannotDeclareDrainedBeforeReconciliation'),
++
++    # Before the first complete portfolio cycle, no truth is known at all.
++    # The deployed service can receive a stop or signal before that poll; its
++    # initially flat local snapshot cannot authorize DRAINED until each truth
++    # age is nonnegative. This is separate from cancel uncertainty after a
++    # poll has previously established known truth.
++    ('M-D2-DRAIN-BEFORE-FIRST-WALK',
++     'treat a never-observed portfolio endpoint as fresh enough to authorize drain before the first complete walk',
++     [
++         ('cmd/harness/run.go',
++          '\t\tif age < 0 || age > o.p.TruthMaxAge {\n',
++          '\t\tif age > o.p.TruthMaxAge {\n'),
++     ],
++     'TestMissingFirstPortfolioWalkCannotAuthorizeDrain'),
+ 
+     # -----------------------------------------------------------------------
+     # lip-3af -- the seams. Every component below was already individually
+@@ -2880,9 +3078,11 @@
+           '\tif eff.Stop {\n\t\to.requestStop("portfolio_read", "")\n\t}\n',
+           ''),
+          ('cmd/harness/run.go',
+-          '\tif eff.Applied[wsx.TruthOrders] {\n',
++          '\tif eff.Applied[wsx.TruthOrders] &&\n'
++          '\t\t(!o.awaitCancelTruth || read.StartedAt(wsx.TruthOrders).Mono > o.cancelTruthAfter) {\n',
+           '\tif eff.Stop {\n\t\to.requestStop("portfolio_read", "")\n\t}\n'
+-          '\tif eff.Applied[wsx.TruthOrders] {\n'),
++          '\tif eff.Applied[wsx.TruthOrders] &&\n'
++          '\t\t(!o.awaitCancelTruth || read.StartedAt(wsx.TruthOrders).Mono > o.cancelTruthAfter) {\n'),
+      ],
+      'TestATakerFillOnTheCanaryKeepsTheStrongerCause'),
+ 

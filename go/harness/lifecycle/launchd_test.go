@@ -59,9 +59,7 @@ func TestLaunchdPlanUsesKeepAliveAndCaffeinateIS(t *testing.T) {
 		}
 	}
 
-	// KeepAlive and RunAtLoad are asserted as key-then-true PAIRS, not merely as
-	// keys that exist somewhere: `M-L-KEEPALIVE` renders the key with a false
-	// value, which a key-presence check would pass.
+	// launchd needs the empty-element boolean form, including false.
 	//
 	// The EMPTY-ELEMENT form is asserted, and that is `lip-83o`. launchd's plist
 	// parser accepts only `<true/>` and rejects `<true></true>` with
@@ -69,7 +67,7 @@ func TestLaunchdPlanUsesKeepAliveAndCaffeinateIS(t *testing.T) {
 	// code `-deploy` produced a plist that could never be loaded. This
 	// assertion used to require the PAIRED form, which is how the defect was
 	// pinned in place rather than caught.
-	for _, key := range []string{"KeepAlive", "RunAtLoad"} {
+	for _, key := range []string{"RunAtLoad"} {
 		pair := "<key>" + key + "</key>\n\t<true/>"
 		if !strings.Contains(text, pair) {
 			t.Fatalf("%s is not rendered true. H-DEP-2 restarts on ANY exit, "+
@@ -90,8 +88,11 @@ func TestLaunchdPlanUsesKeepAliveAndCaffeinateIS(t *testing.T) {
 			"(lip-83o). Do not assert this by decoding the output: every "+
 			"decoder accepts both forms.\n%s", text)
 	}
-	if strings.Contains(text, "<false") {
-		t.Fatalf("the plist contains a false value:\n%s", text)
+	if !strings.Contains(text, "<key>KeepAlive</key>\n\t<dict>\n\t<key>SuccessfulExit</key>\n\t<false/>\n\t</dict>") {
+		t.Fatalf("KeepAlive must restart failed exits and stop successful exits:\n%s", text)
+	}
+	if !strings.Contains(text, "<key>ThrottleInterval</key>\n\t<integer>60</integer>") {
+		t.Fatalf("expected explicit 60-second retry throttle:\n%s", text)
 	}
 	for _, key := range []string{"Label", "ProgramArguments", "WorkingDirectory",
 		"StandardOutPath", "StandardErrorPath"} {

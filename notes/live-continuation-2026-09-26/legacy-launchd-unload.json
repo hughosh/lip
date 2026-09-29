@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-26T23:49:39.360667+00:00",
+  "action": "unload obsolete inactive live-flag supervisor restart loop",
+  "command": [
+    "launchctl",
+    "bootout",
+    "gui/501/com.lip.harness"
+  ],
+  "returncode": 0,
+  "stdout": "",
+  "stderr": "",
+  "account_evidence": "account-before-legacy-unload.json",
+  "files_preserved": true
+}

@@ -1,0 +1,20 @@
+{
+  "at_utc": "2026-09-28T18:03:34.309807+00:00",
+  "observer_absent": true,
+  "job_absent": true,
+  "tunnel_absent": true,
+  "observer_exit_code": 0,
+  "live_ok_absent": true,
+  "processes": [],
+  "job_lookup": "Bad request.\nCould not find service \"com.lip.q01.shutdown.attempt2.20260928\" in domain for user gui: 501\n",
+  "harness_processes": [],
+  "continuous_trading_running": false,
+  "heartbeat_source": "stopped with GET-only observer; no manual success ping",
+  "provider_dashboard_state": "not verified",
+  "permanent_watchdog_installed_by_session": false,
+  "last_runtime_heartbeat": {
+    "deadman_checkin_sent": "2026-09-28T18:02:40.950706Z",
+    "sent": "2026-09-28T18:02:40.950704Z"
+  },
+  "observer_finalized_at": "2026-09-28T18:02:49.578373Z"
+}

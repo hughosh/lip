@@ -1,0 +1,300 @@
+--- /private/tmp/lip-readiness-d2/run.go.pre-edit	2026-09-26 11:33:22
++++ /Users/hugh/kek/lip/go/cmd/harness/run.go	2026-09-26 11:48:24
+@@ -279,12 +279,30 @@
+ 	// It is set ONLY from `writeResult.Absent`, which `dispatch.go` grants only
+ 	// for a complete read that found none of the requested orders AND no other
+ 	// order of ours on that side. It is cleared by anything that could put one
+-	// back: a create on that side that may have left quantity live, and every
+-	// complete orders walk, which is the moment our own model becomes
+-	// authoritative again. Both clears are generous on purpose -- a redundant
++	// back: a create on that side that may have left quantity live, and a
++	// complete orders walk started after the latest cancel sweep, which is
++	// when our own model becomes authoritative again. Both clears are generous
++	// on purpose -- a redundant
+ 	// cancel costs one write, and a missed one costs an adding order left
+ 	// resting in a market the harness has stopped adding in.
+ 	cancelConfirmed [2]bool
++	// absentOrders are ids still present in the last portfolio orders walk but
++	// subsequently proved absent by a complete cancel sweep. A replacement
++	// create clears cancelConfirmed, so that side-wide flag cannot also be the
++	// sizing rule: it would resurrect the cancelled reducer before the next
++	// portfolio walk. A new complete walk started after the sweep replaces this
++	// older evidence; a previously in-flight walk cannot supersede it.
++	absentOrders map[string]struct{}
++	// A cancel sweep proves absence, but the old order may have filled just
++	// before its DELETE. Until a subsequent complete portfolio cycle started
++	// after the sweep, q may be too large for a replacement reducer. Hold all
++	// placements while that uncertainty exists; cancels still run.
++	awaitCancelTruth bool
++	cancelTruthAfter time.Duration
++	// The latest Gate-issued token and the poller's input are retained so a
++	// cancel can request an immediate account reconciliation on this generation.
++	reconcileToken wsx.ReconcileToken
++	reconcileOut   chan<- wsx.ReconcileToken
+ 
+ 	// --- H-Q-4a's continuous gate-failure episode ---------------------------
+ 	//
+@@ -485,13 +503,14 @@
+ 
+ func newOwner(r *rig, sd *shutdown) *owner {
+ 	o := &owner{
+-		r:        r,
+-		sd:       sd,
+-		p:        r.cfg.Params,
+-		global:   quote.Starting,
+-		market:   quote.Idle,
+-		capacity: r.cap,
+-		pending:  make(map[string]pendingOrder),
++		r:            r,
++		sd:           sd,
++		p:            r.cfg.Params,
++		global:       quote.Starting,
++		market:       quote.Idle,
++		capacity:     r.cap,
++		pending:      make(map[string]pendingOrder),
++		absentOrders: make(map[string]struct{}),
+ 
+ 		gateFailSince:  make(map[string]time.Duration),
+ 		gateFailPinged: make(map[string]bool),
+@@ -690,13 +709,14 @@
+ // and `drain_timeout_h` escalates rather than exiting. The exit, if it ever
+ // happens, is authorised by the drain and by nothing else.
+ func (o *owner) applySignal(sig os.Signal) {
++	known := o.truthKnown()
+ 	eff := o.sd.onSignal(sig, quote.GlobalInput{
+ 		State:         o.global,
+ 		Latched:       o.r.ctrl.Latched(),
+-		TruthReadable: o.truthKnown(),
+-		Reconciled:    true,
++		TruthReadable: known,
++		Reconciled:    known,
+ 		Stop:          true,
+-		RiskKnown:     true,
++		RiskKnown:     known,
+ 		AnyInventory:  o.anyInventory(),
+ 		AnyLiveOrder:  o.anyLiveOrder(),
+ 	})
+@@ -1204,6 +1224,8 @@
+ 	if !tok.Valid() {
+ 		return
+ 	}
++	o.reconcileToken = tok
++	o.reconcileOut = tokens
+ 	select {
+ 	case tokens <- tok:
+ 	default:
+@@ -1643,7 +1665,13 @@
+ 		}
+ 	}
+ 
+-	if eff.Applied[wsx.TruthOrders] {
++	if eff.Applied[wsx.TruthOrders] &&
++		(!o.awaitCancelTruth || read.StartedAt(wsx.TruthOrders).Mono > o.cancelTruthAfter) {
++		// A complete orders walk supersedes every earlier cancel sweep. An id
++		// listed here is positive evidence of presence and must count again.
++		// A walk started before the sweep does not supersede that later proof,
++		// even if it happened to finish afterwards.
++		clear(o.absentOrders)
+ 		// A complete orders walk is the ONLY thing that resolves an unknown
+ 		// create, and it resolves it positively: the coid is listed, so the
+ 		// order exists and is now in `Portfolio.LiveOrders`. Absence is not
+@@ -1656,15 +1684,27 @@
+ 		// is in `LiveOrders`, `atRisk` sees it, and the next evaluation decides
+ 		// the side from that rather than from a read taken before it.
+ 		o.cancelConfirmed = [2]bool{}
++	}
++	// A sweep's verifying orders read contains no position or fill truth. Only
++	// an independently applied cycle whose three walks STARTED after that sweep
++	// can resolve a possible fill-before-cancel. A pre-sweep in-flight cycle
++	// may finish later and must not open the placement gate.
++	if o.awaitCancelTruth && eff.Applied[wsx.TruthFills] &&
++		eff.Applied[wsx.TruthOrders] && eff.Applied[wsx.TruthPositions] &&
++		read.StartedAt(wsx.TruthFills).Mono > o.cancelTruthAfter &&
++		read.StartedAt(wsx.TruthOrders).Mono > o.cancelTruthAfter &&
++		read.StartedAt(wsx.TruthPositions).Mono > o.cancelTruthAfter {
++		o.awaitCancelTruth = false
+ 	}
+ }
+ 
+ // clearListed drops pending creates the resting-order walk has since listed.
+ //
+-// Listing the coid is the ONLY release. It is a positive fact -- the exchange
+-// named the order -- and it is also the moment the quantity appears in
+-// `Portfolio.LiveOrders`, so releasing it here is exactly what stops the same
+-// order being counted in two places at once.
++// Listing the coid is this path's positive release. A separate completed
++// cancel sweep may retire a named ACKed order before it is ever listed; an
++// UNKNOWN create without an id cannot use that release. A listed order's
++// quantity enters Portfolio.LiveOrders as pending releases, avoiding a double
++// count.
+ func (o *owner) clearListed() {
+ 	if len(o.pending) == 0 {
+ 		return
+@@ -2207,7 +2247,8 @@
+ 	}
+ 
+ 	reducing, held := quote.ReducingSide(q)
+-	actionable := o.r.gate.Actionable(ticker, o.r.ex.Clock.Now())
++	actionable := !o.awaitCancelTruth &&
++		o.r.gate.Actionable(ticker, o.r.ex.Clock.Now())
+ 
+ 	for _, side := range []quote.Side{quote.SideYes, quote.SideNo} {
+ 		role := quote.RoleAdding
+@@ -2575,6 +2616,9 @@
+ 			if in.Op() == quote.OpCancel {
+ 				return true
+ 			}
++			if o.awaitCancelTruth {
++				return false
++			}
+ 			if !o.r.gate.Actionable(in.Market, o.r.ex.Clock.Now()) {
+ 				return false
+ 			}
+@@ -2605,6 +2649,9 @@
+ 		seen := make(map[string]bool)
+ 		for _, lo := range o.r.pf.LiveOrders() {
+ 			if lo.Ticker != d.Market || lo.Side != d.Side {
++				continue
++			}
++			if _, absent := o.absentOrders[lo.OrderID]; absent {
+ 				continue
+ 			}
+ 			cents, exact := rest.CentsExact(lo.Price4)
+@@ -2819,6 +2866,9 @@
+ 		get(t).Position += risk.SideCost(q, risk.SettlementPrice4)
+ 	}
+ 	for _, lo := range o.r.pf.LiveOrders() {
++		if _, absent := o.absentOrders[lo.OrderID]; absent {
++			continue
++		}
+ 		e := get(lo.Ticker)
+ 		reducing, held := quote.ReducingSide(o.r.pf.Q(lo.Ticker))
+ 		if held && lo.Side == reducing {
+@@ -2839,12 +2889,17 @@
+ //
+ // It returns the AGGREGATE (H-Q-5b): exchange-confirmed resting, plus the write
+ // currently in flight, plus every unresolved create's maximum possibly-live
+-// quantity. Leaving any of the three out would leave that size in the external
+-// touch, and we would then chase ourselves (H-Q-10).
++// quantity. An order id a complete cancel sweep proved absent is excluded even
++// if an older portfolio walk still lists it. Leaving any possibly-live size
++// out would leave it in the external touch, and we would chase ourselves
++// (H-Q-10).
+ func (o *owner) restingOn(side quote.Side) ([]quote.Resting, int, bool) {
+ 	byPrice := make(map[int]num.Qty)
+ 	for _, lo := range o.r.pf.LiveOrders() {
+ 		if lo.Ticker != o.r.cfg.Ticker || lo.Side != side {
++			continue
++		}
++		if _, absent := o.absentOrders[lo.OrderID]; absent {
+ 			continue
+ 		}
+ 		cents, exact := rest.CentsExact(lo.Price4)
+@@ -3123,17 +3178,52 @@
+ 		// acked-but-unlisted order of ours still resting beside it.
+ 		o.noteSwept(res.Req.Market, res.Sweep)
+ 		if res.Absent {
+-			// H-ORD-4 and H-FAIL-3. `Absent` is the ONLY thing that may reach
+-			// `ConfirmAbsent`, and `dispatch.go` is strict about what earns it:
+-			// a COMPLETE verifying read that found nothing of ours resting on
+-			// this (market, side). A 2xx is a cancel REQUEST, and a
+-			// cancel-requested order is still live and still fillable.
+-			o.r.queue.ConfirmAbsent(res.Req.Market, res.Req.Side)
+-			// The same fact, kept for §5.2's own re-evaluation. `ConfirmAbsent`
+-			// discharges the INTENT; this discharges the OBLIGATION, which
+-			// `evaluate` re-derives from scratch on every tick and would
+-			// otherwise keep raising from a `LiveOrders` reading no walk has
+-			// refreshed yet.
++			// The sweep says the order is absent, but a just-before-DELETE fill
++			// may have changed q. Drop the dependent placement and rederive it
++			// only after fresh fills, orders, and positions have been applied.
++			// This is deliberately independent of reduced_by, which is no fill
++			// report and whose response identity is not yet validated here.
++			o.awaitCancelTruth = true
++			o.cancelTruthAfter = o.r.ex.Clock.Now().Mono
++			for _, id := range res.Req.IDs {
++				o.r.queue.Drop(id)
++			}
++			o.offerToken(o.reconcileOut, o.reconcileToken)
++			// The complete verifying read found nothing of ours on this side.
++			// Record the ids represented by an older portfolio walk before the
++			// next reconciliation. Keep this evidence by id across a new create;
++			// the side-wide cancelConfirmed flag must clear on that create.
++			requested := make(map[string]struct{}, len(res.Req.Orders))
++			for _, lo := range o.r.pf.LiveOrders() {
++				if lo.Ticker == res.Req.Market && lo.Side == res.Req.Side {
++					o.absentOrders[lo.OrderID] = struct{}{}
++				}
++			}
++			for _, ord := range res.Req.Orders {
++				if ord.OrderID != "" && ord.Ticker == res.Req.Market &&
++					ord.Side == res.Req.Side {
++					o.absentOrders[ord.OrderID] = struct{}{}
++					requested[ord.OrderID] = struct{}{}
++				}
++			}
++			// A known-id ACK that the cancel named has also been positively
++			// retired, even if no portfolio walk ever listed it. Otherwise its
++			// pending quantity would block the replacement indefinitely. An
++			// UNKNOWN create has no id to match and retains its maximum live size.
++			for coid, p := range o.pending {
++				if p.side != res.Req.Side || !p.acked || p.id == "" {
++					continue
++				}
++				if _, named := requested[p.id]; named {
++					delete(o.pending, coid)
++				}
++			}
++			// H-ORD-4 and H-FAIL-3: only the complete verifying sweep can
++			// discharge the cancellation obligation. A 2xx alone cannot. The
++			// dependent intent was discarded above so a fresh position walk will
++			// rederive its role and size. Keep the obligation discharged until a
++			// newer orders walk; otherwise §5.2 would keep cancelling the same
++			// stale LiveOrders id on every owner tick.
+ 			o.cancelConfirmed[res.Req.Side] = true
+ 			return
+ 		}
+@@ -3166,8 +3256,10 @@
+ 	create := res.Create
+ 
+ 	// EVERY create that may have left quantity live enters the aggregate HERE,
+-	// before anything else reads it, and it stays until a complete orders walk
+-	// lists the coid back.
++	// before anything else reads it. A complete orders walk that lists the coid
++	// moves it into LiveOrders; a complete cancel sweep can retire a named ACKed
++	// order before that walk. An UNKNOWN create keeps its maximum possibly-live
++	// quantity until positive resolution.
+ 	//
+ 	// Both outcomes, not just the unknown one. `CreateRejected` is the single
+ 	// case with nothing live -- `MaxLive` is zero only there -- so the test is
+@@ -3274,11 +3366,10 @@
+ 	}
+ 
+ 	if create.ReconcileNow() {
+-		// §7.2 clause 2. There is no way to force the poller off-cadence from
+-		// here -- it polls on its own timer and on a reconcile token, and a
+-		// token is a connection generation rather than a request. Recorded so
+-		// the delay is visible: the resolution is at most one `position_poll_s`
+-		// away, and the quantity stays in every cap until it arrives.
++		// §7.2 clause 2. This create-recovery path still defers reconciliation
++		// to the poller's cadence; unlike the cancel/position safety path above,
++		// it does not issue the retained current-generation token here. Record
++		// that delay visibly. The quantity stays in every cap until resolved.
+ 		o.r.anom.raise(risk.Anomaly{
+ 			Class: "RECONCILE_DEFERRED", Sev: risk.SEV2, Ticker: res.Req.Market,
+ 			Text: fmt.Sprintf("create %s ended %s and §7.2 asks for an "+
+@@ -3597,9 +3688,13 @@
+ // reading before the outage, and H-FAIL-4 exists because that reading looks
+ // exactly like a good one.
+ func (o *owner) truthKnown() bool {
++	if o.awaitCancelTruth {
++		return false
++	}
+ 	now := o.r.ex.Clock.Now()
+ 	for _, k := range []wsx.Truth{wsx.TruthOrders, wsx.TruthFills, wsx.TruthPositions} {
+-		if o.r.gate.TruthAge(k, now) > o.p.TruthMaxAge {
++		age := o.r.gate.TruthAge(k, now)
++		if age < 0 || age > o.p.TruthMaxAge {
+ 			return false
+ 		}
+ 	}

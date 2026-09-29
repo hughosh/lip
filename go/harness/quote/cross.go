@@ -78,14 +78,6 @@ func CheckPlacement(side Side, price int, otherPrice int, hasOther bool) error {
 	return nil
 }
 
-// Opposite is the other side of the same market.
-func (s Side) Opposite() Side {
-	if s == SideYes {
-		return SideNo
-	}
-	return SideYes
-}
-
 // MaxOpposite is the highest price we may rest on `side` given that we already
 // rest at `otherPrice` on the other side, or false when no price on this side
 // is placeable at all.

@@ -1,0 +1,6 @@
+{
+  "at_utc": "2026-09-28T17:39:02.730213+00:00",
+  "pid": 63411,
+  "verified_command": "/Users/hugh/kek/.venv/bin/python notes/live-continuation-2026-09-26/ws-tunnel.py --status /Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair/tunnel-status.json --trigger /Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair/tunnel-trigger --log /Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair/tunnel-events.jsonl",
+  "signal": "SIGTERM"
+}

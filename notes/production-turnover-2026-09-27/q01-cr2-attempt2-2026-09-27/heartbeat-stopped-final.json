@@ -1,0 +1,12 @@
+{
+  "at": "2026-09-27T18:48:14.901855+00:00",
+  "signal": "fail",
+  "source": "CR2 GET-only observer and its heartbeat stopped; no trading writer activated",
+  "provider": "Healthchecks",
+  "endpoint_redacted": true,
+  "human_acknowledgment": false,
+  "dashboard_verified": false,
+  "permanent_watchdog_installed": false,
+  "http_status": 200,
+  "body_exact_OK": true
+}

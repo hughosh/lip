@@ -1,0 +1,23 @@
+{
+  "ticker": "KXFEATURE-26GTA6-DON",
+  "rung": "sizing",
+  "capital_source": "selected_shard_balance",
+  "s": 12,
+  "s_max": 48,
+  "inv_soft": 3,
+  "inv_hard": 7,
+  "inv_kill": 18,
+  "pnl_kill": -15,
+  "n_markets": 1,
+  "heartbeat_s": 30,
+  "paths": {
+    "db": "/Users/hugh/kek/lip/notes/active-continuation-2026-09-26/read-only-smoke/runtime/harness.db",
+    "anomaly_log": "/Users/hugh/kek/lip/notes/active-continuation-2026-09-26/read-only-smoke/runtime/anomaly.jsonl",
+    "latch": "/Users/hugh/kek/lip/notes/active-continuation-2026-09-26/read-only-smoke/runtime/harness.halt",
+    "lock": "/Users/hugh/kek/lip/notes/active-continuation-2026-09-26/read-only-smoke/runtime/harness.lock",
+    "key": "/Users/hugh/.kalshi/kalshi.pem",
+    "env": "/Users/hugh/.kalshi/env",
+    "live_ok": "/Users/hugh/kek/lip/notes/active-continuation-2026-09-26/read-only-smoke/runtime/live_ok",
+    "stop": "/Users/hugh/kek/lip/notes/active-continuation-2026-09-26/read-only-smoke/runtime/harness.stop"
+  }
+}

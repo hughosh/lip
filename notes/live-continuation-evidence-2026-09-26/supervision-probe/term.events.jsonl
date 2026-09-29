@@ -1,0 +1,3 @@
+{"event": "start", "mode": "term", "pid": 36072, "ppid": 1, "at": 1790468489.4877598, "argv": ["/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/child.py", "term", "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/supervision-probe/term.events.jsonl"], "elapsed": 0}
+{"event": "signal", "mode": "term", "pid": 36072, "ppid": 1, "at": 1790468489.711414, "signum": 15, "signal_name": "SIGTERM"}
+{"event": "exit", "mode": "term", "pid": 36072, "ppid": 1, "at": 1790468492.838621, "status": 0, "seconds_after_signal": 3.127}

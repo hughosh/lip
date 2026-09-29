@@ -1,0 +1,1 @@
+Initial read-only SELECT snapshot JSON export failed: TypeError Object of type bytes is not JSON serializable. No DB mutation. Repeated bounded SELECT with JSON-aware BLOB serialization; failed export was not a financial/runtime failure.

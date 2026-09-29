@@ -170,7 +170,9 @@ type seamExchange struct {
 	fills     []map[string]any
 
 	creates []seamCreate
-	deletes []string
+	// acceptedCoids models exchange idempotency, surviving client restarts.
+	acceptedCoids map[string]bool
+	deletes       []string
 	// ordersWalks counts GET /portfolio/orders pages served. It is what makes
 	// "no walk could have bound this order" a measured claim rather than an
 	// assumption about the fixture.
@@ -331,6 +333,14 @@ func (f *seamExchange) create(req rest.Request) (rest.Response, error) {
 	f.mu.Lock()
 	idx := len(f.creates)
 	f.creates = append(f.creates, c)
+	if f.acceptedCoids == nil {
+		f.acceptedCoids = make(map[string]bool)
+	}
+	if f.acceptedCoids[c.Coid] {
+		f.mu.Unlock()
+		return rest.Response{Status: 409, Body: []byte(`{"error":{"code":"order_already_exists"}}`)}, nil
+	}
+	f.acceptedCoids[c.Coid] = true
 	hook := f.onCreate
 	list := f.listCreated
 	filled := f.ackFill
@@ -867,9 +877,11 @@ type seamHarness struct {
 
 	rig *rig
 
-	serveCancel context.CancelFunc
-	serveDone   chan struct{}
-	serveErr    error
+	serveCancel  context.CancelFunc
+	serveDone    chan struct{}
+	serveErr     error
+	serveSignals chan os.Signal
+	serveExits   chan int
 }
 
 type seamAlertStepper struct{}
@@ -1015,6 +1027,10 @@ func newSeamHarness(t *testing.T, opt seamOptions) *seamHarness {
 		Target: seamTarget,
 		NowMs:  h.clk.wallMs,
 		Mono:   h.clk.monoNow,
+		// The fakes detach no dial callbacks, so the final-close fence has
+		// nothing to join; the owner still calls it as production does.
+		quiesce: func(context.Context) error { return nil },
+		resume:  func() {},
 	}
 	if opt.ReadOnly {
 		var err error
@@ -1064,7 +1080,9 @@ func seamBook() map[string]any {
 	}
 }
 
-// start runs `serve` on its own goroutine and registers its stop.
+// start runs `serve` on its own goroutine with the process exit injected, and
+// registers its stop. A composed test must never inherit newShutdown's real
+// os.Exit: an unexpected planned flat drain would terminate the test binary.
 //
 // Cleanup order is LIFO, so this stop runs BEFORE `closeRig`: the store cannot
 // be shut down while the loops that submit to it are still running, and
@@ -1074,8 +1092,15 @@ func (h *seamHarness) start() {
 	ctx, cancel := context.WithCancel(h.ctx)
 	h.serveCancel = cancel
 	h.serveDone = make(chan struct{})
+	h.serveSignals = make(chan os.Signal, 1)
+	h.serveExits = make(chan int, 1)
+	sd := newShutdown(h.rig)
+	sd.exit = func(code int) {
+		h.serveExits <- code
+		cancel()
+	}
 	go func() {
-		h.serveErr = h.rig.serve(ctx)
+		h.serveErr = h.rig.serveWithShutdown(ctx, sd, h.serveSignals)
 		close(h.serveDone)
 	}()
 	h.t.Cleanup(h.stopServe)
@@ -1093,6 +1118,11 @@ func (h *seamHarness) stopServe() {
 		h.t.Errorf("serve did not return within %v of its context being "+
 			"cancelled; a run loop that cannot be stopped wedges every test "+
 			"after it", seamStopBudget)
+	}
+	select {
+	case code := <-h.serveExits:
+		h.t.Errorf("serve reached an unexpected authorised process exit (code %d)", code)
+	default:
 	}
 }
 
@@ -1630,11 +1660,20 @@ func TestAFullTickPlacesTheExitAtTheExternalTouch(t *testing.T) {
 		})
 
 	// --- the socket half was really wired too -------------------------------
-	if subs := h.ws.subscriptions(); len(subs) != 2 {
-		t.Fatalf("the session sent %d subscriptions, want 2: a connection "+
-			"carrying only the filtered delta stream looks healthy, answers "+
-			"pings and produces books, and never delivers a single trade",
-			len(subs))
+	subscriptions := 0
+	for _, raw := range h.ws.subscriptions() {
+		var msg struct {
+			Cmd string `json:"cmd"`
+		}
+		if err := json.Unmarshal(raw, &msg); err != nil {
+			t.Fatal(err)
+		}
+		if msg.Cmd == "subscribe" {
+			subscriptions++
+		}
+	}
+	if subscriptions != 2 {
+		t.Fatalf("sent %d subscriptions, want the book and trade streams", subscriptions)
 	}
 }
 
@@ -1868,37 +1907,13 @@ func TestTheBindingIsSubmittedInlineOnTheAckAndNotByALaterWalk(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// 4. D3 -- one REST writer
+// 4. D3 -- one authority, bounded transport workers
 // ---------------------------------------------------------------------------
 
-// TestEveryRESTWriteComesFromTheOneDispatcherGoroutine is D3, H-ORD-6 and "ONE
-// REST writer" -- the same requirement stated three times -- asserted as the
-// goroutine count it actually is.
-//
-// `dispatchWorkers` is 1 and the enforcement is that there IS one goroutine, so
-// the property is not visible from any value inside this process. It is visible
-// from the transport, and only there: this records the goroutine id of every
-// POST and DELETE and the maximum number in flight at once.
-//
-// Both halves matter and neither implies the other. Two writers that happened
-// never to overlap would still show two ids; two writers that raced would still
-// show a depth of two even if the ids were reused. Run under -race, a genuine
-// second writer also trips the detector on `quote.Capacity` and
-// `risk.Portfolio`, which carry no mutex by design.
-//
-// The scenario deliberately produces BOTH kinds of write, and the position flip
-// is how. At q = +2 the exit is a NO bid, and it rests. When the exchange then
-// reports q = −2, the reducing side becomes YES and that same NO order is now
-// on the ADDING side of a stopped market -- so §5.2 takes it off (A8) and the
-// DELETE is issued by the dispatcher rather than by any startup path. The step
-// is two contracts, inside `pos_drift_hard`, so nothing here is a drift stop.
-//
-// The one legitimate second writer in this process is the §7.5 startup sweep,
-// which issues its cancels from the goroutine that runs `serve` -- and it runs
-// strictly BEFORE the dispatcher goroutine is started, so D3's concurrency
-// property is untouched. This fixture starts with no resting orders precisely
-// so that no startup write exists and the claim below can be exact.
-func TestEveryRESTWriteComesFromTheOneDispatcherGoroutine(t *testing.T) {
+// The owner alone mints coids, reserves capital and selects requests. H-QUE-3
+// allows bounded transport concurrency so a blocked general write cannot own
+// the reducer's reserved slot. Both creates and cancels must stay in that pool.
+func TestEveryRESTWriteStaysInsideTheBoundedDispatcherPool(t *testing.T) {
 	h := newSeamHarness(t, seamOptions{
 		ListCreated: true,
 		Positions:   map[string]string{seamTicker: "2.00"},
@@ -1920,30 +1935,16 @@ func TestEveryRESTWriteComesFromTheOneDispatcherGoroutine(t *testing.T) {
 		func() bool { return h.ex.deleteCount() >= 1 })
 
 	ids := h.ex.writerIDs()
-	if len(ids) != 1 {
-		t.Fatalf("REST writes came from %d goroutines (%v), want exactly 1.\n\n"+
-			"D3, H-ORD-6 and \"ONE REST writer\" are one requirement written "+
-			"three times, and one goroutine is how it is enforced rather than "+
-			"remembered. A second writer mints coids from the same run id "+
-			"(H-ORD-1 permits at most one order per coid), spends the same §16 "+
-			"token bucket, and touches `quote.Capacity` and `risk.Portfolio`, "+
-			"neither of which carries a mutex", len(ids), ids)
+	if len(ids) < 1 || len(ids) > dispatchWorkers {
+		t.Fatalf("writes used %d goroutines, pool limit %d: %v", len(ids), dispatchWorkers, ids)
 	}
-	for id, n := range ids {
+	for id := range ids {
 		if id == 0 {
-			t.Fatalf("the writer's goroutine id read back as 0, so the id was " +
-				"never parsed and every writer would look like the same one")
-		}
-		if n < 2 {
-			t.Fatalf("only %d write was observed, so \"they all came from one "+
-				"goroutine\" is vacuous", n)
+			t.Fatal("transport goroutine identity was not parsed")
 		}
 	}
-	if got := h.ex.maxConcurrentWrites(); got != 1 {
-		t.Fatalf("%d REST writes were in flight at once, want at most 1: "+
-			"`Capacity.BusyGeneral` counts what the owner believes is in "+
-			"flight, and a writer that fanned out would be spending capacity "+
-			"nobody is accounting for", got)
+	if got := h.ex.maxConcurrentWrites(); got < 1 || got > dispatchWorkers {
+		t.Fatalf("concurrent transport writes=%d, pool limit=%d", got, dispatchWorkers)
 	}
 	if h.ex.createCount() == 0 || h.ex.deleteCount() == 0 {
 		t.Fatalf("the run produced %d creates and %d deletes; the claim is "+
@@ -2004,8 +2005,9 @@ func TestRequotingAnExistingOrderIsAlwaysCancelConfirmPlace(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			h := newSeamHarness(t, seamOptions{})
-			o := h.ownerFor()
+			g := newGateFailOwner(t, 0)
+			h, o := g.h, g.o
+			reducerConfirmationPoll(t, g)
 			o.market = quote.Quoting
 
 			h.installResting(risk.LiveOrder{
@@ -3285,6 +3287,45 @@ func TestASustainedOutageReachesTheGateAndTheDisconnectTokenReachesThePoller(
 	})
 }
 
+// H-FAIL-1a (lip-pcr): a gate reduce lasts for the life of the process, so the
+// operator is told once per market that adding resumes only after a restart.
+// A reduce request the gate does not hold, such as H-POS-2's drift, ends at
+// q == 0 and is not reported.
+func TestStickyGateReduceTellsTheOperatorAddingWaitsForRestart(t *testing.T) {
+	h := newSeamHarness(t, seamOptions{})
+	o := h.ownerFor()
+	h.connectGate()
+	h.takeRaised()
+	notices := func() (n int, last risk.Anomaly) {
+		for _, a := range h.takeRaised() {
+			if a.Class == "QUOTING_STOPPED_UNTIL_RESTART" {
+				n++
+				last = a
+			}
+		}
+		return n, last
+	}
+
+	o.noteReduce([]string{seamTicker})
+	if n, _ := notices(); n != 0 {
+		t.Fatalf("a reduce the gate does not hold raised %d restart notices", n)
+	}
+
+	o.applyEvent(wsx.Event{Kind: wsx.EventDisconnectReduce, At: h.clk.Now(),
+		Down: h.cfg.Params.DisconnectReduce}, make(chan wsx.ReconcileToken, 1))
+	n, a := notices()
+	if n != 1 || a.Ticker != seamTicker || a.Sev != risk.SEV2 ||
+		!strings.Contains(a.Text, "operator restart") {
+		t.Fatalf("F4 raised %d restart notices, want one SEV2 for %s naming "+
+			"the operator restart; last=%+v", n, seamTicker, a)
+	}
+
+	o.noteReduce([]string{seamTicker})
+	if n, _ := notices(); n != 0 {
+		t.Fatalf("a later reduce of the same market repeated the notice %d times", n)
+	}
+}
+
 // TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs is
 // `lip-vxo`: the two answers `lifecycle` computes on every uncertain stop path
 // and that `cmd/harness` used to read NEITHER of.
@@ -3811,7 +3852,12 @@ func TestEveryGlobalTransitionRecordsItsOwnCause(t *testing.T) {
 			// Flat and unrested, so the stop drains on the very next tick.
 			h := newSeamHarness(t, seamOptions{})
 			o := h.ownerFor()
-			h.connectGate()
+			// DRAINED requires a complete live account walk. Adoption's flat
+			// portfolio alone is not post-start truth, so obtain one through
+			// the real poller before testing the halted flat transition.
+			tokens := make(chan wsx.ReconcileToken, 1)
+			o.applyEvent(wsx.Event{Kind: wsx.EventConnected, At: h.clk.Now()}, tokens)
+			reducerConfirmationPoll(t, &gateFailOwner{h: h, o: o, tokens: tokens})
 			h.installBook([][]string{{"0.4000", "20.00"}},
 				[][]string{{"0.5500", "20.00"}})
 			o.closeAt = time.Now().Add(24 * time.Hour)
@@ -3893,7 +3939,7 @@ func TestTheCanaryLatchesOnAnyPositionItDidNotStartWith(t *testing.T) {
 				"signed value rather than the magnitude ignores half the book",
 		},
 		{
-			name: "exactly inv_kill", posFP: "18.00", cause: "portfolio_read",
+			name: "exactly inv_kill", posFP: "18.00", cause: "position_drift",
 			why: "F17 compares with a strict `>`, so exactly inv_kill would not " +
 				"breach it. This position DOES exceed pos_drift_hard, which is a " +
 				"stronger cause and takes the latch by first-writer-wins -- the " +
@@ -3901,7 +3947,7 @@ func TestTheCanaryLatchesOnAnyPositionItDidNotStartWith(t *testing.T) {
 		},
 		{
 			name: "one quantum above inv_kill", posFP: "18.01",
-			cause: "portfolio_read",
+			cause: "position_drift",
 			why:   "as above, and the point is that the harness stops either way",
 		},
 	}
@@ -4357,22 +4403,75 @@ func TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown(t *testing.T) {
 		t.Fatalf("the latch reads %q, want canary_owned_fill", got)
 	}
 
-	// 3. §5.2's response: the adding side is cancelled and CONFIRMED absent,
-	// and the exit is not.
+	// 3. §5.2's response: the adding side is cancelled and CONFIRMED absent, and
+	// the exit survives -- but the exit that was RESTING is a full contract,
+	// placed symmetrically while the canary was flat, and now sits against a
+	// 0.01-contract position as an aggregate 100x over |q| (H-Q-5a, H-Q-5b).
+	// §6.5's price-only path leaves an at-touch order alone whatever its size, so
+	// the oversized reducer is retired by a cancel-confirm-place and replaced with
+	// the quantized |q| exit. WINDING_DOWN forbids ADDING; it does not forbid
+	// keeping a correctly capped reducer live, so this is a permitted reducing
+	// replacement and not a renewed adding quote.
+	quantum := num.QtyFromFloat(0.01)
+	noInitial, ok := h.ex.createAt(1)
+	if !ok {
+		t.Fatal("no second create was recorded; a flat canary quotes both sides")
+	}
+	if p, _ := rest.ParseCoid(noInitial.Coid); p.Side != quote.SideNo {
+		t.Fatalf("the second create is on the %s side, want NO; the reducing "+
+			"side of a long-YES canary is NO (§6.2), and this is the order the "+
+			"cap retires", p.Side)
+	}
 	h.await("the adding side to be cancelled", func() bool {
 		return seamContains(h.ex.deletedIDs(), adding.OrderID)
 	})
-	h.await("the adding side to be confirmed absent from the book",
-		func() bool { return h.ex.restingCount() == 1 })
-
-	for i := 0; i < 3; i++ {
+	// The clock has to advance for the extra legs to flow past the adding cancel:
+	// the oversized reducer's own cancel-confirm-place and the capped replacement
+	// each take a dispatch cycle.
+	for i := 0; i < 6; i++ {
 		h.clk.Advance(h.cfg.Params.PositionPoll)
 		h.awaitTicks(3)
 	}
+	if !seamContains(h.ex.deletedIDs(), noInitial.OrderID) {
+		t.Fatalf("the oversized 1-contract reducer %q was never cancelled; §6.5's "+
+			"price-only Decide leaves an at-touch order alone whatever its size, "+
+			"so only an aggregate cap (H-Q-5b) retires it", noInitial.OrderID)
+	}
 
-	// 4. The exit REMAINS. I1 in one sentence: every stop path stops adding
-	// risk and none of them stops reducing it. A harness that cancelled its own
-	// exit on the way down would be holding the position it stopped to shed.
+	// 4. The exit REMAINS, now at the quantized |q|. I1 in one sentence: every
+	// stop path stops adding risk and none of them stops reducing it. A harness
+	// that cancelled its own exit on the way down would be holding the position it
+	// stopped to shed -- and one that re-caps the exit must land a REDUCING order,
+	// never a renewed adding quote, and must then hold still.
+	if got := h.ex.createCount(); got != quotesBefore+1 {
+		t.Fatalf("%d order(s) have been placed, want %d = the opening quotes plus "+
+			"exactly one reducing replacement; a latched harness may cancel, may "+
+			"keep a capped exit alive, and may place that one replacement -- and "+
+			"nothing more", got, quotesBefore+1)
+	}
+	replacement, ok := h.ex.createAt(quotesBefore)
+	if !ok {
+		t.Fatal("no reducing replacement was recorded after the cap retired the " +
+			"oversized exit")
+	}
+	if p, _ := rest.ParseCoid(replacement.Coid); p.Side != quote.SideNo {
+		t.Fatalf("the replacement is on the %s side, want NO; a long-YES canary "+
+			"reduces on the NO side, and a new order on the YES adding side would "+
+			"be exactly the renewed adding WINDING_DOWN forbids", p.Side)
+	}
+	if replacement.Count != quantum.Wire() {
+		t.Fatalf("the reducing replacement is %s contracts, want %s = the "+
+			"quantized |q|; an exit above |q| is a reducing quote of |q| plus an "+
+			"adding quote on the opposite side, which A12 forbids", replacement.Count,
+			quantum.Wire())
+	}
+	// Stable: once the aggregate is the quantized |q|, atRisk == target and the
+	// recap never re-enters, so there is no repeated cancel/place churn against
+	// the §16 budget.
+	for i := 0; i < 4; i++ {
+		h.clk.Advance(h.cfg.Params.PositionPoll)
+		h.awaitTicks(3)
+	}
 	if n := h.ex.restingCount(); n != 1 {
 		t.Fatalf("%d order(s) rest while the canary holds 0.01 contracts under "+
 			"WINDING_DOWN, want exactly 1 -- the capped reducer.\n\n"+
@@ -4384,10 +4483,10 @@ func TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown(t *testing.T) {
 		t.Fatalf("the market is %s while holding inventory under WINDING_DOWN, "+
 			"want REDUCING", m.State)
 	}
-	if got := h.ex.createCount(); got != quotesBefore {
-		t.Fatalf("%d order(s) have been placed, up from %d before the fill; a "+
-			"latched harness may cancel and may keep an exit alive, and may "+
-			"place nothing new", got, quotesBefore)
+	if got := h.ex.createCount(); got != quotesBefore+1 {
+		t.Fatalf("%d order(s) have been placed after settling, want %d; the "+
+			"capped reducer must stabilise without repeated cancel/place churn",
+			got, quotesBefore+1)
 	}
 
 	// 5. Flat. The reducer's work is done and there is nothing left to manage.
@@ -4401,12 +4500,15 @@ func TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown(t *testing.T) {
 	})
 
 	// 6. And NO new adding order, which is the assertion the whole bead exists
-	// for. §5.2's stop is not a pause: reaching flat does not license the
-	// harness to start again, because the latch is still on disk.
-	if got := h.ex.createCount(); got != quotesBefore {
-		c, _ := h.ex.createAt(quotesBefore)
-		t.Fatalf("%d order(s) have been placed, up from %d: the canary reached "+
-			"flat and quoted again (first new coid %q).\n\n"+
+	// for. §5.2's stop is not a pause: reaching flat does not license the harness
+	// to start again, because the latch is still on disk. The one reducing
+	// replacement placed on the way down stays the only write past the opening
+	// quotes.
+	if got := h.ex.createCount(); got != quotesBefore+1 {
+		c, _ := h.ex.createAt(quotesBefore + 1)
+		t.Fatalf("%d order(s) have been placed, up from the %d opening quotes "+
+			"plus one reducing replacement: the canary reached flat and quoted "+
+			"again (first new coid %q).\n\n"+
 			"This is the market-scoped brake's failure mode and the reason "+
 			"§7.9 needs a GLOBAL latch: `inv_hard` self-clears at flat, so a "+
 			"harness bounded only by it reduces to zero and resumes adding, "+
@@ -6709,7 +6811,16 @@ func TestRewardArrivalCannotMoveTradingPnL(t *testing.T) {
 		h.start()
 		h.awaitActionable()
 
-		h.seedPnLFills(append(seamFloorLegs(), seamMicroLegs(true)...)...)
+		legs := append(seamFloorLegs(), seamMicroLegs(true)...)
+		// Keep one quantum of real inventory after the loss. The reward
+		// comparison runs for 65s after the halt; a flat, order-free account
+		// correctly reaches DRAINED in that interval, which says nothing about
+		// whether reward income contaminated trading P&L.
+		legs = append(legs, seamPnLLeg{trade: "SEAM-PNL-HELD",
+			side: quote.SideYes, yesFP: "0.5000", noFP: "0.5000",
+			count: 1, cents: 50})
+		h.seedPnLFills(legs...)
+		h.ex.setPosition(seamTicker, "0.01")
 		h.clk.Advance(h.cfg.Params.PositionPoll)
 
 		h.await("the durable §12 cause to reach the latch", func() bool {

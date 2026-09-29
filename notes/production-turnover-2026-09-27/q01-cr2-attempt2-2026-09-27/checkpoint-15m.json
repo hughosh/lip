@@ -1,0 +1,10 @@
+{
+  "at": "2026-09-27T18:42:12.249906+00:00",
+  "active_seconds": 895.002515555,
+  "monitor_fresh_slots": "892/897",
+  "portfolio_fresh_slots": "179/181",
+  "stale_walks": 0,
+  "incomplete_walks": 0,
+  "non_GETs": 0,
+  "SEV1": []
+}

@@ -1,0 +1,251 @@
+{
+  "build_runs_planned": 5,
+  "catalogue_count": 335,
+  "catcher_packages": {
+    "TestAssessQ01LocalPassesExactTwentyMinuteRestartBoundary": "./harness/qual",
+    "TestAssessQ01LocalRejectsOneNanosecondBelowTwentyMinutes": "./harness/qual",
+    "TestLoadConfigRefusesAConfigurationItCannotFund": "./cmd/harness",
+    "TestStartupWrongShardCashCannotFundSelectedMarket": "./cmd/harness",
+    "TestTheSizingRungLatchesOnFirstPosition": "./cmd/harness"
+  },
+  "duration_seconds": 48.616,
+  "environment": {
+    "CGO_ENABLED": "0",
+    "GOCACHE": "/Users/hugh/Library/Caches/go-build",
+    "GOENV": "off",
+    "GOFLAGS": "-p=2",
+    "GOMAXPROCS": "2",
+    "GOMODCACHE": "/Users/hugh/go/pkg/mod",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off",
+    "HOME": "/Users/hugh",
+    "PATH": "/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/hugh/.codex/tmp/arg0/codex-arg0ZleeOX:/Users/hugh/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/hugh/.local/bin:/Users/hugh/.opencode/bin:/Users/hugh/.cargo/bin:/Users/hugh/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONUNBUFFERED": "1",
+    "TMPDIR": "/var/folders/48/pp0ngtc132qf3vf4c9k3sqdr0000gn/T/"
+  },
+  "focused": false,
+  "full_suite_runs_planned": 0,
+  "go_binary": "/usr/local/bin/go",
+  "go_sha256": "6890cf02fb958fc15a043022d5f29e2a2206ab08a73581eddc3f33c7c681a730",
+  "mode": "named",
+  "named_test_runs_planned": 6,
+  "outcomes": [
+    {
+      "accepted": true,
+      "expected": "TestTheSizingRungLatchesOnFirstPosition",
+      "failed_tests": [
+        "TestTheSizingRungLatchesOnFirstPosition"
+      ],
+      "id": "M-SIZING-FIRSTFILL",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestLoadConfigRefusesAConfigurationItCannotFund",
+      "failed_tests": [
+        "TestLoadConfigRefusesAConfigurationItCannotFund"
+      ],
+      "id": "M-LPF-IGNORED",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestAssessQ01LocalRejectsOneNanosecondBelowTwentyMinutes",
+      "failed_tests": [
+        "TestAssessQ01LocalRejectsOneNanosecondBelowTwentyMinutes"
+      ],
+      "id": "M-Q01-SHORTRUN",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestAssessQ01LocalPassesExactTwentyMinuteRestartBoundary",
+      "failed_tests": [
+        "TestAssessQ01LocalPassesExactTwentyMinuteRestartBoundary"
+      ],
+      "id": "M-Q01-NOEXTERNAL",
+      "status": "caught"
+    },
+    {
+      "accepted": true,
+      "expected": "TestStartupWrongShardCashCannotFundSelectedMarket",
+      "failed_tests": [
+        "TestStartupWrongShardCashCannotFundSelectedMarket"
+      ],
+      "id": "M-FUND-WRONG-SHARD",
+      "status": "caught"
+    }
+  ],
+  "partial": true,
+  "runner_sha256": "fcfaa26602a7d6ab19e3b4058579e746c55597bdcb0ba4018795c0ecefa80a45",
+  "runs": [
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^(?:TestAssessQ01LocalPassesExactTwentyMinuteRestartBoundary|TestAssessQ01LocalRejectsOneNanosecondBelowTwentyMinutes|TestLoadConfigRefusesAConfigurationItCannotFund|TestStartupWrongShardCashCannotFundSelectedMarket|TestTheSizingRungLatchesOnFirstPosition)$",
+        "./cmd/harness",
+        "./harness/qual"
+      ],
+      "exit_code": 0,
+      "label": "baseline",
+      "log": "0000-baseline.log",
+      "seconds": 4.878
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-SIZING-FIRSTFILL-build",
+      "log": "0001-M-SIZING-FIRSTFILL-build.log",
+      "seconds": 2.952
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestTheSizingRungLatchesOnFirstPosition$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-SIZING-FIRSTFILL-test",
+      "log": "0002-M-SIZING-FIRSTFILL-test.log",
+      "seconds": 18.05
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-LPF-IGNORED-build",
+      "log": "0003-M-LPF-IGNORED-build.log",
+      "seconds": 3.522
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestLoadConfigRefusesAConfigurationItCannotFund$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-LPF-IGNORED-test",
+      "log": "0004-M-LPF-IGNORED-test.log",
+      "seconds": 3.202
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-Q01-SHORTRUN-build",
+      "log": "0005-M-Q01-SHORTRUN-build.log",
+      "seconds": 2.853
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestAssessQ01LocalRejectsOneNanosecondBelowTwentyMinutes$",
+        "./harness/qual"
+      ],
+      "exit_code": 1,
+      "label": "M-Q01-SHORTRUN-test",
+      "log": "0006-M-Q01-SHORTRUN-test.log",
+      "seconds": 1.185
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-Q01-NOEXTERNAL-build",
+      "log": "0007-M-Q01-NOEXTERNAL-build.log",
+      "seconds": 2.841
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestAssessQ01LocalPassesExactTwentyMinuteRestartBoundary$",
+        "./harness/qual"
+      ],
+      "exit_code": 1,
+      "label": "M-Q01-NOEXTERNAL-test",
+      "log": "0008-M-Q01-NOEXTERNAL-test.log",
+      "seconds": 1.098
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-FUND-WRONG-SHARD-build",
+      "log": "0009-M-FUND-WRONG-SHARD-build.log",
+      "seconds": 2.903
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestStartupWrongShardCashCannotFundSelectedMarket$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-FUND-WRONG-SHARD-test",
+      "log": "0010-M-FUND-WRONG-SHARD-test.log",
+      "seconds": 3.051
+    }
+  ],
+  "selected_count": 5,
+  "selected_ids": [
+    "M-SIZING-FIRSTFILL",
+    "M-LPF-IGNORED",
+    "M-Q01-SHORTRUN",
+    "M-Q01-NOEXTERNAL",
+    "M-FUND-WRONG-SHARD"
+  ],
+  "source_sha256_after": "907b47e1756640696bb28d6a9470bc8ffc483b4c00a426e5fa806f328e250fe9",
+  "source_sha256_before": "907b47e1756640696bb28d6a9470bc8ffc483b4c00a426e5fa806f328e250fe9",
+  "started_at_utc": "2026-09-26T23:21:43.533843+00:00",
+  "status": "PASS",
+  "updated_at_utc": "2026-09-26T23:22:31.993582+00:00"
+}

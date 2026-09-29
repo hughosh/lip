@@ -1,0 +1,45 @@
+{
+  "at_utc": "2026-09-28T20:30:17.183369+00:00",
+  "process_absence_receipt": "process-after-operator-drain.json",
+  "account_complete": true,
+  "account_flat": true,
+  "account_read_ended_at": "2026-09-28T20:27:54.50442Z",
+  "owned_orders": [
+    {
+      "order_id": "01a0e981-b150-714a-b910-47ca43522e5b",
+      "status": "canceled",
+      "filled": "0.00",
+      "remaining": "0.00",
+      "maker_fees": "0.000000",
+      "taker_fees": "0.000000"
+    },
+    {
+      "order_id": "01a0e981-b150-7a9c-81d5-c6fcc7baa657",
+      "status": "canceled",
+      "filled": "0.00",
+      "remaining": "0.00",
+      "maker_fees": "0.000000",
+      "taker_fees": "0.000000"
+    },
+    {
+      "order_id": "01a0e9ac-14e0-7144-9953-d1f111fe220d",
+      "status": "canceled",
+      "filled": "0.00",
+      "remaining": "0.00",
+      "maker_fees": "0.000000",
+      "taker_fees": "0.000000"
+    }
+  ],
+  "os_exit_code": null,
+  "os_exit_reason": "operator SIGTERM succeeded; wait was attempted from another shell and cannot establish child exit status",
+  "outcome": "no-fill inconclusive; first-fill stage not qualified",
+  "signal_latch_retained": true,
+  "live_ok_retained": true,
+  "continuous_trading_running": false,
+  "artifacts_sha256": {
+    "process-after-operator-drain.json": "fb4bd20a8532c7f80478b3ea3270e9eb74cf22f8147bd39a8477c409837cf776",
+    "store-after-operator-drain.json": "44c6d5acdaed84ee7dc0e69d897781dd1e1093382c3b893e554e1deb591600ca",
+    "account-after-drain.json": "d7f3c9de0ff27e3db42e48f6452b418f5945edf51fa8071c6dbe6851957bf26b",
+    "order-details-after-drain.json": "e15c968f52fd6be002c935d1257749e31d069142cdbb5110be34788d2c9a4d11"
+  }
+}

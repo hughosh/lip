@@ -9,13 +9,11 @@ import (
 )
 
 // TestSchemaIsExactlyThePilotFiveAndPragmasArePinned is the structural gate on
-// §15's pilot cut and on durability.
+// §15's pilot records, restored balance telemetry, and durability.
 //
 // It ENUMERATES `sqlite_schema` rather than asserting the five it expects are
-// present. Presence is not the property: pilot-plan.md §2.3 cut the table set to
-// five, and a sixth appearing is a deferred decision quietly becoming an
-// implemented one. The deferred names are asserted absent individually so the
-// failure says which one came back.
+// present. The deferred names are asserted absent individually so the failure
+// says which one came back. balance_poll is now explicitly restored by lip-o7a.
 //
 // The pragmas are read back from the WRITE connection, because `synchronous`
 // and `foreign_keys` are per-connection and asking the query-only reader would
@@ -30,7 +28,7 @@ func TestSchemaIsExactlyThePilotFiveAndPragmasArePinned(t *testing.T) {
 		t.Fatalf("enumerate tables: %v", err)
 	}
 	if !reflect.DeepEqual(tables, userTables) {
-		t.Fatalf("user tables are %v, want exactly the pilot five %v",
+		t.Fatalf("user tables are %v, want exactly the known six %v",
 			tables, userTables)
 	}
 	have := make(map[string]struct{}, len(tables))
@@ -39,9 +37,7 @@ func TestSchemaIsExactlyThePilotFiveAndPragmasArePinned(t *testing.T) {
 	}
 	for _, n := range deferredTables {
 		if _, present := have[n]; present {
-			t.Fatalf("deferred §15 table %q exists; pilot-plan.md §2.3 cut the "+
-				"record set to five, and implementing a sixth is a decision "+
-				"nobody argued for", n)
+			t.Fatalf("deferred §15 table %q exists without a schema decision", n)
 		}
 	}
 

@@ -1,0 +1,23 @@
+{
+  "ticker": "KXTOKENUSE-26SEP28-T146",
+  "rung": "sizing",
+  "capital_source": "selected_shard_balance",
+  "s": 12,
+  "s_max": 48,
+  "inv_soft": 3,
+  "inv_hard": 7,
+  "inv_kill": 18,
+  "pnl_kill": -15,
+  "n_markets": 1,
+  "heartbeat_s": 30,
+  "paths": {
+    "db": "/Users/hugh/kek/lip/notes/live-readiness-2026-09-26/observer-runtime-v2/harness.db",
+    "anomaly_log": "/Users/hugh/kek/lip/notes/live-readiness-2026-09-26/observer-runtime-v2/anomaly.jsonl",
+    "latch": "/Users/hugh/kek/lip/notes/live-readiness-2026-09-26/observer-runtime-v2/harness.halt",
+    "lock": "/Users/hugh/kek/lip/notes/live-readiness-2026-09-26/observer-runtime-v2/harness.lock",
+    "key": "/Users/hugh/.kalshi/kalshi.pem",
+    "env": "/Users/hugh/.kalshi/env",
+    "live_ok": "/Users/hugh/kek/lip/notes/live-readiness-2026-09-26/observer-runtime-v2/live_ok",
+    "stop": "/Users/hugh/kek/lip/notes/live-readiness-2026-09-26/observer-runtime-v2/harness.stop"
+  }
+}

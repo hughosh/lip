@@ -53,7 +53,7 @@ func newProvisionConfig(t *testing.T) config {
 // exists for.
 //
 // A second provision over a live ledger has to be impossible rather than
-// discouraged. `hstore.Open` on an existing version-2 database is an ordinary,
+// discouraged. `hstore.Open` on an existing harness database is an ordinary,
 // successful open -- so a provisioning step that did not check would print a
 // record of having created a fresh store, exit zero, and leave the operator
 // believing an empty ledger exists where months of `owned_order` rows do. The
@@ -75,7 +75,7 @@ func TestProvisionRefusesADatabaseThatAlreadyExists(t *testing.T) {
 	err = provision(c, &second)
 	if err == nil {
 		t.Fatalf("provisioning a second time over %s SUCCEEDED. Opening an "+
-			"existing version-2 database is an ordinary open, so this would "+
+			"existing harness database is an ordinary open, so this would "+
 			"report a fresh store over the top of a ledger that already "+
 			"classifies every fill on the account", c.Paths.DB)
 	}
@@ -172,9 +172,9 @@ func TestProvisionedDatabaseIsThePilotFiveWithThePinnedPragmas(t *testing.T) {
 	}
 	rows.Close()
 
-	want := []string{"anomaly", "our_fill", "owned_order", "run", "state_event"}
+	want := []string{"anomaly", "balance_poll", "our_fill", "owned_order", "run", "state_event"}
 	if !reflect.DeepEqual(tables, want) {
-		t.Fatalf("provisioned tables are %v, want exactly the pilot five %v",
+		t.Fatalf("provisioned tables are %v, want exactly the known six %v",
 			tables, want)
 	}
 
@@ -190,8 +190,8 @@ func TestProvisionedDatabaseIsThePilotFiveWithThePinnedPragmas(t *testing.T) {
 	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 2 {
-		t.Fatalf("user_version is %d, want 2; a database whose version the "+
+	if version != 3 {
+		t.Fatalf("user_version is %d, want 3; a database whose version the "+
 			"harness does not know is one whose owned_order rows it cannot "+
 			"safely read, and reading one wrong classifies a fill", version)
 	}

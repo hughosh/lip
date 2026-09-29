@@ -1,0 +1,509 @@
+{
+  "started_at": "2026-09-27T17:02:02.790569Z",
+  "ended_at": "2026-09-27T17:02:04.656927Z",
+  "requests": [
+    {
+      "at": "2026-09-27T17:02:02.790902Z",
+      "path": "/portfolio/balance",
+      "status": 200,
+      "duration_ms": 233.720221,
+      "response_bytes": 271
+    },
+    {
+      "at": "2026-09-27T17:02:03.025781Z",
+      "path": "/portfolio/subaccounts/balances",
+      "status": 200,
+      "duration_ms": 98.397682,
+      "response_bytes": 112
+    },
+    {
+      "at": "2026-09-27T17:02:03.124287Z",
+      "path": "/portfolio/orders",
+      "query": {
+        "status": "resting"
+      },
+      "status": 200,
+      "duration_ms": 97.149647,
+      "response_bytes": 25
+    },
+    {
+      "at": "2026-09-27T17:02:03.221557Z",
+      "path": "/portfolio/positions",
+      "query": {
+        "subaccount": "0"
+      },
+      "status": 200,
+      "duration_ms": 98.078175,
+      "response_bytes": 525
+    },
+    {
+      "at": "2026-09-27T17:02:03.319711Z",
+      "path": "/portfolio/orders",
+      "query": {
+        "status": "resting"
+      },
+      "status": 200,
+      "duration_ms": 102.650513,
+      "response_bytes": 25
+    },
+    {
+      "at": "2026-09-27T17:02:03.4224Z",
+      "path": "/portfolio/positions",
+      "status": 200,
+      "duration_ms": 107.385302,
+      "response_bytes": 525
+    },
+    {
+      "at": "2026-09-27T17:02:03.529829Z",
+      "path": "/portfolio/fills",
+      "status": 200,
+      "duration_ms": 112.77584,
+      "response_bytes": 7996
+    },
+    {
+      "at": "2026-09-27T17:02:03.642863Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1784926238"
+      },
+      "status": 200,
+      "duration_ms": 117.766504,
+      "response_bytes": 7996
+    },
+    {
+      "at": "2026-09-27T17:02:03.761181Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1784926239"
+      },
+      "status": 200,
+      "duration_ms": 105.924835,
+      "response_bytes": 7996
+    },
+    {
+      "at": "2026-09-27T17:02:03.867383Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1784926240"
+      },
+      "status": 200,
+      "duration_ms": 103.919731,
+      "response_bytes": 7476
+    },
+    {
+      "at": "2026-09-27T17:02:03.971579Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1785105459"
+      },
+      "status": 200,
+      "duration_ms": 102.533337,
+      "response_bytes": 6433
+    },
+    {
+      "at": "2026-09-27T17:02:04.074346Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1785105460"
+      },
+      "status": 200,
+      "duration_ms": 106.741447,
+      "response_bytes": 6433
+    },
+    {
+      "at": "2026-09-27T17:02:04.181307Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1785105461"
+      },
+      "status": 200,
+      "duration_ms": 167.272084,
+      "response_bytes": 6433
+    },
+    {
+      "at": "2026-09-27T17:02:04.348816Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1785284680"
+      },
+      "status": 200,
+      "duration_ms": 109.519856,
+      "response_bytes": 556
+    },
+    {
+      "at": "2026-09-27T17:02:04.458396Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1785284681"
+      },
+      "status": 200,
+      "duration_ms": 102.299209,
+      "response_bytes": 556
+    },
+    {
+      "at": "2026-09-27T17:02:04.560757Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1785284682"
+      },
+      "status": 200,
+      "duration_ms": 96.147601,
+      "response_bytes": 24
+    }
+  ],
+  "aggregate_balance_status": {
+    "outcome": "complete",
+    "count": 1
+  },
+  "aggregate_balance": "9858",
+  "subaccount_balances_status": {
+    "outcome": "complete",
+    "count": 1
+  },
+  "subaccount_balances": [
+    {
+      "subaccount": 0,
+      "exchange_index": 0,
+      "balance": "98.5802",
+      "updated_ts": "1785564786"
+    }
+  ],
+  "market_status": {
+    "outcome": ""
+  },
+  "selected_balance_status": {
+    "outcome": ""
+  },
+  "market_funding_status": {
+    "outcome": ""
+  },
+  "fills_status": {
+    "outcome": "complete",
+    "pages": 1,
+    "count": 15
+  },
+  "fills": [
+    {
+      "fill_id": "1582884a-1f64-7c20-fab4-b40468ad5df6",
+      "trade_id": "1582884a-1f64-7c20-fab4-b40468ad5df6",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:24:41.461055Z",
+      "ts": 1785284681,
+      "count": "1.00",
+      "yes_price_dollars": "0.4300",
+      "no_price_dollars": "0.5700",
+      "fee_cost": "0.017200",
+      "is_taker": true
+    },
+    {
+      "fill_id": "937bcde3-4a7c-51e8-c775-dee94d2c6391",
+      "trade_id": "937bcde3-4a7c-51e8-c775-dee94d2c6391",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:24:27.300361Z",
+      "ts": 1785284667,
+      "count": "23.00",
+      "yes_price_dollars": "0.4400",
+      "no_price_dollars": "0.5600",
+      "fee_cost": "0.396800",
+      "is_taker": true
+    },
+    {
+      "fill_id": "4b0f371c-c24c-5286-ccf8-6d0e6939df1d",
+      "trade_id": "4b0f371c-c24c-5286-ccf8-6d0e6939df1d",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:24:27.300361Z",
+      "ts": 1785284667,
+      "count": "25.00",
+      "yes_price_dollars": "0.4400",
+      "no_price_dollars": "0.5600",
+      "fee_cost": "0.431200",
+      "is_taker": true
+    },
+    {
+      "fill_id": "11040975-6912-5717-d8c1-0f71defe7d78",
+      "trade_id": "11040975-6912-5717-d8c1-0f71defe7d78",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:24:27.300361Z",
+      "ts": 1785284667,
+      "count": "1.00",
+      "yes_price_dollars": "0.4400",
+      "no_price_dollars": "0.5600",
+      "fee_cost": "0.017300",
+      "is_taker": true
+    },
+    {
+      "fill_id": "44a8554f-f708-4a5e-f0b5-248d7d8c97bb",
+      "trade_id": "44a8554f-f708-4a5e-f0b5-248d7d8c97bb",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:21:43.520705Z",
+      "ts": 1785284503,
+      "count": "50.00",
+      "yes_price_dollars": "0.4900",
+      "no_price_dollars": "0.5100",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "b93cb31d-825b-4d90-ea56-33d315ec1ad8",
+      "trade_id": "b93cb31d-825b-4d90-ea56-33d315ec1ad8",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:00:48.580328Z",
+      "ts": 1785283248,
+      "count": "25.00",
+      "yes_price_dollars": "0.4900",
+      "no_price_dollars": "0.5100",
+      "fee_cost": "0.437400",
+      "is_taker": true
+    },
+    {
+      "fill_id": "80ab9782-28b7-4f61-f3b0-0499141d63b0",
+      "trade_id": "80ab9782-28b7-4f61-f3b0-0499141d63b0",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:00:48.580328Z",
+      "ts": 1785283248,
+      "count": "3.00",
+      "yes_price_dollars": "0.4900",
+      "no_price_dollars": "0.5100",
+      "fee_cost": "0.052500",
+      "is_taker": true
+    },
+    {
+      "fill_id": "3045dfce-6fc9-41d6-c942-0d7820732386",
+      "trade_id": "3045dfce-6fc9-41d6-c942-0d7820732386",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:00:48.580328Z",
+      "ts": 1785283248,
+      "count": "25.00",
+      "yes_price_dollars": "0.4900",
+      "no_price_dollars": "0.5100",
+      "fee_cost": "0.437400",
+      "is_taker": true
+    },
+    {
+      "fill_id": "146ba78b-57bb-4255-e97d-d0bbb8ec22e6",
+      "trade_id": "146ba78b-57bb-4255-e97d-d0bbb8ec22e6",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:00:48.580328Z",
+      "ts": 1785283248,
+      "count": "8.00",
+      "yes_price_dollars": "0.4900",
+      "no_price_dollars": "0.5100",
+      "fee_cost": "0.140000",
+      "is_taker": true
+    },
+    {
+      "fill_id": "bb3177d2-a321-46f6-06e8-857bbaa2977b",
+      "trade_id": "bb3177d2-a321-46f6-06e8-857bbaa2977b",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-28T17:52:07.44662Z",
+      "ts": 1785261127,
+      "count": "11.00",
+      "yes_price_dollars": "0.5700",
+      "no_price_dollars": "0.4300",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "df852ff4-63c7-6dd3-566b-e463aaa45720",
+      "trade_id": "df852ff4-63c7-6dd3-566b-e463aaa45720",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-28T13:05:14.89601Z",
+      "ts": 1785243914,
+      "count": "39.00",
+      "yes_price_dollars": "0.5700",
+      "no_price_dollars": "0.4300",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "e53b4e27-f8d3-7543-767e-24d2b0d81f90",
+      "trade_id": "e53b4e27-f8d3-7543-767e-24d2b0d81f90",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-28T03:56:51.077011Z",
+      "ts": 1785211011,
+      "count": "11.00",
+      "yes_price_dollars": "0.5700",
+      "no_price_dollars": "0.4300",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "c34ffc9a-8134-64c8-5e3b-45cb21b74a89",
+      "trade_id": "c34ffc9a-8134-64c8-5e3b-45cb21b74a89",
+      "ticker": "KXHOODA-28JANFUNDED-33000000",
+      "created_time": "2026-07-24T21:18:38.532028Z",
+      "ts": 1784927918,
+      "count": "17.00",
+      "yes_price_dollars": "0.5400",
+      "no_price_dollars": "0.4600",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "952cc2ad-6564-4fcc-a126-a5052485c0f1",
+      "trade_id": "952cc2ad-6564-4fcc-a126-a5052485c0f1",
+      "ticker": "KXHOODA-28JANFUNDED-33000000",
+      "created_time": "2026-07-24T20:52:33.991167Z",
+      "ts": 1784926353,
+      "count": "3.00",
+      "yes_price_dollars": "0.5400",
+      "no_price_dollars": "0.4600",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "2f499f0d-5e63-71d1-4079-7764afe9fd08",
+      "trade_id": "2f499f0d-5e63-71d1-4079-7764afe9fd08",
+      "ticker": "KXHOODA-28JANFUNDED-33000000",
+      "created_time": "2026-07-24T20:50:39.858254Z",
+      "ts": 1784926239,
+      "count": "20.00",
+      "yes_price_dollars": "0.5500",
+      "no_price_dollars": "0.4500",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    }
+  ],
+  "min_ts_probes": [
+    {
+      "min_ts": 1784926238,
+      "status": {
+        "outcome": "complete",
+        "pages": 1,
+        "count": 15
+      },
+      "returned": 15,
+      "expected_inclusive": 15,
+      "expected_exclusive": 15,
+      "matches_inclusive": true,
+      "matches_exclusive": true
+    },
+    {
+      "min_ts": 1784926239,
+      "status": {
+        "outcome": "complete",
+        "pages": 1,
+        "count": 15
+      },
+      "returned": 15,
+      "expected_inclusive": 15,
+      "expected_exclusive": 14,
+      "matches_inclusive": true,
+      "matches_exclusive": false
+    },
+    {
+      "min_ts": 1784926240,
+      "status": {
+        "outcome": "complete",
+        "pages": 1,
+        "count": 14
+      },
+      "returned": 14,
+      "expected_inclusive": 14,
+      "expected_exclusive": 14,
+      "matches_inclusive": true,
+      "matches_exclusive": true
+    },
+    {
+      "min_ts": 1785105459,
+      "status": {
+        "outcome": "complete",
+        "pages": 1,
+        "count": 12
+      },
+      "returned": 12,
+      "expected_inclusive": 12,
+      "expected_exclusive": 12,
+      "matches_inclusive": true,
+      "matches_exclusive": true
+    },
+    {
+      "min_ts": 1785105460,
+      "status": {
+        "outcome": "complete",
+        "pages": 1,
+        "count": 12
+      },
+      "returned": 12,
+      "expected_inclusive": 12,
+      "expected_exclusive": 12,
+      "matches_inclusive": true,
+      "matches_exclusive": true
+    },
+    {
+      "min_ts": 1785105461,
+      "status": {
+        "outcome": "complete",
+        "pages": 1,
+        "count": 12
+      },
+      "returned": 12,
+      "expected_inclusive": 12,
+      "expected_exclusive": 12,
+      "matches_inclusive": true,
+      "matches_exclusive": true
+    },
+    {
+      "min_ts": 1785284680,
+      "status": {
+        "outcome": "complete",
+        "pages": 1,
+        "count": 1
+      },
+      "returned": 1,
+      "expected_inclusive": 1,
+      "expected_exclusive": 1,
+      "matches_inclusive": true,
+      "matches_exclusive": true
+    },
+    {
+      "min_ts": 1785284681,
+      "status": {
+        "outcome": "complete",
+        "pages": 1,
+        "count": 1
+      },
+      "returned": 1,
+      "expected_inclusive": 1,
+      "expected_exclusive": 0,
+      "matches_inclusive": true,
+      "matches_exclusive": false
+    },
+    {
+      "min_ts": 1785284682,
+      "status": {
+        "outcome": "complete",
+        "pages": 1
+      },
+      "returned": 0,
+      "expected_inclusive": 0,
+      "expected_exclusive": 0,
+      "matches_inclusive": true,
+      "matches_exclusive": true
+    }
+  ],
+  "resting_orders_status": {
+    "outcome": "complete",
+    "pages": 1
+  },
+  "positions_by_subaccount": {
+    "0": {
+      "outcome": "complete",
+      "pages": 1,
+      "count": 2
+    }
+  },
+  "account_scope_complete": true,
+  "flat": true,
+  "production_decoder": {
+    "orders": {
+      "outcome": "complete",
+      "pages": 1
+    },
+    "primary_positions": {
+      "outcome": "complete",
+      "pages": 1,
+      "count": 1
+    }
+  }
+}

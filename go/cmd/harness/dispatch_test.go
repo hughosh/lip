@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -210,6 +211,21 @@ func restingOrder(orderID, coid, side string, price float64) map[string]any {
 //
 // The writer goroutine is started and torn down with the test; `rig.db` and
 // every other database in the tree is off limits.
+// routedWrite runs one write the way a dispatchLoop worker does, with a permit
+// router over the store's reservation results, and stops the router before it
+// returns.
+func routedWrite(t *testing.T, r *rig, reserves <-chan hstore.Result, req writeRequest) writeResult {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	router, done := newPermitRouter(ctx, reserves)
+	req.router = router
+	res := r.executeWrite(ctx, req)
+	cancel()
+	<-done
+	res.Req.router = nil
+	return res
+}
+
 func newDispatchRig(t *testing.T, ex rest.Doer) (*rig, <-chan hstore.Result) {
 	t.Helper()
 
@@ -352,6 +368,24 @@ func waitFor(t *testing.T, why string, cond func() bool) {
 // H-ORD-6 — no dispatch without a committed permit
 // ---------------------------------------------------------------------------
 
+// lip-tdz: dispatchLoop attaches its permit router to every request, and a
+// placement without one is refused before anything is reserved or sent. A
+// worker reading the shared reservation stream could take another's permit.
+func TestPlacementWithoutThePermitRouterIsRefusedUnsent(t *testing.T) {
+	ex := &fakeExchange{}
+	r, _ := newDispatchRig(t, ex)
+	res := r.executeWrite(context.Background(), placement(t, r, quote.SideYes, quote.RoleAdding, 42, 1))
+	if res.Err == nil || !strings.Contains(res.Err.Error(), "permit router") {
+		t.Fatalf("a routerless placement returned %v, want a refusal naming the permit router", res.Err)
+	}
+	if got := ex.createdCoids(); len(got) != 0 {
+		t.Fatalf("a routerless placement reached the exchange: %v", got)
+	}
+	if n := r.store.Ownership().UnresolvedCount(); n != 0 {
+		t.Fatalf("a routerless placement reserved %d coid(s)", n)
+	}
+}
+
 // TestNoOrderIsSentWithoutACommittedPermit is the barrier, asserted from the
 // only side that can prove it: the wire.
 //
@@ -380,7 +414,7 @@ func TestNoOrderIsSentWithoutACommittedPermit(t *testing.T) {
 		return r.store.Ownership().UnresolvedCount() == 1
 	})
 
-	res := r.executeWrite(context.Background(), req, reserves)
+	res := routedWrite(t, r, reserves, req)
 
 	if res.Err == nil {
 		t.Fatalf("the reservation could never commit, yet the write reported " +
@@ -442,7 +476,7 @@ func TestAPermitIsMatchedByReceiptAndNotByCoid(t *testing.T) {
 	if clash.Order.ClientOrderID() != coid {
 		t.Fatalf("the two orders do not share a coid; the test proves nothing")
 	}
-	res := r.executeWrite(context.Background(), clash, reserves)
+	res := routedWrite(t, r, reserves, clash)
 
 	if res.Err == nil {
 		t.Fatalf("a colliding reservation was permitted to dispatch on another " +
@@ -488,7 +522,7 @@ func TestBindingIsSubmittedOnTheAckAndNotAtTheNextPoll(t *testing.T) {
 		_, committedFirst = r.store.Ownership().Unresolved()[coid]
 	}
 
-	res := r.executeWrite(context.Background(), req, reserves)
+	res := routedWrite(t, r, reserves, req)
 	if res.Err != nil {
 		t.Fatalf("place: %v", res.Err)
 	}
@@ -526,8 +560,8 @@ func TestDefiniteRejectionAbandonsTheReservation(t *testing.T) {
 	ex := &fakeExchange{createStatus: 400}
 	r, reserves := newDispatchRig(t, ex)
 
-	res := r.executeWrite(context.Background(),
-		placement(t, r, quote.SideYes, quote.RoleAdding, 42, 1), reserves)
+	res := routedWrite(t, r, reserves,
+		placement(t, r, quote.SideYes, quote.RoleAdding, 42, 1))
 	if res.Create.Outcome != rest.CreateRejected {
 		t.Fatalf("outcome = %s, want REJECTED", res.Create.Outcome)
 	}
@@ -551,8 +585,8 @@ func TestAnUnknownCreateLeavesTheReservationOutstanding(t *testing.T) {
 	ex := &fakeExchange{createStatus: 200, createBody: []byte(`{}`)}
 	r, reserves := newDispatchRig(t, ex)
 
-	res := r.executeWrite(context.Background(),
-		placement(t, r, quote.SideYes, quote.RoleAdding, 42, 1), reserves)
+	res := routedWrite(t, r, reserves,
+		placement(t, r, quote.SideYes, quote.RoleAdding, 42, 1))
 	if res.Create.Outcome != rest.CreateUnknown {
 		t.Fatalf("outcome = %s, want UNKNOWN", res.Create.Outcome)
 	}
@@ -588,7 +622,7 @@ func TestUnhealthyStoreRefusesAddingAndNotReducing(t *testing.T) {
 	breakStore(t, r)
 
 	adding := placement(t, r, quote.SideYes, quote.RoleAdding, 42, 10)
-	addRes := r.executeWrite(context.Background(), adding, reserves)
+	addRes := routedWrite(t, r, reserves, adding)
 	if addRes.Err == nil {
 		t.Fatalf("an ADDING order was dispatched while storage was unhealthy; " +
 			"H-STORE-3 revokes adding authority precisely because the ownership " +
@@ -600,7 +634,7 @@ func TestUnhealthyStoreRefusesAddingAndNotReducing(t *testing.T) {
 	}
 
 	reducing := placement(t, r, quote.SideNo, quote.RoleReducing, 42, 11)
-	redRes := r.executeWrite(context.Background(), reducing, reserves)
+	redRes := routedWrite(t, r, reserves, reducing)
 	if redRes.Err != nil {
 		t.Fatalf("a REDUCING order was refused by an unhealthy store: %v.\n"+
 			"I1: every stop path stops ADDING risk; none stops reducing it. A "+
@@ -677,7 +711,7 @@ func TestAbsenceIsClaimedOnlyFromACompleteRead(t *testing.T) {
 	t.Run("clean", func(t *testing.T) {
 		ex := &fakeExchange{}
 		r, reserves := newDispatchRig(t, ex)
-		res := r.executeWrite(context.Background(), req, reserves)
+		res := routedWrite(t, r, reserves, req)
 		if !res.Sweep.Clean {
 			t.Fatalf("sweep was not clean against an empty book")
 		}
@@ -700,7 +734,7 @@ func TestAbsenceIsClaimedOnlyFromACompleteRead(t *testing.T) {
 			restingOrder("EX-9", ourCoid, "yes", 0.42),
 		}}
 		r, reserves := newDispatchRig(t, ex)
-		res := r.executeWrite(context.Background(), req, reserves)
+		res := routedWrite(t, r, reserves, req)
 		if !res.Sweep.Clean {
 			t.Fatalf("the REQUESTED order was gone, so the sweep is clean")
 		}
@@ -716,7 +750,7 @@ func TestAbsenceIsClaimedOnlyFromACompleteRead(t *testing.T) {
 			restingOrder("EX-1", ourCoid, "yes", 0.42),
 		}}
 		r, reserves := newDispatchRig(t, ex)
-		res := r.executeWrite(context.Background(), req, reserves)
+		res := routedWrite(t, r, reserves, req)
 		if res.Sweep.Clean || res.Absent {
 			t.Fatalf("the exchange still lists the cancelled order and the " +
 				"sweep reported it gone; an unverified cancel is a LIVE order " +
@@ -741,11 +775,11 @@ func TestGuardedCancelSweepIsUnsent(t *testing.T) {
 	}
 	r.api = rest.NewClient(guarded)
 
-	res := r.executeWrite(context.Background(), writeRequest{
+	res := routedWrite(t, r, reserves, writeRequest{
 		IDs: []uint64{1}, Market: dispatchTicker, Side: quote.SideYes,
 		Role: quote.RoleAdding, Op: quote.OpCancel,
 		Orders: []rest.Order{target},
-	}, reserves)
+	})
 
 	if res.Sent {
 		t.Fatal("a guard-refused cancel was reported sent; the owner would burn " +
@@ -777,12 +811,12 @@ func TestACancelTakesNoPermitAndReservesNothing(t *testing.T) {
 	breakStore(t, r)
 
 	before := r.store.Ownership().UnresolvedCount()
-	res := r.executeWrite(context.Background(), writeRequest{
+	res := routedWrite(t, r, reserves, writeRequest{
 		IDs: []uint64{1}, Market: dispatchTicker, Side: quote.SideYes,
 		Role: quote.RoleAdding, Op: quote.OpCancel,
 		Orders: []rest.Order{{OrderID: "EX-1", Ticker: dispatchTicker,
 			Side: quote.SideYes, Remaining: num.QtyFromFloat(1)}},
-	}, reserves)
+	})
 	if res.Err != nil {
 		t.Fatalf("a cancel was refused by a broken store: %v", res.Err)
 	}

@@ -1,3 +1,13 @@
+# Archived conductor template: audit
+
+This template is retained only to explain historical receipts. It is not active
+agent guidance. Use [RULES.md](RULES.md) and
+[the verification workflow](../../notes/verification-workflow.md). The legacy
+conductor is disabled; its instructions below must not be executed.
+
+<details>
+<summary>Historical template</summary>
+
 You are a FRESH auditor. You have no history with this change and you are not
 the party that wrote it. Read `AGENTS.md` and `loop/protocol/RULES.md`.
 
@@ -71,3 +81,5 @@ A single fenced ```json block:
 ```
 
 Only FAITHFUL + CLEAN passes.
+
+</details>

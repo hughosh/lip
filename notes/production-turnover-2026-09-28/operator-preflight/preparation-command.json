@@ -1,0 +1,32 @@
+{
+  "commands": [
+    [
+      "/Users/hugh/kek/.venv/bin/python",
+      "scripts/public_market_snapshot.py",
+      "--ticker",
+      "KXBROSFT-26OCT08-T110",
+      "--out",
+      "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/operator-preflight/KXBROSFT-26OCT08-T110-20260928T180443Z-market-book-series.json"
+    ],
+    [
+      "/Users/hugh/kek/.venv/bin/python",
+      "scripts/operator_stage.py",
+      "--stage",
+      "first",
+      "--ticker",
+      "KXBROSFT-26OCT08-T110",
+      "--size",
+      "12",
+      "--binary",
+      "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/candidate-2/harness",
+      "--candidate-receipt",
+      "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/candidate-2/build-identity.json",
+      "--book",
+      "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/operator-preflight/KXBROSFT-26OCT08-T110-20260928T180443Z-market-book-series.json",
+      "--evidence-root",
+      "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/operator-stages"
+    ]
+  ],
+  "exit_code": 0,
+  "log": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/operator-preflight/20260928T180443Z.log"
+}

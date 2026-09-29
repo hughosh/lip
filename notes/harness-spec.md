@@ -30,8 +30,9 @@ contradicts `notes/port-spec.md`, port-spec wins and you escalate.
 > | Improving the touch *does* score better | H-Q-2 | rule kept, false justification deleted |
 > | One-sided quoting costs ~1/3 of reward | §6.2 | it was claimed to be free |
 >
-> **`close_lead_keep_reducing`'s default is formally unresolved** and is the one
-> open decision (§19.1, `harness-redteam.md` §5).
+> **`close_lead_keep_reducing` is resolved to `true` on argument**, with
+> `close_lead` set to 60m. V7.11 records fill-conditioned evidence for a future
+> revision (§19.1, `harness-redteam.md` §5).
 
 ---
 
@@ -160,15 +161,17 @@ and is passed in.
 
 ### H-TOP-4 — Concurrency
 
-Same discipline as the rig: a single owner goroutine mutates all state.
+Same discipline as the rig: a single owner goroutine mutates trading state;
+a dedicated writer owns persistence (H-STORE-2).
 
 | Goroutine | Owns | May touch |
 |---|---|---|
-| **owner** | `core.Rig`, all books, all `quote` state, all `risk` state, `hstore` | everything |
+| **owner** | `core.Rig`, all books, all `quote` state, all `risk` state | mutates trading state; submits immutable records to the writer |
+| **hstore-writer** | SQLite writes and the record FIFO | persists records submitted by owner, monitor and ping; the sole DB writer |
 | **pump** | the socket read loop | pushes `[]byte` onto `frames`; touches no book, no row, no DB |
 | **rest-worker** ×K | outbound HTTP | consumes `orderReq` from a channel, pushes `orderResp` back. Never touches state. |
-| **monitor** | nothing | reads a lock-free snapshot published by the owner; writes only to its own tables. **This is the I2 goroutine.** |
-| **ping** | the delivery queue | reads the journal, POSTs, marks delivered |
+| **monitor** | nothing | reads a lock-free snapshot published by the owner; submits its records to the writer. **This is the I2 goroutine.** |
+| **ping** | the delivery queue | reads the journal, POSTs, submits delivery updates to the writer |
 | **signal** | the shutdown latch | sets one flag |
 
 `harness/quote` and `harness/risk` carry no mutex, exactly as `core` carries
@@ -723,13 +726,14 @@ INTENT  ──dequeue──►  SENDING  ──2xx──►  ACKED  ──►  R
                           └──timeout / 5xx / conn error──►  UNKNOWN
 ```
 
-**H-ORD-2 — The harness never retries a write it cannot prove did not happen.**
+**H-ORD-2 — An ambiguous create never becomes a new-coid order.**
 
 This is the single most dangerous path in the whole system and it is specified
 tightly. On any ambiguous outcome — request timeout, connection reset, 5xx, or
 any response the client cannot parse — the order goes to `UNKNOWN`:
 
-1. It is **not** retried. Not with the same coid, not with a new one.
+1. Only H-ORD-2b's bounded recovery with the **identical coid and byte-identical
+   payload** is allowed. It is never retried with a new coid.
 2. A `RECONCILE_NOW` is scheduled immediately.
 3. Reconciliation resolves it by searching for the coid in
    `GET /portfolio/orders` (all statuses) and `GET /portfolio/fills`, each read
@@ -738,7 +742,8 @@ any response the client cannot parse — the order goes to `UNKNOWN`:
    - found filled/cancelled → record the terminal state
    - **not found → it stays `UNKNOWN`.** There is no negative-evidence branch.
 4. While any order in a market is `UNKNOWN`, that market places **no new
-   orders** on that side. It may still cancel (P0).
+   orders** on that side; the identical-coid recovery is the sole create
+   exception. It may still cancel under the role-based dispatch rules.
 5. An `UNKNOWN` unresolved for `unknown_ping_s` (120s) emits `SEV2`.
 6. An `UNKNOWN` order's **maximum possibly-live quantity stays in the risk model
    and in every aggregate cap** (H-Q-5b, H-CAP-7) until it is positively
@@ -793,14 +798,16 @@ which is the most expensive single mistake available to this system.
 This is the good outcome, and it **resolves HR-006 rather than merely
 constraining around it.** The `UNKNOWN` protocol becomes self-resolving:
 
-1. On an ambiguous create, **retry with the same coid.**
-2. `2xx` → the original never landed; this one is now the order.
-3. **`409 order_already_exists` → the original DID land.** The 409 is a
-   *positive identification*, not an absence — so we never have to prove a
-   negative, and H-PAGE-1's pagination trap cannot produce a duplicate.
-4. Either way the outcome is definite in one round trip, and **at most one order
-   can exist per coid** — exactly what H-ORD-1's deterministic coid was designed
-   to buy.
+1. On an ambiguous create, retry only with the **same coid and byte-identical
+   payload**, within `retry_same_coid_max` total transport attempts.
+2. A valid `2xx` acknowledges that coid; it is not evidence about which earlier
+   attempt first reached the exchange.
+3. **`409 order_already_exists` is positive evidence that the coid exists.**
+   Reconcile to identify its order and fill state; do not treat the 409 or an
+   empty read as proof that exposure has disappeared.
+4. Under the observed deduplication contract, **at most one order can exist per
+   coid**. Repeated ambiguous responses still leave it `UNKNOWN`, with its
+   maximum possibly-live quantity reserved until positively resolved.
 
 **This is why H-ORD-1 forbids `uuid4()` per attempt.** `probebot.py` generated a
 fresh UUID per order, which makes this mechanism unavailable: a retry under a new
@@ -814,7 +821,8 @@ turns out to be the thing that makes ambiguous writes recoverable at all.
   one day. So A10 still forbids retrying under a *new* coid, `RECONCILE_NOW` is
   still scheduled, and a 409 is still followed by a confirming read — belt and
   braces, because the cost of being wrong is double inventory.
-- **`retry_same_coid_max` = 3**, then the order stays `UNKNOWN` and escalates. A
+- **`retry_same_coid_max` = 3 total transport attempts**, then an unresolved
+  order stays `UNKNOWN` and escalates. A
   retry loop against a persistently ambiguous endpoint is its own failure mode.
 
 The "declare it never landed after two negative reads" branch stays deleted
@@ -835,18 +843,17 @@ in v1.
 and the exchange's" — do not treat it as an error, do reconcile immediately, and
 do expect the position may have moved.
 
-**H-ORD-4a — Cancels are retriable; creates are not. `reduced_by` is not a fill
-report.**
+**H-ORD-4a — Cancels are retriable; creates require bounded same-coid
+recovery. `reduced_by` is not a fill report.**
 
-H-ORD-2 forbids retrying any write whose outcome is unknown. H-ORD-4 requires a
-sweep that still finds our order to "retry once". **A DELETE is a write, so as
-written the two rules contradicted each other** (red-team HR-020). The
-distinction that resolves it:
+The original blanket retry prohibition conflicted with cancel sweeps
+(red-team HR-020). The canonical distinction is:
 
-- A duplicate **create** can double inventory. Non-retriable (H-ORD-2a).
+- A **create under a new coid** can double inventory and is forbidden while the
+  original is unresolved. Only H-ORD-2b's bounded, byte-identical same-coid
+  recovery is allowed; negative reads never grant a new attempt budget.
 - A duplicate **cancel** is idempotent in effect and strictly risk-decreasing.
-  **Explicitly retriable**, and this is stated as the exception rather than left
-  to be inferred.
+  It is explicitly retriable, with complete sweep verification still required.
 
 And the trap that made the contradiction dangerous rather than merely untidy:
 
@@ -863,8 +870,39 @@ stays in the risk model (H-Q-5b, H-CAP-7).
 **H-ORD-4 — Cancel-all is verified, not assumed.** After issuing cancels,
 re-read `GET /portfolio/orders?status=resting` and confirm nothing of ours
 remains. `probebot.py` did this ("sweep") and it is the only thing that turns a
-cancel into a fact. A sweep that still finds our orders retries once, then pings
-`SEV1`.
+cancel into a fact. A sweep that still finds our orders retries once, then reads
+each by id (H-ORD-4c). An order still unconfirmed after that stays live,
+fillable and in the cancellation obligation, and the next tick sweeps it again.
+The sweep pings `SEV1` (`SWEEP_INCOMPLETE`) once any such order has stayed
+unconfirmed for `sweepPageBound` (5 s) since its first unconfirmed sweep; before
+that it journals a non-paging `SEV3` (`SWEEP_PENDING`). The bound defers only the
+page, never retirement (H-FAIL-3). On 2026-09-29 (`lip-9tt`) both the resting
+list and the named read lagged our own full cancel by about 1.4 s, and the
+immediate page fired three false `SEV1`s in one stage.
+
+**H-ORD-4b — A clean sweep holds placements in every market until fresh
+truth.** A sweep proves the order absent, not unfilled: it may have filled just
+before its DELETE. Until a portfolio cycle whose fills, orders and positions
+walks all started after the latest such sweep has applied, the harness places
+nothing in any market; cancels continue, and the drain treats truth as unknown.
+The hold is account-wide by decision (`lip-mgh`, 2026-09-28): the §10.2 budgets
+sum exposure across markets, so a fill hidden in one market overstates what
+every other market may commit. The sweep requests that cycle immediately.
+
+**H-ORD-4c — A listed order is retired only by the exchange's own record of
+it.** The resting list can lag a cancel. On 2026-09-28 (`lip-kaf`) all six
+SEV1 sweeps named orders the exchange had already cancelled 0.27–1.2 s
+earlier, still listed by a complete `status=resting` read after both rounds.
+So a requested order counts as not resting when the listed record itself
+carries a terminal status (`canceled`, `executed`) with nothing remaining.
+If a complete read still lists it resting after the retry, the sweep reads
+that order by id (`GET /portfolio/orders/{order_id}`) before paging. Only an
+answer naming that order, in that market, as terminal with nothing remaining
+retires it: H-FAIL-3's "confirmed gone by response". A 404, an error, an
+undecodable body, a record for another order or market, or a resting record
+retires nothing: the order stays live and pages under H-ORD-4's bound. Absence
+and elapsed time never count toward retirement. Each sweep writes a diagnostic trace line to the process log:
+every DELETE and read, with wall times.
 
 ### 7.5 Startup adoption — the exchange is authoritative
 
@@ -1492,7 +1530,7 @@ no risk" always means the reducing quote survives.
 | F1 | **Half-open socket** (hung 1,268s in probe run 1) | client **ping every 10s, pong expected within 5s**; plus a 60s read deadline as backstop | close, reconnect with backoff (1s doubling to 60s), full resnapshot, `RECONCILE_NOW` | `SEV2` if > 60s |
 | F2 | **Clean disconnect** (close 1000/1001) | `IsCleanClose` | reconnect immediately; **book is quarantined as non-actionable until resnapshot + portfolio reconcile complete** (H-FAIL-5) | none |
 | F3 | **Abnormal disconnect** | any other close/error | backoff, then reset book state and resnapshot | `SEV2` if > 60s |
-| F4 | **Disconnect > `disconnect_halt_s` (60s)** | wall clock since last connected | affected markets → `REDUCING`; **cancels are still attempted over REST**, which is a separate transport | `SEV1` |
+| F4 | **Disconnect > `disconnect_reduce_s` (60s)** | wall clock since last connected | affected markets → `REDUCING`; **cancels are still attempted over REST**, which is a separate transport | `SEV1` |
 | F5 | **Wedged feed, single market** | book silent > 60s while socket healthy → `GET /markets/{t}/orderbook`, compare **prices *and sizes* through the full Target Size walk on both sides**, including our own expected resting size (H-FAIL-6) | agree → reset the staleness clock, keep quoting. Disagree → that market's book is replaced and quarantined; market → `REDUCING`; the fetched REST book is **retained as the reducer's pricing source** and an in-session resubscription is requested immediately (H-FAIL-7) | `SEV2` on disagree |
 | F6 | **macOS DNS wedge** (system-wide, ~every 2.5h; `nslookup` still works and masks it) | any resolution failure to a host that resolved before | fall back to **last-known-good IP with SNI preserved**; cached resolutions have a floor TTL of 1h | `SEV2`, queued |
 | F7 | **Host sleep / process stall** | per tick, compare wall-clock delta against monotonic delta; divergence > 5s | treat the gap as downtime, force resnapshot + `RECONCILE_NOW`, record the interval in `uptime` | `SEV2` |
@@ -1500,21 +1538,33 @@ no risk" always means the reducing quote survives.
 | F9 | **Order reject, definite (4xx)** | HTTP 4xx with a parseable reason | record; if reject rate > 10% over the last 50 orders **in one market**, that market → `REDUCING` | `SEV2` |
 | F10 | **`insufficient_balance` reject** | reject reason | global `WINDING_DOWN` (H-CAP-5) | `SEV1` |
 | F11 | **`post_only` would cross** | reject reason | our book view disagrees with the exchange's → force F5's REST cross-check on that market immediately | `SEV2` if repeated |
-| F12 | **Ambiguous write (timeout/5xx)** | no parseable response | §7.2 `UNKNOWN` protocol. **No retry.** | `SEV2` after 120s unresolved |
+| F12 | **Ambiguous write (timeout/5xx)** | no parseable response | §7.2 `UNKNOWN` protocol: bounded byte-identical same-coid recovery only; never a new coid | `SEV2` after 120s unresolved |
 | F13 | **Position drift** | `q_local` vs `q_exch` (§8.2) | tolerance → record; sustained → market `REDUCING`; hard → global `WINDING_DOWN` | `SEV2` / `SEV1` |
 | F14 | **A taker fill of ours** (`is_taker` or `fee_cost > 0`) | fill poll | global `WINDING_DOWN` immediately | `SEV1` |
 | F15 | **Foreign order on the account** | coid does not match `lipH-*` | exclude that market from selection; do **not** cancel it | `SEV2` |
 | F16 | **Inventory stuck** | `\|q\| > inv_hard` for > `stuck_s` (1800s) | nothing mechanical — already `REDUCING` | `SEV2` |
 | F17 | **Inventory beyond `inv_kill`** | position poll | global `WINDING_DOWN` | `SEV1` |
 | F18 | **Harness process death** | absence of the heartbeat (§11.4) | external — supervision restarts it (§12); startup adoption (§7.5) recovers | operator sees missing heartbeat |
-| F19 | **SQLite write failure** | error from `hstore` | **keep trading, keep monitoring**, buffer to an on-disk journal. Losing the record is not a reason to stop managing the risk. | `SEV1` |
+| F19 | **SQLite write failure** | error from `hstore` | **stop adding risk; continue reducing and monitoring in memory**, with explicit persistence-failure heartbeat (H-STORE-3). An on-disk journal is not a disk-failure fallback. | `SEV1` |
 | F20 | **Ping delivery failure** | POST error | queue and retry with backoff; never block the owner goroutine | none (it is the ping channel) |
-| F21 | **Clock step** | wall vs monotonic (as F7) | recompute all deadlines from the new wall clock; never let a step skip a close lead | `SEV2` |
+| F21 | **Clock step** | wall vs monotonic (as F7) | recompute civil-time deadlines, including close leads, from the corrected wall clock; elapsed heartbeat, retry, alert suppression, drain, unresolved-fill and stuck intervals remain monotonic, so a wall step neither consumes nor extends them | `SEV2` |
 
 **H-FAIL-1 — No failure response is "exit".** Not one row above terminates the
 process. The only process exits are: operator SIGINT/SIGTERM (which enters
 `WINDING_DOWN` and keeps running until drained, then exits), and SIGKILL or
 power loss (which are recovered by §7.5 on restart).
+
+**H-FAIL-1a — A gate REDUCING lasts until the process restarts.** F4, an F5
+disagreement, F9, a quarantined book still silent past the quiet window, and a
+granularity frame each set the market's reduce in the gate, and nothing in the
+process clears it: a reconnect, resnapshot or agreeing cross-check is evidence
+about the feed, not about the risk taken while it failed. Reducers, cancels and
+monitoring continue; that market adds nothing for the rest of the process. The
+harness raises `QUOTING_STOPPED_UNTIL_RESTART` (`SEV2`) once per market. By
+decision (`lip-pcr`, 2026-09-28) recovery is an operator restart: a planned stop,
+§10.4's latch clearance and a normal start (runbook, "Sticky REDUCING"). There
+is no in-process resume, so an unattended run stops earning in that market until
+someone restarts it.
 
 **H-FAIL-2 — REST and the websocket are *distinct* transports, not independent
 ones.** A dead websocket does not imply a dead REST path, and cancels, position
@@ -1595,7 +1645,7 @@ cycle for some unrelated reason, which on a one-market pilot may never happen at
 all. The quarantine lifts exactly as F2's does — when a fresh snapshot and a
 portfolio reconciliation have both completed (H-FAIL-5) — and the market returns
 to `QUOTING` through the ordinary §5.2 path. A quarantine still unlifted after
-`disconnect_halt_s` escalates to `SEV1`, on F4's reasoning: that is how long this
+`disconnect_reduce_s` escalates to `SEV1`, on F4's reasoning: that is how long this
 system tolerates a market whose feed it cannot use.
 
 > Why not price the reducer from the last accepted websocket book: it is the
@@ -1799,7 +1849,7 @@ complete record rather than a gap.
 | # | Rule | |
 |---|---|---|
 | H-DEP-1 | **`CGO_ENABLED=0`** | module-wide already; also means Go uses its **pure-Go resolver**, which reads `/etc/resolv.conf` directly and bypasses `getaddrinfo`/`mDNSResponder`. **Hypothesis: the harness is immune to the macOS DNS wedge (F6).** This is a hypothesis, not a fact — V4.6 tests it *during* an actual outage, because `nslookup` works throughout and masks the failure. |
-| H-DEP-2 | **`launchd`, `KeepAlive: true`** | not `nohup`, not a terminal. Restart on any exit, including exit 0. |
+| H-DEP-2 | **`launchd`, `RunAtLoad: true`, `KeepAlive: {SuccessfulExit: false}`, `ThrottleInterval: 60`** | Start at load; restart failed exits and crashes at a throttled cadence; leave a planned drain or supervised structural refusal (exit 0) stopped. Manual structural refusal remains exit 2. No wrapper shell or terminal. A throttle does not impose a finite retry budget. |
 | H-DEP-3 | **`caffeinate`** | the launchd job execs `/usr/bin/caffeinate -is <harness>`, so the assertion lives exactly as long as the process. The Mac idle-sleeps and a sleep silently voids everything (F7). |
 | H-DEP-4 | stdout/stderr to a rotated file | the log is not the record; `harness.db` is. |
 | H-DEP-5 | one instance only | a PID lockfile, checked at startup. Two harnesses on one account is an unrecoverable position-model conflict. |
@@ -1832,7 +1882,7 @@ polling" is the failure that actually happened.
 
 **H-STORE-2 — One writer goroutine, and it is nobody's second job.**
 
-§15 mandated a single writer while H-TOP-4 gave `hstore` to the owner, §8.3 had
+The original §15 mandated a single writer while H-TOP-4 gave `hstore` to the owner, §8.3 had
 the **monitor** writing `snap`/`uptime`, and §13.1 had **ping** updating
 `anomaly` — three writers (red-team HR-023). Instead: a dedicated **hstore-writer
 goroutine** consumes immutable records from a buffered channel. Owner, monitor
@@ -1846,10 +1896,10 @@ properties.**
 A5 asserts that the monitor **produced** a fresh, source-advanced sample. It does
 **not** assert that the sample reached disk.
 
-> This resolves a direct contradiction: F19 says keep trading and monitoring
-> through a SQLite failure, while A5 (as written) required a `snap` row to have
+> This resolves the original contradiction: F19 formerly said to keep trading
+> through a SQLite failure, while A5 then required a `snap` row to have
 > been *written* within 3 seconds — so a disk failure would trip A5, whose
-> production response is `SEV1` + `WINDING_DOWN`, doing exactly what F19 forbids.
+> production response is `SEV1` + `WINDING_DOWN`, contrary to the former F19.
 > A9 had the same problem: it could not record the state transition that the
 > persistence failure itself caused.
 
@@ -1900,7 +1950,7 @@ Every knob, one place. All are in `run` at startup.
 | `pong_timeout_s` | 5 | s | F1 |
 | `read_deadline_s` | 60 | s | F1 |
 | `quiet_s` | 60 | s | F5 |
-| `disconnect_halt_s` | 60 | s | F4 |
+| `disconnect_reduce_s` | 60 | s | F4 |
 | `stuck_s` | 1800 | s | F16 |
 | `unknown_resolve_s` | 10 | s | §7.2 |
 | `retry_same_coid_max` | 3 | attempts | H-ORD-2b |
@@ -2015,7 +2065,7 @@ it emits `SEV1` and forces `WINDING_DOWN`.
 | A7 | Deployed capital ≤ `capital_max` at every placement decision |
 | A8 | No market in `REDUCING` ever has an adding-side order resting or in flight |
 | A9 | Every state transition has a `state_event` row |
-| A10 | No **create** is retried while its outcome is `UNKNOWN` (cancels are exempt — H-ORD-4a) |
+| A10 | No unresolved **create** is retried under a new coid or changed payload; only the bounded byte-identical same-coid recovery in H-ORD-2b is allowed. Cancels follow H-ORD-4a. |
 | A11 | Every size cap is evaluated against **aggregate** `RESTING + SENDING + UNKNOWN + unconfirmed-cancel` quantity, never a single order (H-Q-5b) |
 | A12 | No reducing order's aggregate quantity exceeds `\|q\|`; no fill sequence can change the sign of `q` via a reducer (H-Q-5a) |
 | A13 | No placement decision is taken from a book that is quarantined or stale, or from portfolio truth older than `truth_max_age_s` (H-FAIL-4, H-FAIL-5). In an F5 quarantine the **reducing** side is priced from the retained REST cross-check book, which is a different, independently fetched book and not the quarantined one (H-FAIL-7); the adding side stays off under A8. |
@@ -2046,7 +2096,7 @@ dry-run (V6) before any capital.
 | # | Fault | Injection | Expected observable |
 |---|---|---|---|
 | V4.1 | Half-open socket | sim stops delivering frames, never closes | ping/pong fails within 15s; reconnect; resnapshot; `SEV2` |
-| V4.2 | Clean close | sim closes 1000 | immediate reconnect, state retained, **no** ping |
+| V4.2 | Clean close | sim closes 1000 | immediate reconnect, diagnostic book retention permitted, **no** disconnect ping; book remains non-actionable until a fresh snapshot and complete portfolio reconciliation |
 | V4.3 | Abnormal close | sim closes 1006 | backoff, book reset, resnapshot |
 | V4.4 | Disconnect > 60s | sim refuses reconnect | markets → `REDUCING`; **cancels still issued over REST**; `SEV1` |
 | V4.5 | Wedged feed, one market | sim serves a stale book for one ticker; REST disagrees | that market → `REDUCING`; others unaffected; `SEV2` |
@@ -2055,16 +2105,25 @@ dry-run (V6) before any capital.
 | V4.8 | 429 storm | sim returns 429 for 90s | bucket halves, no order lost, no order duplicated, `SEV2` |
 | V4.9 | Reject storm | sim rejects 20% of placements | market → `REDUCING` after the 10%/50 threshold, others unaffected |
 | V4.10 | `insufficient_balance` | sim returns it once | global `WINDING_DOWN`, `SEV1` |
-| V4.11 | Ambiguous write | sim accepts, then times out the response | order → `UNKNOWN`; **zero retries**; resolved at the next poll; no duplicate order exists |
+| V4.11 | Ambiguous write | sim accepts, then times out the response | order → `UNKNOWN`; bounded byte-identical same-coid recovery and immediate reconciliation; no new coid or duplicate order; unresolved maximum exposure remains reserved |
 | V4.12 | Position drift | sim reports a `q_exch` we did not derive | recorded; sustained → `REDUCING`; hard → global |
 | V4.13 | Taker fill | sim reports a fill with `is_taker: true` | global `WINDING_DOWN` within one poll, `SEV1` |
 | V4.14 | Foreign order | sim reports a resting order with a non-`lipH-` coid | market excluded; the order **not** cancelled; `SEV2` |
-| V4.15 | SQLite failure | sim store returns errors | trading and monitoring continue; `SEV1`; journal buffers |
+| V4.15 | SQLite failure | sim store returns errors | adding stops; reduction and monitoring continue in memory; `SEV1` and explicit persistence-failure heartbeat; no on-disk fallback assumption |
 | V4.16 | ntfy unreachable | sim ping endpoint refuses | owner goroutine never blocks; queue drains in order on recovery |
 | V4.17 | **SIGKILL with inventory** | `kill -9` mid-run, then restart | §7.5 recovers `q` from the exchange, market enters `REDUCING`, resting orders adopted by coid, `STARTUP` ping fires |
 | V4.18 | Clock step | sim jumps wall clock ±1h | deadlines recomputed; **no close lead is skipped** |
 
 ### V5 — Negative control: the gate on the gate
+
+Process clarification (2026-09-26): [verification-workflow.md](verification-workflow.md)
+governs cadence and evidence. Important safety assertions still need credible
+negative controls, but universal full-catalogue passage and a permanent mutation
+for every behavior are no longer promotion requirements. Use useful safety and
+affected controls; retain the full catalogue as an optional deep audit. Trading
+invariants and live safeguards remain unchanged; pilot-plan §6 defines the
+rung-specific evidence. Local gates supply no external or live authority.
+
 
 port-spec §2 gate 7, applied here. For each invariant in V3, apply a mutation
 that violates it and confirm a named test catches it. **Any mutation that
@@ -2082,7 +2141,7 @@ The mandatory ones, each named for what it reproduces:
 | M1 | **`break` the monitor loop when global state leaves `RUNNING`** — *this is `probebot.py`'s exact defect* | A5 |
 | M2 | Cancel the reducing quote on a market halt instead of keeping it | A4 |
 | M3 | `os.Exit` on SIGTERM instead of draining | a lifecycle test asserting the process outlives SIGTERM with `q ≠ 0` |
-| M4 | Retry an `UNKNOWN` write once | A10 + V4.11's duplicate check |
+| M4 | Retry an `UNKNOWN` create under a new coid or with a changed payload | A10 + V4.11's duplicate check |
 | M5 | Set `post_only: false` on the reducing quote | A1, A2 |
 | M6 | Deselect a market that has `q ≠ 0` | H-SEL-11 test + A4 |
 | M7 | Drop the `size_R` cap so a fill can overshoot past flat | V1.3 |
@@ -2097,7 +2156,7 @@ The mandatory ones, each named for what it reproduces:
 | M16 | Read only page one of every list endpoint | H-PAGE-1 test with the target on page two |
 | **M22** | **Read `next_cursor` from a `cursor` endpoint** (or vice versa) — pagination silently stops at page 1 | V1.8c + H-PAGE-1 test with the target on page two |
 | **M23** | **Carry a corrupted cursor instead of abandoning the walk** — the endpoint rewinds to page 1 and the walk duplicates without terminating | V1.8b + `SEV2 CURSOR_REWIND` |
-| M17 | Re-place an `UNKNOWN` create after two negative reads | A10 + the duplicate-order check |
+| M17 | Re-place an `UNKNOWN` create under a new coid after two negative reads | A10 + the duplicate-order check |
 | M18 | Size the reducer at `\|q\| + S` | A12 + V1.3 |
 | M19 | Apply the concentration cap to a reducing order | A4 (unfundable intent) + H-CAP-6 test |
 | M20 | Do not persist the global halt latch before the state change | A14 + halt-then-SIGKILL-then-restart test |

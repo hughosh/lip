@@ -1,0 +1,80 @@
+{
+  "recorded_at_utc": "2026-09-26T18:09:26.681384+00:00",
+  "source": "baseline agent final frozen-source verification receipt; test output retained in chat; mutation logs retained alongside this file",
+  "go_version": "go1.27.1 darwin/amd64",
+  "execution_environment": "env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/private/tmp/lip-offline-home GOMODCACHE=/Users/hugh/go/pkg/mod GOCACHE=/private/tmp/lip-offline-gocache GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local",
+  "network_scope": "Go module fetch disabled. Loopback httptest suites required sandbox escalation. No account API, live credentials, conductor, or live order placement used.",
+  "checks": [
+    {
+      "cwd": "go",
+      "command": "CGO_ENABLED=0 go build ./...",
+      "result": "PASS"
+    },
+    {
+      "cwd": "go",
+      "command": "go vet ./...",
+      "result": "PASS"
+    },
+    {
+      "cwd": "go",
+      "command": "go test -count=1 ./...",
+      "result": "PASS"
+    },
+    {
+      "cwd": "go",
+      "command": "CGO_ENABLED=0 go test -race -count=1 ./...",
+      "result": "PASS"
+    },
+    {
+      "cwd": "go",
+      "command": "gofmt -l harness cmd/harness cmd/incentives",
+      "result": "PASS; no output"
+    },
+    {
+      "cwd": ".",
+      "command": "gofmt -l go/cmd/conform",
+      "result": "PASS; no output"
+    },
+    {
+      "cwd": ".",
+      "command": "python3 scripts/check.py",
+      "result": "PASS; all section 9 and H-TOP-2 checks"
+    },
+    {
+      "cwd": ".",
+      "command": "/Users/hugh/kek/.venv/bin/python -m unittest scripts.test_harness_negative_control",
+      "result": "PASS; 9 tests"
+    },
+    {
+      "cwd": ".",
+      "command": "/Users/hugh/kek/.venv/bin/python scripts/harness_negative_control.py --build-only",
+      "result": "PASS; 288 replacements compile; no mutation-outcome claim"
+    },
+    {
+      "cwd": ".",
+      "command": "/Users/hugh/kek/.venv/bin/python scripts/harness_negative_control.py --only M-R-PROGRAMTYPE --out /private/tmp/lip-programtype-negative-control.md",
+      "result": "PASS; pristine baseline green; mutation CAUGHT by TestProgramsFiltersActiveLiquidityOnEveryPage and TestProgramsLiquidityFilterKeepsMalformedTargetRefusal"
+    },
+    {
+      "cwd": "go",
+      "command": "GOCACHE=/private/tmp/lip-ping-settle-build GOMAXPROCS=1 go test ./harness/ping -count=10",
+      "result": "PASS; 11.483s"
+    },
+    {
+      "cwd": "go",
+      "command": "GOCACHE=/private/tmp/lip-ping-settle-build go test -race ./harness/ping -count=1",
+      "result": "PASS; 3.147s"
+    },
+    {
+      "cwd": ".",
+      "command": "git diff --check",
+      "result": "PASS"
+    },
+    {
+      "cwd": ".",
+      "command": "bd dep cycles",
+      "result": "PASS; none"
+    }
+  ],
+  "unrun": "Full 288-mutation outcome catalogue, operational qualification, authenticated reconciliation and live pilot. No full release gate or rung advancement."
+}

@@ -1,0 +1,8 @@
+package raceprobe
+import ("sync"; "testing")
+func TestSharedCounter(t *testing.T) {
+ var wg sync.WaitGroup; var mu sync.Mutex; _ = mu; x:=0
+ wg.Add(2)
+ for j:=0;j<2;j++ { go func(){ defer wg.Done(); for i:=0;i<1000;i++ { ; x++;  } }() }
+ wg.Wait(); if x < 1 {t.Fatal("counter never advanced")}
+}

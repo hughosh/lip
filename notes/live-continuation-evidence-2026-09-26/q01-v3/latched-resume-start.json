@@ -1,0 +1,17 @@
+{
+  "started_at": "2026-09-27T00:43:39.450420+00:00",
+  "pid": 39800,
+  "args": [
+    "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/q01-v3/harness-candidate-v3",
+    "-config",
+    "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/q01-v3/config.json",
+    "-rung",
+    "sizing",
+    "-resume",
+    "Read-only retained-latch recovery observation; latch remains set",
+    "-qualification",
+    "/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/q01-v3/latched-resume-evidence.json"
+  ],
+  "latch_retained": true,
+  "live_sentinel_absent": true
+}

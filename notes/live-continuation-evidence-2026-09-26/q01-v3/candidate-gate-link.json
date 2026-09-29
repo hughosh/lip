@@ -1,0 +1,8 @@
+{
+  "receipt": "/Users/hugh/kek/lip/loop/gates-out/20260927T001728253755Z-11a1a2b2/receipt.json",
+  "sha256": "47fbd2c92c7ffbbaa0ec5c2e70ec431583fd822af02adefd37c23345fdbe4629",
+  "duration_seconds": 373.362,
+  "verdict": "PASS",
+  "source_before": "e96482f13927a595ef0a94b1c8935019aa1660075ee5e67032d017bc0cf89149",
+  "source_after": "e96482f13927a595ef0a94b1c8935019aa1660075ee5e67032d017bc0cf89149"
+}

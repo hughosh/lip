@@ -1,0 +1,8 @@
+harness: anomaly 20260926T235144XT0Z6-a45 (BALANCE_POLL_FAILED, SEV2, account) could not be submitted to either journal and is now only in this line: balance telemetry store: the store is closed; this record would be queued for a writer that will never run, and an audit record that is accepted and never written is worse than one refused (the store is closed; this record would be queued for a writer that will never run, and an audit record that is accepted and never written is worse than one refused)
+harness: qualification evidence is finalized
+harness: qualification evidence is finalized
+harness: qualification evidence is finalized
+harness: qualification evidence is finalized
+harness: qualification evidence is finalized
+harness: qualification evidence is finalized
+harness: qualification evidence is finalized

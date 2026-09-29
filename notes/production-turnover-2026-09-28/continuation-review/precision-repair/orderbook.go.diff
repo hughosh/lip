@@ -1,0 +1,67 @@
+--- /Users/hugh/kek/lip/notes/production-turnover-2026-09-28/continuation-review/precision-repair/orderbook.go.before	2026-09-28 13:29:58
++++ /Users/hugh/kek/lip/go/harness/rest/orderbook.go	2026-09-28 13:33:34
+@@ -421,7 +421,7 @@
+ 				"%d of the Target Size walk: the websocket says %dc and REST "+
+ 				"says %dc", name, i+1, ws[i].Cents, rst[i].Cents)}
+ 		}
+-		if ws[i].Size != rst[i].Size {
++		if !sameBookSize(ws[i].Size, rst[i].Size) {
+ 			return BookVerdict{Why: fmt.Sprintf("the %s side disagrees at depth "+
+ 				"%d of the Target Size walk: %dc is %v on the websocket and %v "+
+ 				"on REST. A price-only check would have called this agreement "+
+@@ -429,10 +429,9 @@
+ 				name, i+1, ws[i].Cents, ws[i].Size, rst[i].Size)}
+ 		}
+ 	}
+-	// Unreachable once every common level matched -- the two walks accumulate
+-	// identically, so they stop at the same depth -- and asserted anyway,
+-	// because the alternative to reaching it is agreement on a comparison that
+-	// skipped a level.
++	// Adjacent floating-point sizes may compare equal while their naive sums
++	// cross the target at different depths. Keep that boundary conservative:
++	// agreement must not skip a level from either qualifying walk.
+ 	if len(ws) != len(rst) {
+ 		return BookVerdict{Why: fmt.Sprintf("the %s side reaches Target Size %v "+
+ 			"over %d websocket level(s) and %d REST level(s)",
+@@ -469,7 +468,7 @@
+ 					"on the %s side at %dc and the %s book has no level there at "+
+ 					"all", own.Size.Wire(), name, own.Cents, bk.what)}
+ 			}
+-			if have < own.Size.Float() {
++			if !validBookSize(have) || (have < own.Size.Float() && !sameBookSize(have, own.Size.Float())) {
+ 				return BookVerdict{Why: fmt.Sprintf("we believe %s of ours rests "+
+ 					"on the %s side at %dc and the %s book shows only %v there",
+ 					own.Size.Wire(), name, own.Cents, bk.what, have)}
+@@ -477,8 +476,22 @@
+ 		}
+ 	}
+ 	return BookVerdict{Agree: true}
++}
++
++// sameBookSize recognizes the single floating-point rounding step observed
++// when websocket deltas accumulate to a REST snapshot size. The absolute cap
++// keeps a cent-sized difference material even at very large magnitudes.
++func sameBookSize(a, b float64) bool {
++	if !validBookSize(a) || !validBookSize(b) {
++		return false
++	}
++	return a == b || (math.Nextafter(a, b) == b && math.Abs(a-b) < 0.005)
+ }
+ 
++func validBookSize(size float64) bool {
++	return size > 0 && !math.IsInf(size, 0) && !math.IsNaN(size)
++}
++
+ // targetWalk returns the levels through and INCLUDING the first one at which the
+ // cumulative size reaches `target`, and whether it got there.
+ //
+@@ -490,6 +503,9 @@
+ func targetWalk(target float64, levels []BookLevel) ([]BookLevel, bool) {
+ 	total := 0.0
+ 	for i := range levels {
++		if !validBookSize(levels[i].Size) {
++			return levels[:i+1], false
++		}
+ 		total += levels[i].Size
+ 		if total >= target {
+ 			return levels[:i+1], true

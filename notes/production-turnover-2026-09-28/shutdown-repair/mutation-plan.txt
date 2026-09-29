@@ -1,0 +1,32 @@
+{
+  "build_only": false,
+  "build_runs": 11,
+  "catcher_packages": {
+    "TestExitIsAuthorisedOnlyByAPermitAndAFlatUnrestedTruthKnownAccount": "./cmd/harness",
+    "TestFinalAlertResultFailureIsDrainedBeforeClose": "./cmd/harness",
+    "TestOperatorSignalsCommitBeforeDrainingAndWaitForEveryOrder": "./cmd/harness",
+    "TestRigCloseRefusalRetainsLockAndAlerts": "./cmd/harness",
+    "TestRuntimeStoreFailureAndStallStopWithOwnedInventory": "./cmd/harness",
+    "TestRuntimeStoreObservesRealWriterExit": "./cmd/harness",
+    "TestServingCloseJoinsCanceledBalanceCallbackBeforeStoreClose": "./cmd/harness",
+    "TestServingCloseRefusalRestoresObservationAndRetries": "./cmd/harness",
+    "TestServingCloseWaitsForDetachedDialReport": "./cmd/harness"
+  },
+  "full_suite_runs": 0,
+  "mode": "named",
+  "named_test_runs": 12,
+  "partial": true,
+  "selected_ids": [
+    "M-SD-UNPLANNED",
+    "M-SD-ORDERING",
+    "M-OPS-STORE-STOP",
+    "M-OPS-STORE-RECOVERED",
+    "M-3DW-INPUT-JOIN",
+    "M-3DW-INPUT-RESUME",
+    "M-3DW-LOCK-REFUSAL",
+    "M-3DW-ALERT-RESUME",
+    "M-3DW-DIAL-WAIT",
+    "M-3DW-DIAL-FENCE",
+    "M-3DW-FINAL-RESULTS"
+  ]
+}

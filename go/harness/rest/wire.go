@@ -52,10 +52,12 @@ func ToWire(side quote.Side, priceCents int) (BookSide, int, error) {
 	return Bid, priceCents, nil
 }
 
-// FromWire is H-CO-1 run backwards, for reading resting orders back off the
-// exchange. It is not decoration: §7.5's startup adoption reads orders it did
-// not place in this process, and a reconciliation that mistook a NO bid at 42c
-// for a YES bid at 58c would adopt the position with the wrong sign.
+// FromWire is the inverse H-CO-1 transform for tradable, integer-cent prices.
+// It is currently used only by the transform tests, not by the exchange read
+// path: decodeOrder reads book_side and the side's own price fields directly
+// through readSide/readPrice. Keep it out of that path because its 1..99-cent
+// restriction is the placeable-price domain, while exchange records must retain
+// their reported price, including settlement-edge and fractional-cent values.
 func FromWire(ws BookSide, yesCents int) (quote.Side, int, error) {
 	if yesCents < quote.MinPrice || yesCents > quote.MaxPrice {
 		return 0, 0, fmt.Errorf("yes price %dc is outside %d..%d",

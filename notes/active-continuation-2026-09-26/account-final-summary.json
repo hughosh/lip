@@ -1,0 +1,15 @@
+{
+  "at": "2026-09-27T01:56:14.582286Z",
+  "account_scope_complete": true,
+  "flat": true,
+  "open_orders": [],
+  "nonzero_positions": [],
+  "enumerated_subaccounts": [
+    "0"
+  ],
+  "exchange_index": 0,
+  "selected_shard_available_usd": "98.5802",
+  "retained_fills": 15,
+  "source_report": "/Users/hugh/kek/lip/notes/active-continuation-2026-09-26/operator-stages/first-KXFEATURE-26GTA6-DON-20260927T015607.852703Z/evidence/account-preflight.json",
+  "source_report_sha256": "b6b3a783895fbdc8b5d063b1e90fe7a3dfc60971f203d4ad8c5128bc9d539f58"
+}

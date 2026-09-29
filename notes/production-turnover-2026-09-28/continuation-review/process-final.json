@@ -1,0 +1,8 @@
+{
+  "at_utc": "2026-09-28T20:30:47.713236+00:00",
+  "process_scope": "ps executable-name match lip/harness/collect; does not enumerate collector Python script arguments",
+  "matching_processes": [],
+  "launchctl_returncode": 0,
+  "matching_job_labels": [],
+  "no_signals_or_job_changes": true
+}

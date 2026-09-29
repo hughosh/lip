@@ -1,0 +1,10 @@
+{
+  "at": "2026-09-27T18:25:02.675513+00:00",
+  "signal": "fail",
+  "source": "failed GET-only observer and heartbeat source stopped",
+  "human_acknowledgment": false,
+  "dashboard_verified": false,
+  "endpoint_redacted": true,
+  "http_status": 200,
+  "body_exact_OK": true
+}

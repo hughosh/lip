@@ -100,19 +100,29 @@ func (f *fixture) drain() {
 }
 
 // settle waits until the queue is empty, which is exactly "every submitted
-// record is durable". It yields rather than sleeps; the bound exists so a
-// mutation that wedges the writer fails fast instead of hanging the package.
+// record is durable". Wake signals completed writes, so the deadline bounds
+// writer progress in elapsed time rather than in CPU-dependent spin cycles.
 func (f *fixture) settle() {
 	f.t.Helper()
-	for i := 0; i < 200_000; i++ {
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
+	for {
 		f.drain()
 		if f.store.Health().Pending() == 0 {
 			f.drain()
 			return
 		}
-		runtime.Gosched()
+		select {
+		case <-f.store.Wake():
+		case <-timer.C:
+			f.drain()
+			if f.store.Health().Pending() == 0 {
+				f.drain()
+				return
+			}
+			f.t.Fatalf("the store never drained: %+v", f.store.Health())
+		}
 	}
-	f.t.Fatalf("the store never drained: %+v", f.store.Health())
 }
 
 func (f *fixture) beginRun(runID string, startedMs int64) {

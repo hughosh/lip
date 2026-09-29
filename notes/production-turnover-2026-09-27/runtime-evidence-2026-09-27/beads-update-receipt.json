@@ -1,0 +1,68 @@
+{
+  "at_utc": "2026-09-27T17:35:43.686276+00:00",
+  "results": [
+    {
+      "id": "lip-1in",
+      "action": "comment",
+      "exit_code": 0,
+      "stdout": "Comment added to lip-1in\n",
+      "stderr": ""
+    },
+    {
+      "id": "lip-9vc",
+      "action": "comment",
+      "exit_code": 0,
+      "stdout": "Comment added to lip-9vc\n",
+      "stderr": ""
+    },
+    {
+      "id": "lip-dwf",
+      "action": "comment",
+      "exit_code": 0,
+      "stdout": "Comment added to lip-dwf\n",
+      "stderr": ""
+    },
+    {
+      "id": "lip-9j3",
+      "action": "comment",
+      "exit_code": 0,
+      "stdout": "Comment added to lip-9j3\n",
+      "stderr": ""
+    },
+    {
+      "id": "lip-8hn.2",
+      "action": "comment",
+      "exit_code": 0,
+      "stdout": "Comment added to lip-8hn.2\n",
+      "stderr": ""
+    },
+    {
+      "id": "lip-0ns",
+      "action": "comment",
+      "exit_code": 0,
+      "stdout": "Comment added to lip-0ns\n",
+      "stderr": ""
+    },
+    {
+      "id": "lip-yca",
+      "action": "comment",
+      "exit_code": 0,
+      "stdout": "Comment added to lip-yca\n",
+      "stderr": ""
+    },
+    {
+      "id": "lip-8hn",
+      "action": "comment",
+      "exit_code": 0,
+      "stdout": "Comment added to lip-8hn\n",
+      "stderr": ""
+    },
+    {
+      "id": "lip-1in",
+      "action": "close",
+      "exit_code": 0,
+      "stdout": "\u2713 Closed lip-1in \u2014 CR-2: manage held non-selected markets across rotation: Production CR2 is now connected: selection/rotation, per-market owner/order/schedule, generation-safe subscriptions/books, shard-scoped funding and final dispatch, aggregate risk/P&L/monitor and durable old-market reconstruction. Composed production owner+REST+WS+store fixtures prove A adding/owned fill\u2192B adds while A reduces, retained-latch B-only restart reconstructing old A, omission-retained owned obligations, positive terminal/fresh full truth and clean exit; foreign orders untouched. Full candidate gate PASS (loop/gates-out/20260927T170933719968Z-8521aa8d/receipt.json), 13 named mutations PASS (loop/gates-out/negative-control-20260927T171702926992Z/receipt.json), including composed SELECTED-ONLY and restart omission. Exact Go manifest 74f8ee7634c406f0e4279429b4e8bbdca9cab31bc2f3a1564163b1d42c4263c2; binary ecf16ea19c4f0e05dad8cce0c261d6e6f2204eeb8f9615913a79b54816b311c6. Closes implementation acceptance only; simulated fills do not prove live turnover. GET-only 91.7s observer selected nonseed market; 300GET/0nonGET, no owned orders/fills. Evidence: notes/production-turnover-2026-09-27/report.md and current operator/ops handoffs. No financial writes, writer activation, commit or push.\n\n",
+      "stderr": ""
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "build_runs_planned": 1,
+  "catalogue_count": 333,
+  "catcher_packages": {
+    "TestFullReconcileChannelEventuallyDeliversNewestGeneration": "./cmd/harness"
+  },
+  "duration_seconds": 12.338,
+  "environment": {
+    "CGO_ENABLED": "0",
+    "GOCACHE": "/Users/hugh/Library/Caches/go-build",
+    "GOENV": "off",
+    "GOFLAGS": "-p=2",
+    "GOMAXPROCS": "2",
+    "GOMODCACHE": "/Users/hugh/go/pkg/mod",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off",
+    "HOME": "/Users/hugh",
+    "PATH": "/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path:/Users/hugh/.codex/tmp/arg0/codex-arg0ZleeOX:/Users/hugh/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/hugh/.local/bin:/Users/hugh/.opencode/bin:/Users/hugh/.cargo/bin:/Users/hugh/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONUNBUFFERED": "1",
+    "TMPDIR": "/var/folders/48/pp0ngtc132qf3vf4c9k3sqdr0000gn/T/"
+  },
+  "focused": false,
+  "full_suite_runs_planned": 0,
+  "go_binary": "/usr/local/bin/go",
+  "go_sha256": "6890cf02fb958fc15a043022d5f29e2a2206ab08a73581eddc3f33c7c681a730",
+  "mode": "named",
+  "named_test_runs_planned": 2,
+  "outcomes": [
+    {
+      "accepted": true,
+      "expected": "TestFullReconcileChannelEventuallyDeliversNewestGeneration",
+      "failed_tests": [
+        "TestFullReconcileChannelEventuallyDeliversNewestGeneration"
+      ],
+      "id": "M-F2-NEWEST-RECONCILE",
+      "status": "caught"
+    }
+  ],
+  "partial": true,
+  "runner_sha256": "92029c3cb5334cefd7077c54185fa811cac17fc5e84260622f84190aa373dc27",
+  "runs": [
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^(?:TestFullReconcileChannelEventuallyDeliversNewestGeneration)$",
+        "./cmd/harness"
+      ],
+      "exit_code": 0,
+      "label": "baseline",
+      "log": "0000-baseline.log",
+      "seconds": 5.319
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "label": "M-F2-NEWEST-RECONCILE-build",
+      "log": "0001-M-F2-NEWEST-RECONCILE-build.log",
+      "seconds": 2.774
+    },
+    {
+      "command": [
+        "/usr/local/bin/go",
+        "test",
+        "-json",
+        "-count=1",
+        "-timeout=5m",
+        "-run",
+        "^TestFullReconcileChannelEventuallyDeliversNewestGeneration$",
+        "./cmd/harness"
+      ],
+      "exit_code": 1,
+      "label": "M-F2-NEWEST-RECONCILE-test",
+      "log": "0002-M-F2-NEWEST-RECONCILE-test.log",
+      "seconds": 3.415
+    }
+  ],
+  "selected_count": 1,
+  "selected_ids": [
+    "M-F2-NEWEST-RECONCILE"
+  ],
+  "source_sha256_after": "4cda010f57d1ae55305864e823effbf7ce173f58f4eda66a0f14ccaddb62f62b",
+  "source_sha256_before": "4cda010f57d1ae55305864e823effbf7ce173f58f4eda66a0f14ccaddb62f62b",
+  "started_at_utc": "2026-09-26T22:19:31.197768+00:00",
+  "status": "PASS",
+  "updated_at_utc": "2026-09-26T22:19:43.386626+00:00"
+}

@@ -1,0 +1,61 @@
+{
+  "created_at_utc": "2026-09-28T18:07:35.329584+00:00",
+  "files": [
+    {
+      "path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/candidate-2/build-identity.json",
+      "sha256": "7b134ab457caaaceeb1b2bbb4cc7fa5bc3dba7bb65aee8320da1b266de04d0e3"
+    },
+    {
+      "path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/candidate-2/go-source-manifest.json",
+      "sha256": "a676c2b7321c15862d8aaa6c812227e2f4aa445ef29040b1b097e475805a5dc6"
+    },
+    {
+      "path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/config.json",
+      "sha256": "47b3b73244755998afab6d6d27376a15b96c6eb7d99fd680eafcef776ae67135"
+    },
+    {
+      "path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/evidence.json",
+      "sha256": "5f73e30a9d921376ff43f4a458599dd714d5c7b3ab80a130e016b83ffacdc353"
+    },
+    {
+      "path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/assessment.json",
+      "sha256": "fd0c56aaa927c000bc450c739ff56161af5eff68b55077a28cebf26915680062"
+    },
+    {
+      "path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/assessment-command.json",
+      "sha256": "d71bfcc99162845522790c1ce564577b63a948e8ca4525b159b8beb89f3eaaaa"
+    },
+    {
+      "path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/operator-actions.jsonl",
+      "sha256": "442733c3c68785afdfc3b6d0be0b3a7e48790bb9230f3afeb5b939950e640d07"
+    },
+    {
+      "path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/final-process-state.json",
+      "sha256": "7c91d80b2b15264a940cdba0bee07bf5e3d9c746f0c1d9c1366a0418eab181e6"
+    },
+    {
+      "path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/account-after.json",
+      "sha256": "0941c23be2bd55d38c3d08717803bf717cb0e7150a4994ac7d9f173b3efed013"
+    },
+    {
+      "path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/store-after.json",
+      "sha256": "594617167dfbdda679aee265a9c0d5a9d0aee0451a322758030355bb8a13e856"
+    },
+    {
+      "path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/beads-final.json",
+      "sha256": "2efa617c6d8d61df48ceb4704ab078ddb466d66e6ddb17ac4b6ecd6bba7d10f0"
+    },
+    {
+      "path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/continuation-report.md",
+      "sha256": "402ef0bc8a53803dd826fe2d404a9d328d096368edf6e1007978a87dd6bdac94"
+    },
+    {
+      "path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/operator-handoff.md",
+      "sha256": "392f6765fe3837bf02d5c65e9a4b67a9f923b970f2b67a6be40531e521862182"
+    },
+    {
+      "path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/operations-update.md",
+      "sha256": "b49693c0020f14c26f616aef511c9c2261a2439182beb505fdea8b488e724ec0"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "started_at_utc": "2026-09-29T20:12:39.891039+00:00",
+  "finished_at_utc": "2026-09-29T20:12:43.543378+00:00",
+  "git_head": "f7e9571547bb948418b7a27adc9c30ae38314b00",
+  "git_head_after": "f7e9571547bb948418b7a27adc9c30ae38314b00",
+  "dirty_tree": true,
+  "source_manifest_sha256": "90114bfef8baa72ccd43d9ed8691de5a5594be5e0830ec553f415b5139ed39c5",
+  "source_manifest_sha256_after": "90114bfef8baa72ccd43d9ed8691de5a5594be5e0830ec553f415b5139ed39c5",
+  "binary_path": "/Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/candidate-5/harness",
+  "binary_sha256": "516778b685e7a9d55981d94b62388c1e558430810909adc22306d115327f17c0",
+  "independent_rebuild_sha256": "516778b685e7a9d55981d94b62388c1e558430810909adc22306d115327f17c0",
+  "go_source_archive_sha256": "6e85a5de7021432e3d3b6e51b01721b291cdef5816bc8b6e7fa94c1320649eba",
+  "build_command": [
+    "/usr/local/bin/go",
+    "build",
+    "-trimpath",
+    "-o",
+    "/Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/candidate-5/harness",
+    "./cmd/harness"
+  ],
+  "build_cwd": "/Users/hugh/kek/lip/go",
+  "predecessor": {
+    "binary_sha256": "4d9b8a1ac4a37b6760f6c9d9ad65ef3fe9424e2c89054e98da97cd8ef5797771",
+    "source_manifest_sha256": "cdb8440a337f445a6d3ae82361272148c24cf823091a1160605afc2714b637ce",
+    "build_identity": "/Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/candidate-4/build-identity.json"
+  },
+  "qualification_scope": "Built only. Candidate gate, affected mutations and the candidate-difference review are recorded separately; no live use, q01 or financial qualification is implied."
+}

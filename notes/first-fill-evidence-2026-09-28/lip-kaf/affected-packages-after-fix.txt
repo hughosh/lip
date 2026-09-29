@@ -1,0 +1,6 @@
+# lip-kaf affected packages AFTER fix, 2026-09-28T23:45:06Z
+# go test -count=1 ./harness/rest ./harness/lifecycle ./cmd/harness
+ok  	lip/harness/rest	1.109s
+ok  	lip/harness/lifecycle	0.830s
+ok  	lip/cmd/harness	114.275s
+# exit 0

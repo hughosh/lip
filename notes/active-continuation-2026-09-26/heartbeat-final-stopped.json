@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-27T01:55:27.595439+00:00",
+  "action": "Healthchecks failure signal after clean read-only observer exit",
+  "source_running": false,
+  "harness_processes": [],
+  "provider": "Healthchecks.io",
+  "endpoint_secret_retained": false,
+  "dashboard_verified": false,
+  "human_acknowledgment": false,
+  "http_status": 200,
+  "accepted": true,
+  "response": "OK"
+}

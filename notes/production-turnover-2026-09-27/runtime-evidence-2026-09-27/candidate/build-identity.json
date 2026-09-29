@@ -1,0 +1,25 @@
+{
+  "started_at_utc": "2026-09-27T17:20:32.167929+00:00",
+  "finished_at_utc": "2026-09-27T17:20:35.725110+00:00",
+  "git_head": "f7e9571547bb948418b7a27adc9c30ae38314b00",
+  "dirty_tree": true,
+  "source_manifest_sha256": "74f8ee7634c406f0e4279429b4e8bbdca9cab31bc2f3a1564163b1d42c4263c2",
+  "source_manifest_sha256_after": "74f8ee7634c406f0e4279429b4e8bbdca9cab31bc2f3a1564163b1d42c4263c2",
+  "binary_path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/candidate/harness",
+  "binary_sha256": "ecf16ea19c4f0e05dad8cce0c261d6e6f2204eeb8f9615913a79b54816b311c6",
+  "go_source_archive_sha256": "e8b4361e6efcbf6580c50a1bc433e7cc64b572c5c2688f7a837f771a25215016",
+  "build_command": [
+    "/usr/local/bin/go",
+    "build",
+    "-trimpath",
+    "-o",
+    "/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/candidate/harness",
+    "./cmd/harness"
+  ],
+  "candidate_gate": "/Users/hugh/kek/lip/loop/gates-out/20260927T170933719968Z-8521aa8d/receipt.json",
+  "candidate_gate_sha256": "0e26b1270483a8a6ccd2c400ed9cc3eeeaf31f21a7466ddc3424160f31fb7bb6",
+  "candidate_gate_verdict": "PASS",
+  "affected_mutations_receipt": "/Users/hugh/kek/lip/loop/gates-out/negative-control-20260927T171702926992Z/receipt.json",
+  "affected_mutations_receipt_sha256": "ed7c3c4ce878eeac730848c069b7fe9845402372b8004f361451557dfcba1c2f",
+  "qualification_scope": "Production turnover integrated and code-qualified. Simulated fills only; no live financial stages or continuous trading."
+}

@@ -1,0 +1,23 @@
+{
+  "started_at_utc": "2026-09-27T01:52:49.487649+00:00",
+  "ended_at_utc": "2026-09-27T01:54:19.829079+00:00",
+  "elapsed_seconds": 90.34299119794741,
+  "command": [
+    "/Users/hugh/kek/lip/notes/active-continuation-2026-09-26/candidate/harness",
+    "-config",
+    "/Users/hugh/kek/lip/notes/active-continuation-2026-09-26/read-only-smoke/config.json",
+    "-rung",
+    "sizing",
+    "-qualification",
+    "/Users/hugh/kek/lip/notes/active-continuation-2026-09-26/read-only-smoke/observation.json"
+  ],
+  "binary_sha256": "2d8de985f4fa5204fdac0021a98121ae6a2436f8c288bd70e797f1e7130aba7c",
+  "source_manifest_sha256": "c9b5101a87ec4c55d26f925ef9c5c0290c16b089e038511e3a28d68d5c4f2490",
+  "config_sha256": "6a85a3e3d2397650cda8e5dfa79038728a70996edbe9e4d2d13b0ecf892fbd02",
+  "live_flag": false,
+  "live_sentinel_exists": false,
+  "planned_sigterm": true,
+  "forced_termination": false,
+  "exit_code": 0,
+  "q01_qualification_claimed": false
+}

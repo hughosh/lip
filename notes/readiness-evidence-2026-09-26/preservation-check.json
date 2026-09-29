@@ -1,0 +1,16 @@
+{
+  "checked_at_utc": "2026-09-26T19:24:29.110435+00:00",
+  "initial_file_count": 357,
+  "changed_existing_files": [
+    "go/cmd/harness/gate_failure_test.go",
+    "go/cmd/harness/run.go",
+    "go/cmd/harness/seam_test.go",
+    "go/harness/rest/cancel.go",
+    "go/harness/wsx/portfolio.go",
+    "go/harness/wsx/seal_test.go",
+    "scripts/harness_negative_control.py"
+  ],
+  "missing_existing_files": [],
+  "unchanged_existing_count": 350,
+  "changed_since_final_freeze": []
+}

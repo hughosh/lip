@@ -1,0 +1,41 @@
+{
+  "scope": "local_evidence_only",
+  "local_requirements_met": false,
+  "elapsed": 89453061895,
+  "above_guard_non_get": 0,
+  "below_guard_non_get": 0,
+  "would_write_observations": 16743,
+  "historical_unclean_segments": 0,
+  "expected_monitor_slots": 90,
+  "observed_monitor_slots": 89,
+  "fresh_monitor_slots": 88,
+  "monitor_fresh_slot_ratio": 0.9777777777777777,
+  "expected_portfolio_slots": 18,
+  "observed_portfolio_slots": 18,
+  "fresh_complete_portfolio_slots": 18,
+  "portfolio_fresh_complete_slot_ratio": 1,
+  "protocol_deviations": [],
+  "external_outstanding": [
+    "real-account, real-feed, launchd, and caffeinate provenance",
+    "operator provenance and timestamps for forced qualification actions",
+    "alert-provider receipt and proof that a missed-heartbeat alarm fired"
+  ],
+  "failures": [
+    {
+      "code": "q01_restart_missing",
+      "detail": "no linked historical unclean segment is followed by a linked resumed segment"
+    },
+    {
+      "code": "elapsed_too_short",
+      "detail": "linked monotonic active time 1m29.453061895s is below fixed q01 minimum 20m0s"
+    },
+    {
+      "code": "q01_monitor_slot_coverage",
+      "detail": "fresh monitor slots 88/90 are below fixed q01 minimum 99% (89 distinct slots observed)"
+    },
+    {
+      "code": "q01_disconnect_cycle_missing",
+      "detail": "websocket cycle has connected=2 disconnected=0; q01 requires at least 2 and 1"
+    }
+  ]
+}

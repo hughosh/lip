@@ -1,0 +1,19 @@
+{
+  "terms": {
+    "url": "https://kalshi-public-docs.s3.amazonaws.com/regulatory/notices/Liquidity%20Incentive%20Program%20-%20July%2030%2C%202026%20Modification%20to%20July%2015%2C%202026%20Update.pdf",
+    "at_utc": "2026-09-26T23:50:51.334885+00:00",
+    "status": 200,
+    "bytes": 179664,
+    "sha256": "2e85332ac95b2561df0c873323186dd66d2bc6df85abc0fa01128558ab9d3eed",
+    "file": "economic-screen-terms.pdf",
+    "content_type": "application/pdf"
+  },
+  "fees": {
+    "url": "https://kalshi.com/fee-schedule",
+    "error": "HTTP Error 429: Too Many Requests"
+  },
+  "fee_schedule_pdf": {
+    "url": "https://kalshi.com/docs/kalshi-fee-schedule.pdf",
+    "error": "HTTP Error 429: Too Many Requests"
+  }
+}

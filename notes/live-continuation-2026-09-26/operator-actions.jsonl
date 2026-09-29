@@ -1,0 +1,4 @@
+{"at": "2026-09-26T23:48:50.884910+00:00", "action": "force real observer websocket disconnect via opaque process-only CONNECT tunnel", "pid": 30961}
+{"at": "2026-09-26T23:50:42.184028+00:00", "action": "SIGKILL observer before same-ledger supervised restart", "pid": 30961}
+{"at": "2026-09-26T23:51:42.854487+00:00", "action": "SIGKILL supervised observer; launchd must restart same binary/config/ledger/evidence", "pid": 31380}
+{"at": "2026-09-27T00:11:10.415949+00:00", "action": "SIGTERM unexpected funding_unavailable run; preserve failed evidence", "pid": 31589, "command": "/Users/hugh/kek/lip/notes/live-readiness-2026-09-26/harness-candidate-v2 -config /Users/hugh/kek/lip/notes/live-continuation-2026-09-26/q01-config.json -rung sizing -qualification /Users/hugh/kek/lip/notes/live-continuation-2026-09-26/q01-evidence.json"}

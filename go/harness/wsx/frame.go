@@ -53,6 +53,10 @@ func (k FrameKind) String() string {
 type FrameInfo struct {
 	Kind   FrameKind
 	Ticker string
+	// SID identifies a book frame's subscription. BookSubscribeSID is set only
+	// by the acknowledgement for our filtered orderbook_delta subscribe id 1.
+	SID              *int64
+	BookSubscribeSID *int64
 
 	// Deliver is whether the frame may be passed to core.Rig.Handle. It is
 	// false ONLY when delivering it would corrupt a book: a fractional book
@@ -112,7 +116,9 @@ func InspectFrame(frame []byte) FrameInfo {
 
 	switch env.Type {
 	case "orderbook_snapshot":
-		return inspectSnapshot(env.Msg)
+		info := inspectSnapshot(env.Msg)
+		info.SID = env.Sid
+		return info
 	case "orderbook_delta":
 		return inspectDelta(env.Msg)
 	case "trade":
@@ -123,6 +129,20 @@ func InspectFrame(frame []byte) FrameInfo {
 				Class: "WS_ERROR_FRAME", Sev: risk.SEV2,
 				Text: "the exchange sent an error frame: " + snippet(frame),
 			}}}
+	}
+	if env.Type == "subscribed" {
+		var ack struct {
+			ID  *int64 `json:"id"`
+			Msg struct {
+				Channel string `json:"channel"`
+				SID     *int64 `json:"sid"`
+			} `json:"msg"`
+		}
+		if json.Unmarshal(frame, &ack) == nil && ack.ID != nil &&
+			*ack.ID == idSubscribeDelta && ack.Msg.Channel == "orderbook_delta" &&
+			ack.Msg.SID != nil && *ack.Msg.SID > 0 {
+			return FrameInfo{Kind: FrameOther, Deliver: true, BookSubscribeSID: ack.Msg.SID}
+		}
 	}
 	return FrameInfo{Kind: FrameOther, Deliver: true}
 }

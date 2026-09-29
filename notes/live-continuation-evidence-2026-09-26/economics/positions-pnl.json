@@ -1,0 +1,30 @@
+{
+  "ended_at": "2026-09-27T00:27:04.369557Z",
+  "event_positions": [
+    {
+      "event_exposure_dollars": "0.000000",
+      "event_ticker": "KXHOODA-28JANFUNDED",
+      "fees_paid_dollars": "0.000000",
+      "realized_pnl_dollars": "0.200000",
+      "total_cost_dollars": "19.800000",
+      "total_cost_shares_fp": "40.00"
+    }
+  ],
+  "exchange_index": "all; parameter omitted",
+  "market_positions": [
+    {
+      "exchange_index": 0,
+      "fees_paid_dollars": "0.000000",
+      "last_updated_ts": "2026-07-24T21:18:38.532138Z",
+      "market_exposure_dollars": "0.000000",
+      "position_fp": "0.00",
+      "realized_pnl_dollars": "0.200000",
+      "ticker": "KXHOODA-28JANFUNDED-33000000",
+      "total_traded_dollars": "19.800000"
+    }
+  ],
+  "pages": 1,
+  "started_at": "2026-09-27T00:27:04.131579Z",
+  "status": "complete",
+  "subaccount": 0
+}

@@ -65,18 +65,8 @@ import (
 // goroutine past the point where its own answer had expired.
 const restTimeout = 10 * time.Second
 
-// dispatchWorkers is H-TOP-4's K for the pilot profile: one.
-//
-// D3 and H-ORD-6 and "ONE REST writer" are the same requirement stated three
-// times, and one goroutine is how it is enforced rather than remembered.
-//
-// `quote.NewCapacity` raises this to two internally, because H-QUE-3 requires a
-// P1 reserve that is never the whole pool and a pool of one cannot carve one.
-// The consequence is worth stating plainly: with a single dispatcher goroutine
-// at most one write is ever in flight, so the WORKER dimension of `Capacity` is
-// never the binding constraint for the pilot. The §16 token bucket is, and the
-// dispatcher owns its refill.
-const dispatchWorkers = 1
+// One general transport slot and one slot reserved for P1 reducers.
+const dispatchWorkers = 2
 
 // anomalyBuffer is the depth of the hand-off between every producer of an
 // anomaly and the single goroutine that submits them.
@@ -130,6 +120,10 @@ type exchange struct {
 	// from NowMs because F21 (a clock step) and F7 (host sleep) both turn on
 	// the two being distinguishable.
 	Mono func() time.Duration
+	// Production transports may have detached dial callbacks after a request
+	// returns. Final close fences and joins those callbacks as well.
+	quiesce func(context.Context) error
+	resume  func()
 }
 
 func (e exchange) validate() error {
@@ -151,6 +145,12 @@ func (e exchange) validate() error {
 	}
 	if e.Mono == nil {
 		missing = append(missing, "Mono")
+	}
+	if e.quiesce == nil {
+		missing = append(missing, "quiesce")
+	}
+	if e.resume == nil {
+		missing = append(missing, "resume")
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("exchange is missing %v; there is deliberately no "+
@@ -183,6 +183,7 @@ type f6Net struct {
 	dialer *netx.CachedDialer
 	rest   *http.Transport
 	ws     *http.Transport
+	dials  dialBarrier
 }
 
 // newF6Net composes F6 over injected system collaborators.
@@ -205,7 +206,10 @@ func newF6Net(anom *anomalySink, r netx.Resolver, d netx.DialFunc,
 	if err != nil {
 		return nil, err
 	}
-	return &f6Net{dialer: cd, rest: f6Transport(cd), ws: f6Transport(cd)}, nil
+	nt := &f6Net{dialer: cd, rest: f6Transport(cd), ws: f6Transport(cd)}
+	nt.rest.DialContext = nt.dialContext
+	nt.ws.DialContext = nt.dialContext
+	return nt, nil
 }
 
 // f6Transport is `net/http`'s default transport with ONLY its dial replaced.
@@ -376,8 +380,11 @@ func exchangeOver(ctx context.Context, c config, signer *feed.Signer,
 			programs.Err)
 	}
 	target, listed := programs.ByTarget[c.Ticker]
-	if !listed {
-		return exchange{}, fmt.Errorf("%s is not in the active LIP universe "+
+	if !listed && c.Turnover {
+		target = 1
+	}
+	if !listed && !c.Turnover {
+		return exchange{}, refuse("%s is not in the active LIP universe "+
 			"(%d markets); quoting a market outside the incentive programme "+
 			"earns nothing however well it is quoted, and there is no Target "+
 			"Size for its qualifying walk", c.Ticker, len(programs.ByTarget))
@@ -385,13 +392,15 @@ func exchangeOver(ctx context.Context, c config, signer *feed.Signer,
 
 	start := time.Now()
 	return exchange{
-		Doer:   doer,
-		Dialer: wsx.NewLiveDialerWithTransport(nt.ws),
-		Signer: signer,
-		Clock:  wsx.NewSystemClock(),
-		Target: target,
-		NowMs:  func() int64 { return time.Now().UnixMilli() },
-		Mono:   func() time.Duration { return time.Since(start) },
+		Doer:    doer,
+		Dialer:  wsx.NewLiveDialerWithTransport(nt.ws),
+		Signer:  signer,
+		Clock:   wsx.NewSystemClock(),
+		Target:  target,
+		NowMs:   func() int64 { return time.Now().UnixMilli() },
+		Mono:    func() time.Duration { return time.Since(start) },
+		quiesce: nt.dials.pause,
+		resume:  nt.dials.resume,
 	}, nil
 }
 
@@ -462,8 +471,9 @@ func (noopSink) Reference(core.ReferenceRow)        {}
 // and a `*hstore.Store` whose mutex protects a FIFO, and a copy of either is a
 // second view of state that is supposed to have exactly one.
 type rig struct {
-	cfg  config
-	qual *qual.Recorder
+	cfg               config
+	qual              *qual.Recorder
+	qualificationPath string
 	// qualErrors is the fail-closed hand-off from observation/checkpoint hooks
 	// to serve. It is nil outside a qualification run, disabling its select arm.
 	qualErrors chan error
@@ -485,7 +495,10 @@ type rig struct {
 
 	// --- the store ---------------------------------------------------------
 
-	store *hstore.Store
+	closeMu      sync.Mutex
+	closeFailure error // sticky if the writer stopped but final close failed
+	lockReleased bool  // InstanceLock.Close drops the flock even on error
+	store        *hstore.Store
 	// storeCancel stops the writer goroutine. It is handed to
 	// `hstore.Shutdown`, which is the ONLY thing entitled to call it: the store
 	// refuses to close over a non-empty FIFO, and cancelling the writer first
@@ -505,11 +518,15 @@ type rig struct {
 
 	// --- the exchange ------------------------------------------------------
 
-	ex   exchange
-	api  *rest.Client
-	sup  *wsx.Supervisor
-	poll *wsx.Poller
-	gate *wsx.Gate
+	ex                exchange
+	api               *rest.Client
+	portfolio         lifecycle.PortfolioSource
+	funding           *atomic.Pointer[fundingObservation]
+	marketUniverse    atomic.Pointer[[]string]
+	turnoverInherited []hstore.OwnedOrderRow
+	sup               *wsx.Supervisor
+	poll              *wsx.Poller
+	gate              *wsx.Gate
 
 	// --- the model ---------------------------------------------------------
 
@@ -544,6 +561,7 @@ type rig struct {
 	alertWake    chan struct{}
 	alertFlush   chan chan struct{}
 	alertMu      sync.Mutex
+	alertParent  context.Context
 	alertCancel  context.CancelFunc
 	alertDone    chan struct{}
 	alertStopped bool
@@ -591,22 +609,18 @@ func newRig(ctx context.Context, c config, resume bool, ex exchange,
 // path here without needing to emulate command startup.
 func newRigWithLock(ctx context.Context, c config, resume bool, ex exchange,
 	makeAlerts alertFactory, anom *anomalySink, qrec *qual.Recorder,
-	heldLock *lifecycle.InstanceLock) (*rig, error) {
+	heldLock *lifecycle.InstanceLock) (_ *rig, err error) {
 
 	r := &rig{
 		cfg: c, ex: ex, anom: anom, qual: qrec,
 		snap:      new(atomic.Pointer[risk.Snapshot]),
 		alertWake: make(chan struct{}, 1), alertFlush: make(chan chan struct{}),
-		lock: heldLock,
-	}
-	if qrec != nil {
-		r.qualErrors = make(chan error, 1)
+		lock: heldLock, qualErrors: make(chan error, 1),
 	}
 	if r.lock != nil {
 		r.defer_(func() { r.lock.Close() })
 	}
 
-	var err error
 	defer func() {
 		if err != nil {
 			r.unwind()
@@ -616,8 +630,12 @@ func newRigWithLock(ctx context.Context, c config, resume bool, ex exchange,
 	if err = ex.validate(); err != nil {
 		return nil, err
 	}
+	if c.CapitalSource == "selected_shard_balance" && c.Funding == nil {
+		err = refuse("selected-shard capital must be resolved before recording or starting a run")
+		return nil, err
+	}
 	if makeAlerts == nil {
-		err = errors.New("the rig needs an alert factory; there is no safe " +
+		err = refuse("the rig needs an alert factory; there is no safe " +
 			"unattended default")
 		return nil, err
 	}
@@ -629,7 +647,7 @@ func newRigWithLock(ctx context.Context, c config, resume bool, ex exchange,
 	// here would be a second one, and the fallback that preceded it would be
 	// recorded somewhere nothing reads.
 	if anom == nil {
-		err = fmt.Errorf("the rig needs the process anomaly sink; a nil " +
+		err = refuse("the rig needs the process anomaly sink; a nil " +
 			"one is a monitor with no queue, and every SEV1 it would have " +
 			"raised is a nil dereference on the monitor goroutine")
 		return nil, err
@@ -656,6 +674,9 @@ func newRigWithLock(ctx context.Context, c config, resume bool, ex exchange,
 	// recognises no order id at all. Every fill on the account then classifies
 	// foreign, which is a SEV1 and a durable global stop about our own orders.
 	if err = requireExistingDB(c.Paths.DB); err != nil {
+		return nil, err
+	}
+	if _, err = checkOperationsDisk(c.Paths.DB, c.Paths.AnomalyLog, ""); err != nil {
 		return nil, err
 	}
 	r.store, err = hstore.Open(hstore.StoreConfig{
@@ -695,7 +716,7 @@ func newRigWithLock(ctx context.Context, c config, resume bool, ex exchange,
 		return nil, fmt.Errorf("constructing alert delivery: %w", err)
 	}
 	if r.alerts == nil {
-		err = errors.New("the alert factory returned no service")
+		err = refuse("the alert factory returned no service")
 		return nil, err
 	}
 
@@ -740,7 +761,7 @@ func newRigWithLock(ctx context.Context, c config, resume bool, ex exchange,
 		// leaves this path holding the instance lock, the open store and a live
 		// writer goroutine -- and the next start is then refused by its own
 		// predecessor's lock, which reads as two harnesses running.
-		err = fmt.Errorf("the durable halt latch at %s is SET, and "+
+		err = refuse("the durable halt latch at %s is SET, and "+
 			"-resume was not given.\n\n"+
 			"H-HALT-4 makes the latch survive the process on purpose: the "+
 			"harness never self-clears it, so a restart into a latched state "+
@@ -752,7 +773,8 @@ func newRigWithLock(ctx context.Context, c config, resume bool, ex exchange,
 		return nil, err
 	}
 
-	// The exchange client. One `*rest.Client`, shared: it is stateless over the
+	// The exchange client. One `*rest.Client`, shared: apart from the
+	// mutex-guarded sweep-page episodes (lip-9tt) it is stateless over the
 	// `Doer`, and the single-writer property is a property of the DISPATCHER
 	// goroutine (D3), not of the client object.
 	//
@@ -774,6 +796,27 @@ func newRigWithLock(ctx context.Context, c config, resume bool, ex exchange,
 		return nil, err
 	}
 	r.api = rest.NewClient(clientDoer)
+	r.api.SweepTrace = sweepTraceWriter(os.Stderr)
+	if c.Turnover {
+		r.turnoverInherited, err = readTurnoverInherited(ctx, r.store, r.api)
+		if err != nil {
+			return nil, err
+		}
+	}
+	r.portfolio = r.api
+	if c.Funding != nil {
+		r.funding = new(atomic.Pointer[fundingObservation])
+		if c.Turnover {
+			var inheritedTickers []string
+			for _, row := range r.turnoverInherited {
+				inheritedTickers = append(inheritedTickers, row.Ticker)
+			}
+			r.portfolio = &multiFundingSource{Client: r.api, evidence: c.ShardFunding, inheritedTickers: inheritedTickers, mono: ex.Mono, latest: r.funding, maxAge: c.Params.TruthMaxAge}
+		} else {
+			r.portfolio = &fundedPortfolioSource{Client: r.api, ticker: c.Ticker,
+				index: c.Funding.ExchangeIndex, mono: ex.Mono, latest: r.funding}
+		}
+	}
 
 	tickers := []string{c.Ticker}
 
@@ -782,8 +825,12 @@ func newRigWithLock(ctx context.Context, c config, resume bool, ex exchange,
 		return nil, err
 	}
 	r.policy = newAdoptionPolicy(c.Params)
-	r.start, err = lifecycle.NewStartup(r.ctrl, r.api, r.guard, r.policy,
-		r.api, r.store, c.Params, tickers)
+	var resolver lifecycle.ReservationResolver = r.store
+	if c.Turnover {
+		resolver = turnoverReservationResolver{r.store}
+	}
+	r.start, err = lifecycle.NewStartup(r.ctrl, r.portfolio, r.guard, r.policy,
+		r.api, resolver, c.Params, tickers)
 	if err != nil {
 		return nil, err
 	}
@@ -797,7 +844,7 @@ func newRigWithLock(ctx context.Context, c config, resume bool, ex exchange,
 	if err != nil {
 		return nil, err
 	}
-	r.poll, err = wsx.NewPoller(r.api, ex.Clock, c.Params.PositionPoll)
+	r.poll, err = wsx.NewPoller(&portfolioThrottleSource{src: r.portfolio, mono: ex.Mono}, ex.Clock, c.Params.PositionPoll)
 	if err != nil {
 		return nil, err
 	}
@@ -858,20 +905,50 @@ func (r *rig) unwind() {
 // released only after the store has been dealt with: while any record is still
 // in flight this process is still the one incarnation entitled to write them.
 func (r *rig) close(ctx context.Context) error {
-	err := r.stopAlerts(ctx)
-	if err != nil {
+	r.closeMu.Lock()
+	defer r.closeMu.Unlock()
+	if r.closeFailure != nil {
+		return r.closeFailure
+	}
+	if r.storeCancel == nil {
+		return errors.New("orderly shutdown requires the writer cancel function")
+	}
+	if err := r.stopAlerts(ctx); err != nil {
+		r.resumeAlerts()
 		return err
 	}
-	err = r.store.Shutdown(ctx, r.storeCancel)
-	if err == nil {
-		<-r.storeDone
+	writerStopped := false
+	err := r.store.Shutdown(ctx, func() {
+		writerStopped = true
+		r.storeCancel()
+	})
+	if err != nil {
+		// Close can fail after stopping the writer/closing a connection. A
+		// later idempotent Close is not proof that this failure resolved.
+		if writerStopped {
+			r.closeFailure = err
+		}
+		r.resumeAlerts()
+		return err
 	}
+	<-r.storeDone
 	if r.lock != nil {
-		if cerr := r.lock.Close(); cerr != nil && err == nil {
-			err = cerr
+		err := r.lock.Close()
+		r.lockReleased = true
+		if err != nil {
+			r.closeFailure = fmt.Errorf("store closed but instance lock release failed: %w", err)
+			return r.closeFailure
 		}
 	}
-	return err
+	return nil
+}
+
+// closeFailed returns the recorded close failure, which no retry can repair,
+// and whether the instance lock has already been released.
+func (r *rig) closeFailed() (lockReleased bool, err error) {
+	r.closeMu.Lock()
+	defer r.closeMu.Unlock()
+	return r.lockReleased, r.closeFailure
 }
 
 // requireExistingDB is (2) above, stated as a refusal.
@@ -889,7 +966,7 @@ func requireExistingDB(path string) error {
 	info, err := os.Stat(path)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
-		return fmt.Errorf("no store at %s.\n\n"+
+		return refuse("no store at %s.\n\n"+
 			"It is opened, never created by a run: an absent path and a "+
 			"mistyped one are the same thing to this process, and the ledger "+
 			"that would be created for either recognises no order id at all. "+
@@ -900,7 +977,7 @@ func requireExistingDB(path string) error {
 	case err != nil:
 		return fmt.Errorf("store at %s could not be examined: %w", path, err)
 	case info.IsDir():
-		return fmt.Errorf("store path %s is a directory", path)
+		return refuse("store path %s is a directory", path)
 	}
 	return nil
 }

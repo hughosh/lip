@@ -1,0 +1,71 @@
+gui/501/com.lip.q01.v3.20260926 = {
+	active count = 0
+	path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/q01-v3/supervisor.plist
+	type = LaunchAgent
+	state = spawn scheduled
+
+	program = /usr/bin/caffeinate
+	arguments = {
+		/usr/bin/caffeinate
+		-is
+		/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/q01-v3/harness-candidate-v3
+		-config
+		/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/q01-v3/config.json
+		-rung
+		sizing
+		-qualification
+		/Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/q01-v3/evidence.json
+	}
+
+	working directory = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/q01-v3/runtime
+
+	stdout path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/q01-v3/supervised.out
+	stderr path = /Users/hugh/kek/lip/notes/live-continuation-evidence-2026-09-26/q01-v3/supervised.err
+	inherited environment = {
+		SSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		NO_PROXY => api.elections.kalshi.com,external-api.kalshi.com,ntfy.sh,hc-ping.com,localhost,127.0.0.1
+		HTTPS_PROXY => http://127.0.0.1:55427
+		XPC_SERVICE_NAME => com.lip.q01.v3.20260926
+	}
+
+	domain = gui/501 [100002]
+	asid = 100002
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 4
+	last exit code = 2
+
+	resource coalition = {
+		ID = 233835
+		type = resource
+		state = active
+		active count = 1
+		name = com.lip.q01.v3.20260926
+	}
+
+	jetsam coalition = {
+		ID = 233836
+		type = jetsam
+		state = active
+		active count = 1
+		name = com.lip.q01.v3.20260926
+	}
+
+	spawn type = daemon (3)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	jetsam thread limit = 32
+	cpumon = default
+
+	properties = keepalive | runatload | inferred program
+}

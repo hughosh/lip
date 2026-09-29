@@ -12,7 +12,6 @@ import (
 	"lip/harness/cfg"
 	"lip/harness/num"
 	"lip/harness/quote"
-	"lip/harness/risk"
 )
 
 func testOrder(t *testing.T, coid string) CreateOrder {
@@ -154,11 +153,11 @@ func TestDefiniteRejectionClearsMaxLive(t *testing.T) {
 	}
 }
 
-// TestOrdinaryRejectionCarriesTheExchangeErrorCode is the seam F8, F9, F10 and
-// F11 all read from, asserted at the only place it can be produced.
+// TestOrdinaryRejectionCarriesTheExchangeErrorCode is the seam F9, F10 and
+// F11 read from, asserted at the only place it can be produced.
 //
-// §11's wording is precise about what each detector keys on: F8 is detected by
-// HTTP 429, F9 by "HTTP 4xx with a parseable reason", F10 and F11 by "reject
+// §11's wording is precise about what each detector keys on: F9 by
+// "HTTP 4xx with a parseable reason", F10 and F11 by "reject
 // reason". So the status and the code have to survive together, and the code
 // has to be the exchange's own `error.code` — not `error.message`, not the
 // formatted `Err`, not a snippet of the body.
@@ -173,10 +172,7 @@ func TestOrdinaryRejectionCarriesTheExchangeErrorCode(t *testing.T) {
 		body   string
 		want   string
 	}{
-		// The three §11 rows this field exists for.
-		{"429 rate limit (F8)", 429,
-			`{"error":{"code":"rate_limited","message":"too many requests"}}`,
-			"rate_limited"},
+		// The §11 rows this field exists for.
 		{"insufficient balance (F10)", 400,
 			`{"error":{"code":"insufficient_balance","message":"not enough"}}`,
 			"insufficient_balance"},
@@ -193,7 +189,6 @@ func TestOrdinaryRejectionCarriesTheExchangeErrorCode(t *testing.T) {
 		{"code is empty", 400, `{"error":{"code":""}}`, ""},
 		{"null body", 400, `null`, ""},
 		{"empty body", 400, ``, ""},
-		{"message only, on a 429", 429, `{"error":{"message":"slow down"}}`, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			d := &scriptedDoer{t: t, handle: func(n int, req Request) (Response, error) {
@@ -210,8 +205,7 @@ func TestOrdinaryRejectionCarriesTheExchangeErrorCode(t *testing.T) {
 				t.Fatalf("outcome = %s, want REJECTED (%v)", res.Outcome, res.Err)
 			}
 			if res.Status != tc.status {
-				t.Fatalf("status = %d, want %d: F8 is detected by HTTP 429, so "+
-					"the status is half the signal", res.Status, tc.status)
+				t.Fatalf("status = %d, want %d", res.Status, tc.status)
 			}
 			if res.RejectReason != tc.want {
 				t.Fatalf("reject reason = %q, want %q: the reason is the "+
@@ -249,7 +243,11 @@ func TestNamedRejectReasonsAreDistinguishable(t *testing.T) {
 		}}
 		res := NewClient(d).Create(context.Background(),
 			testOrder(t, "lipH-run1-000-yes-00000022"), cfg.Default())
-		if res.Outcome != CreateRejected {
+		if status == 429 {
+			if res.Outcome != CreateUnknown || res.RejectReason != "" {
+				t.Fatalf("HTTP 429 produced %+v, want UNKNOWN with no reject reason", res)
+			}
+		} else if res.Outcome != CreateRejected {
 			t.Fatalf("HTTP %d %s produced %s, want REJECTED", status, body, res.Outcome)
 		}
 		return res
@@ -267,7 +265,7 @@ func TestNamedRejectReasonsAreDistinguishable(t *testing.T) {
 		{"an ordinary rejection naming no reason", 400, `{"error":{}}`},
 	} {
 		res := reject(t, tc.status, tc.body)
-		key := fmt.Sprintf("%d/%s", res.Status, res.RejectReason)
+		key := fmt.Sprintf("%d/%s/%s", res.Status, res.Outcome, res.RejectReason)
 		if prior, dup := seen[key]; dup {
 			t.Fatalf("%q and %q both arrive at the owner as %q; they are "+
 				"indistinguishable generic rejections and no §11 rule can act "+
@@ -409,9 +407,8 @@ func TestExhaustedRetriesStayUnknownAndKeepTheSizeLive(t *testing.T) {
 	if !res.ReconcileNow() {
 		t.Fatal("an unresolved create must schedule RECONCILE_NOW")
 	}
-	if len(res.Anomalies) != 1 || res.Anomalies[0].Class != "ORDER_UNKNOWN" ||
-		res.Anomalies[0].Sev != risk.SEV2 {
-		t.Fatalf("want one SEV2 ORDER_UNKNOWN, got %+v", res.Anomalies)
+	if len(res.Anomalies) != 0 {
+		t.Fatalf("transport cannot fire the owner's timed UNKNOWN escalation: %+v", res.Anomalies)
 	}
 }
 

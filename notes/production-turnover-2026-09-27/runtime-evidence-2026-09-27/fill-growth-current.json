@@ -1,0 +1,12 @@
+{
+  "observed_ended_at": "2026-09-27T17:02:04.656927Z",
+  "new_fill_ids": [],
+  "removed_fill_ids": [],
+  "full_walk_pages": 1,
+  "rows": 15,
+  "bytes": 7996,
+  "duration_ms": 112.77584,
+  "configured_poll_ms": 5000,
+  "full_read_fraction_of_poll": 0.022555168,
+  "decision": "No measured current pressure; no fill-history optimization. No new attributable fills, fees or rewards. This snapshot does not establish lifetime completeness or future growth."
+}

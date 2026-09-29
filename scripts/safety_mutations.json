@@ -1,0 +1,21 @@
+{
+  "purpose": "Small regression sentinel set for a one-market attended candidate; add mutations affected by the change. This is not full-catalogue or live qualification.",
+  "mutations": {
+    "M-ES6-FLAG": "Explicit live invocation is one required write key.",
+    "M-ES6-SENTINEL": "The revocable sentinel is the other required write key.",
+    "M-ES6-RECHECK": "Revocation is checked again at dispatch.",
+    "M-ES6-NOGUARD": "The production REST composition actually uses the guard.",
+    "M-R-CANCEL-SHARD-ROUTE": "Cancels reach the selected market shard and absence is verified.",
+    "M-D2-RELEASE-UNKNOWN": "A cancel sweep cannot erase ambiguous create exposure.",
+    "M-D2-PLACE-BEFORE-FRESH-TRUTH": "Replacement reduction waits for reconciled inventory.",
+    "M-D2-DRAIN-WITHOUT-CANCEL-TRUTH": "Stale flat inventory cannot falsely prove drain after cancel.",
+    "M-Y3Q-GATESTOPCAP": "Aggregate reducer size stays capped outside gate failure too.",
+    "M-2T6-RUNGOFF": "The canary stops adding after first directional entry.",
+    "M-2T6-NOACK": "An acknowledgement carrying a fill also stops the canary.",
+    "M-GP8-NOWIRE": "The loss floor reaches the durable stop while reduction remains available.",
+    "M5a": "Orders remain post-only on the actual wire body.",
+    "M7": "A reduction cannot overshoot flat.",
+    "M20": "A reported stop is durable and survives restart.",
+    "M-3AF-RESUME": "Restart cannot silently clear a latched stop."
+  }
+}

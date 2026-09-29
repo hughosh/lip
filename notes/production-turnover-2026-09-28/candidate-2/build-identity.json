@@ -1,0 +1,32 @@
+{
+  "started_at_utc": "2026-09-28T17:25:37.842026+00:00",
+  "finished_at_utc": "2026-09-28T17:25:40.730998+00:00",
+  "git_head": "f7e9571547bb948418b7a27adc9c30ae38314b00",
+  "dirty_tree": true,
+  "source_manifest_sha256": "6047b85a4306c70bd7048c8ed15e41e2ab87b8a21075a8a550747a8c13e1c709",
+  "source_manifest_sha256_after": "6047b85a4306c70bd7048c8ed15e41e2ab87b8a21075a8a550747a8c13e1c709",
+  "binary_path": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/candidate-2/harness",
+  "binary_sha256": "e3f8a697a20c3153f5c2a8650094b949ff57b985f94b154a7defdad22e9ef361",
+  "go_source_archive_sha256": "b07a14f9be7e029c664361c046ae24b0d4fe3dd89639f0b7fcfed691e14a7089",
+  "build_command": [
+    "/usr/local/bin/go",
+    "build",
+    "-trimpath",
+    "-o",
+    "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/candidate-2/harness",
+    "./cmd/harness"
+  ],
+  "affected_mutations_receipt": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/shutdown-repair/negative-control-20260928T172101631625Z/receipt.json",
+  "affected_mutations_receipt_sha256": "b65931fa37e6be7bca2b6a1a22344f295fcf13714da65b62d342e93cd47da8e9",
+  "qualification_scope": "Code candidate gate and fresh real GET-only local q01 PASS. External alarm timeout/timing and financial qualification remain unproved.",
+  "candidate_gate": "/Users/hugh/kek/lip/loop/gates-out/20260928T172551434734Z-16c7f73d/receipt.json",
+  "candidate_gate_sha256": "881cb0bfd1e6d7d7eec58ed0505f7714b69163722ad50844aea1d96c4b6e2dc8",
+  "candidate_gate_verdict": "PASS",
+  "q01_evidence": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/evidence.json",
+  "q01_evidence_sha256": "5f73e30a9d921376ff43f4a458599dd714d5c7b3ab80a130e016b83ffacdc353",
+  "q01_assessment": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/assessment.json",
+  "q01_assessment_sha256": "fd0c56aaa927c000bc450c739ff56161af5eff68b55077a28cebf26915680062",
+  "q01_local_requirements_met": true,
+  "q01_config": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-28/q01-shutdown-repair-attempt2/config.json",
+  "q01_config_sha256": "47b3b73244755998afab6d6d27376a15b96c6eb7d99fd680eafcef776ae67135"
+}

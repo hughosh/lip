@@ -1,0 +1,9 @@
+{
+  "at_utc": "2026-09-27T17:30:52.357466+00:00",
+  "url": "https://kalshi.com/docs/kalshi-fee-schedule.pdf",
+  "web_open": "Succeeded; official PDF general formula M*0.07*C*P*(1-P), fee+positionCost rounded to centicent, reviewed with fresh quadratic multiplier 1 series metadata. Hypothetical exit math only; actual matching/fees not observed.",
+  "raw_download_attempt": {
+    "http_status": 429,
+    "result": "Failed: Too Many Requests. No retry; no local PDF saved. Web tool text review remains the source."
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "recorded_at": "2026-09-28T16:56:12.684412+00:00",
+  "source": "User confirmation in this Codex conversation",
+  "message_ids": [
+    "ClO0HGqsX2w1",
+    "ip0SWbKrUY3y",
+    "IrGnI67UmTam"
+  ],
+  "human_receipt_confirmed": true,
+  "receipt_times": null,
+  "timely_acknowledgment_proved": false,
+  "route": "ntfy primary only; no backup requested or configured"
+}

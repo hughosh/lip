@@ -1,0 +1,2217 @@
+diff --git a/config.example.md b/config.example.md
+index daf0439..30edaf3 100644
+--- a/config.example.md
++++ b/config.example.md
+@@ -44,9 +44,9 @@ READ from `/markets/{ticker}`, never configured.
+ | `rung` | **yes** | — | `canary`. ASSERTED against `s`, never used to derive it — a file that says canary and sizes like the pilot is refused. |
+ | `s` | no | 12 | 1 contract. The canary's whole question is whether the order path works at all. |
+ | `s_max` | no | 48 | 1. The per-side-per-market aggregate cap. Left at 48 the canary could rest 48× its base quote. |
+-| `inv_soft` | no | 3 | 0.1 — see the caveat below. |
++| `inv_soft` | no | 3 | 0.1 — see the canary bound below. |
+ | `inv_hard` | no | 7 | 0.25. A single 1-contract fill exceeds this, so the market goes REDUCING on the first directional fill. The §16 defaults (3/7/18) can never fire at S=1. |
+-| `inv_kill` | no | 18 | 0.5 — see the caveat below. |
++| `inv_kill` | no | 18 | 0.5 — see the canary bound below. |
+ | `capital_max` | no | $100 | $2, not $1. H-CAP-8's arithmetic needs the deployable fraction (1 − `capital_reserve` = 0.75) to cover a worst-case reducer fill of 1 × $0.99; $1 leaves $0.75 and does not. |
+ | `pnl_kill` | no | −$15 | −$1. A LOSS FLOOR, therefore negative; a non-negative value fires immediately. |
+ | `n_markets` | no | 6 | 1. Also the divisor in H-CAP-2's per-market cap. |
+@@ -76,34 +76,37 @@ than defaulted so that WHICH ACCOUNT this process can reach is a property of the
+ config and visible in a diff. Neither `loadConfig` nor `resolvePaths` stats these
+ files; a wrong path surfaces at startup, not at load.
+ 
+-## Caveat: three of these knobs are not currently enforced
++## Current enforcement and the canary bound
+ 
+-Read this before starting anything. `inv_kill`, `pnl_kill` and `capital_max`
+-are written here at values chosen from the spec, and as of 2026-08-08 the
+-harness acts on none of them. Each was verified against the code by a reviewer
+-instructed to refute it.
++Checked against the source on 2026-09-26: the earlier warning that these three
++parameters had no production callers is obsolete.
+ 
+-- **`inv_kill` (F17, global WINDING_DOWN)** — parsed and bounds-checked;
+-  nothing anywhere compares live inventory against it. F17's detector is
+-  specified as the position poll, and that poll uses `cfg.Params` only for
+-  drift (`q_local` vs `q_exch`), never for `|q|`. Tracked as `lip-lqw`.
+-- **`pnl_kill` (§12, H-HALT-5)** — same: zero production reads. The loss floor
+-  does not fire. Tracked as `lip-gp8`.
+-- **`capital_max` via H-CAP-8** — `risk.CheckFundable` implements the rule and
+-  is tested, but has no caller on the startup path, so a config that cannot
+-  fund its reducer starts without complaint. Tracked as `lip-lpf`.
++- **`inv_kill` (F17, global WINDING_DOWN)** — the owner consumes the reconciler's
++  `InvKill` effect and calls `requestStop("inv_kill", ...)` in
++  `go/cmd/harness/run.go`.
++- **`pnl_kill` (§12, H-HALT-5)** — the owner's `evaluatePnL` compares trading
++  P&L, including fees and excluding rewards, against the inclusive loss floor
++  and requests a global stop.
++- **`capital_max` via H-CAP-8** — `loadConfig` calls `risk.CheckFundable` after
++  parameter validation, before running, provisioning, or deploying. This
++  validates configured fundability; it does not guarantee liquidation or cap
++  the account's lifetime loss.
++
++These code paths do not establish release qualification. See the dated
++[revival assessment](notes/revival-2026-09-26.md) and the unchanged pilot gates
++for the remaining safety and operational evidence.
+ 
+ **What this means for the canary.** pilot-plan §7.9 bounds it by "the first
+ directional fill latches `WINDING_DOWN`", and as of `lip-2t6` (2026-08-09) it
+-does — but NOT through any of the three knobs above, and no setting of them
+-would have delivered it. Fills are fractional to the 0.01-contract quantum, F17
++does. That first-fill bound comes from the rung, independently of the inventory
++and P&L thresholds. Fills are fractional to the 0.01-contract quantum, F17
+ compares with a strict `>`, and `inv_kill` must sit strictly above `inv_hard`,
+ which must sit strictly above `inv_soft`, which must be positive; so there is no
+ ordering in which every 0.01 fill breaches `inv_kill`. What bites below it is
+ `inv_hard`, which takes the market to REDUCING — and REDUCING is market-scoped
+-and clears at exactly flat, going IDLE and then QUOTING again. A canary bounded
+-only by these numbers reduces to zero and **resumes adding by itself**, one
+-quantum at a time, forever.
++and clears at exactly flat, going IDLE and then QUOTING again. If no global
++threshold has fired, those inventory transitions can reduce to zero and resume
++adding. They do not enforce a first-directional-fill limit.
+ 
+ So the bound is a property of the RUNG rather than a knob. Selecting
+ `"rung": "canary"` is what turns it on; there is deliberately no config key for
+diff --git a/go/cmd/conform/main.go b/go/cmd/conform/main.go
+index 88a3c5a..e9acc50 100644
+--- a/go/cmd/conform/main.go
++++ b/go/cmd/conform/main.go
+@@ -116,10 +116,9 @@ type probe struct {
+ 	// that is absent (page.go:311-314), and the positions endpoint declares two.
+ 	siblings []string
+ 	// filters MUST match what the production caller sends, or the sweep judges
+-	// the decoder against records production never sees. `Programs` sends
+-	// `status=active` (read.go:631-632); the unfiltered walk returns 137,569
+-	// records including every expired `incentive_type: "volume"` programme,
+-	// none of which carry `target_size_fp`. Reporting those as live refusals
++	// the decoder against records production never sees. `Programs` sends both
++	// `status=active` and `type=liquidity`; the unfiltered walk includes volume
++	// programmes without `target_size_fp`. Reporting their refusals as live
+ 	// would be a fabricated defect.
+ 	filters url.Values
+ 	// latent marks a probe that deliberately walks WIDER than production, to
+@@ -181,10 +180,11 @@ func probes() []probe {
+ 			decode: positions,
+ 		},
+ 		{
+-			// Exactly what the harness sends at startup (read.go:631-632).
++			// Exactly what the harness sends at startup.
+ 			name: "programs", ep: rest.EpPrograms,
+ 			itemKey: "incentive_programs", decode: programs,
+-			filters: url.Values{"status": []string{"active"}},
++			filters: url.Values{"status": []string{"active"},
++				"type": []string{"liquidity"}},
+ 		},
+ 		{
+ 			// The same decoder against the whole endpoint. `Programs` is
+diff --git a/go/cmd/harness/run.go b/go/cmd/harness/run.go
+index a583c67..a9d8c4e 100644
+--- a/go/cmd/harness/run.go
++++ b/go/cmd/harness/run.go
+@@ -263,6 +263,113 @@ type owner struct {
+ 	// times a second into a 256-slot buffer.
+ 	reducerCancelPinged [2]bool
+ 
++	// cancelConfirmed is, per side of the one market, H-FAIL-3's own licence:
++	// a COMPLETE verifying read found NOTHING OF OURS resting there.
++	//
++	// It is the only thing that ends a cancellation obligation, and it has to be
++	// held because `risk.Portfolio.LiveOrders` does not learn it. `LiveOrders`
++	// is replaced wholesale from a complete ORDERS WALK (H-POS-4) and the next
++	// one is up to `position_poll_s` away, so for those five seconds `atRisk`
++	// still reports the order we have just watched the exchange confirm gone --
++	// and `evaluate` would reissue the cancel on every one of the twenty ticks
++	// in between. Each of those is a DELETE for an id the exchange no longer
++	// has plus a full verifying walk, spending the §16 write budget the reducer
++	// shares.
++	//
++	// It is set ONLY from `writeResult.Absent`, which `dispatch.go` grants only
++	// for a complete read that found none of the requested orders AND no other
++	// order of ours on that side. It is cleared by anything that could put one
++	// back: a create on that side that may have left quantity live, and a
++	// complete orders walk started after the latest cancel sweep, which is
++	// when our own model becomes authoritative again. Both clears are generous
++	// on purpose -- a redundant
++	// cancel costs one write, and a missed one costs an adding order left
++	// resting in a market the harness has stopped adding in.
++	cancelConfirmed [2]bool
++	// absentOrders are ids still present in the last portfolio orders walk but
++	// subsequently proved absent by a complete cancel sweep. A replacement
++	// create clears cancelConfirmed, so that side-wide flag cannot also be the
++	// sizing rule: it would resurrect the cancelled reducer before the next
++	// portfolio walk. A new complete walk started after the sweep replaces this
++	// older evidence; a previously in-flight walk cannot supersede it.
++	absentOrders map[string]struct{}
++	// A cancel sweep proves absence, but the old order may have filled just
++	// before its DELETE. Until a subsequent complete portfolio cycle started
++	// after the sweep, q may be too large for a replacement reducer. Hold all
++	// placements while that uncertainty exists; cancels still run.
++	awaitCancelTruth bool
++	cancelTruthAfter time.Duration
++	// The latest Gate-issued token and the poller's input are retained so a
++	// cancel can request an immediate account reconciliation on this generation.
++	reconcileToken wsx.ReconcileToken
++	reconcileOut   chan<- wsx.ReconcileToken
++
++	// --- H-Q-4a's continuous gate-failure episode ---------------------------
++	//
++	// `gate_fail_debounce_s` was configured, defaulted and unit-tested before
++	// `lip-732` and had no production reader at all. H-Q-4a is what reads it:
++	// "after gate_fail_debounce_s (30s) of continuous gate failure, cancel and
++	// exchange-confirm every adding order. If q != 0, keep only the
++	// aggregate-capped reducer."
++	//
++	// gateFailSince is, per market, the monotonic instant the CURRENT unbroken
++	// run of accepted, current-generation, NON-qualifying books began. No entry
++	// means no episode is open.
++	//
++	// Three properties, and each of them is a way this goes silently wrong:
++	//
++	//   - The stamp comes from the injected clock (`wsx.Stamp.Mono`) and is
++	//     compared against `owner.evaluate`'s `now`, which is `exchange.Mono`.
++	//     Both are monotonic. F21's clock step moves the WALL clock and must not
++	//     shorten, extend or reset this interval, and a wall-derived stamp here
++	//     would let a one-hour NTP correction retire an adding order instantly
++	//     or hold one live for an hour.
++	//   - A continuing failure does NOT move the start. H-Q-4a says *continuous*
++	//     failure, so a market publishing a thin book four times a second must
++	//     accumulate one 30-second interval, not restart a 30-second interval
++	//     every 250 ms -- which would make the rule unreachable in exactly the
++	//     busy market it matters in.
++	//   - Only book evidence writes here. `wsx.Gate.BookCurrent` is separate
++	//     from `Actionable` for this reason: a stale portfolio walk must not be
++	//     able to start, extend or clear a book's episode.
++	gateFailSince map[string]time.Duration
++	// gateFailPinged dedupes the SEV2 to one per EPISODE and re-arms when a
++	// qualifying book clears it. Same argument as `pnlPinged` and
++	// `reducerCancelPinged`: a standing condition is worth saying once, and at
++	// four evaluations a second into a 256-slot buffer it is worth not saying
++	// two hundred times a minute -- which evicts the anomaly the operator needs.
++	gateFailPinged map[string]bool
++
++	// sweptOrders is every order of OURS that a cancel's VERIFYING READ found
++	// resting and that no complete orders walk has listed into `risk.Portfolio`
++	// yet, keyed by exchange order id.
++	//
++	// It exists because `build` could previously only cancel what
++	// `Portfolio.LiveOrders` held, and `LiveOrders` is replaced wholesale from a
++	// complete orders walk (H-POS-4) that is up to `position_poll_s` away. So an
++	// adding order that was created between two walks -- acked, UNKNOWN, or
++	// simply young -- was in every aggregate CAP (`pending`, and therefore
++	// `atRisk`) and in no cancel REQUEST: H-Q-4a's expiry would raise the
++	// obligation to retire it and `build` would answer "nothing of ours rests on
++	// this side" and drop it. The order stayed live and fillable through the
++	// whole gated-out interval, which is precisely HR-012's hole reached one
++	// layer down.
++	//
++	// `rest.SweepResult` already reports the two sets a complete verifying read
++	// establishes -- `StillResting` for what we asked to cancel and `OtherOurs`
++	// for everything else of ours in the ticker -- and `OtherOurs` is exactly
++	// where such an order turns up. It is REPLACED WHOLESALE from a complete
++	// read and never edited from a partial one (H-PAGE-1: stale, never empty),
++	// which is what makes "the order is gone" a fact the exchange stated rather
++	// than one we inferred from silence (H-FAIL-3, H-ORD-2a).
++	//
++	// It deliberately contributes NO quantity to `atRisk`. Every order in it is
++	// also in `LiveOrders` or in `pending`, so counting it again would double a
++	// size the aggregate caps are evaluated against (H-Q-5b) -- and an
++	// overstated reducer aggregate is a reducer that never gets placed. What it
++	// contributes is the IDENTIFIER, which is the half that was missing.
++	sweptOrders map[string]rest.Order
++
+ 	// --- H-HALT-5's ledger ---------------------------------------------------
+ 
+ 	// pnl is the trading P&L: seeded from the durable `our_fill` history at
+@@ -377,17 +484,37 @@ type pendingOrder struct {
+ 	// simply younger than the poll.
+ 	acked  bool
+ 	pinged bool
++	// id is the exchange order id the acknowledgement carried, and "" when the
++	// create ended UNKNOWN and there is none.
++	//
++	// It is what makes an acked-but-unlisted order CANCELLABLE. Without it the
++	// only cancel target `build` had was `Portfolio.LiveOrders`, so a stop
++	// raised between two orders walks -- H-Q-4a's expiry, H-CLOSE-3's final
++	// cancel, A8 -- could name the obligation and not the order, and the
++	// quantity stayed live for up to `position_poll_s` with the harness
++	// believing it had asked for it back.
++	//
++	// An UNKNOWN create has no id here and that is not a gap: H-ORD-2a forbids
++	// inferring anything from absence, so it is resolved POSITIVELY, either by
++	// the orders walk listing the coid or by the sweep's verifying read finding
++	// the order -- which is what `sweptOrders` catches.
++	id string
+ }
+ 
+ func newOwner(r *rig, sd *shutdown) *owner {
+ 	o := &owner{
+-		r:        r,
+-		sd:       sd,
+-		p:        r.cfg.Params,
+-		global:   quote.Starting,
+-		market:   quote.Idle,
+-		capacity: r.cap,
+-		pending:  make(map[string]pendingOrder),
++		r:            r,
++		sd:           sd,
++		p:            r.cfg.Params,
++		global:       quote.Starting,
++		market:       quote.Idle,
++		capacity:     r.cap,
++		pending:      make(map[string]pendingOrder),
++		absentOrders: make(map[string]struct{}),
++
++		gateFailSince:  make(map[string]time.Duration),
++		gateFailPinged: make(map[string]bool),
++		sweptOrders:    make(map[string]rest.Order),
+ 
+ 		pnl:        risk.NewTradingPnL(),
+ 		pnlTickers: make(map[string]struct{}),
+@@ -582,13 +709,14 @@ func (r *rig) serve(ctx context.Context) error {
+ // and `drain_timeout_h` escalates rather than exiting. The exit, if it ever
+ // happens, is authorised by the drain and by nothing else.
+ func (o *owner) applySignal(sig os.Signal) {
++	known := o.truthKnown()
+ 	eff := o.sd.onSignal(sig, quote.GlobalInput{
+ 		State:         o.global,
+ 		Latched:       o.r.ctrl.Latched(),
+-		TruthReadable: o.truthKnown(),
+-		Reconciled:    true,
++		TruthReadable: known,
++		Reconciled:    known,
+ 		Stop:          true,
+-		RiskKnown:     true,
++		RiskKnown:     known,
+ 		AnyInventory:  o.anyInventory(),
+ 		AnyLiveOrder:  o.anyLiveOrder(),
+ 	})
+@@ -944,7 +1072,145 @@ func (o *owner) applyEvent(ev wsx.Event, tokens chan<- wsx.ReconcileToken) {
+ 			o.resnapshot(true)
+ 		}
+ 		o.resnapshot(eff.Resnapshot)
++		// H-Q-4a's episode, folded from the OUTCOME of this frame and taken
++		// LAST -- after `NoteSeqGap` has had its chance to quarantine every
++		// book. A delivered delta that arrived in the same read as a
++		// subscription-wide gap is a delta onto a book the gate has just
++		// stopped trusting, and clearing an episode from it would be certifying
++		// depth nothing has re-established.
++		o.noteBookGate(info, eff.Delivered, ev.At)
++	}
++}
++
++// noteBookGate advances H-Q-4a's continuous gate-failure episode, and it is the
++// ONLY thing that writes to it.
++//
++// The rule is stated as a conjunction because every clause is load-bearing:
++//
++//   - `delivered` is `wsx.FrameEffects.Delivered`, which is "ApplyFrame invoked
++//     the handler AND the handler returned nil". A frame core REFUSED left the
++//     book exactly as it was, so it is evidence about the feed and none at all
++//     about depth. Neither starting nor clearing an episode from one is right,
++//     and clearing is the one that costs money: a market whose every frame is
++//     malformed would look permanently recovered.
++//   - A BOOK frame. A trade print says nothing about resting depth, and the
++//     unfiltered `trade` subscription delivers the whole exchange tape, so
++//     judging the qualifying walk on one would re-evaluate this market from
++//     somebody else's fill.
++//   - `BookCurrent`, which is connected, unquarantined and snapshotted on THIS
++//     generation. A delta cannot reopen a quarantined or unsnapshotted
++//     generation -- it is an increment against a book we have decided not to
++//     trust -- while an accepted delta against a book this connection DID
++//     snapshot can perfectly well recover it, which is why the test is on the
++//     resulting book rather than on the frame kind.
++//
++// What is deliberately absent is any other event. A disconnect, a reconnect, a
++// generation change, a portfolio walk, a rejected frame and a clock step all
++// leave the episode exactly as they found it: H-Q-4a's interval is CONTINUOUS
++// FAILURE OF THE BOOK, and an episode that reset on a reconnect would give a
++// market that flapped every 25 seconds an adding quote that never came off.
++func (o *owner) noteBookGate(info wsx.FrameInfo, delivered bool, at wsx.Stamp) {
++	if !delivered || info.Ticker != o.r.cfg.Ticker {
++		return
++	}
++	if info.Kind != wsx.FrameSnapshot && info.Kind != wsx.FrameDelta {
++		return
++	}
++	if !o.r.gate.BookCurrent(info.Ticker) {
++		return
++	}
++	book := o.r.book.Book(info.Ticker)
++	if book == nil {
++		// Delivered, current, and core holds no book for it. There is nothing to
++		// judge, so nothing is judged: this is the fail-closed reading, because
++		// the alternative -- treating "no book" as a failing walk -- would start
++		// an episode from an absence rather than from a measured thin market.
++		return
++	}
++
++	// H-Q-4's own words: "if the market's own qualifying walk fails on either
++	// side (core.Book.Qualifies() == 0), the snapshot is excluded for everyone
++	// and our presence earns nothing".
++	if book.Qualifies() != 0 {
++		// A fresh, complete, qualifying book. H-Q-4a's re-entry condition, and
++		// the ONLY thing that clears the episode. The next failure gets a whole
++		// new `gate_fail_debounce_s`, which is what "continuous" means.
++		delete(o.gateFailSince, info.Ticker)
++		delete(o.gateFailPinged, info.Ticker)
++		return
++	}
++	if _, open := o.gateFailSince[info.Ticker]; open {
++		// Continues. The start is NOT moved -- see `gateFailSince`.
++		return
+ 	}
++	o.gateFailSince[info.Ticker] = at.Mono
++}
++
++// gateFailFor is how long this market's continuous gate failure has run, and
++// whether one is running at all.
++//
++// `now` is the caller's monotonic reading and this function reads no clock, for
++// the same reason `wsx.Gate` reads none: one clock, injected, so a test can
++// drive thirty seconds in one call and a scenario can replay it exactly.
++func (o *owner) gateFailFor(now time.Duration, ticker string) (time.Duration, bool) {
++	since, open := o.gateFailSince[ticker]
++	if !open {
++		return 0, false
++	}
++	return now - since, true
++}
++
++// gateFailStopped is H-Q-4a's threshold: the market has been failing its
++// qualifying walk continuously for `gate_fail_debounce_s`.
++//
++// The comparison is `>=` and the boundary belongs to the STOPPED side. §16
++// states the parameter as a duration of continuous failure and H-Q-4a as
++// "after gate_fail_debounce_s of continuous gate failure", so a market that has
++// been failing for exactly the debounce has satisfied it. A `>` here is not a
++// rounding preference: the owner re-evaluates on a tick and on every event, so
++// with a strictly-greater test the response waits for whatever wakes the loop
++// NEXT -- up to `ownerTick` in a market that has gone quiet, and in a replay
++// against a frozen clock, forever.
++func (o *owner) gateFailStopped(now time.Duration, ticker string) bool {
++	d, open := o.gateFailFor(now, ticker)
++	return open && d >= o.p.GateFailDebounce
++}
++
++// gateFailQuiet is the DEBOUNCE ITSELF: an episode is open and has not yet run
++// its `gate_fail_debounce_s`.
++//
++// H-Q-4 forbids placing into a non-qualifying book from the first frame -- "our
++// presence earns nothing. Do not place." -- and HR-012 is explicit that the
++// debounce protects against CHURN on transient blips and nothing else. So this
++// window is one-sided: no new quote-derived write of either kind, and no cancel
++// either. What is already resting stays exactly where it is, which is what makes
++// a book that recovers in two seconds cost nothing at all.
++func (o *owner) gateFailQuiet(now time.Duration, ticker string) bool {
++	d, open := o.gateFailFor(now, ticker)
++	return open && d < o.p.GateFailDebounce
++}
++
++// gateFailBlocksPlacement is §6.6's re-evaluation of a QUEUED placement against
++// the episode.
++//
++// It is not the same test as the one `evaluate` applies, and the difference is
++// the whole reason it exists: `evaluate` decides whether to enqueue anything
++// NEW, while this decides whether an intent enqueued from a book that qualified
++// may still leave the process. §6.6 holds intents re-evaluated at dequeue
++// precisely so that a decision taken against conditions that have since changed
++// is dropped rather than sent, and "the book stopped qualifying while this sat
++// in the queue" is exactly that.
++//
++// Past the debounce the block narrows to the ADDING side. H-Q-4a keeps the
++// aggregate-capped reducer (H-Q-5a, H-Q-5b) and §5.2's REDUCING row is what
++// rests it, so a reducing-side placement is the EXIT and must still be able to
++// go out -- I1: every stop path here stops adding risk, none of them stops
++// reducing it.
++func (o *owner) gateFailBlocksPlacement(now time.Duration, in quote.Intent) bool {
++	if o.gateFailQuiet(now, in.Market) {
++		return true
++	}
++	return o.gateFailStopped(now, in.Market) && in.Role == quote.RoleAdding
+ }
+ 
+ // offerToken hands a reconcile token to the poller without ever blocking.
+@@ -958,6 +1224,8 @@ func (o *owner) offerToken(tokens chan<- wsx.ReconcileToken, tok wsx.ReconcileTo
+ 	if !tok.Valid() {
+ 		return
+ 	}
++	o.reconcileToken = tok
++	o.reconcileOut = tokens
+ 	select {
+ 	case tokens <- tok:
+ 	default:
+@@ -1397,22 +1665,46 @@ func (o *owner) applyRead(read wsx.PortfolioRead) {
+ 		}
+ 	}
+ 
+-	if eff.Applied[wsx.TruthOrders] {
++	if eff.Applied[wsx.TruthOrders] &&
++		(!o.awaitCancelTruth || read.StartedAt(wsx.TruthOrders).Mono > o.cancelTruthAfter) {
++		// A complete orders walk supersedes every earlier cancel sweep. An id
++		// listed here is positive evidence of presence and must count again.
++		// A walk started before the sweep does not supersede that later proof,
++		// even if it happened to finish afterwards.
++		clear(o.absentOrders)
+ 		// A complete orders walk is the ONLY thing that resolves an unknown
+ 		// create, and it resolves it positively: the coid is listed, so the
+ 		// order exists and is now in `Portfolio.LiveOrders`. Absence is not
+ 		// evidence in either direction (H-ORD-2a), so nothing is cleared for
+ 		// not appearing.
+ 		o.clearListed()
++		o.clearSwept()
++		// A complete orders walk is our model becoming authoritative again, so
++		// the sweep-derived shortcut retires with it: whatever this walk lists
++		// is in `LiveOrders`, `atRisk` sees it, and the next evaluation decides
++		// the side from that rather than from a read taken before it.
++		o.cancelConfirmed = [2]bool{}
++	}
++	// A sweep's verifying orders read contains no position or fill truth. Only
++	// an independently applied cycle whose three walks STARTED after that sweep
++	// can resolve a possible fill-before-cancel. A pre-sweep in-flight cycle
++	// may finish later and must not open the placement gate.
++	if o.awaitCancelTruth && eff.Applied[wsx.TruthFills] &&
++		eff.Applied[wsx.TruthOrders] && eff.Applied[wsx.TruthPositions] &&
++		read.StartedAt(wsx.TruthFills).Mono > o.cancelTruthAfter &&
++		read.StartedAt(wsx.TruthOrders).Mono > o.cancelTruthAfter &&
++		read.StartedAt(wsx.TruthPositions).Mono > o.cancelTruthAfter {
++		o.awaitCancelTruth = false
+ 	}
+ }
+ 
+ // clearListed drops pending creates the resting-order walk has since listed.
+ //
+-// Listing the coid is the ONLY release. It is a positive fact -- the exchange
+-// named the order -- and it is also the moment the quantity appears in
+-// `Portfolio.LiveOrders`, so releasing it here is exactly what stops the same
+-// order being counted in two places at once.
++// Listing the coid is this path's positive release. A separate completed
++// cancel sweep may retire a named ACKed order before it is ever listed; an
++// UNKNOWN create without an id cannot use that release. A listed order's
++// quantity enters Portfolio.LiveOrders as pending releases, avoiding a double
++// count.
+ func (o *owner) clearListed() {
+ 	if len(o.pending) == 0 {
+ 		return
+@@ -1835,6 +2127,29 @@ func (o *owner) evaluate(now time.Duration) {
+ 	q := o.r.pf.Q(ticker)
+ 	untilClose, hasClose := o.untilClose()
+ 
++	// H-Q-4a, evaluated once and used twice: as a §5.2 stop below, and as the
++	// suppression window in the side loop. Reading it from one place is what
++	// keeps the two from disagreeing about the boundary instant.
++	gateStopped := o.gateFailStopped(now, ticker)
++	gateQuiet := o.gateFailQuiet(now, ticker)
++	if gateStopped && !o.gateFailPinged[ticker] {
++		o.gateFailPinged[ticker] = true
++		age, _ := o.gateFailFor(now, ticker)
++		o.r.anom.raise(risk.Anomaly{
++			Class: "BOOK_GATE_SUSTAINED", Sev: risk.SEV2, Ticker: ticker,
++			Text: fmt.Sprintf("this market's own qualifying walk has failed "+
++				"continuously for %v, past gate_fail_debounce_s %v; H-Q-4a "+
++				"cancels and exchange-confirms every ADDING order and keeps only "+
++				"the aggregate-capped reducer. Reward in a gated-out interval is "+
++				"zero for every participant, so an order left resting here takes "+
++				"directional inventory during an interval that cannot pay -- and "+
++				"the gated-out accounting excludes the interval from our uptime "+
++				"denominator, so the loss is invisible in the metric (HR-012). "+
++				"Re-entry needs a fresh, complete, qualifying book",
++				age, o.p.GateFailDebounce),
++		})
++	}
++
+ 	next, trig := quote.NextMarket(quote.MarketInput{
+ 		State:  o.market,
+ 		Q:      q,
+@@ -1868,9 +2183,20 @@ func (o *owner) evaluate(now time.Duration) {
+ 		// would be one rule clearable in only one of the two places, and
+ 		// MTDeselected would label the A9 row an operator selection decision
+ 		// rather than a stop.
++		//
++		// The LAST term is H-Q-4a, and expressing it as a market-scoped stop
++		// rather than as a branch of its own is the point. §5.2 answers a stop
++		// with REDUCING, which is exactly the response H-Q-4a asks for: the
++		// adding side is cancelled and exchange-confirmed absent (A8, H-FAIL-3)
++		// and the aggregate-capped reducer keeps resting (H-Q-5a, H-Q-5b). A
++		// flat market goes to IDLE and rests nothing, which is the same rule
++		// with q == 0 substituted in. §5.2 is explicit that there is "no HALTED
++		// per-market state that cancels everything"; a bespoke H-Q-4a branch
++		// that cancelled both sides would be that state arriving through a side
++		// door, and it would strand the position the reducer exists to exit.
+ 		Stop: o.stopHeld || o.reduceNoted || o.r.gate.Reducing(ticker) ||
+ 			!o.r.gate.Connected() || o.earlyCloseDue(untilClose, hasClose) ||
+-			o.closeUnknown(hasClose),
++			o.closeUnknown(hasClose) || gateStopped,
+ 		// ProgramEnded is H-CLOSE-1 and is NOT wired. It is a literal false and
+ 		// not an owner field, deliberately: a field nothing ever writes reads
+ 		// as wired to everyone downstream, and this file argues everywhere else
+@@ -1921,7 +2247,8 @@ func (o *owner) evaluate(now time.Duration) {
+ 	}
+ 
+ 	reducing, held := quote.ReducingSide(q)
+-	actionable := o.r.gate.Actionable(ticker, o.r.ex.Clock.Now())
++	actionable := !o.awaitCancelTruth &&
++		o.r.gate.Actionable(ticker, o.r.ex.Clock.Now())
+ 
+ 	for _, side := range []quote.Side{quote.SideYes, quote.SideNo} {
+ 		role := quote.RoleAdding
+@@ -1936,11 +2263,110 @@ func (o *owner) evaluate(now time.Duration) {
+ 			// The state rests nothing on this side. If something of ours is
+ 			// there, it comes off -- A8 for REDUCING's adding side, and the
+ 			// same act for every other state that quotes nothing.
+-			if o.atRisk(side) > 0 {
++			//
++			// The second term is H-FAIL-3's "off means exchange-confirmed
++			// absent" read backwards. `atRisk` is the aggregate the SIZING is
++			// evaluated against, and an order the exchange has shown us resting
++			// that no complete orders walk has listed yet may be missing from it
++			// -- not because the quantity is unknown, but because the order is
++			// carried in `pending` under a coid rather than in `LiveOrders`
++			// under an id. `sweptOn` asks the other question: has a verifying
++			// read SEEN one of ours on this side. Either answer is an obligation
++			// to cancel, and only exchange-confirmed absence ends it.
++			//
++			// Adding side only. A reducing side has no standalone cancel at all
++			// (H-QUE-2) -- `enqueueCancel` refuses one loudly -- so widening the
++			// trigger there would trade a real cancel for a per-tick SEV2.
++			//
++			// `cancelConfirmed` is the other end of the same rule. H-FAIL-3
++			// says "off" means exchange-confirmed absent -- and it means it in
++			// BOTH directions. A side a complete verifying read has already
++			// found empty is off, whatever `LiveOrders` still says until the
++			// next walk refreshes it, and reissuing the cancel every tick until
++			// then is churn against the §16 budget rather than diligence.
++			if !o.cancelConfirmed[side] &&
++				(o.atRisk(side) > 0 ||
++					(role == quote.RoleAdding && o.sweptOn(side))) {
++
+ 				o.enqueueCancel(now, side, role)
+ 			}
+ 			continue
+ 		}
++		// H-Q-5b, on the REDUCING side, retired by SIZE rather than by price.
++		//
++		// Every state that designates a reducing side -- SKEWED, REDUCING and
++		// SETTLING -- caps that side's aggregate at |q| (H-Q-5a), and `SizesFor`
++		// has just computed `target` as that cap. Yet the only thing that would
++		// otherwise resize the resting exit is `decideSide`, and `quote.Decide`
++		// there is PRICE-only: it asks "is our order at the touch?" and returns no
++		// move for an at-touch reducer WHATEVER its size. A reducer that is at the
++		// touch but oversized -- an exchange-confirmed 12-contract exit against a
++		// |q| of one, an order sized when |q| was larger and left behind when a
++		// fill (or a positions walk that shrank q ahead of the orders walk that
++		// still lists the order) reduced it -- sails past §6.5, leaving an
++		// aggregate above |q|. A reducer above |q| is a reducing quote of |q| plus
++		// an ADDING quote on the opposite side (A11, A12), which is precisely what
++		// each of these states exists to switch off, and price-unchanged is
++		// exactly when that is invisible. So the aggregate (RESTING + SENDING +
++		// UNKNOWN + in-flight + unconfirmed-cancel, which is `atRisk`) is checked
++		// against the freshly-capped target HERE.
++		//
++		// It is gated on the reducing ROLE and NOT on `gateStopped`. H-Q-5b names
++		// SETTLING alongside REDUCING -- "REDUCING and SETTLING use
++		// cancel-confirm-place whenever an overlap could exceed |q|" -- so the
++		// obligation is not gate-failure-specific. Under §10.3, S=12 and an
++		// ordinary legal fill can leave q = +/-1, and H-CLOSE-2 then enters
++		// SETTLING at close_time - close_lead with `gateStopped` false; the
++		// at-touch 12-contract order the price-only path leaves alone is exactly
++		// the overshoot A12 forbids, and A12 is invariant at every tick, not only
++		// during a sustained gate failure.
++		//
++		// One DEPENDENT cancel-confirm-place, never a standalone reducing-side
++		// cancel: H-QUE-2 has no row for the latter, because cancelling the exit is
++		// not work this harness does on its own account. This reuses the ordinary
++		// cancel/sweep confirmation path -- the first leg retires every
++		// possibly-live reducer, the replacement is gated on `ConfirmAbsent` (H-Q-9
++		// clause 3, H-ORD-4, H-FAIL-3), and `build` sizes the remainder against the
++		// shrunken aggregate, so no replacement overlaps a reducer still resting.
++		//
++		// It sits ABOVE the `!actionable` guard because its first leg is a CANCEL,
++		// and a cancel that removes risk above |q| is exactly the reducing-risk
++		// action every stop path keeps alive (I1) whether or not a placement could
++		// be taken; `Conditions.Valid` still holds the replacement leg until the
++		// side is actionable again. A reducer that is ALREADY the quantized |q| --
++		// down to the 0.01-contract exit of a fractional canary -- has
++		// `atRisk == target`, so `atRisk > target` is false and this fires on
++		// genuine overshoot alone, never on a compliant exit: WINDING_DOWN forbids
++		// adding but keeps a correctly capped reducer live. `cancelConfirmed` and
++		// `enqueue`'s (market, side) dedup are the same two guards the `!wanted`
++		// branch relies on, and together they keep repeated evaluations from
++		// queuing a second cancel for one overhang; once `build` rebuilds the
++		// aggregate to |q| the comparison never re-enters, so it settles without
++		// churn.
++		//
++		// The `target > 0` guard is A4/I1, and it is NOT redundant. `SizesFor`
++		// sets `HasReduce` for any q != 0 while `SizeR` caps `Reduce` at `funded`,
++		// and `fundedReducer` answers 0 whenever the reducing side of the book has
++		// no levels -- which `ResetOnReconnect` guarantees after every ABNORMAL
++		// disconnect, and which also holds at startup with adopted inventory,
++		// before the first snapshot lands. Without the guard `target` is 0 there,
++		// EVERY resting exit reads as pure overshoot, and this branch -- which sits
++		// above `!actionable` precisely so that cancels survive a stop -- would
++		// DELETE the exit at the moment the harness is blind, with the replacement
++		// leg held by `Conditions.Valid` until the side is actionable again. That
++		// is the one thing I1 forbids: no stop path may stop reducing risk. An
++		// unfundable reducer is "not placed" (SizeR); that is never a licence to
++		// cancel the one already working. Overshoot that cannot yet be replaced is
++		// strictly safer than no exit at all.
++		if role == quote.RoleReducing && target > 0 &&
++			!o.cancelConfirmed[side] && o.atRisk(side) > target {
++
++			o.enqueue(now, quote.Intent{
++				Market: o.r.cfg.Ticker, Side: side, Role: quote.RoleReducing,
++				Kind: quote.KindCancelConfirmPlace, Reason: quote.ReasonReduce,
++			})
++			continue
++		}
+ 		if !actionable {
+ 			// A13 / H-FAIL-4 / H-FAIL-5: no PLACEMENT decision may be taken
+ 			// from a quarantined or stale book. Cancels are unaffected and were
+@@ -1948,6 +2374,27 @@ func (o *owner) evaluate(now time.Duration) {
+ 			// system has (I1).
+ 			continue
+ 		}
++		if gateQuiet {
++			// H-Q-4, inside H-Q-4a's debounce. The book has stopped qualifying
++			// and has not yet been failing long enough to earn the cancel, so
++			// this window does exactly two things and no more: it places
++			// NOTHING, because a gated-out interval pays every participant zero
++			// and "do not place" is H-Q-4's own instruction from the first
++			// frame; and it touches nothing that is already resting, because
++			// HR-012 says the debounce exists to protect against churn on
++			// transient blips and cancelling here would BE that churn.
++			//
++			// `continue` rather than a narrower guard inside `decideSide` is
++			// deliberate: §6.5 answers an unrefreshed side with a requote or a
++			// presence restoration, and both of those are writes derived from
++			// the book we have just decided not to quote into. The cancel LEG of
++			// a cancel-confirm-place is one of them.
++			//
++			// It sits BELOW the `!wanted` branch, so a market stopped for any
++			// other reason still gets its adding side off during the window.
++			// Suppressing that would let a thin book postpone an unrelated stop.
++			continue
++		}
+ 		o.decideSide(now, side, role, target)
+ 	}
+ }
+@@ -2169,7 +2616,19 @@ func (o *owner) conditions(now time.Duration) quote.Conditions {
+ 			if in.Op() == quote.OpCancel {
+ 				return true
+ 			}
+-			return o.r.gate.Actionable(in.Market, o.r.ex.Clock.Now())
++			if o.awaitCancelTruth {
++				return false
++			}
++			if !o.r.gate.Actionable(in.Market, o.r.ex.Clock.Now()) {
++				return false
++			}
++			// H-Q-4, applied to work that was decided BEFORE the book stopped
++			// qualifying. Without this the rule has a hole exactly one dequeue
++			// wide: `evaluate` stops enqueuing, and the placement already
++			// sitting in the queue -- selected, priced at dispatch from the
++			// current book -- goes out anyway, into the interval that pays
++			// nobody. §6.6 holds intents re-evaluated at dequeue for this.
++			return !o.gateFailBlocksPlacement(now, in)
+ 		},
+ 	}
+ }
+@@ -2187,23 +2646,56 @@ func (o *owner) build(d quote.Dispatch) (writeRequest, error) {
+ 	}
+ 
+ 	if d.Op == quote.OpCancel {
++		seen := make(map[string]bool)
+ 		for _, lo := range o.r.pf.LiveOrders() {
+ 			if lo.Ticker != d.Market || lo.Side != d.Side {
+ 				continue
+ 			}
++			if _, absent := o.absentOrders[lo.OrderID]; absent {
++				continue
++			}
+ 			cents, exact := rest.CentsExact(lo.Price4)
+ 			if !exact {
+ 				cents = 0
+ 			}
++			seen[lo.OrderID] = true
+ 			req.Orders = append(req.Orders, rest.Order{
+ 				OrderID: lo.OrderID, Ticker: lo.Ticker, Side: lo.Side,
+ 				Price4: lo.Price4, PriceCents: cents, Fractional: !exact,
+ 				Remaining: lo.Remaining, Status: rest.StatusResting,
+ 			})
+ 		}
++		// Everything else of ours this side may still have live that no complete
++		// orders walk has listed into `LiveOrders` yet. See `unlistedOn`.
++		for _, ord := range o.unlistedOn(d.Market, d.Side) {
++			if seen[ord.OrderID] {
++				continue
++			}
++			seen[ord.OrderID] = true
++			req.Orders = append(req.Orders, ord)
++		}
+ 		if len(req.Orders) == 0 {
+-			return writeRequest{}, fmt.Errorf("nothing of ours rests on %s/%s",
+-				d.Market, d.Side)
++			// EMPTY IS NOT ALWAYS AN ERROR, and this is the branch H-ORD-2a
++			// forces. An UNKNOWN create has quantity in every aggregate cap
++			// (H-ORD-2 clause 6) and no order id anywhere, so "we hold no id for
++			// this side" and "nothing of ours rests on this side" are different
++			// statements and only the second one licenses giving up.
++			//
++			// `writeRequest.Orders` documents the empty case as legitimate:
++			// H-ORD-4's sweep then issues no DELETE and performs only the
++			// verifying read, "which is still the read that turns absence into a
++			// fact (H-FAIL-3)". That read is the whole point here -- it either
++			// finds the order, which puts an id in `sweptOrders` for the next
++			// tick to cancel, or it finds nothing of ours on this side, which is
++			// the exchange-confirmed absence that ends the obligation.
++			//
++			// Refusing instead would report a WRITE_NOT_BUILDABLE SEV2 per tick
++			// and leave an order live and fillable for up to `position_poll_s`
++			// with the harness believing it had asked for it back.
++			if d.Market != o.r.cfg.Ticker || o.atRisk(d.Side) <= 0 {
++				return writeRequest{}, fmt.Errorf(
++					"nothing of ours rests on %s/%s", d.Market, d.Side)
++			}
+ 		}
+ 		return req, nil
+ 	}
+@@ -2374,6 +2866,9 @@ func (o *owner) exposures() []risk.Exposure {
+ 		get(t).Position += risk.SideCost(q, risk.SettlementPrice4)
+ 	}
+ 	for _, lo := range o.r.pf.LiveOrders() {
++		if _, absent := o.absentOrders[lo.OrderID]; absent {
++			continue
++		}
+ 		e := get(lo.Ticker)
+ 		reducing, held := quote.ReducingSide(o.r.pf.Q(lo.Ticker))
+ 		if held && lo.Side == reducing {
+@@ -2394,14 +2889,19 @@ func (o *owner) exposures() []risk.Exposure {
+ //
+ // It returns the AGGREGATE (H-Q-5b): exchange-confirmed resting, plus the write
+ // currently in flight, plus every unresolved create's maximum possibly-live
+-// quantity. Leaving any of the three out would leave that size in the external
+-// touch, and we would then chase ourselves (H-Q-10).
++// quantity. An order id a complete cancel sweep proved absent is excluded even
++// if an older portfolio walk still lists it. Leaving any possibly-live size
++// out would leave it in the external touch, and we would chase ourselves
++// (H-Q-10).
+ func (o *owner) restingOn(side quote.Side) ([]quote.Resting, int, bool) {
+ 	byPrice := make(map[int]num.Qty)
+ 	for _, lo := range o.r.pf.LiveOrders() {
+ 		if lo.Ticker != o.r.cfg.Ticker || lo.Side != side {
+ 			continue
+ 		}
++		if _, absent := o.absentOrders[lo.OrderID]; absent {
++			continue
++		}
+ 		cents, exact := rest.CentsExact(lo.Price4)
+ 		if !exact {
+ 			// H-CO-3a. A resting price that is not a whole cent cannot be
+@@ -2435,6 +2935,121 @@ func (o *owner) restingOn(side quote.Side) ([]quote.Resting, int, bool) {
+ 	return out, best, has
+ }
+ 
++// unlistedOn is every order of ours on one side that a cancel can NAME but that
++// `risk.Portfolio.LiveOrders` does not hold yet.
++//
++// Two sources, and they are the two ways an order id reaches this process
++// outside a portfolio walk:
++//
++//   - `pending`, for a create whose acknowledgement carried an `order_id`. The
++//     order demonstrably exists; `Portfolio.ReplaceOrders` is wholesale from a
++//     complete walk (H-POS-4) and the next one is up to `position_poll_s` away,
++//     so between them the only record of the id is here.
++//   - `sweptOrders`, for an order a cancel's VERIFYING READ found resting. This
++//     covers the UNKNOWN create, which has no id at all until something
++//     positively identifies it (H-ORD-2a), and the order placed by a previous
++//     incarnation that §7.5 adopted.
++//
++// The result is sorted by order id. Map iteration order is random in Go, and a
++// cancel whose target list is shuffled between two ticks is a write nobody can
++// replay -- the scenario runner, the qualification evidence and every test that
++// asserts on `deletedIDs` would each see a different history of the same run.
++func (o *owner) unlistedOn(market string, side quote.Side) []rest.Order {
++	var out []rest.Order
++	for _, u := range o.pending {
++		if u.side != side || u.id == "" {
++			continue
++		}
++		out = append(out, rest.Order{
++			OrderID: u.id, Ticker: market, Side: side,
++			Price4: num.Price4FromCents(u.cents), PriceCents: u.cents,
++			Remaining: u.qty, Status: rest.StatusResting,
++		})
++	}
++	for _, ord := range o.sweptOrders {
++		if ord.Ticker != market || ord.Side != side {
++			continue
++		}
++		out = append(out, ord)
++	}
++	sort.Slice(out, func(i, j int) bool { return out[i].OrderID < out[j].OrderID })
++	return out
++}
++
++// sweptOn reports whether a verifying read has SEEN one of ours resting on this
++// side and no complete read has since said otherwise.
++//
++// It is a presence question and never a quantity one: these orders are already
++// counted in `atRisk` through `LiveOrders` or `pending`, and adding their size a
++// second time would overstate the aggregate every cap is measured against
++// (H-Q-5b) -- which on a reducing side is a reducer that never gets placed.
++func (o *owner) sweptOn(side quote.Side) bool {
++	for _, ord := range o.sweptOrders {
++		if ord.Ticker == o.r.cfg.Ticker && ord.Side == side {
++			return true
++		}
++	}
++	return false
++}
++
++// noteSwept records what a cancel's VERIFYING READ found still resting.
++//
++// Wholesale from a COMPLETE read and from nothing else. `SweepResult.Walk` is
++// the last verifying read and `Replaces()` is `wsx`'s own test for one that
++// finished; an incomplete read is H-PAGE-1's "stale, never empty" and may
++// neither add an obligation nor retire one. That asymmetry is H-FAIL-3 exactly:
++// the only thing that ends a cancellation obligation is the exchange saying the
++// order is gone, and a read that did not finish did not say it.
++//
++// Both sets are kept. `StillResting` is the requested orders the sweep could not
++// remove -- those are the SEV1 `SWEEP_INCOMPLETE` case and are unambiguously
++// still live -- and `OtherOurs` is every other `lipH-` order in the ticker,
++// which is where an acked-but-unlisted or UNKNOWN create of ours turns up.
++// `rest.CancelAndSweep` deliberately does not cancel `OtherOurs` itself, because
++// on a halt that set contains the reducing quote and A4 requires it stay alive;
++// deciding which of them to retire is this file's job, and `evaluate` does it
++// per side from §5.2.
++func (o *owner) noteSwept(market string, sweep rest.SweepResult) {
++	if !sweep.Replaces() {
++		return
++	}
++	for id, ord := range o.sweptOrders {
++		if ord.Ticker == market {
++			delete(o.sweptOrders, id)
++		}
++	}
++	record := func(orders []rest.Order) {
++		for _, ord := range orders {
++			if ord.OrderID == "" {
++				continue
++			}
++			if ord.Ticker != "" && ord.Ticker != market {
++				continue
++			}
++			ord.Ticker = market
++			o.sweptOrders[ord.OrderID] = ord
++		}
++	}
++	record(sweep.StillResting)
++	record(sweep.OtherOurs)
++}
++
++// clearSwept drops the entries a complete orders walk has since listed.
++//
++// Listing is the ONLY release here, exactly as in `clearListed`, and for the
++// same reason: the order is now in `Portfolio.LiveOrders`, so `build` reaches it
++// there and a duplicate record would be a second copy of one fact. Absence from
++// the walk releases nothing (H-ORD-2a) -- what retires an entry that the walk
++// does not list is the next sweep's own complete verifying read.
++func (o *owner) clearSwept() {
++	if len(o.sweptOrders) == 0 {
++		return
++	}
++	for _, lo := range o.r.pf.LiveOrders() {
++		delete(o.sweptOrders, lo.OrderID)
++	}
++}
++
+ // bestOn is our own best price on one side, for H-CO-6.
+ func (o *owner) bestOn(side quote.Side) (int, bool) {
+ 	_, price, has := o.restingOn(side)
+@@ -2555,13 +3170,61 @@ func (o *owner) applyWriteResult(res writeResult) {
+ 	}
+ 
+ 	if res.Req.Op == quote.OpCancel {
++		// FIRST, and on both branches. The verifying read is the same read
++		// whether or not it declared the side clean, and what it saw is what
++		// decides which orders the next tick can still name. Recording it only
++		// on the unverified branch would lose the one case this exists for: a
++		// sweep that cleanly removed what we asked for and reported an
++		// acked-but-unlisted order of ours still resting beside it.
++		o.noteSwept(res.Req.Market, res.Sweep)
+ 		if res.Absent {
+-			// H-ORD-4 and H-FAIL-3. `Absent` is the ONLY thing that may reach
+-			// `ConfirmAbsent`, and `dispatch.go` is strict about what earns it:
+-			// a COMPLETE verifying read that found nothing of ours resting on
+-			// this (market, side). A 2xx is a cancel REQUEST, and a
+-			// cancel-requested order is still live and still fillable.
+-			o.r.queue.ConfirmAbsent(res.Req.Market, res.Req.Side)
++			// The sweep says the order is absent, but a just-before-DELETE fill
++			// may have changed q. Drop the dependent placement and rederive it
++			// only after fresh fills, orders, and positions have been applied.
++			// This is deliberately independent of reduced_by, which is no fill
++			// report and whose response identity is not yet validated here.
++			o.awaitCancelTruth = true
++			o.cancelTruthAfter = o.r.ex.Clock.Now().Mono
++			for _, id := range res.Req.IDs {
++				o.r.queue.Drop(id)
++			}
++			o.offerToken(o.reconcileOut, o.reconcileToken)
++			// The complete verifying read found nothing of ours on this side.
++			// Record the ids represented by an older portfolio walk before the
++			// next reconciliation. Keep this evidence by id across a new create;
++			// the side-wide cancelConfirmed flag must clear on that create.
++			requested := make(map[string]struct{}, len(res.Req.Orders))
++			for _, lo := range o.r.pf.LiveOrders() {
++				if lo.Ticker == res.Req.Market && lo.Side == res.Req.Side {
++					o.absentOrders[lo.OrderID] = struct{}{}
++				}
++			}
++			for _, ord := range res.Req.Orders {
++				if ord.OrderID != "" && ord.Ticker == res.Req.Market &&
++					ord.Side == res.Req.Side {
++					o.absentOrders[ord.OrderID] = struct{}{}
++					requested[ord.OrderID] = struct{}{}
++				}
++			}
++			// A known-id ACK that the cancel named has also been positively
++			// retired, even if no portfolio walk ever listed it. Otherwise its
++			// pending quantity would block the replacement indefinitely. An
++			// UNKNOWN create has no id to match and retains its maximum live size.
++			for coid, p := range o.pending {
++				if p.side != res.Req.Side || !p.acked || p.id == "" {
++					continue
++				}
++				if _, named := requested[p.id]; named {
++					delete(o.pending, coid)
++				}
++			}
++			// H-ORD-4 and H-FAIL-3: only the complete verifying sweep can
++			// discharge the cancellation obligation. A 2xx alone cannot. The
++			// dependent intent was discarded above so a fresh position walk will
++			// rederive its role and size. Keep the obligation discharged until a
++			// newer orders walk; otherwise §5.2 would keep cancelling the same
++			// stale LiveOrders id on every owner tick.
++			o.cancelConfirmed[res.Req.Side] = true
+ 			return
+ 		}
+ 		// Not verified absent. The intents are RELEASED for the reason above:
+@@ -2593,8 +3256,10 @@ func (o *owner) applyWriteResult(res writeResult) {
+ 	create := res.Create
+ 
+ 	// EVERY create that may have left quantity live enters the aggregate HERE,
+-	// before anything else reads it, and it stays until a complete orders walk
+-	// lists the coid back.
++	// before anything else reads it. A complete orders walk that lists the coid
++	// moves it into LiveOrders; a complete cancel sweep can retire a named ACKed
++	// order before that walk. An UNKNOWN create keeps its maximum possibly-live
++	// quantity until positive resolution.
+ 	//
+ 	// Both outcomes, not just the unknown one. `CreateRejected` is the single
+ 	// case with nothing live -- `MaxLive` is zero only there -- so the test is
+@@ -2613,7 +3278,16 @@ func (o *owner) applyWriteResult(res writeResult) {
+ 			qty:   create.MaxLive,
+ 			at:    o.r.ex.Mono(),
+ 			acked: create.Outcome.Exists(),
++			// The id from the acknowledgement, when there is one. It is empty
++			// for an UNKNOWN create and that is the honest answer: H-ORD-2a
++			// deleted the "declare it never landed" branch, so an id we do not
++			// have is resolved positively by a walk or by a sweep, never
++			// guessed.
++			id: create.OrderID,
+ 		}
++		// Something may now be resting on this side again, so the last
++		// verifying read's "nothing of ours here" no longer describes it.
++		o.cancelConfirmed[res.Req.Side] = false
+ 	}
+ 
+ 	switch {
+@@ -2692,11 +3366,10 @@ func (o *owner) applyWriteResult(res writeResult) {
+ 	}
+ 
+ 	if create.ReconcileNow() {
+-		// §7.2 clause 2. There is no way to force the poller off-cadence from
+-		// here -- it polls on its own timer and on a reconcile token, and a
+-		// token is a connection generation rather than a request. Recorded so
+-		// the delay is visible: the resolution is at most one `position_poll_s`
+-		// away, and the quantity stays in every cap until it arrives.
++		// §7.2 clause 2. This create-recovery path still defers reconciliation
++		// to the poller's cadence; unlike the cancel/position safety path above,
++		// it does not issue the retained current-generation token here. Record
++		// that delay visibly. The quantity stays in every cap until resolved.
+ 		o.r.anom.raise(risk.Anomaly{
+ 			Class: "RECONCILE_DEFERRED", Sev: risk.SEV2, Ticker: res.Req.Market,
+ 			Text: fmt.Sprintf("create %s ended %s and §7.2 asks for an "+
+@@ -3015,9 +3688,13 @@ func (o *owner) anyLiveOrder() bool {
+ // reading before the outage, and H-FAIL-4 exists because that reading looks
+ // exactly like a good one.
+ func (o *owner) truthKnown() bool {
++	if o.awaitCancelTruth {
++		return false
++	}
+ 	now := o.r.ex.Clock.Now()
+ 	for _, k := range []wsx.Truth{wsx.TruthOrders, wsx.TruthFills, wsx.TruthPositions} {
+-		if o.r.gate.TruthAge(k, now) > o.p.TruthMaxAge {
++		age := o.r.gate.TruthAge(k, now)
++		if age < 0 || age > o.p.TruthMaxAge {
+ 			return false
+ 		}
+ 	}
+diff --git a/go/cmd/harness/seam_test.go b/go/cmd/harness/seam_test.go
+index 640e57a..eb4ab97 100644
+--- a/go/cmd/harness/seam_test.go
++++ b/go/cmd/harness/seam_test.go
+@@ -3811,7 +3811,12 @@ func TestEveryGlobalTransitionRecordsItsOwnCause(t *testing.T) {
+ 			// Flat and unrested, so the stop drains on the very next tick.
+ 			h := newSeamHarness(t, seamOptions{})
+ 			o := h.ownerFor()
+-			h.connectGate()
++			// DRAINED requires a complete live account walk. Adoption's flat
++			// portfolio alone is not post-start truth, so obtain one through
++			// the real poller before testing the halted flat transition.
++			tokens := make(chan wsx.ReconcileToken, 1)
++			o.applyEvent(wsx.Event{Kind: wsx.EventConnected, At: h.clk.Now()}, tokens)
++			reducerConfirmationPoll(t, &gateFailOwner{h: h, o: o, tokens: tokens})
+ 			h.installBook([][]string{{"0.4000", "20.00"}},
+ 				[][]string{{"0.5500", "20.00"}})
+ 			o.closeAt = time.Now().Add(24 * time.Hour)
+@@ -4357,22 +4362,75 @@ func TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown(t *testing.T) {
+ 		t.Fatalf("the latch reads %q, want canary_owned_fill", got)
+ 	}
+ 
+-	// 3. §5.2's response: the adding side is cancelled and CONFIRMED absent,
+-	// and the exit is not.
++	// 3. §5.2's response: the adding side is cancelled and CONFIRMED absent, and
++	// the exit survives -- but the exit that was RESTING is a full contract,
++	// placed symmetrically while the canary was flat, and now sits against a
++	// 0.01-contract position as an aggregate 100x over |q| (H-Q-5a, H-Q-5b).
++	// §6.5's price-only path leaves an at-touch order alone whatever its size, so
++	// the oversized reducer is retired by a cancel-confirm-place and replaced with
++	// the quantized |q| exit. WINDING_DOWN forbids ADDING; it does not forbid
++	// keeping a correctly capped reducer live, so this is a permitted reducing
++	// replacement and not a renewed adding quote.
++	quantum := num.QtyFromFloat(0.01)
++	noInitial, ok := h.ex.createAt(1)
++	if !ok {
++		t.Fatal("no second create was recorded; a flat canary quotes both sides")
++	}
++	if p, _ := rest.ParseCoid(noInitial.Coid); p.Side != quote.SideNo {
++		t.Fatalf("the second create is on the %s side, want NO; the reducing "+
++			"side of a long-YES canary is NO (§6.2), and this is the order the "+
++			"cap retires", p.Side)
++	}
+ 	h.await("the adding side to be cancelled", func() bool {
+ 		return seamContains(h.ex.deletedIDs(), adding.OrderID)
+ 	})
+-	h.await("the adding side to be confirmed absent from the book",
+-		func() bool { return h.ex.restingCount() == 1 })
+-
+-	for i := 0; i < 3; i++ {
++	// The clock has to advance for the extra legs to flow past the adding cancel:
++	// the oversized reducer's own cancel-confirm-place and the capped replacement
++	// each take a dispatch cycle.
++	for i := 0; i < 6; i++ {
+ 		h.clk.Advance(h.cfg.Params.PositionPoll)
+ 		h.awaitTicks(3)
+ 	}
++	if !seamContains(h.ex.deletedIDs(), noInitial.OrderID) {
++		t.Fatalf("the oversized 1-contract reducer %q was never cancelled; §6.5's "+
++			"price-only Decide leaves an at-touch order alone whatever its size, "+
++			"so only an aggregate cap (H-Q-5b) retires it", noInitial.OrderID)
++	}
+ 
+-	// 4. The exit REMAINS. I1 in one sentence: every stop path stops adding
+-	// risk and none of them stops reducing it. A harness that cancelled its own
+-	// exit on the way down would be holding the position it stopped to shed.
++	// 4. The exit REMAINS, now at the quantized |q|. I1 in one sentence: every
++	// stop path stops adding risk and none of them stops reducing it. A harness
++	// that cancelled its own exit on the way down would be holding the position it
++	// stopped to shed -- and one that re-caps the exit must land a REDUCING order,
++	// never a renewed adding quote, and must then hold still.
++	if got := h.ex.createCount(); got != quotesBefore+1 {
++		t.Fatalf("%d order(s) have been placed, want %d = the opening quotes plus "+
++			"exactly one reducing replacement; a latched harness may cancel, may "+
++			"keep a capped exit alive, and may place that one replacement -- and "+
++			"nothing more", got, quotesBefore+1)
++	}
++	replacement, ok := h.ex.createAt(quotesBefore)
++	if !ok {
++		t.Fatal("no reducing replacement was recorded after the cap retired the " +
++			"oversized exit")
++	}
++	if p, _ := rest.ParseCoid(replacement.Coid); p.Side != quote.SideNo {
++		t.Fatalf("the replacement is on the %s side, want NO; a long-YES canary "+
++			"reduces on the NO side, and a new order on the YES adding side would "+
++			"be exactly the renewed adding WINDING_DOWN forbids", p.Side)
++	}
++	if replacement.Count != quantum.Wire() {
++		t.Fatalf("the reducing replacement is %s contracts, want %s = the "+
++			"quantized |q|; an exit above |q| is a reducing quote of |q| plus an "+
++			"adding quote on the opposite side, which A12 forbids", replacement.Count,
++			quantum.Wire())
++	}
++	// Stable: once the aggregate is the quantized |q|, atRisk == target and the
++	// recap never re-enters, so there is no repeated cancel/place churn against
++	// the §16 budget.
++	for i := 0; i < 4; i++ {
++		h.clk.Advance(h.cfg.Params.PositionPoll)
++		h.awaitTicks(3)
++	}
+ 	if n := h.ex.restingCount(); n != 1 {
+ 		t.Fatalf("%d order(s) rest while the canary holds 0.01 contracts under "+
+ 			"WINDING_DOWN, want exactly 1 -- the capped reducer.\n\n"+
+@@ -4384,10 +4442,10 @@ func TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown(t *testing.T) {
+ 		t.Fatalf("the market is %s while holding inventory under WINDING_DOWN, "+
+ 			"want REDUCING", m.State)
+ 	}
+-	if got := h.ex.createCount(); got != quotesBefore {
+-		t.Fatalf("%d order(s) have been placed, up from %d before the fill; a "+
+-			"latched harness may cancel and may keep an exit alive, and may "+
+-			"place nothing new", got, quotesBefore)
++	if got := h.ex.createCount(); got != quotesBefore+1 {
++		t.Fatalf("%d order(s) have been placed after settling, want %d; the "+
++			"capped reducer must stabilise without repeated cancel/place churn",
++			got, quotesBefore+1)
+ 	}
+ 
+ 	// 5. Flat. The reducer's work is done and there is nothing left to manage.
+@@ -4401,12 +4459,15 @@ func TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown(t *testing.T) {
+ 	})
+ 
+ 	// 6. And NO new adding order, which is the assertion the whole bead exists
+-	// for. §5.2's stop is not a pause: reaching flat does not license the
+-	// harness to start again, because the latch is still on disk.
+-	if got := h.ex.createCount(); got != quotesBefore {
+-		c, _ := h.ex.createAt(quotesBefore)
+-		t.Fatalf("%d order(s) have been placed, up from %d: the canary reached "+
+-			"flat and quoted again (first new coid %q).\n\n"+
++	// for. §5.2's stop is not a pause: reaching flat does not license the harness
++	// to start again, because the latch is still on disk. The one reducing
++	// replacement placed on the way down stays the only write past the opening
++	// quotes.
++	if got := h.ex.createCount(); got != quotesBefore+1 {
++		c, _ := h.ex.createAt(quotesBefore + 1)
++		t.Fatalf("%d order(s) have been placed, up from the %d opening quotes "+
++			"plus one reducing replacement: the canary reached flat and quoted "+
++			"again (first new coid %q).\n\n"+
+ 			"This is the market-scoped brake's failure mode and the reason "+
+ 			"§7.9 needs a GLOBAL latch: `inv_hard` self-clears at flat, so a "+
+ 			"harness bounded only by it reduces to zero and resumes adding, "+
+@@ -6709,7 +6770,16 @@ func TestRewardArrivalCannotMoveTradingPnL(t *testing.T) {
+ 		h.start()
+ 		h.awaitActionable()
+ 
+-		h.seedPnLFills(append(seamFloorLegs(), seamMicroLegs(true)...)...)
++		legs := append(seamFloorLegs(), seamMicroLegs(true)...)
++		// Keep one quantum of real inventory after the loss. The reward
++		// comparison runs for 65s after the halt; a flat, order-free account
++		// correctly reaches DRAINED in that interval, which says nothing about
++		// whether reward income contaminated trading P&L.
++		legs = append(legs, seamPnLLeg{trade: "SEAM-PNL-HELD",
++			side: quote.SideYes, yesFP: "0.5000", noFP: "0.5000",
++			count: 1, cents: 50})
++		h.seedPnLFills(legs...)
++		h.ex.setPosition(seamTicker, "0.01")
+ 		h.clk.Advance(h.cfg.Params.PositionPoll)
+ 
+ 		h.await("the durable §12 cause to reach the latch", func() bool {
+diff --git a/go/harness/ping/stub_test.go b/go/harness/ping/stub_test.go
+index 34821bc..84044df 100644
+--- a/go/harness/ping/stub_test.go
++++ b/go/harness/ping/stub_test.go
+@@ -100,19 +100,29 @@ func (f *fixture) drain() {
+ }
+ 
+ // settle waits until the queue is empty, which is exactly "every submitted
+-// record is durable". It yields rather than sleeps; the bound exists so a
+-// mutation that wedges the writer fails fast instead of hanging the package.
++// record is durable". Wake signals completed writes, so the deadline bounds
++// writer progress in elapsed time rather than in CPU-dependent spin cycles.
+ func (f *fixture) settle() {
+ 	f.t.Helper()
+-	for i := 0; i < 200_000; i++ {
++	timer := time.NewTimer(10 * time.Second)
++	defer timer.Stop()
++	for {
+ 		f.drain()
+ 		if f.store.Health().Pending() == 0 {
+ 			f.drain()
+ 			return
+ 		}
+-		runtime.Gosched()
++		select {
++		case <-f.store.Wake():
++		case <-timer.C:
++			f.drain()
++			if f.store.Health().Pending() == 0 {
++				f.drain()
++				return
++			}
++			f.t.Fatalf("the store never drained: %+v", f.store.Health())
++		}
+ 	}
+-	f.t.Fatalf("the store never drained: %+v", f.store.Health())
+ }
+ 
+ func (f *fixture) beginRun(runID string, startedMs int64) {
+diff --git a/go/harness/rest/cancel.go b/go/harness/rest/cancel.go
+index 359c07b..d5c3a12 100644
+--- a/go/harness/rest/cancel.go
++++ b/go/harness/rest/cancel.go
+@@ -5,6 +5,7 @@ import (
+ 	"encoding/json"
+ 	"errors"
+ 	"fmt"
++	"net/url"
+ 
+ 	"lip/harness/num"
+ 	"lip/harness/risk"
+@@ -103,15 +104,43 @@ type CancelResult struct {
+ // whatever a complete read still shows resting, rather than to a loop here that
+ // would be retrying against our own belief.
+ func (c *Client) Cancel(ctx context.Context, orderID string) CancelResult {
++	// Keep the ID-only helper for callers that already know they are addressing
++	// shard 0. The production event-market path is `cancelForMarket`, which adds
++	// the ticker Kalshi requires to auto-route a cancellation. In particular,
++	// `CancelAndSweep` must not call this helper: an order ID alone defaults to
++	// exchange index 0 and can leave a nonzero-shard order resting.
++	return c.cancel(ctx, "", orderID)
++}
++
++// cancelForMarket issues a DELETE routed by the market ticker.
++//
++// Kalshi documents that an order ID alone defaults to exchange index 0. An
++// event-market cancel must carry `market_ticker` (and omit `exchange_index`) to
++// auto-route to the matching engine that owns the order. The verifying read in
++// `CancelAndSweep` remains authoritative; a 2xx from a misrouted or ineffective
++// cancel is never treated as absence.
++func (c *Client) cancelForMarket(ctx context.Context, ticker, orderID string) CancelResult {
++	if err := validateTicker(ticker); err != nil {
++		return CancelResult{OrderID: orderID, Outcome: CancelRejected,
++			Err: fmt.Errorf("market-routed cancel: %w", err)}
++	}
++	return c.cancel(ctx, ticker, orderID)
++}
++
++func (c *Client) cancel(ctx context.Context, ticker, orderID string) CancelResult {
+ 	res := CancelResult{OrderID: orderID}
+ 	if orderID == "" {
+ 		res.Outcome, res.Err = CancelRejected, fmt.Errorf("empty order id")
+ 		return res
+ 	}
+-	resp, err := c.Doer.Do(ctx, Request{
++	req := Request{
+ 		Method: "DELETE",
+ 		Path:   "/portfolio/events/orders/" + orderID,
+-	})
++	}
++	if ticker != "" {
++		req.Query = url.Values{"market_ticker": []string{ticker}}
++	}
++	resp, err := c.Doer.Do(ctx, req)
+ 	if err != nil {
+ 		var refused *WriteRefused
+ 		if errors.As(err, &refused) {
+@@ -236,7 +265,8 @@ func (c *Client) CancelAndSweep(ctx context.Context, ticker string,
+ 	for round := 0; round <= sweepRetries; round++ {
+ 		res.Rounds = round + 1
+ 		for _, o := range targets {
+-			res.Cancels = append(res.Cancels, c.Cancel(ctx, o.OrderID))
++			res.Cancels = append(res.Cancels, c.cancelForMarket(ctx, ticker,
++				o.OrderID))
+ 		}
+ 
+ 		// Verify. Not "assume", not "trust the 2xx".
+diff --git a/go/harness/rest/read.go b/go/harness/rest/read.go
+index 8436399..630f12c 100644
+--- a/go/harness/rest/read.go
++++ b/go/harness/rest/read.go
+@@ -696,11 +696,14 @@ type ProgramsResult struct {
+ // universe does not produce a wrong number -- it produces "not listed", which
+ // this harness treats as a refusal to start on a market that is in fact paying.
+ //
+-// `status=active` is the same filter `feed.Universe` sends. It is a server-side
+-// filter on a field this walk never reads, so it cannot be re-derived here.
++// `status=active` is the same filter `feed.Universe` sends. `type=liquidity`
++// excludes active volume programs, which need not have a Target Size and would
++// otherwise fail the whole walk before we can find the selected LIP ticker.
++// Both are server-side filters on fields this walk never reads.
+ func (c *Client) Programs(ctx context.Context) ProgramsResult {
+ 	filters := url.Values{}
+ 	filters.Set("status", "active")
++	filters.Set("type", "liquidity")
+ 
+ 	w := c.Walk(ctx, EpPrograms, filters)
+ 	if !w.Replaces() {
+diff --git a/go/harness/wsx/gate.go b/go/harness/wsx/gate.go
+index 41e0cf3..174f0f2 100644
+--- a/go/harness/wsx/gate.go
++++ b/go/harness/wsx/gate.go
+@@ -587,6 +587,47 @@ func (g *Gate) Actionable(ticker string, now Stamp) bool {
+ 	return true
+ }
+ 
++// BookCurrent reports whether this market's BOOK is the one THIS connection
++// published: connected, not quarantined, and snapshotted on this generation.
++//
++// It is deliberately NOT `Actionable`, and the difference is the whole reason it
++// exists. `Actionable` answers "may a PLACEMENT decision be taken", which folds
++// in H-ORD-5's reconciliation and H-FAIL-4's `truth_max_age_s`. This answers a
++// narrower question -- "is the depth I am about to judge the depth this
++// connection published" -- and H-Q-4a needs exactly that one, because it times a
++// continuous gate failure from BOOK EVIDENCE.
++//
++// Conflating the two fails in both directions, and the second is the dangerous
++// one:
++//
++//   - A portfolio endpoint that has been erroring for a minute makes `Actionable`
++//     false while the socket keeps delivering perfectly good depth. Charging that
++//     interval to the qualifying walk would start an H-Q-4a episode -- and cancel
++//     an adding order -- for a reason that has nothing to do with the book.
++//   - Worse, a truth outage would CLEAR one. If book evidence stopped arriving in
++//     the gate's judgement the moment the positions walk went stale, the episode's
++//     clock would stop with it, and the adding order H-Q-4a exists to retire would
++//     rest through BOTH conditions at once -- the one interval in which nothing is
++//     watching either the book or the position.
++//
++// A13 and H-FAIL-4 are not weakened by this: DISPATCH authority is still
++// `Actionable`'s, and this predicate authorises nothing. It only says which book
++// the caller is looking at.
++//
++// It reads no clock. Every input is a generation comparison or a flag, so a
++// clock step (F21) cannot move the answer, and nothing here can be aged out.
++func (g *Gate) BookCurrent(ticker string) bool {
++	m := g.markets[ticker]
++	if m == nil || !g.connected || m.quarantined {
++		return false
++	}
++	// Zero is never the current generation -- `NewGate` starts there and
++	// `quarantineRejectedBook` and `NoteSeqGap` both clear the field back to it
++	// -- so "never snapshotted" and "the snapshot was revoked" answer the same
++	// way without a second flag that has to be kept in step with this one.
++	return m.snapGen == g.gen
++}
++
+ // PnLMarkState is what the gate can say about one market's H-HALT-5 mark.
+ //
+ // Three answers rather than a boolean, because H-HALT-5 makes the operator's
+diff --git a/go/harness/wsx/gate_test.go b/go/harness/wsx/gate_test.go
+index cfb498e..249265f 100644
+--- a/go/harness/wsx/gate_test.go
++++ b/go/harness/wsx/gate_test.go
+@@ -371,3 +371,162 @@ func TestGateStartsClosed(t *testing.T) {
+ 		t.Fatal("a gate over an empty market set was accepted")
+ 	}
+ }
++
++// TestBookCurrentTracksTheBookAndNotThePortfolio is `BookCurrent`'s generation
++// and quarantine boundary, and its deliberate independence from A13's other
++// half.
++//
++// H-Q-4a times a continuous gate failure from BOOK EVIDENCE. The predicate that
++// decides which frames count therefore has to answer "is this the depth THIS
++// connection published" and nothing else -- and the two ways to get that wrong
++// are opposite and both expensive:
++//
++//   - Fold portfolio freshness in, and a stale positions walk CLEARS the
++//     episode. H-FAIL-4 already stops dispatch when truth ages out; if it also
++//     stopped the gate-failure clock, the adding order H-Q-4a exists to retire
++//     would rest through both conditions at once -- the one interval in which
++//     nothing is watching either the book or the position.
++//   - Leave the generation or quarantine tests out, and a book carried across a
++//     gap, or one core refused, or one a sequence gap invalidated, is judged as
++//     though it were current. A delta onto a book we have decided not to trust
++//     is an unknown base plus a known edit; it can neither start an episode nor
++//     end one.
++//
++// The last sub-case is the one an implementation is most likely to get right
++// for snapshots and wrong for deltas: an accepted delta against a book this
++// generation DID snapshot is current, because the snapshot is what established
++// the base and the delta is a legal increment onto it.
++func TestBookCurrentTracksTheBookAndNotThePortfolio(t *testing.T) {
++	g, err := NewGate([]string{fxTicker}, testParams())
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	// 1. Before anything. Not connected, never snapshotted.
++	if g.BookCurrent(fxTicker) {
++		t.Fatal("a gate with no connection reports a current book; nothing has " +
++			"published one")
++	}
++
++	ce := g.OnConnect(at(0))
++
++	// 2. Connected and NOT yet snapshotted. A new connection has no books --
++	// `ConnectEffects.Resnapshot` is unconditionally true for exactly this
++	// reason -- so being connected is not being current.
++	if g.BookCurrent(fxTicker) {
++		t.Fatal("a connection with no snapshot reports a current book; " +
++			"ConnectEffects.Resnapshot is always true because a new connection " +
++			"has no books at all")
++	}
++
++	// 3. An accepted snapshot on this generation. Current, and current BEFORE
++	// any portfolio walk has landed -- which is the separation the predicate
++	// exists for.
++	g.ApplyFrame(snapFrame(fxTicker), okHandle, at(1))
++	if !g.BookCurrent(fxTicker) {
++		t.Fatal("an accepted snapshot on the current generation is not reported " +
++			"as a current book")
++	}
++	if g.Actionable(fxTicker, at(1)) {
++		t.Fatal("Actionable is true with no portfolio reconciliation at all; " +
++			"this test's whole subject is the difference between the two, and " +
++			"there is none if A13 is already satisfied")
++	}
++
++	// 4. A delta onto that snapshot keeps it current.
++	g.ApplyFrame(deltaFrame(fxTicker), okHandle, at(2))
++	if !g.BookCurrent(fxTicker) {
++		t.Fatal("an accepted delta onto a snapshot from this generation " +
++			"retired the book; a legal increment onto a base we received in " +
++			"full is exactly what a delta is")
++	}
++
++	// 5. Full A13, then let PORTFOLIO TRUTH age out past truth_max_age_s. The
++	// book has not changed by one level, and the answer here must not change
++	// either.
++	for k := Truth(0); k < truthCount; k++ {
++		if !g.noteTruth(k, ce.Token, at(2)) {
++			t.Fatalf("a %v read for the current connection was rejected", k)
++		}
++	}
++	if !g.Actionable(fxTicker, at(2)) {
++		t.Fatal("a snapshotted, fully reconciled market is not actionable")
++	}
++	stale := at(2 + int(testParams().TruthMaxAge/time.Second) + 1)
++	if g.Actionable(fxTicker, stale) {
++		t.Fatalf("truth older than truth_max_age_s (%v) still authorises "+
++			"placement", testParams().TruthMaxAge)
++	}
++	if !g.BookCurrent(fxTicker) {
++		t.Fatalf("portfolio truth ageing past truth_max_age_s (%v) retired the "+
++			"BOOK.\n\nThe two are separate measurements. H-FAIL-4 stops "+
++			"dispatch when the portfolio goes stale; if it also stopped the "+
++			"book being current, an H-Q-4a episode timed from book evidence "+
++			"would be CLEARED by a REST outage -- and the adding order that "+
++			"rule exists to cancel would keep resting through a gated-out "+
++			"interval while nothing was watching the position either",
++			testParams().TruthMaxAge)
++	}
++
++	// 6. A rejected book frame revokes it. `quarantineRejectedBook` sets the
++	// quarantine and clears `snapGen`, so only an accepted SNAPSHOT reopens the
++	// market -- a delta cannot.
++	g.ApplyFrame(deltaFrame(fxTicker), rejectHandle("sizes do not parse"), at(3))
++	if g.BookCurrent(fxTicker) {
++		t.Fatal("a book frame core REFUSED left the market reported as current; " +
++			"the frame left the book untouched, so the book is now known to be " +
++			"behind by exactly that delta")
++	}
++	g.ApplyFrame(deltaFrame(fxTicker), okHandle, at(4))
++	if g.BookCurrent(fxTicker) {
++		t.Fatal("an accepted DELTA reopened a quarantined market. A delta is an " +
++			"increment against a book we have decided not to trust; replaying " +
++			"increments onto it cannot make it right, and only a full " +
++			"replacement can")
++	}
++	g.ApplyFrame(snapFrame(fxTicker), okHandle, at(5))
++	if !g.BookCurrent(fxTicker) {
++		t.Fatal("an accepted snapshot did not lift the quarantine")
++	}
++
++	// 7. A subscription-wide sequence gap. Same revocation, different cause.
++	g.NoteSeqGap(at(6))
++	if g.BookCurrent(fxTicker) {
++		t.Fatal("a subscription-wide sequence gap left the book current; the " +
++			"gap means SOME market lost a delta and nothing says which")
++	}
++	g.ApplyFrame(snapFrame(fxTicker), okHandle, at(7))
++	if !g.BookCurrent(fxTicker) {
++		t.Fatal("a resnapshot after a sequence gap did not restore the book")
++	}
++
++	// 8. A disconnect. The generation moves, so every snapshot taken on the
++	// dead connection is retired without anything being erased -- and the
++	// RECONNECT alone does not bring it back.
++	g.ApplyDisconnect(at(8), true)
++	if g.BookCurrent(fxTicker) {
++		t.Fatal("a CLEAN disconnect left the book current. H-FAIL-5: a " +
++			"disconnect makes the book non-actionable however clean it was, " +
++			"because whatever happened to the book while we were not connected " +
++			"is unknown")
++	}
++	g.OnConnect(at(9))
++	if g.BookCurrent(fxTicker) {
++		t.Fatal("reconnecting alone made the book current again; the new " +
++			"connection has delivered nothing yet")
++	}
++	g.ApplyFrame(deltaFrame(fxTicker), okHandle, at(10))
++	if g.BookCurrent(fxTicker) {
++		t.Fatal("a delta on the new connection made the book current before " +
++			"any snapshot; the base it edits is from the far side of the gap")
++	}
++	g.ApplyFrame(snapFrame(fxTicker), okHandle, at(11))
++	if !g.BookCurrent(fxTicker) {
++		t.Fatal("a snapshot on the new connection did not make the book current")
++	}
++
++	// 9. A market this gate does not manage is never current.
++	if g.BookCurrent("KXNOTOURS-26AUG08-T1") {
++		t.Fatal("the gate reports a current book for a market it does not manage")
++	}
++}
+diff --git a/go/harness/wsx/portfolio.go b/go/harness/wsx/portfolio.go
+index a5fb652..88f71f6 100644
+--- a/go/harness/wsx/portfolio.go
++++ b/go/harness/wsx/portfolio.go
+@@ -67,6 +67,22 @@ func (r PortfolioRead) Seq() uint64 { return r.seq }
+ // decision may be taken from it.
+ func (r PortfolioRead) CompletedAt() Stamp { return r.completedAt }
+ 
++// StartedAt reports when one endpoint began its walk. A caller deciding
++// whether a read followed a write must use this stamp, not CompletedAt: a
++// walk started before the write may complete afterwards with older truth.
++func (r PortfolioRead) StartedAt(kind Truth) Stamp {
++	switch kind {
++	case TruthFills:
++		return r.fillsAt
++	case TruthOrders:
++		return r.ordersAt
++	case TruthPositions:
++		return r.positionsAt
++	default:
++		return Stamp{}
++	}
++}
++
+ // Poller reads the three portfolio endpoints on a fixed cadence.
+ //
+ // It is a SEPARATE goroutine with a SEPARATE context from any websocket
+diff --git a/go/harness/wsx/seal_test.go b/go/harness/wsx/seal_test.go
+index 76145d8..a99d63f 100644
+--- a/go/harness/wsx/seal_test.go
++++ b/go/harness/wsx/seal_test.go
+@@ -64,12 +64,30 @@ func TestPortfolioTruthHasNoPublicBypass(t *testing.T) {
+ 	if _, ok := read.MethodByName("CompletedAt"); !ok {
+ 		t.Fatal("PortfolioRead has no CompletedAt accessor")
+ 	}
++	startedAt, ok := read.MethodByName("StartedAt")
++	if !ok {
++		t.Fatal("PortfolioRead has no StartedAt accessor")
++	}
++	wantStartedAt := reflect.TypeOf(func(wsx.PortfolioRead, wsx.Truth) wsx.Stamp { return wsx.Stamp{} })
++	if startedAt.Type != wantStartedAt {
++		t.Fatalf("PortfolioRead.StartedAt has type %s, want exact read-only diagnostic signature %s", startedAt.Type, wantStartedAt)
++	}
++
++	// StartedAt returns a Stamp value, so callers cannot mutate the private
++	// read by changing a returned diagnostic. Check the zero-value path too.
++	zeroRead := wsx.PortfolioRead{}
++	stamp := zeroRead.StartedAt(wsx.TruthFills)
++	stamp.WallMs = 1
++	stamp.Mono = 1
++	if got := zeroRead.StartedAt(wsx.TruthFills); got != (wsx.Stamp{}) {
++		t.Fatalf("mutating a returned StartedAt stamp changed PortfolioRead: %+v", got)
++	}
+ 
+ 	// A private field with an exported setter is the same hole with one more
+-	// step in it, so the exported method set is pinned to the two read-only
+-	// accessors. Both value and pointer receivers are checked: a mutator would
+-	// naturally be written on the pointer.
+-	allowed := map[string]bool{"Seq": true, "CompletedAt": true}
++	// step in it, so the exported method set is pinned to the read-only
++	// diagnostic accessors. Both value and pointer receivers are checked: a
++	// mutator would naturally be written on the pointer.
++	allowed := map[string]bool{"Seq": true, "CompletedAt": true, "StartedAt": true}
+ 	for _, typ := range []reflect.Type{read, reflect.PointerTo(read)} {
+ 		for i := 0; i < typ.NumMethod(); i++ {
+ 			if name := typ.Method(i).Name; !allowed[name] {
+diff --git a/loop/state/LEDGER.md b/loop/state/LEDGER.md
+index 50b4c04..2757e0f 100644
+--- a/loop/state/LEDGER.md
++++ b/loop/state/LEDGER.md
+@@ -366,3 +366,147 @@ CONSEQUENCES.
+   `scripts/harness_negative_control.py` is NOT in conductor CONTROL_FILES, so
+   such a fix needs no control re-pin; the `nc_ratchet` check at conductor.py:715
+   only forbids removing mutation IDs, which a runner-logic fix does not do.
++## 2026-08-15T22:07:09Z — lip-732 scope violation ['go/harness/wsx/gate.go', 'go/harness/wsx/gate_test.go'] — discarded
++
++## 2026-08-15 — OPERATOR: it26 destroyed work on a scope violation, it27 hit the codex wall
++
++Two iterations, no advance, and the loop is now BLOCKED until codex quota
++returns on 2026-08-20 09:20. lip-732's implementation is finished and
++gate-verified but has never been audited.
++
++IT26: A GREEN GATE, THEN THE CONDUCTOR DISCARDED THE WORK. Round 3's full gate
++returned VERDICT: GREEN, ADVANCE_ELIGIBLE: YES on all seven steps. The attempt
++was then discarded at conductor.py:730 as a SCOPE VIOLATION on
++go/harness/wsx/gate.go and go/harness/wsx/gate_test.go. The implementer never
++touched those files. That iteration's driver narrowed allowed_paths to the three
++go/cmd/harness files, and changed_paths() reports the WHOLE tree -- so rounds
++1-2's accumulated work read as out of scope and was reverted with
++git checkout. This is exactly the destruction mode already recorded for lip-357,
++which carries a bd annotation pinning its paths; lip-732 had none.
++
++RECOVERED. 02.patch is written at conductor.py:713, BEFORE the discard at :730,
++so it captured the reverted files. Both were re-applied and the tree verified
++byte-identical to the tree that passed the GREEN gate (hash of the excluded-path
++diff matches 02.patch exactly). lip-732 now carries a bd note naming all five
++paths every future directive must keep in allowed_paths.
++
++02.patch IS NOT A COMPLETE BACKUP. It is `git diff HEAD`, which excludes
++UNTRACKED files, so it does not contain go/cmd/harness/gate_failure_test.go --
++the new test file this unit exists to add. That file survived it26 only because
++it happened to be inside the narrowed allowed_paths. A durable backup of all
++five files now exists as refs/backup/lip-732-round3 (76ba1f9), built through a
++temporary index so neither the working tree nor the real index was touched.
++Recover with: git diff HEAD refs/backup/lip-732-round3 | git apply
++
++THE IMPLEMENTER ENDED ITS TURN EARLY, AND THE LOOP SCORED IT AS SUCCESS. it26's
++implement turn returned 297 bytes saying it had armed a Monitor and would report
++the gate result "as soon as it completes", then ended. The run is a single
++non-interactive `claude -p`, so the turn ending ends the run. run_claude accepts
++any non-empty result -- only None trips the failure guard -- so the conductor
++went on to spend six hours gating a tree no one had reported on. It happened to
++be complete. Filed as lip-048.
++
++IT27: CODEX QUOTA EXHAUSTED. The driver's first call returned
++"You've hit your usage limit ... try again at Aug 20th, 2026 9:20 AM". The
++conductor classified it kind=rate and began the 900/1800/3600s backoff, which
++cannot help against a five-day reset: all four attempts would fail, the driver
++would return no directive, and the run would end having spent a round. Killed
++attended. NOTE for the next session: the log was 7,678 bytes, not the few
++hundred that the "judge a quota refusal by log SIZE" heuristic expects, because
++it contains the echoed prompt before the error. Read the tail for the explicit
++ERROR line instead.
++
++ROUNDS REFUNDED TWICE, 3 -> 2 each time. Neither iteration produced a verdict.
++it26's scope branch short-circuits before the audit; it27's driver never ran at
++all. Charging a unit for a harness defect and for a vendor quota is not what
++MAX_ROUNDS is for, and lip-357's 3 -> 0 reset is the standing precedent.
++
++WHERE THIS LEAVES lip-732. unit_rounds is 2, so the next launch is round 3/3 and
++a non-ADVANCE decision will park it. pending still holds the repair, re-issued at
++4,605 chars with an operator status block explaining that the instruction was
++already carried out and came back GREEN, that the discard was a scope accident
++rather than a judgement, and that the turn must not end while waiting on a
++background task. The working tree is the gate-verified, never-audited
++implementation. Nothing can move until codex returns.
++
++DISK. 34GB free. Each full gate costs ~15GB and the reclaim between runs is
++incomplete: 91 -> 78, then 69 -> 54, then 48 -> 33. There is room for about one
++more gate before gates.sh hits its floor, so space must be reclaimed before the
++next authoritative run.
++
++BEADS FILED THIS SESSION, all P1, all discovered-from lip-732: lip-bca (the
++negative control attributes any suite flake to the mutation in flight),
++lip-y3q (the catalogue does not catch a gateStopped-restricted reducer check),
++lip-048 (the implementer can end its turn waiting on a background task). None is
++yet a declared dependency of lip-8hn.1; the first two bear directly on whether a
++green catalogue can certify that gate.
++
++================================================================================
++2026-08-19 OPERATOR (attended, no conductor, codex out of quota until 08-20)
++================================================================================
++
++DISK RECLAIMED. The go build cache had reached 169GB. "go clean -cache" took 13
++minutes and returned the volume from 32GB free to 202GB. This is the second
++occurrence of the failure mode lip-9vc already documents; the cache is now 8KB.
++Disk is no longer a constraint on the next authoritative run.
++
++lip-732 REVIEWED OFFLINE, AND IT DID NOT SURVIVE. Codex being out, the loop's
++audit / challenge / adjudicate was reproduced with two independent non-codex
++reviewer threads and operator adjudication. The audit returned ADVANCE. The
++challenge returned BREAKS. The operator re-verified every load-bearing citation
++against the source and sided with the challenge.
++
++THE GREEN GATE WAS TRUE BUT NOT SUFFICIENT. Iteration 26 passed all seven steps
++including test-race and the full 287-mutation negative control while a blocking
++regression sat in the change. No test covered disconnect-with-inventory or
++pre-snapshot evaluation, and both new SETTLING tests inject a clean orders walk
++BEFORE the replacement leg is sized. A mutation catalogue can only kill code the
++tests already exercise, so a green catalogue is evidence about covered paths and
++says nothing about uncovered ones. This sharpens lip-bca's argument that the
++oracle cannot on its own certify lip-8hn.1.
++
++D1, BLOCKING, NOW FIXED. The recap predicate carried no "target > 0" guard.
++fundedReducer answers 0 on an empty book; SizeR caps Reduce at funded while
++SizesFor still reports HasReduce for any q != 0, so "wanted" stays true, target
++becomes 0, and the predicate degenerates to atRisk > 0 -- cancelling ANY resting
++exit, including a compliant one. ApplyDisconnect sets ResetBooks on an abnormal
++close, ResetOnReconnect empties every level, and the owner loop evaluates after
++every select arm, so this fired on every abnormal disconnect while holding
++inventory, and again at startup with adopted inventory. The recap sits above the
++!actionable guard, so the cancel dispatched from a book nothing could be placed
++against. The harness deleted its own exit at the moment it went blind: the exact
++inversion of I1 and A4. It is a REGRESSION -- HEAD has no cancelConfirmed field
++and zero KindCancelConfirmPlace sites, so the branch is entirely new, and
++lip-732 is also the first thing to activate the cancel-confirm-place machinery
++in quote/queue.go at all.
++
++Fixed by guarding on "target > 0", with the false in-code comment corrected.
++Added TestAnAbnormalDisconnectDoesNotCancelTheCompliantExit, whose exit is sized
++at exactly the quantized |q| so that ONLY the target collapse can produce a
++reducing-side cancel, with the clean close as control. Verified to FAIL on both
++abnormal cases with the guard reverted and PASS with it restored; build, vet and
++every harness package pass.
++
++D2, CONFIRMED, DELIBERATELY LEFT OPEN for the next round. The replacement leg of
++the cancel-confirm-place is deterministically unbuildable in production timing:
++ConfirmAbsent sets the latch but does not touch pf.LiveOrders, restingOn never
++consults cancelConfirmed, so remainder clamps to 0, build errors, the intents
++are dropped and a WRITE_NOT_BUILDABLE SEV2 fires. The side is then absent for up
++to position_poll_s. Not fixed here because the repair is a design judgment --
++discounting confirmed-absent quantity in restingOn trades against H-FAIL-3 --
++and that deserves codex's independent read rather than an operator's. Full
++detail and the missing test are on the bead.
++
++INDEPENDENCE CAVEAT, recorded so it is not overstated later: both reviewers were
++Claude-family. This is different-model independence, not the cross-vendor
++independence codex supplies. It found a blocking defect a single reviewer would
++have shipped, but it does not retire the audit codex still owes this unit.
++
++FULL GATE RELAUNCHED on the fixed tree 2026-08-19 21:32:49Z under caffeinate,
++output outside the repo. lip-732 must NOT be closed until that gate is green AND
++D2 is dispositioned.
++
++RECOVERY REFS, all including the untracked gate_failure_test.go:
++  refs/backup/lip-732-round3    76ba1f9  the GREEN iteration-26 tree
++  refs/backup/lip-732-pre-d1fix 8aec288  identical, taken immediately pre-fix
++  refs/backup/lip-732-d1fix     436d5f6  the same tree plus the D1 fix and test
+diff --git a/notes/economics.md b/notes/economics.md
+index 20c0843..51887d5 100644
+--- a/notes/economics.md
++++ b/notes/economics.md
+@@ -1,5 +1,13 @@
+ # Does resting at the touch make money?
+ 
++> Historical analysis, reviewed 2026-09-26: the July 30, 2026 LIP terms changed
++> reference-price construction and scale payouts by the non-excluded snapshot
++> fraction. Sections 2–5 below use the earlier rules; in particular, the claim
++> that excluded snapshots leave the reward pool intact is no longer current.
++> These public-markout and static-book estimates do not establish private fills
++> or a profitable strategy. See [the revival assessment](revival-2026-09-26.md)
++> for current sources, fee checks, and the evidence still required.
++
+ Measured 2026-07-25 against `rig.db`: 40,392 fills / 91,309 reference rows /
+ 153 markets / 6.5h. This is one session on one day, dominated by
+ KXTRUMPMENTION markets. Treat it as a first read, not a conclusion.
+diff --git a/notes/harness-negative-control.md b/notes/harness-negative-control.md
+index da5bc9b..72c8532 100644
+--- a/notes/harness-negative-control.md
++++ b/notes/harness-negative-control.md
+@@ -15,7 +15,7 @@ the Go compiler is not a gate.
+ | M14 | revert A5 to row freshness instead of source advancement -- fresh rows about a frozen world | `TestM14_FrozenOwnerPublicationIsReportedStale` | **caught** | TestM14_FrozenOwnerPublicationIsReportedStale |
+ | M14b | monitor never marks a frozen source stalled -- the SEV1 OWNER_STALLED path is removed | `TestM14_FrozenOwnerPublicationIsReportedStale` | **caught** | TestM14_FrozenOwnerPublicationIsReportedStale |
+ | M7 | drop the size_R cap so a reducing fill can overshoot past flat | `TestValidateCountRejectsOvershoot` | **caught** | TestCorruptIntentIsRejectedBeforeDispatch, TestCreateOrderValidatesTheCountBeforeFormatting, TestValidateCountRejectsOvershoot |
+-| M26 | compare a quantized quantity as float64 instead of the exact quantum | `inert` | **NOT INERT** | TestSEV2IsLimitedPerClassMarketAndReportsSuppression |
++| M26 | compare a quantized quantity as float64 instead of the exact quantum | `inert` | **inert, as expected** | — |
+ | M26a | quantize by truncation instead of half-away-from-zero -- a sub-quantum size silently becomes flat | `TestQtyRoundTripAndFormat` | **caught** | TestQtyRoundTripAndFormat |
+ | M-R-200 | the live transport reports every response as HTTP 200 -- the H-ORD-2b recovery 409 becomes a fake ack | `TestHTTPDoerPassesEveryStatusThroughUnchanged` | **caught** | TestHTTPDoerDoesNotFollowRedirects, TestHTTPDoerPassesEveryStatusThroughUnchanged |
+ | M-R-REDIR | follow redirects on the live transport -- a 307 preserves the method, so a redirected create is a second create | `TestHTTPDoerDoesNotFollowRedirects` | **caught** | TestHTTPDoerDoesNotFollowRedirects |
+@@ -31,18 +31,18 @@ the Go compiler is not a gate.
+ | M-R-PAGE | accept a page with no cursor key as a terminal page -- `200 {}` becomes a complete, empty portfolio truth | `TestMalformedPageIsNeverAnEmptyAccount` | **caught** | TestMalformedPageIsNeverAnEmptyAccount |
+ | M-R-WALKZERO | make WalkComplete the zero value again -- an unpopulated or closed-channel Walk replaces state with nothing | `TestZeroValuedResultsReplaceNothing` | **caught** | TestZeroValuedResultsReplaceNothing |
+ | M-R-COUNTNEG | dispatch a negative count -- H-CO-4b requires strictly positive | `TestCreateOrderPayloadIsByteForByte` | **caught** | TestAFillInsideAPollCycleIsNotDoubleCounted, TestAFullTickPlacesTheExitAtTheExternalTouch, TestAQueuedPlacementCannotEscapeIntoANonQualifyingBook, TestATakerFillOnTheCanaryKeepsTheStrongerCause, TestAlertHangCannotBlockOwnerReductionOrMonitoring, TestAnAckedOrderOccupiesTheAggregateBeforeAnyOrdersWalk, TestBindingIsSubmittedOnTheAckAndNotAtTheNextPoll, TestCreateOrderPayloadIsByteForByte, TestCreateOrderValidatesTheCountBeforeFormatting, TestDispatchLoopExecutesOneWriteAtATime, TestSustainedGateFailureCancelsTheAddingSideAtTheConfiguredDebounce, TestTheBindingIsSubmittedInlineOnTheAckAndNotByALaterWalk, TestTheCanaryLatchesOnANewlyClassifiedOwnedFill, TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown, TestUnhealthyStoreRefusesAddingAndNotReducing |
+-| M-R-COUNTOVER | dispatch 99 contracts regardless of the derived bound -- one order at 99c exposes $98.01 of a $100 account | `TestCreateOrderPayloadIsByteForByte` | **caught** | TestAFillInsideAPollCycleIsNotDoubleCounted, TestAFullTickPlacesTheExitAtTheExternalTouch, TestAQueuedPlacementCannotEscapeIntoANonQualifyingBook, TestATakerFillOnTheCanaryKeepsTheStrongerCause, TestAlertHangCannotBlockOwnerReductionOrMonitoring, TestAnAckedOrderOccupiesTheAggregateBeforeAnyOrdersWalk, TestBindingIsSubmittedOnTheAckAndNotAtTheNextPoll, TestCreateOrderPayloadIsByteForByte, TestCreateOrderValidatesTheCountBeforeFormatting, TestDispatchLoopExecutesOneWriteAtATime, TestSustainedGateFailureCancelsTheAddingSideAtTheConfiguredDebounce, TestTheBindingIsSubmittedInlineOnTheAckAndNotByALaterWalk, TestTheCanaryLatchesOnANewlyClassifiedOwnedFill, TestTheCanaryLatchesOnAnAcknowledgementThatCarriedAFill, TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown, TestUnhealthyStoreRefusesAddingAndNotReducing |
++| M-R-COUNTOVER | dispatch 99 contracts regardless of the derived bound -- one order at 99c exposes $98.01 of a $100 account | `TestCreateOrderPayloadIsByteForByte` | **caught** | TestAFillInsideAPollCycleIsNotDoubleCounted, TestAFullTickPlacesTheExitAtTheExternalTouch, TestAQueuedPlacementCannotEscapeIntoANonQualifyingBook, TestATakerFillOnTheCanaryKeepsTheStrongerCause, TestAlertHangCannotBlockOwnerReductionOrMonitoring, TestAnAckedOrderOccupiesTheAggregateBeforeAnyOrdersWalk, TestBindingIsSubmittedOnTheAckAndNotAtTheNextPoll, TestCreateOrderPayloadIsByteForByte, TestCreateOrderValidatesTheCountBeforeFormatting, TestDispatchLoopExecutesOneWriteAtATime, TestSEV1IsUrgentImmediateAndFiveMinuteDeduplicated, TestSustainedGateFailureCancelsTheAddingSideAtTheConfiguredDebounce, TestTheBindingIsSubmittedInlineOnTheAckAndNotByALaterWalk, TestTheCanaryLatchesOnANewlyClassifiedOwnedFill, TestTheCanaryLatchesOnAnAcknowledgementThatCarriedAFill, TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown, TestUnhealthyStoreRefusesAddingAndNotReducing |
+ | M-R-PRICEBAD | dispatch a price outside the tradable range | `TestCreateOrderPayloadIsByteForByte` | **caught** | TestAFullTickPlacesTheExitAtTheExternalTouch, TestCreateOrderPayloadIsByteForByte, TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown |
+ | M-R-TIF | dispatch immediate_or_cancel instead of good_till_canceled -- a post_only IOC order rests for no time at all and scores nothing | `TestCreateOrderPayloadIsByteForByte` | **caught** | TestAFullTickPlacesTheExitAtTheExternalTouch, TestCreateOrderPayloadIsByteForByte, TestPostOnlyIsStructural |
+ | M-R-SIDEFLIP | flip the wire side after H-CO-1 has been applied -- the order lands on the opposite leg of the book | `TestCreateOrderPayloadIsByteForByte` | **caught** | TestAFullTickPlacesTheExitAtTheExternalTouch, TestAlertHangCannotBlockOwnerReductionOrMonitoring, TestCreateOrderPayloadIsByteForByte, TestEveryRESTWriteComesFromTheOneDispatcherGoroutine, TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown |
+-| M-R-TICKER | dispatch against a different market than the one intended | `TestCreateOrderPayloadIsByteForByte` | **caught** | TestAFullTickPlacesTheExitAtTheExternalTouch, TestCreateOrderPayloadIsByteForByte, TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown |
++| M-R-TICKER | dispatch against a different market than the one intended | `TestCreateOrderPayloadIsByteForByte` | **caught** | TestAFullTickPlacesTheExitAtTheExternalTouch, TestCreateOrderPayloadIsByteForByte, TestEveryRESTWriteComesFromTheOneDispatcherGoroutine, TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown |
+ | M-R-ACKMALFORMED | treat a malformed acknowledgement as an ACK with nothing live -- a live 12-lot reads as MaxLive=0, the requote ladder replaces it, 24 contracts and $23.76 | `TestOnlyObservedAckShapesNarrowMaxLive` | **caught** | TestAnUnknownCreateLeavesTheReservationOutstanding, TestOnlyObservedAckShapesNarrowMaxLive |
+ | M-R-ACKOPTIONAL | revert the acknowledgement coid check to the pre-audit optional form -- checked only when nonempty, so absent, null and empty all pass | `TestOnlyObservedAckShapesNarrowMaxLive` | **caught** | TestOnlyObservedAckShapesNarrowMaxLive |
+ | M-W-PONG | ignore the pong timeout and keep the session alive -- a peer that is gone while the TCP connection is still established | `TestSupervisorPingPongReadDeadlineLadder` | **caught** | TestSupervisorPingPongReadDeadlineLadder |
+ | M-W-CLEAN | return from a CLEAN disconnect before quarantining -- the shadow rig's correct behaviour, which is fatal in a trader | `TestEveryDisconnectQuarantinesUntilFreshSnapshotAndAllPortfolioTruth` | **caught** | TestBookCurrentTracksTheBookAndNotThePortfolio, TestEveryDisconnectQuarantinesUntilFreshSnapshotAndAllPortfolioTruth |
+-| M-W-RECON | let a fresh snapshot authorise placement without post-disconnect portfolio reconciliation | `TestEveryDisconnectQuarantinesUntilFreshSnapshotAndAllPortfolioTruth` | **caught** | TestAGateFailureResetNeverBypassesA13, TestAnAmbiguousCancelDoesNotRetireTheAddingOrder, TestAnUnlistedAddingOrderIsStillCancelledAtExpiry, TestBookCurrentTracksTheBookAndNotThePortfolio, TestEveryDisconnectQuarantinesUntilFreshSnapshotAndAllPortfolioTruth, TestFillConversionFailureDiscardsTheWholeWalk, TestLatePreDisconnectReconcileCannotUnlockNewConnection, TestTheStoppedMarketKeepsTheCappedExitOnEitherSign |
++| M-W-RECON | let a fresh snapshot authorise placement without post-disconnect portfolio reconciliation | `TestEveryDisconnectQuarantinesUntilFreshSnapshotAndAllPortfolioTruth` | **caught** | TestAGateFailureResetNeverBypassesA13, TestAnAmbiguousCancelDoesNotRetireTheAddingOrder, TestAnOversizedReducerIsRecappedAtTheGateFailureStop, TestAnUnlistedAddingOrderIsStillCancelledAtExpiry, TestBookCurrentTracksTheBookAndNotThePortfolio, TestEveryDisconnectQuarantinesUntilFreshSnapshotAndAllPortfolioTruth, TestFillConversionFailureDiscardsTheWholeWalk, TestLatePreDisconnectReconcileCannotUnlockNewConnection, TestTheSettlingMarketRecapsAnOversizedReducerWithoutAGateFailure, TestTheStoppedMarketKeepsTheCappedExitOnEitherSign |
+ | M-W-GRAN | stop rejecting a fractional-cent BOOK price (H-CO-3a) | `TestFractionalBookPriceNeverReachesCore` | **caught** | TestFractionalBookPriceNeverReachesCore, TestOnlyAnAcceptedCurrentQualifyingBookClearsTheGateFailureEpisode |
+-| M-W-POS | preserve q_local instead of assigning q_exch on a complete poll -- argue with the exchange (H-POS-1) | `TestCompletePositionPollOverwritesLocalAndRecordsAgreements` | **caught** | TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs, TestASustainedOutageReachesTheGateAndTheDisconnectTokenReachesThePoller, TestAlertHangCannotBlockOwnerReductionOrMonitoring, TestAnUnknownCloseStopsAddingAndLeavesTheExitAlive, TestCompletePositionPollOverwritesLocalAndRecordsAgreements, TestEveryGlobalTransitionRecordsItsOwnCause, TestEveryRESTWriteComesFromTheOneDispatcherGoroutine, TestIncompletePortfolioReadPreservesStateAndFreshness, TestPositionDriftThresholdsAreStrictAndConsecutive, TestSeedModeRecordsIdentityWithoutReapplyingHistory, TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown, TestTheEarlyCloseBackoffStopsAddingOnlyInsideItsOwnWindow, TestTheReducerAggregateStaysCappedThroughAGateFailureStop, TestTheStoppedMarketKeepsTheCappedExitOnEitherSign |
++| M-W-POS | preserve q_local instead of assigning q_exch on a complete poll -- argue with the exchange (H-POS-1) | `TestCompletePositionPollOverwritesLocalAndRecordsAgreements` | **caught** | TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs, TestASustainedOutageReachesTheGateAndTheDisconnectTokenReachesThePoller, TestAlertHangCannotBlockOwnerReductionOrMonitoring, TestAnAbnormalDisconnectDoesNotCancelTheCompliantExit, TestAnOversizedReducerIsRecappedAtTheGateFailureStop, TestAnUnknownCloseStopsAddingAndLeavesTheExitAlive, TestCompletePositionPollOverwritesLocalAndRecordsAgreements, TestEveryGlobalTransitionRecordsItsOwnCause, TestEveryRESTWriteComesFromTheOneDispatcherGoroutine, TestIncompletePortfolioReadPreservesStateAndFreshness, TestPositionDriftThresholdsAreStrictAndConsecutive, TestSeedModeRecordsIdentityWithoutReapplyingHistory, TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown, TestTheEarlyCloseBackoffStopsAddingOnlyInsideItsOwnWindow, TestTheReducerAggregateStaysCappedThroughAGateFailureStop, TestTheSettlingMarketRecapsAnOversizedReducerWithoutAGateFailure, TestTheStoppedMarketKeepsTheCappedExitOnEitherSign |
+ | M-W-OWN | bypass the ownership-ledger classification, so every fill is ours (H-ORD-9) | `TestFillOwnershipUsesOrderIDLedgerAndForeignStopsGlobally` | **caught** | TestAnomalyTextNamesTheRuleItEnforces, TestBaselineForeignFillStillStopsGlobally, TestFillOwnershipUsesOrderIDLedgerAndForeignStopsGlobally, TestOwnershipLookupFailureAppliesNothingAndRefreshesNoTruth |
+ | M-W-TAKER | disable the is_taker / fee>0 detector on our own fills (H-ORD-8 and S2 together) | `TestOwnedTakerOrPositiveFeeStopsGlobally` | **caught** | TestATakerFillOnTheCanaryKeepsTheStrongerCause, TestFillConversionFailureDiscardsTheWholeWalk, TestOutOfWindowTakerFillStillRaisesHORD8, TestOwnedTakerOrPositiveFeeStopsGlobally, TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary, TestRealSixDecimalFeeConvertsAndFeedsHORD8, TestSeedModeRecordsIdentityWithoutReapplyingHistory |
+ | M-W-TRUTH | treat positions freshness alone as all portfolio truth -- orders and fills may be arbitrarily stale (A13) | `TestAnyStalePortfolioEndpointStopsAllPlacementButNotCancel` | **caught** | TestAnyStalePortfolioEndpointStopsAllPlacementButNotCancel, TestEndpointTruthAgeStartsWhenItsWalkStarts, TestEveryDisconnectQuarantinesUntilFreshSnapshotAndAllPortfolioTruth, TestFillConversionFailureDiscardsTheWholeWalk |
+@@ -51,7 +51,7 @@ the Go compiler is not a gate.
+ | M-W-OUTAGE | return a zero token on disconnect, so every portfolio read taken during an outage is discarded and position monitoring goes blind | `TestPortfolioTruthAppliesDuringWebsocketOutage` | **caught** | TestASustainedOutageReachesTheGateAndTheDisconnectTokenReachesThePoller, TestPortfolioTruthAppliesDuringWebsocketOutage |
+ | M-W-COREACK | ignore core's refusal of a book frame and certify the book anyway | `TestCoreRejectedBookFrameCannotUnlockOrRefreshGate` | **caught** | TestBookCurrentTracksTheBookAndNotThePortfolio, TestCoreRejectedBookFrameCannotUnlockOrRefreshGate, TestRejectedBookFrameImmediatelyQuarantinesAnActionableMarket |
+ | M-W-POLLORDER | read the authoritative position BEFORE the fills | `TestPortfolioPollReadsFillsBeforeAuthoritativePosition` | **caught** | TestPortfolioPollReadsFillsBeforeAuthoritativePosition |
+-| M-W-POSORDER | apply the authoritative position BEFORE the fills, so a fill already in q_exch is counted twice and the reducer can flip the sign of q | `TestAuthoritativePositionIsFinalAfterSameCycleFill` | **caught** | TestAFillInsideAPollCycleIsNotDoubleCounted, TestAuthoritativePositionIsFinalAfterSameCycleFill, TestPnLKillLatchesByNameAndKeepsTheReducerLive, TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary, TestPnLMarkExpiresAtThirtySecondsBeforeBothSixtySecondClocks, TestPnLRefusesASteppedPositionWithoutAMatchingOwnedFill, TestPortfolioTruthAppliesDuringWebsocketOutage, TestStaleAndAbsentPnLMarksAreSEV2AndCannotFireTheKill |
++| M-W-POSORDER | apply the authoritative position BEFORE the fills, so a fill already in q_exch is counted twice and the reducer can flip the sign of q | `TestAuthoritativePositionIsFinalAfterSameCycleFill` | **caught** | TestAFillInsideAPollCycleIsNotDoubleCounted, TestAuthoritativePositionIsFinalAfterSameCycleFill, TestPnLKillLatchesByNameAndKeepsTheReducerLive, TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary, TestPnLMarkExpiresAtThirtySecondsBeforeBothSixtySecondClocks, TestPnLRefusesASteppedPositionWithoutAMatchingOwnedFill, TestPortfolioTruthAppliesDuringWebsocketOutage, TestStaleAndAbsentPnLMarksAreSEV2AndCannotFireTheKill, TestUndeliveredAlertsSurviveRestartAndDrainOldestFirst |
+ | M-W-TRUTHSTAMP | stamp every endpoint's freshness with the cycle's COMPLETION time, so a slow fills walk reads as current for its own duration | `TestEndpointTruthAgeStartsWhenItsWalkStarts` | **caught** | TestEndpointTruthAgeStartsWhenItsWalkStarts |
+ | M-W-TRUTHFORGE | export noteTruth, so any caller can declare a portfolio endpoint reconciled without a complete walk -- SetActionable with a longer name | `TestPortfolioTruthHasNoPublicBypass` | **caught** | TestPortfolioTruthHasNoPublicBypass |
+ | M-W-READTOKEN | export the reconciliation token on PortfolioRead, so a caller can assemble a complete-looking reconciliation out of nothing | `TestPortfolioTruthHasNoPublicBypass` | **caught** | TestPortfolioTruthHasNoPublicBypass |
+@@ -59,9 +59,9 @@ the Go compiler is not a gate.
+ | M3 | os.Exit(0) on SIGTERM instead of draining -- H-HALT-3's rule deleted, and invisible to any in-process assertion | `TestSIGTERMWithInventoryOutlivesSignalAndDrainTimeout` | **caught** | TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs, TestSIGTERMWithInventoryOutlivesSignalAndDrainTimeout, TestSignalCannotAuthoriseExitUntilLatchIsDurable |
+ | M11 | startup is marked complete after the positions walk, before orders, fills, balance, the adoption policy and the verified sweep | `TestStartupNeverLicensesBeforeFourReadsPolicyAndCleanSweeps` | **caught** | TestAStartupCauseSurvivesAFailedWriteAndTheBackfillWindowMovingPast, TestAdoptionPolicyReceivesEffectiveSelectionAndExclusionsAsDefensiveCopies, TestAtFlatPositionEveryRestingOrderInAnExcludedMarketIsAddingAndNoneSurvives, TestForeignFillAtStartupLatchesBeforeReconciliationCanExposeRunning, TestForeignFillWithUnusableFeeStillLatches, TestForeignOnlyTickerWithInventoryStaysManagedAndReducing, TestInvalidAdoptedOrdersRequireVerifiedCleanSweep, TestLatchedControllerRevokesAdoptionKeepForAnAddingOrderWithNoExclusionAnywhere, TestManagedIsBuiltFromTheEffectiveSelectionSoAnExcludedEmptyTickerIsUnmanaged, TestPnLRestartIncludesEveryOwnedFillRegardlessOfRunAndBackfilledFlag, TestRevokedAddingOrderIsCancelledWhileTheReducerInTheSameExcludedMarketSurvives, TestStartupAbandonsNothingWhenTheResolvingWalkIsIncomplete, TestStartupAbandonsOnlyAfterThreeConsecutiveCompleteMisses, TestStartupBindsAListedTerminalReservationAndDoesNotAbandonIt, TestStartupCommitsEveryCauseBeforeReturningDecision, TestStartupCommitsKnownTakerEvidenceBeforeFeeConversion, TestStartupDoesNotLatchForeignFillWhileReservationsUnresolved, TestStartupForeignOrderIsExcludedAndNeverCancelled, TestStartupHistoryIsNeverALiveCanaryFill, TestStartupKeepsAReservationOutstandingWhenTheBindingCannotBeSubmitted, TestStartupMakesNoResolvingWalkWhenNoReservationIsOutstanding, TestStartupManagedSetIncludesSelectionPositionsAndOwnedOrders, TestStartupNeverLicensesBeforeFourReadsPolicyAndCleanSweeps, TestStartupPortfolioContainsEveryKeptOrder, TestStartupReadsPositionsOrdersFillsBalanceInOrder, TestStartupResetsAReservationsMissCounterWhenTheCoidReappears, TestStartupRewalksAfterEveryCancelSweep, TestStartupSeedsExchangePositionWithoutReplayingHistoricalFills, TestTheAdoptedPortfolioCarriesTheBaseline, TestTheStartupBaselineIsPreFilterAndSpansEveryAttempt |
+ | M20 | the latch reports Ensure durable without writing anything -- the stop looks committed and does not survive the restart | `TestGlobalStopIsDurableBeforePublicationAndSurvivesRestart` | **caught** | TestASetLatchRefusesWithoutResumeAndWindsDownWithIt, TestAStopThatCouldNotBeMadeDurableBlocksAddingAndIsRetriedUntilItIs, TestATakerFillOnTheCanaryKeepsTheStrongerCause, TestAlertHangCannotBlockOwnerReductionOrMonitoring, TestAnIncompletePositionWalkNeverLatchesInvKill, TestAnIncompletePositionWalkNeverLatchesTheCanary, TestAnInvKillBreachThatReducesToFlatDoesNotResumeAdding, TestEveryEntryAtHarnessStopPathRequestsStop, TestEveryGlobalTransitionRecordsItsOwnCause, TestExistingLatchRetryResyncsParentBeforeDurable, TestGlobalStopIsDurableBeforePublicationAndSurvivesRestart, TestHarnessStopRanksAfterSpecificAutomaticCauses, TestHarnessStopRemovalCannotClearAndPersistentFileDoesNotSpam, TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive, TestInventoryBeyondInvKillLatchesTheGlobalHaltByName, TestLatchNeverOverwritesFirstCauseAndHasNoClearAPI, TestPnLKillIsInclusiveAtTheExactNegativeFloor, TestPnLKillLatchesByNameAndKeepsTheReducerLive, TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary, TestPnLMarkExpiresAtThirtySecondsBeforeBothSixtySecondClocks, TestPnLMarkRequiresAnAcceptedCurrentGenerationSnapshot, TestPnLMarkUsesExternalBestAfterSubtractingAllOurSize, TestPnLRestartIncludesEveryOwnedFillRegardlessOfRunAndBackfilledFlag, TestRewardArrivalCannotMoveTradingPnL, TestTheCanaryLatchesOnANewlyClassifiedOwnedFill, TestTheCanaryLatchesOnAnAcknowledgementThatCarriedAFill, TestTheCanaryLatchesOnAnyPositionItDidNotStartWith, TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown, TestTheSnapshotSequenceAdvancesOnEveryTickIncludingHalted, TestUnreadableHarnessStopFailsClosedOnce |
+-| M-L-BOOTORDER | the global controller defers the latch read, so the first portfolio request happens before H-HALT-4's read | `TestLatchReadPrecedesEveryPortfolioRequest` | **caught** | TestASetLatchRefusesWithoutResumeAndWindsDownWithIt, TestAlertHangCannotBlockOwnerReductionOrMonitoring, TestAnUnreadableLatchAtBootIsHonouredOnTheFirstTick, TestEveryGlobalTransitionRecordsItsOwnCause, TestGlobalStopIsDurableBeforePublicationAndSurvivesRestart, TestLatchReadPrecedesEveryPortfolioRequest, TestLatchedControllerRevokesAdoptionKeepForAnAddingOrderWithNoExclusionAnywhere, TestLatchedStartupFailureCannotRegressToStartingOrUnknownRisk, TestMalformedOrUnreadableLatchFailsClosed, TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown, TestTheSnapshotSequenceAdvancesOnEveryTickIncludingHalted |
++| M-L-BOOTORDER | the global controller defers the latch read, so the first portfolio request happens before H-HALT-4's read | `TestLatchReadPrecedesEveryPortfolioRequest` | **caught** | TestASetLatchRefusesWithoutResumeAndWindsDownWithIt, TestAlertHangCannotBlockOwnerReductionOrMonitoring, TestAnUnreadableLatchAtBootIsHonouredOnTheFirstTick, TestEveryGlobalTransitionRecordsItsOwnCause, TestGlobalStopIsDurableBeforePublicationAndSurvivesRestart, TestLatchReadPrecedesEveryPortfolioRequest, TestLatchedControllerRevokesAdoptionKeepForAnAddingOrderWithNoExclusionAnywhere, TestLatchedStartupFailureCannotRegressToStartingOrUnknownRisk, TestMalformedOrUnreadableLatchFailsClosed, TestSEV2IsLimitedPerClassMarketAndReportsSuppression, TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown, TestTheSnapshotSequenceAdvancesOnEveryTickIncludingHalted |
+ | M-L-LATCHFAIL | a present-but-unparseable latch reads as CLEAR -- HR-009 through a file truncated by the crash that wrote it | `TestMalformedOrUnreadableLatchFailsClosed` | **caught** | TestAnUnreadableLatchAtBootIsHonouredOnTheFirstTick, TestMalformedOrUnreadableLatchFailsClosed |
+-| M-L-ADOPTORDER | the startup walk reads resting orders before positions -- §7.5's fixed acquisition sequence is violated | `TestStartupReadsPositionsOrdersFillsBalanceInOrder` | **caught** | TestLatchReadPrecedesEveryPortfolioRequest, TestSEV1IsUrgentImmediateAndFiveMinuteDeduplicated, TestStartupReadsPositionsOrdersFillsBalanceInOrder |
++| M-L-ADOPTORDER | the startup walk reads resting orders before positions -- §7.5's fixed acquisition sequence is violated | `TestStartupReadsPositionsOrdersFillsBalanceInOrder` | **caught** | TestLatchReadPrecedesEveryPortfolioRequest, TestStartupReadsPositionsOrdersFillsBalanceInOrder |
+ | M-L-RETRYTHRESH | startup gives up after ONE failed reconciliation instead of three | `TestUnknownRiskBeginsOnThirdFailureAndRetriesForever` | **caught** | TestStartupNeverLicensesBeforeFourReadsPolicyAndCleanSweeps, TestStartupOwnsStateAcrossRetrySequence, TestUnknownRiskBeginsOnThirdFailureAndRetriesForever |
+ | M-L-RETRYEXIT | startup stops retrying once it reaches UNKNOWN_RISK -- a process sitting next to inventory it decided not to look at again | `TestUnknownRiskBeginsOnThirdFailureAndRetriesForever` | **caught** | TestLatchedStartupFailureCannotRegressToStartingOrUnknownRisk, TestStartupAbandonsNothingWhenTheResolvingWalkIsIncomplete, TestStartupOwnsStateAcrossRetrySequence, TestUnknownRiskBeginsOnThirdFailureAndRetriesForever |
+ | M-L-SEEDLIVE | historical startup fills are applied with risk.Live -- every fill that produced the seeded position is counted twice | `TestStartupSeedsExchangePositionWithoutReplayingHistoricalFills` | **caught** | TestStartupCommitsEveryCauseBeforeReturningDecision, TestStartupSeedsExchangePositionWithoutReplayingHistoricalFills |
+@@ -88,14 +88,14 @@ the Go compiler is not a gate.
+ | M-HS-OWNRUN | recognise only order ids from the current run -- every fill from before the last restart becomes a SEV1 foreign fill (H-ORD-9) | `TestOwnershipSurvivesRunsAndTerminalOrders` | **caught** | TestOwnershipSurvivesRunsAndTerminalOrders |
+ | M-HS-LOOKUPFAIL | turn an ownership lookup error into all-foreign and keep applying -- a storage outage manufactures a foreign-fill stop on a consumed walk | `TestOwnershipLookupFailureAppliesNothingAndRefreshesNoTruth` | **caught** | TestOwnershipLookupFailureAppliesNothingAndRefreshesNoTruth |
+ | M-HS-FILLREPLACE | let the later observer overwrite our_fill observation columns, so a backfill walk relabels a live observation as history (H-ORD-6) | `TestOurFillFirstObserverWinsAcrossRuns` | **caught** | TestDivergentDuplicateTradeIsRefusedNotSwallowed, TestOurFillFirstObserverWinsAcrossRuns |
+-| M-HS-AUDITDROP | evict the oldest waiting audit record while the writer is stalled -- the rows describing the incident are deleted by the incident | `TestAuditQueueNeverDropsWhileWriterIsStalled` | **caught** | TestAFullAnomalyBufferProducesADropReportRatherThanSilence, TestAQueuedPlacementCannotEscapeIntoANonQualifyingBook, TestATakerFillOnTheCanaryKeepsTheStrongerCause, TestAnIncompletePositionWalkNeverLatchesInvKill, TestAnIncompletePositionWalkNeverLatchesTheCanary, TestAuditQueueNeverDropsWhileWriterIsStalled, TestDispatchLoopExecutesOneWriteAtATime, TestEveryGlobalTransitionRecordsItsOwnCause, TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive, TestInventoryBeyondInvKillLatchesTheGlobalHaltByName, TestOnlyOneWriterRunCanOwnTheFIFO, TestOrderlyShutdownDrainsBeforeStoppingTheWriter, TestPnLKillIsInclusiveAtTheExactNegativeFloor, TestPnLKillLatchesByNameAndKeepsTheReducerLive, TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary, TestPnLMarkExpiresAtThirtySecondsBeforeBothSixtySecondClocks, TestPnLRefusesASteppedPositionWithoutAMatchingOwnedFill, TestPnLRestartIncludesEveryOwnedFillRegardlessOfRunAndBackfilledFlag, TestRewardArrivalCannotMoveTradingPnL, TestStartupHistoryIsNeverALiveCanaryFill, TestSustainedGateFailureCancelsTheAddingSideAtTheConfiguredDebounce, TestTheBindingIsSubmittedInlineOnTheAckAndNotByALaterWalk, TestTheCanaryLatchesOnAnyPositionItDidNotStartWith, TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown, TestUndeliveredAlertsSurviveRestartAndDrainOldestFirst, TestUnreadableHarnessStopFailsClosedOnce |
++| M-HS-AUDITDROP | evict the oldest waiting audit record while the writer is stalled -- the rows describing the incident are deleted by the incident | `TestAuditQueueNeverDropsWhileWriterIsStalled` | **caught** | TestAFullAnomalyBufferProducesADropReportRatherThanSilence, TestAQueuedPlacementCannotEscapeIntoANonQualifyingBook, TestAnIncompletePositionWalkNeverLatchesInvKill, TestAuditQueueNeverDropsWhileWriterIsStalled, TestDispatchLoopExecutesOneWriteAtATime, TestEveryGlobalTransitionRecordsItsOwnCause, TestInventoryBeyondInvKillLatchesTheGlobalHaltByName, TestOnlyOneWriterRunCanOwnTheFIFO, TestOrderlyShutdownDrainsBeforeStoppingTheWriter, TestPnLKillIsInclusiveAtTheExactNegativeFloor, TestPnLKillLatchesByNameAndKeepsTheReducerLive, TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary, TestPnLMarkExpiresAtThirtySecondsBeforeBothSixtySecondClocks, TestPnLRefusesASteppedPositionWithoutAMatchingOwnedFill, TestPnLRestartIncludesEveryOwnedFillRegardlessOfRunAndBackfilledFlag, TestRewardArrivalCannotMoveTradingPnL, TestSEV1IsUrgentImmediateAndFiveMinuteDeduplicated, TestSEV2IsLimitedPerClassMarketAndReportsSuppression, TestStartupHistoryIsNeverALiveCanaryFill, TestSustainedGateFailureCancelsTheAddingSideAtTheConfiguredDebounce, TestTheBindingIsSubmittedInlineOnTheAckAndNotByALaterWalk, TestTheCanaryLatchesOnAnyPositionItDidNotStartWith, TestTheCanarysFirstFractionalFillWindsItDownAndItStaysDown, TestUndeliveredAlertsSurviveRestartAndDrainOldestFirst, TestUnreadableHarnessStopFailsClosedOnce |
+ | M-HS-ANOMRACE | expose an anomaly to delivery after only ONE journal succeeds, so a record can be pushed once and then lost in a crash (§13.1) | `TestAnomalyIsInvisibleToDeliveryUntilBothJournalsAreDurable` | **caught** | TestAnomalyIsInvisibleToDeliveryUntilBothJournalsAreDurable |
+ | M-HS-STOREGATE | permit an ADDING dispatch while store health is false -- H-STORE-3's revocation deleted, and the order's ownership cannot be recorded | `TestStoreFailureBlocksAddingButNotReducerOrMonitorWork` | **caught** | TestPermanentRecordFailureRevokesAddingAndCannotHealAcrossTheGap, TestStoppedWriterRevokesOutstandingAddingPermits, TestStoreFailureBlocksAddingButNotReducerOrMonitorWork, TestUnhealthyStoreRefusesAddingAndNotReducing |
+-| M-HS-PRAGMA | set SQLite synchronous mode to OFF -- committed records are lost on the power cut they exist to describe | `TestSchemaIsExactlyThePilotFiveAndPragmasArePinned` | **caught** | TestSEV1IsUrgentImmediateAndFiveMinuteDeduplicated, TestSchemaIsExactlyThePilotFiveAndPragmasArePinned, TestWritePragmasSurviveConnectionReplacement |
++| M-HS-PRAGMA | set SQLite synchronous mode to OFF -- committed records are lost on the power cut they exist to describe | `TestSchemaIsExactlyThePilotFiveAndPragmasArePinned` | **caught** | TestSchemaIsExactlyThePilotFiveAndPragmasArePinned, TestWritePragmasSurviveConnectionReplacement |
+ | M-HS-STATE | persist a global transition carrying trigger `none` -- A9's reason is lost and a non-transition is recorded as one | `TestStateEventPersistsScopeStatesAndTrigger` | **caught** | TestStateEventPersistsScopeStatesAndTrigger |
+ | M-P-SEV1 | send SEV1 through the fifteen-minute bucket -- an unmanaged risk state is reported up to a quarter of an hour late (§13.2) | `TestSEV1IsUrgentImmediateAndFiveMinuteDeduplicated` | **caught** | TestSEV1IsUrgentImmediateAndFiveMinuteDeduplicated, TestStoreRefusedDeliveryRecordStillRedeliversAtBucketWindow |
+ | M-P-SEV2 | bypass SEV2 suppression, so every occurrence pushes and the operator learns to ignore the channel (§13.2) | `TestSEV2IsLimitedPerClassMarketAndReportsSuppression` | **caught** | TestNextStepSchedulesFailedAndSuppressedAlertRetries, TestSEV2IsLimitedPerClassMarketAndReportsSuppression |
+-| M-P-RESTART | load pending anomalies only from the current run -- every restart discards the backlog the restart is evidence for | `TestUndeliveredAlertsSurviveRestartAndDrainOldestFirst` | **caught** | TestUndeliveredAlertsSurviveRestartAndDrainOldestFirst |
++| M-P-RESTART | load pending anomalies only from the current run -- every restart discards the backlog the restart is evidence for | `TestUndeliveredAlertsSurviveRestartAndDrainOldestFirst` | **caught** | TestNextStepSchedulesFailedAndSuppressedAlertRetries, TestUndeliveredAlertsSurviveRestartAndDrainOldestFirst |
+ | M-P-HEALTHBEAT | suppress the heartbeat unless storage is healthy and the state is RUNNING -- the dead man's switch goes quiet exactly when its silence would be read as F18 | `TestHeartbeatContinuesInEveryStateAndNamesStoreFailure` | **caught** | TestHeartbeatContinuesInEveryStateAndNamesStoreFailure |
+ | M-P-TOPIC | include the ntfy topic in the message body -- the channel's bearer credential lands in every notification history and lock screen | `TestTopicNeverLeavesDestinationURL` | **caught** | TestTopicNeverLeavesDestinationURL |
+ | M-P-DEADMAN | accept a nil dead-man endpoint -- the only F18 detector that survives this process dying becomes optional (§13.4) | `TestAlertServiceRejectsMissingDeadman` | **caught** | TestAlertServiceRejectsMissingDeadman, TestZeroValueDeadmanIsRejectedWithoutPanic |
+@@ -137,19 +137,19 @@ the Go compiler is not a gate.
+ | M-L-STARTUPFEEISPRICE | parse fee_cost with the PRICE parser in the STARTUP walk -- the second copy of the lip-9tr defect, in lifecycle rather than wsx. Fixing only the wsx copy moves the failure from the first live poll to 7.5s startup walk, where every 6-decimal fee fails conversion and startup never completes | `TestStartupCommitsEveryCauseBeforeReturningDecision` | **caught** | TestForeignFillAtStartupLatchesBeforeReconciliationCanExposeRunning, TestStartupCommitsEveryCauseBeforeReturningDecision |
+ | M-Q01-FINALIZEDFAILS | let a post-finalize evidence write fail the qualification again -- the owner s snapshot publisher outlives Finalize by a tick, so this reports "qualification evidence failed" at the end of EVERY run, including one that has just qualified cleanly for six hours (lip-oqq) | `TestFinalizedEvidenceDoesNotFailTheQualification` | **caught** | TestFinalizedEvidenceDoesNotFailTheQualification |
+ | M-Q01-NOTHINGFAILS | swallow EVERY evidence error rather than only the already-finalized one, so a qualification whose evidence could not be recorded at all still reports success -- the fail-closed hand-off stops being fail-closed | `TestFinalizedEvidenceDoesNotFailTheQualification` | **caught** | TestFinalizedEvidenceDoesNotFailTheQualification |
+-| M-R-FEEISPRICE | parse fee_cost with the PRICE parser again -- prices are measured at four decimals and every fee_cost on the account carries six, INCLUDING the zero fee "0.000000", so this refuses every fill, discards every fills walk and takes the harness to a durable WINDING_DOWN 2.3s after launch (lip-9tr, the defect that stopped the first q01) | `TestRealSixDecimalFeeConvertsAndFeedsHORD8` | **caught** | TestRealSixDecimalFeeConvertsAndFeedsHORD8, TestRecordedFillsConvertWithTheirRealFees, TestRecordedSixDecimalFeeSurvivesTheWholeConversion |
++| M-R-FEEISPRICE | parse fee_cost with the PRICE parser again -- prices are measured at four decimals and every fee_cost on the account carries six, INCLUDING the zero fee "0.000000", so this refuses every fill, discards every fills walk and takes the harness to a durable WINDING_DOWN 2.3s after launch (lip-9tr, the defect that stopped the first q01) | `TestRealSixDecimalFeeConvertsAndFeedsHORD8` | **caught** | TestNextStepHonoursHealthPollAfterMidStepSubmission, TestRealSixDecimalFeeConvertsAndFeedsHORD8, TestRecordedFillsConvertWithTheirRealFees, TestRecordedSixDecimalFeeSurvivesTheWholeConversion |
+ | M-R-FEEROUNDS | let the fee parser ROUND a quantum finer than the measured 1e-6 instead of refusing it -- the same silent-precision-loss this parser exists to prevent, and the fee is H-ORD-8s independent corroborator, so a fee rounded to zero is a taker fill that stops being witnessed | `TestParseFee6IsExactAndRefusesUnmeasuredShapes` | **caught** | TestParseFee6IsExactAndRefusesUnmeasuredShapes |
+-| M-R-TAKERHALTSINHERITED | halt on an inherited taker fill as well as a live one -- 8 of the 15 fills already on the real account are takers with non-zero fees, so this takes the harness to a durable WINDING_DOWN on its FIRST portfolio poll and q01 dies at t+2s having qualified nothing (lip-jhi) | `TestOutOfWindowTakerFillStillRaisesHORD8` | **caught** | TestNextStepHonoursHealthPollAfterMidStepSubmission, TestOutOfWindowTakerFillStillRaisesHORD8, TestSeedModeRecordsIdentityWithoutReapplyingHistory, TestStartupCommitsEveryCauseBeforeReturningDecision |
++| M-R-TAKERHALTSINHERITED | halt on an inherited taker fill as well as a live one -- 8 of the 15 fills already on the real account are takers with non-zero fees, so this takes the harness to a durable WINDING_DOWN on its FIRST portfolio poll and q01 dies at t+2s having qualified nothing (lip-jhi) | `TestOutOfWindowTakerFillStillRaisesHORD8` | **caught** | TestOutOfWindowTakerFillStillRaisesHORD8, TestSeedModeRecordsIdentityWithoutReapplyingHistory, TestStartupCommitsEveryCauseBeforeReturningDecision |
+ | M-R-TAKERNEVERHALTS | never halt on a taker fill, so H-Q-3 goes silent at the moment it is violated -- a post_only that did not take effect, a marketable price or an API change all become invisible, and the fee that is H-ORD-8s INDEPENDENT corroborator stops corroborating anything | `TestOutOfWindowTakerFillStillRaisesHORD8` | **caught** | TestATakerFillOnTheCanaryKeepsTheStrongerCause, TestFillConversionFailureDiscardsTheWholeWalk, TestOutOfWindowTakerFillStillRaisesHORD8, TestOwnedTakerOrPositiveFeeStopsGlobally, TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary, TestRealSixDecimalFeeConvertsAndFeedsHORD8 |
+-| M-L-NOBASELINE | seed the adopted portfolio without the startup baseline, so the boundary between inherited history and live activity is computed correctly and then handed to nobody -- the first live poll replays the whole of the account history older than backfill_h | `TestTheAdoptedPortfolioCarriesTheBaseline` | **caught** | TestSEV1IsUrgentImmediateAndFiveMinuteDeduplicated, TestStartupHistoryIsNeverALiveCanaryFill, TestTheAdoptedPortfolioCarriesTheBaseline |
++| M-L-NOBASELINE | seed the adopted portfolio without the startup baseline, so the boundary between inherited history and live activity is computed correctly and then handed to nobody -- the first live poll replays the whole of the account history older than backfill_h | `TestTheAdoptedPortfolioCarriesTheBaseline` | **caught** | TestStartupHistoryIsNeverALiveCanaryFill, TestTheAdoptedPortfolioCarriesTheBaseline |
+ | M-OWN-BACKFILLLABEL | record an inherited fill as live in our_fill, mislabelling the one row that only the live walk ever writes for history outside backfill_h | `TestStartupHistoryIsNeverALiveCanaryFill` | **caught** | TestStartupHistoryIsNeverALiveCanaryFill |
+ | M-HS-OWNNULLSKIP | load only BOUND owned_order rows at Open, so a reservation that was dispatched and never bound is invisible to the rebuilt index and the fill it produces reads as foreign -- the crash H-ORD-6 exists to survive becomes a permanent global stop on the next boot | `TestReservedUnboundCoidSurvivesReopenAsUnresolved` | **caught** | TestReservedUnboundCoidSurvivesReopenAsUnresolved |
+-| M-HS-OWNCONCLUSIVE | answer FOREIGN for an unrecognised order id even while reservations are outstanding, which is FINDING 2 in one line: the ledger declares a third party is trading the account on the strength of an order it authorised itself and has not finished recording | `TestOwnsOrdersConclusiveForeignRequiresNoUnresolvedReservations` | **caught** | TestAbandonedReservationRestoresConclusiveClassification, TestOwnsOrdersConclusiveForeignRequiresNoUnresolvedReservations, TestReservedUnboundCoidSurvivesReopenAsUnresolved, TestRewardArrivalCannotMoveTradingPnL |
++| M-HS-OWNCONCLUSIVE | answer FOREIGN for an unrecognised order id even while reservations are outstanding, which is FINDING 2 in one line: the ledger declares a third party is trading the account on the strength of an order it authorised itself and has not finished recording | `TestOwnsOrdersConclusiveForeignRequiresNoUnresolvedReservations` | **caught** | TestAbandonedReservationRestoresConclusiveClassification, TestOwnsOrdersConclusiveForeignRequiresNoUnresolvedReservations, TestReservedUnboundCoidSurvivesReopenAsUnresolved |
+ | M-R-INDETSEEN | mark an unresolved fill as seen while deferring it, so the dedup set swallows it: the fills walk never offers it again, q never learns about contracts we hold, and no anomaly is ever raised | `TestUnresolvedFillIsDeferredNotSeenNotForeign` | **caught** | TestDeferredFillEscalatesSev2AfterDeadline, TestPortfolioPollBindsListedOrdersBeforeClassifyingFills, TestUnresolvedFillIsDeferredNotSeenNotForeign |
+ | M-W-NOBIND | stop binding listed orders in the portfolio walk, so the one endpoint that reports both halves of a lost binding is read and discarded and the reservation stays outstanding for the life of the process -- after which every unrecognised fill on the account defers forever | `TestPortfolioPollBindsListedOrdersBeforeClassifyingFills` | **caught** | TestPortfolioPollBindsListedOrdersBeforeClassifyingFills, TestPortfolioPollSurvivesABinderThatRefuses |
+ | M-L-INDETLATCH | let an unresolved fill fall through to the foreign arm at startup, which commits a durable foreign_fill stop cause; only an operator can clear it, so a correct process that crashed between H-ORD-6 two commits takes itself off the market permanently | `TestStartupDoesNotLatchForeignFillWhileReservationsUnresolved` | **caught** | TestStartupDoesNotLatchForeignFillWhileReservationsUnresolved |
+ | M-HS-JRNLRESTAMP | stamp the journal line on every attempt instead of once, so a retry after a post-write sync failure writes a line that DISAGREES with the one already on the platter -- reconcile tolerates an identical duplicate and refuses a disagreeing one forever, so a single transient EIO permanently stops the harness from starting | `TestJournalRetryAfterPostWriteSyncFailureDoesNotDuplicate` | **caught** | TestJournalRetryAfterPostWriteSyncFailureDoesNotDuplicate |
+-| M-HS-JRNLNOTRUNC | report a failed append without returning the file to its last known-good length, so a short write leaves a partial line and the retry appends after it -- merging two records into one that parses as neither, which destroys the operator fallback copy §13.1 exists to be | `TestJournalRetryAfterPartialWriteDoesNotCorrupt` | **caught** | TestFlappingStoreHealthIsRateLimited, TestJournalRetryAfterPartialWriteDoesNotCorrupt |
++| M-HS-JRNLNOTRUNC | report a failed append without returning the file to its last known-good length, so a short write leaves a partial line and the retry appends after it -- merging two records into one that parses as neither, which destroys the operator fallback copy §13.1 exists to be | `TestJournalRetryAfterPartialWriteDoesNotCorrupt` | **caught** | TestJournalRetryAfterPartialWriteDoesNotCorrupt |
+ | M-HS-JRNLTAILREFUSE | refuse to open over a torn trailing line instead of repairing it, so the harness declines to start because of its own crash artifact -- a record that by construction never became delivery-visible and that reconcile re-journals from the database | `TestOpenRepairsTornTailFromCrashDuringAppend` | **caught** | TestOpenRepairsTornTailFromCrashDuringAppend |
+ | M-HS-EMPTYFRESH | treat an existing zero-byte database file as fresh, so a truncating redirect or a restore that produced nothing is silently given a new schema -- an EMPTY ownership ledger, under which no order id is recognised and every fill on the account classifies as foreign (H-ORD-9) | `TestOpenRefusesZeroByteDatabaseFile` | **caught** | TestOpenRefusesZeroByteDatabaseFile |
+ | M-HS-WALBEFOREINSPECT | set journal_mode=WAL before inspecting, so a mistyped absolute path switches the evidence collectors journal mode underneath two running writers before the rejection that cannot un-modify it (H-ORD-7) | `TestOpenRefusesForeignVersionZeroDatabaseWithoutWritingIt` | **caught** | TestOpenRefusesForeignVersionZeroDatabaseWithoutWritingIt, TestOpenRefusesTheVersionOneSchemaItReplaced |
+@@ -164,7 +164,7 @@ the Go compiler is not a gate.
+ | M-6W5-WAKEUNCOMMITTED | wake external delivery for a failed anomaly result as though receipt meant durability, so an alert can be claimed sent for a row the journal lost | `TestOnlyACommittedAnomalyWakesAlertDelivery` | **caught** | TestOnlyACommittedAnomalyWakesAlertDelivery |
+ | M-6W5-HEARTLIE | render unknown integrated presence as a measured zero. The heartbeat is alive but makes a claim for which this process has no accumulator | `TestHeartbeatUsesPublishedAndDurableTruth` | **caught** | TestHeartbeatUsesPublishedAndDurableTruth |
+ | M-6W5-NOQUAL | discard successful heartbeat and dead-man check-ins from the qualification bundle, leaving q01 to infer external liveness from process existence | `TestSuccessfulHeartbeatAndDeadmanAreQualificationEvents` | **caught** | TestSuccessfulHeartbeatAndDeadmanAreQualificationEvents |
+-| M-6W5-LOGSECRET | include the transport error in the alert log. Bearer destinations are opaque secrets, so an error path can then copy one into launchd stderr | `TestAlertFailureLoggingCannotRevealTransportSecrets` | **caught** | TestAlertFailureLoggingCannotRevealTransportSecrets, TestSEV2IsLimitedPerClassMarketAndReportsSuppression |
++| M-6W5-LOGSECRET | include the transport error in the alert log. Bearer destinations are opaque secrets, so an error path can then copy one into launchd stderr | `TestAlertFailureLoggingCannotRevealTransportSecrets` | **caught** | TestAlertFailureLoggingCannotRevealTransportSecrets |
+ | M-6W5-CONCURRENTFINAL | call the stateful alert Step directly from shutdown while its goroutine may already own it, racing retry ladders and suppression buckets | `TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore` | **caught** | TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore |
+ | M-6W5-CLOSEFIRST | close the alert loop and store before the final delivery pass, so the last durable anomaly can be stranded precisely during orderly shutdown | `TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore` | **caught** | TestOnlyAnAuthorisedDrainReachesTheProcessExit, TestOrderlyStopRunsOneSerializedFinalStepBeforeClosingTheStore, TestQualificationEvidenceIsFinalizedBeforeAuthorisedExit |
+ | M-P-STALEPOLL | evaluate the one-second health poll against the snapshot taken on the way INTO the Step, so a Step that queued a delivery record against a wedged writer publishes the hourly heartbeat as the next deadline and the wedge goes unobserved for an hour | `TestNextStepHonoursHealthPollAfterMidStepSubmission` | **caught** | TestNextStepHonoursHealthPollAfterMidStepSubmission |
+@@ -216,10 +216,10 @@ the Go compiler is not a gate.
+ | M-2T6-POSINCOMPLETE | read position records without checking that the walk replaced | `inert` | **inert, as expected** | — |
+ | M-2T6-CANARYFIRST | offer the canary cause before the portfolio read's own stop, so a taker or foreign fill latches as `canary_owned_fill` | `TestATakerFillOnTheCanaryKeepsTheStrongerCause` | **caught** | TestATakerFillOnTheCanaryKeepsTheStrongerCause, TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary, TestTheCanaryLatchesOnAnyPositionItDidNotStartWith |
+ | M-2T6-NOBASELINE | treat every owned fill as live, so a canary that has ever traded latches on its own history at every restart | `TestStartupHistoryIsNeverALiveCanaryFill` | **caught** | TestStartupHistoryIsNeverALiveCanaryFill |
+-| M-2T6-BASELINEPOSTFILTER | build the startup baseline from the backfill_h slice instead of the complete walk, so any trade older than the window reads as live | `TestStartupHistoryIsNeverALiveCanaryFill` | **caught** | TestStartupHistoryIsNeverALiveCanaryFill, TestTheAdoptedPortfolioCarriesTheBaseline, TestTheStartupBaselineIsPreFilterAndSpansEveryAttempt, TestUndeliveredAlertsSurviveRestartAndDrainOldestFirst |
++| M-2T6-BASELINEPOSTFILTER | build the startup baseline from the backfill_h slice instead of the complete walk, so any trade older than the window reads as live | `TestStartupHistoryIsNeverALiveCanaryFill` | **caught** | TestStartupHistoryIsNeverALiveCanaryFill, TestTheAdoptedPortfolioCarriesTheBaseline, TestTheStartupBaselineIsPreFilterAndSpansEveryAttempt |
+ | M-2T6-BASELINEPERATTEMPT | reset the startup baseline on every attempt, so a trade only the discarded pass saw is forgotten and reads as live | `TestTheStartupBaselineIsPreFilterAndSpansEveryAttempt` | **caught** | TestTheStartupBaselineIsPreFilterAndSpansEveryAttempt |
+ | M-2T6-ALLIDSFILTERED | record the pre-filter trade ids only for the records that survived the filter, which is the filtered slice under another name | `TestFillsTimeFilterIsAppliedAfterTheCompleteWalk` | **caught** | TestFillsTimeFilterIsAppliedAfterTheCompleteWalk, TestStartupHistoryIsNeverALiveCanaryFill |
+-| M-2T6-NOBACKFILL | drop the adoption's owned history instead of recording it, so our_fill begins at whichever fill this incarnation happened to watch land | `TestStartupHistoryIsNeverALiveCanaryFill` | **caught** | TestPnLRestartIncludesEveryOwnedFillRegardlessOfRunAndBackfilledFlag, TestStartupHistoryIsNeverALiveCanaryFill |
++| M-2T6-NOBACKFILL | drop the adoption's owned history instead of recording it, so our_fill begins at whichever fill this incarnation happened to watch land | `TestStartupHistoryIsNeverALiveCanaryFill` | **caught** | TestPnLRestartIncludesEveryOwnedFillRegardlessOfRunAndBackfilledFlag, TestSEV1IsUrgentImmediateAndFiveMinuteDeduplicated, TestStartupHistoryIsNeverALiveCanaryFill |
+ | M-2T6-BACKFILLFLAG | record the adoption's history as though this process watched it happen | `TestStartupHistoryIsNeverALiveCanaryFill` | **caught** | TestStartupHistoryIsNeverALiveCanaryFill |
+ | M-7ZT-NOFALLBACK | return the refresh lookup error even when a previous resolution is held, so the cache records a last-known-good address and never uses it -- the harness fails every connection for the duration of the wedge while holding a perfectly good answer | `TestCachedDialerFallsBackOnlyAfterPriorSuccessfulResolution` | **caught** | TestCachedDialerFallsBackOnlyAfterPriorSuccessfulResolution, TestCachedDialerKeepsResolvedAddressForAtLeastOneHour, TestF6FallbackPreservesHostAndSNIOnRESTAndWebSocket, TestF6FallbackQueuesSEV2ThroughTheProcessSink |
+ | M-7ZT-SHORTTTL | reduce the one-hour floor to a minute, so the harness goes back to a wedged resolver every sixty seconds while still holding the answer it needs -- the floor is a FLOOR and not an expiry, and inside it the resolver is not consulted at all | `TestCachedDialerKeepsResolvedAddressForAtLeastOneHour` | **caught** | TestCachedDialerKeepsResolvedAddressForAtLeastOneHour |
+@@ -235,12 +235,12 @@ the Go compiler is not a gate.
+ | M-3YO-RUNGORDER | render `-rung` after `-live`, so the flag that decides whether orders leave the process is no longer the last thing in the argv an operator reads out of a plist they installed months ago | `TestPilotDeployCarriesTheConfigAndRungInStableOrder` | **caught** | TestExplicitLiveDeployCarriesLiveExactlyOnce, TestPilotDeployCarriesTheConfigAndRungInStableOrder |
+ | M-LPF-IGNORED | call the fundability check at startup and discard its verdict, which is the defect this unit closed wearing the clothes of the fix: `grep CheckFundable` now finds a production caller, and an unfundable configuration still starts and still discovers the shortfall at the first fill | `TestLoadConfigRefusesAConfigurationItCannotFund` | **caught** | TestLoadConfigRefusesAConfigurationItCannotFund, TestTheFundabilityBoundIsSection103sDerivation |
+ | M-LPF-DEFAULTNOTFILE | check §16's defaults for fundability instead of the configuration that was actually loaded, so the gate passes on a config it never read -- and passes forever, because `cfg.Default()` is fundable by construction (`TestDefaultIsFundable`) | `TestLoadConfigRefusesAConfigurationItCannotFund` | **caught** | TestLoadConfigRefusesAConfigurationItCannotFund, TestTheFundabilityBoundIsSection103sDerivation |
+-| M-LPF-INVERT | refuse exactly the fundable configurations and admit the rest, which is the one weakening that cannot hide behind a passing pilot: §10.3's own opening configuration stops loading | `TestLoadConfigAcceptsTheSection103Configuration` | **caught** | TestConfigHashPinsTheExactInputBytes, TestConfigSizesAreContractsAndDollarsNotRawQuanta, TestEarlyCloseBackoffCanBeTurnedOff, TestEarlyCloseLeadDefaultsToTheLeadHR011Removed, TestHarnessStopPathIsRequiredAbsoluteAndDedicated, TestLiveOKPathIsRequiredAbsoluteAndDedicated, TestLoadConfigAcceptsTheSection103Configuration, TestLoadConfigRefusesAConfigurationItCannotFund, TestRelativePathsAreRefused, TestRunAndDeployValidateAlertsBeforeCredentialsOrAccountAccess, TestRungIsAssertedAgainstSizeRatherThanDerivingIt, TestTheFundabilityBoundIsSection103sDerivation, TestTheShippedExampleConfigLoads, TestUndeliveredAlertsSurviveRestartAndDrainOldestFirst, TestUnsetKnobsKeepTheSpecDefault |
++| M-LPF-INVERT | refuse exactly the fundable configurations and admit the rest, which is the one weakening that cannot hide behind a passing pilot: §10.3's own opening configuration stops loading | `TestLoadConfigAcceptsTheSection103Configuration` | **caught** | TestConfigHashPinsTheExactInputBytes, TestConfigSizesAreContractsAndDollarsNotRawQuanta, TestEarlyCloseBackoffCanBeTurnedOff, TestEarlyCloseLeadDefaultsToTheLeadHR011Removed, TestHarnessStopPathIsRequiredAbsoluteAndDedicated, TestLiveOKPathIsRequiredAbsoluteAndDedicated, TestLoadConfigAcceptsTheSection103Configuration, TestLoadConfigRefusesAConfigurationItCannotFund, TestRelativePathsAreRefused, TestRunAndDeployValidateAlertsBeforeCredentialsOrAccountAccess, TestRungIsAssertedAgainstSizeRatherThanDerivingIt, TestTheFundabilityBoundIsSection103sDerivation, TestTheShippedExampleConfigLoads, TestUnsetKnobsKeepTheSpecDefault |
+ | M-LPF-NORESERVE | measure the worst permitted fill set against the WHOLE of capital_max rather than the deployable part, dropping H-CAP-3's reserve from H-CAP-8's arithmetic. The bound moves from $75 to $100 at §16's defaults, S=13 becomes fundable, and the reserve that exists to absorb the residual this check does not cover is spent before the first fill | `TestTheFundabilityBoundIsSection103sDerivation` | **caught** | TestCheckFundableIsV1_12, TestLoadConfigRefusesAConfigurationItCannotFund, TestTheFundabilityBoundIsSection103sDerivation |
+ | M-LQW-NODETECT | never compare |q| against inv_kill, which is the defect exactly as it was found: the parameter is parsed, bounds-checked, and read by nothing, so F17's global WINDING_DOWN cannot fire and inventory past the kill threshold reduces quietly and lets the harness carry on adding | `TestInventoryBeyondInvKillLatchesTheGlobalHaltByName` | **caught** | TestAnIncompletePositionWalkNeverLatchesInvKill, TestAnInvKillBreachThatReducesToFlatDoesNotResumeAdding, TestInventoryBeyondInvKillLatchesTheGlobalHaltByName, TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary |
+ | M-LQW-INVHARD | compare against inv_hard instead of inv_kill, collapsing §12's two inventory rows into one. It fires EARLIER, so every test that drives a position past inv_kill still sees its global halt -- only a test asserting that inv_hard-level inventory does NOT stop the process can tell the market-scoped brake from the global kill | `TestInventoryBetweenInvHardAndInvKillStopsOneMarketAndNotTheProcess` | **caught** | TestAFillInsideAPollCycleIsNotDoubleCounted, TestAnIncompletePositionWalkNeverLatchesInvKill, TestHarnessStopRemovalCannotClearAndPersistentFileDoesNotSpam, TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive, TestInventoryBetweenInvHardAndInvKillStopsOneMarketAndNotTheProcess, TestInventoryBeyondInvKillLatchesTheGlobalHaltByName, TestInventoryExactlyAtInvKillIsNotABreach, TestPnLKillLatchesByNameAndKeepsTheReducerLive, TestPnLRefusesASteppedPositionWithoutAMatchingOwnedFill, TestStaleAndAbsentPnLMarksAreSEV2AndCannotFireTheKill |
+ | M-LQW-BOUNDARY | take the global halt at exactly inv_kill rather than past it. §16 orders inv_soft < inv_hard < inv_kill strictly and §12 gives the band up to and including inv_kill to the MARKET-scoped row, so a `>=` stops the whole process one quantum inside the threshold the other row owns | `TestInventoryExactlyAtInvKillIsNotABreach` | **caught** | TestInventoryExactlyAtInvKillIsNotABreach, TestPnLRefusesASteppedPositionWithoutAMatchingOwnedFill |
+-| M-LQW-LOCALNOTEXCH | evaluate the breach against q_local -- the figure H-POS-1 is one line from overwriting -- rather than the exchange's. The two agree on every poll where nothing changed, so this is invisible except at the moment the position actually moves past the threshold, which is the only moment F17 is about | `TestInventoryBeyondInvKillLatchesTheGlobalHaltByName` | **caught** | TestAnIncompletePositionWalkNeverLatchesInvKill, TestAnInvKillBreachThatReducesToFlatDoesNotResumeAdding, TestInventoryBeyondInvKillLatchesTheGlobalHaltByName |
++| M-LQW-LOCALNOTEXCH | evaluate the breach against q_local -- the figure H-POS-1 is one line from overwriting -- rather than the exchange's. The two agree on every poll where nothing changed, so this is invisible except at the moment the position actually moves past the threshold, which is the only moment F17 is about | `TestInventoryBeyondInvKillLatchesTheGlobalHaltByName` | **caught** | TestAnIncompletePositionWalkNeverLatchesInvKill, TestAnInvKillBreachThatReducesToFlatDoesNotResumeAdding, TestInventoryBeyondInvKillLatchesTheGlobalHaltByName, TestNextStepHonoursHealthPollAfterMidStepSubmission |
+ | M-LQW-STOPNOTKILL | route the breach through the existing generic stop instead of its own cause, so the harness halts correctly and the durable latch records `portfolio_read` -- the label five other causes already share. §10.4 has the operator read that field to learn WHICH row of the halt table fired, and this is the version of the fix that stops the process and loses the only durable record of why | `TestInventoryBeyondInvKillLatchesTheGlobalHaltByName` | **caught** | TestAnIncompletePositionWalkNeverLatchesInvKill, TestAnInvKillBreachThatReducesToFlatDoesNotResumeAdding, TestInventoryBeyondInvKillLatchesTheGlobalHaltByName, TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary, TestSeededPortfolioAdoptsWithoutManufacturingDrift |
+ | M-LQW-ONINCOMPLETE | let a positions walk that did NOT complete reach the replace, so a truncated read is evaluated as though it were authoritative. H-PAGE-1 names this trap exactly -- "stale, never empty" -- and the guard removed here is the only thing standing between a 500 from the positions endpoint and a global halt decided from a reading that does not exist | `TestAnIncompletePositionWalkNeverLatchesInvKill` | **caught** | TestAnIncompletePositionWalkNeverLatchesInvKill |
+ | M-GP8-MARKFORGE | stamp the P&L mark from `lastFrame` instead of the dedicated accepted-frame clock, so a connection that has said nothing and a book carried across a gap both read as freshly priced. `lastFrame` is seeded at CONNECT and survives frames core REFUSED -- both correct for F5, whose subject is silence, and both fatal in a price: the mark would be fresh over a book nobody has confirmed, and the loss floor would fire against a number no one quoted. Reachable at every rung: every reconnect produces exactly this state (H-FAIL-5) | `TestPnLMarkRequiresAnAcceptedCurrentGenerationSnapshot` | **caught** | TestPnLMarkRequiresAnAcceptedCurrentGenerationSnapshot, TestStaleAndAbsentPnLMarksAreSEV2AndCannotFireTheKill |
+@@ -257,16 +257,16 @@ the Go compiler is not a gate.
+ | M-GP8-BALANCE | fold the account balance into the ledger at startup, which is the implementation HR-021 found and rejected. The red team had two conforming implementations disagree completely on the same position: a fills-and-cost-basis reading saw -$90 and halted while a balance-delta reading saw nothing, and "an incoming $100 LIP reward masks the drawdown entirely". The reward is what this system is measuring itself against, so a P&L that counts it is one that goes quiet exactly when the incentive is being collected. Reachable on every start | `TestRewardArrivalCannotMoveTradingPnL` | **caught** | TestPnLKillIsInclusiveAtTheExactNegativeFloor, TestPnLKillLatchesByNameAndKeepsTheReducerLive, TestPnLKillRanksBelowPortfolioReadAndInvKillButAboveCanary, TestPnLMarkExpiresAtThirtySecondsBeforeBothSixtySecondClocks, TestPnLRestartIncludesEveryOwnedFillRegardlessOfRunAndBackfilledFlag, TestRewardArrivalCannotMoveTradingPnL |
+ | M-603-PATHOPTIONAL | drop `stop` from the required paths, so a deployment can run with no halt sentinel location at all. `paths.Stop` is then the empty string, `Lstat` is asked about "", and the operator's documented way to stop a running harness does nothing on a machine whose config predates it. Reachable on every start from an older or hand-edited config | `TestEveryPathIsRequired` | **caught** | TestEveryPathIsRequired, TestHarnessStopPathIsRequiredAbsoluteAndDedicated |
+ | M-603-PATHALIAS | stop checking that the halt sentinel is a DEDICATED file, so it may alias live_ok, the db, the key or the config file. Pointed at any of those it exists the moment the harness is usable at all, and the harness refuses to add from its first tick -- a halt nobody requested, indistinguishable from a harness that does not work. Aliased onto live_ok specifically, arming becomes the same act as halting. Reachable on every start with such a config | `TestHarnessStopPathIsRequiredAbsoluteAndDedicated` | **caught** | TestHarnessStopPathIsRequiredAbsoluteAndDedicated |
+-| M-603-STARTONLY | check the sentinel only on the FIRST evaluation, so a stop file created while the harness is running is never seen. This is the whole point of the control: the operator creates the file at 3am against a process that is already trading. A start-only check passes every test that creates the file before launch and fails the only scenario the bead exists for | `TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive` | **caught** | TestHarnessStopRemovalCannotClearAndPersistentFileDoesNotSpam, TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive, TestSEV1IsUrgentImmediateAndFiveMinuteDeduplicated |
++| M-603-STARTONLY | check the sentinel only on the FIRST evaluation, so a stop file created while the harness is running is never seen. This is the whole point of the control: the operator creates the file at 3am against a process that is already trading. A start-only check passes every test that creates the file before launch and fails the only scenario the bead exists for | `TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive` | **caught** | TestHarnessStopRemovalCannotClearAndPersistentFileDoesNotSpam, TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive |
+ | M-603-NOWIRE | raise the SEV2 and never ask for the durable stop -- the defect class this whole ladder keeps finding, after inv_kill (lip-lqw), stuck_s (lip-2da), H-CAP-8 (lip-lpf) and pnl_kill (lip-gp8). The anomaly reaches the store, so the log shows the harness noticed the operator asking it to stop; nothing on disk records a halt and the harness keeps adding. Reachable the first time the file is created | `TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive` | **caught** | TestEveryEntryAtHarnessStopPathRequestsStop, TestHarnessStopRemovalCannotClearAndPersistentFileDoesNotSpam, TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive |
+-| M-603-CAUSE | record the halt under the generic `gate` cause instead of its own name. The harness stops correctly and the durable latch loses WHO stopped it: §10.4 has the operator read that field to learn which row fired, and an operator-requested halt filed under an automatic cause sends them looking for a fault that does not exist. Reachable every time the file is used | `TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive` | **caught** | TestEveryEntryAtHarnessStopPathRequestsStop, TestHarnessStopRemovalCannotClearAndPersistentFileDoesNotSpam, TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive |
++| M-603-CAUSE | record the halt under the generic `gate` cause instead of its own name. The harness stops correctly and the durable latch loses WHO stopped it: §10.4 has the operator read that field to learn which row fired, and an operator-requested halt filed under an automatic cause sends them looking for a fault that does not exist. Reachable every time the file is used | `TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive` | **caught** | TestEveryEntryAtHarnessStopPathRequestsStop, TestHarnessStopRemovalCannotClearAndPersistentFileDoesNotSpam, TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive, TestSEV1IsUrgentImmediateAndFiveMinuteDeduplicated |
+ | M-603-PRESENTSEV | file the requested halt at SEV3. §11 assigns severities so the morning review and the pager see different things; a deliberate operator halt belongs in the record at SEV2, and at SEV3 it sits below the line most reviews read. The harness still stops, so only an assertion on the SEVERITY can see this -- a class-only check cannot | `TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive` | **caught** | TestHarnessStopSentinelLatchesGlobalStopAndKeepsTheReducerLive |
+-| M-603-STATFAILOPEN | treat EVERY stat failure as absence, not just ENOENT. A permission error, an I/O error or a parent that is no longer a directory then reads as "no halt requested" and the harness keeps adding with its stop switch broken -- and the operator cannot tell, because a working "nothing requested" and a broken "I cannot look" produce identical behaviour. Reachable on any mount, permission or hardware fault under the sentinel path | `TestUnreadableHarnessStopFailsClosedOnce` | **caught** | TestSEV2IsLimitedPerClassMarketAndReportsSuppression, TestUnreadableHarnessStopFailsClosedOnce |
++| M-603-STATFAILOPEN | treat EVERY stat failure as absence, not just ENOENT. A permission error, an I/O error or a parent that is no longer a directory then reads as "no halt requested" and the harness keeps adding with its stop switch broken -- and the operator cannot tell, because a working "nothing requested" and a broken "I cannot look" produce identical behaviour. Reachable on any mount, permission or hardware fault under the sentinel path | `TestUnreadableHarnessStopFailsClosedOnce` | **caught** | TestUnreadableHarnessStopFailsClosedOnce |
+ | M-603-UNREADCAUSE | latch a broken control as an ordinary requested halt. The harness stops, so nothing is unsafe in the moment -- and the durable record says the operator asked for this when in fact the sentinel could not be read. The next start is made from a false premise, and the broken path is never looked at | `TestUnreadableHarnessStopFailsClosedOnce` | **caught** | TestUnreadableHarnessStopFailsClosedOnce |
+-| M-603-UNREADSEV | file an unreadable stop switch at SEV2 rather than SEV1. It is a safety control that has failed, and §11 reserves SEV1 for the things worth waking somebody for; at SEV2 it is filed beside routine notices and read in the morning, by which time the harness has been sitting halted for hours for a reason nobody investigated | `TestUnreadableHarnessStopFailsClosedOnce` | **caught** | TestSEV1IsUrgentImmediateAndFiveMinuteDeduplicated, TestUnreadableHarnessStopFailsClosedOnce |
++| M-603-UNREADSEV | file an unreadable stop switch at SEV2 rather than SEV1. It is a safety control that has failed, and §11 reserves SEV1 for the things worth waking somebody for; at SEV2 it is filed beside routine notices and read in the morning, by which time the harness has been sitting halted for hours for a reason nobody investigated | `TestUnreadableHarnessStopFailsClosedOnce` | **caught** | TestUnreadableHarnessStopFailsClosedOnce |
+ | M-603-RANK | check the sentinel BEFORE the specific automatic causes in the same evaluation. `commitStop` is first-writer-wins, so the harness still stops on the same tick and the only thing that changes is which cause the latch carries. An operator who created the file while the account was also past its loss floor would read `harness_stop`, learn only what they already knew, and never find out about the drawdown. Reachable whenever a halt is requested during any real §12 condition -- which is exactly when an operator reaches for it | `TestHarnessStopRanksAfterSpecificAutomaticCauses` | **caught** | TestHarnessStopRanksAfterSpecificAutomaticCauses |
+-| M-603-NODEDUPE | never latch the seen flag, so a file that stays put re-raises its SEV2 and re-enters the stop funnel on every 250 ms tick. Four anomalies a second into a 256-slot buffer evicts everything else in it -- including the records explaining what the harness was doing when it stopped. The ordinary case is that nobody deletes the file immediately, so this is reachable every time the control is used | `TestHarnessStopRemovalCannotClearAndPersistentFileDoesNotSpam` | **caught** | TestHarnessStopRemovalCannotClearAndPersistentFileDoesNotSpam |
+-| M-603-FOLLOWLINK | follow the link. `Stat` resolves a symlink and reports ENOENT when the target is missing, so a DANGLING symlink at the sentinel path reads as absent and the requested halt silently does not happen. That is not an exotic shape: it is what a symlink into a directory that has been moved, renamed or not yet mounted looks like, and the operator has no way to see that their halt was ignored | `TestEveryEntryAtHarnessStopPathRequestsStop` | **caught** | TestEveryEntryAtHarnessStopPathRequestsStop, TestSEV1IsUrgentImmediateAndFiveMinuteDeduplicated |
++| M-603-NODEDUPE | never latch the seen flag, so a file that stays put re-raises its SEV2 and re-enters the stop funnel on every 250 ms tick. Four anomalies a second into a 256-slot buffer evicts everything else in it -- including the records explaining what the harness was doing when it stopped. The ordinary case is that nobody deletes the file immediately, so this is reachable every time the control is used | `TestHarnessStopRemovalCannotClearAndPersistentFileDoesNotSpam` | **caught** | TestHarnessStopRemovalCannotClearAndPersistentFileDoesNotSpam, TestUndeliveredAlertsSurviveRestartAndDrainOldestFirst |
++| M-603-FOLLOWLINK | follow the link. `Stat` resolves a symlink and reports ENOENT when the target is missing, so a DANGLING symlink at the sentinel path reads as absent and the requested halt silently does not happen. That is not an exotic shape: it is what a symlink into a directory that has been moved, renamed or not yet mounted looks like, and the operator has no way to see that their halt was ignored | `TestEveryEntryAtHarnessStopPathRequestsStop` | **caught** | TestEveryEntryAtHarnessStopPathRequestsStop |
+ | M-FY7-NOSHADOW | bypass the read-only shadow branch, restoring the completion-driven reserve/refuse/abandon loop. An unchanged actionable decision then grows owned_order at local SQLite speed for the whole q01 rehearsal | `TestReadOnlyRunRecordsWouldWriteWithoutSendingNonGET` | **caught** | TestReadOnlyRunRecordsWouldWriteWithoutSendingNonGET |
+ | M-FY7-NODEDUPE | start a new durable would-write episode for every identical owner evaluation, so the evidence grows with loop frequency instead of with material decision changes | `TestWouldWriteDedupeAndMaterialChange` | **caught** | TestRaceSafeUpdatesAndSnapshots, TestReadOnlyRunRecordsWouldWriteWithoutSendingNonGET, TestWouldWriteDedupeAndMaterialChange, TestWouldWriteDetailsAreHardBoundedWithExactOverflowTotals |
+ | M-FY7-NONDURABLE | record a below-guard non-GET only in memory before forwarding it. The required SIGKILL can then erase the categorical breach, and a checkpoint failure no longer prevents the raw transport from receiving it | `TestBelowGuardNonGETCheckpointFailurePreventsForwarding` | **caught** | TestBelowGuardNonGETCheckpointFailurePreventsForwarding, TestBelowGuardNonGETIsDurableBeforeForwarding |
+@@ -276,7 +276,7 @@ the Go compiler is not a gate.
+ | M-FY7-UNBOUNDEDDETAIL | append a new would-write fingerprint after the fixed detail cap, turning ordinary moving-market decisions back into an evidence file that grows without a hard bound | `TestWouldWriteDetailsAreHardBoundedWithExactOverflowTotals` | **caught** | TestWouldWriteDetailsAreHardBoundedWithExactOverflowTotals |
+ | M-FY7-UNLINKEDOK | count a pre-run qualification segment that never acquired a committed hstore run as elapsed time and restart evidence. A failed startup can then masquerade as q01's required forced process restart | `TestAssessRejectsUnlinkedHistoricalSegmentWithoutCountingRestart` | **caught** | TestAssessRejectsEachIncompleteCondition, TestAssessRejectsUnlinkedHistoricalSegmentWithoutCountingRestart |
+ | M-FY7-NORUNLINK | leave the qualification segment unlinked after the hstore run commits. The evidence then has no durable proof that its samples belong to the run row which authorises every harness record | `TestQualificationSegmentLinksOnlyToTheCommittedRun` | **caught** | TestQualificationSegmentLinksOnlyToTheCommittedRun |
+-| M-FY7-OVERDEDUPE | erase create price and quantity from the would-write fingerprint, so a materially different order is reported as the same stable decision | `TestWouldWriteFingerprintIncludesEveryMaterialCreateField` | **caught** | TestSEV1IsUrgentImmediateAndFiveMinuteDeduplicated, TestWouldWriteFingerprintIncludesEveryMaterialCreateField |
++| M-FY7-OVERDEDUPE | erase create price and quantity from the would-write fingerprint, so a materially different order is reported as the same stable decision | `TestWouldWriteFingerprintIncludesEveryMaterialCreateField` | **caught** | TestWouldWriteFingerprintIncludesEveryMaterialCreateField |
+ | M-FY7-COUNTBYPASS | construct the production exchange over an uncounted raw Doer, so the evidence can report zero network methods merely because the real client bypassed its observer | `TestProductionExchangeCountsTheActiveProgramWalkBelowTheGuard` | **caught** | TestProductionExchangeCountsTheActiveProgramWalkAboveTheGuard, TestProductionExchangeCountsTheActiveProgramWalkBelowTheGuard |
+ | M-FY7-COUNTABOVE | move the HTTP counter above WriteGuard. A refused POST is then counted as network traffic even though it never reached the raw Doer, destroying the distinction the q01 artifact is meant to prove | `TestReadOnlyRigStillGuardsDirectRESTWrites` | **caught** | TestReadOnlyRigStillGuardsDirectRESTWrites |
+ | M-FY7-NOATTEMPT | omit the above-guard attempt recorder. The transport evidence still proves zero writes, but direct startup or future callers can repeatedly hit WriteGuard without leaving any audit trail | `TestReadOnlyRigStillGuardsDirectRESTWrites` | **caught** | TestProductionExchangeCountsTheActiveProgramWalkAboveTheGuard, TestReadOnlyRigStillGuardsDirectRESTWrites |
+@@ -299,7 +299,7 @@ the Go compiler is not a gate.
+ | M-Q01-ANOMALYOK | stop rejecting SEV1 and dropped-anomaly events during q01, so the one rehearsal whose entire purpose is to observe nothing going wrong can pass with a recorded SEV1 or a lost anomaly | `TestAssessQ01LocalRejectsUnexpectedSEV1AndAnomalyDrop` | **caught** | TestAssessQ01LocalRejectsUnexpectedSEV1AndAnomalyDrop |
+ | M-Q01-NOEXTERNAL | return an empty outstanding-evidence list, so a local pass reads as the whole of q01 rather than as the part this process can prove about itself | `TestAssessQ01LocalPassesExactFourHourRestartBoundary` | **caught** | TestAssessQ01LocalPassesExactFourHourRestartBoundary, TestOfflineAssessmentPrintsLocalLimitsAndCannotAwardQ01 |
+ 
+-**286 of 287 mutations produced their expected outcome.**
++**287 of 287 mutations produced their expected outcome.**
+ 
+ A mutation that SURVIVES unexpectedly is a defect in the
+ verification and the harness does not ship until the gate is
+diff --git a/scripts/harness_negative_control.py b/scripts/harness_negative_control.py
+index 7419f94..828316a 100644
+--- a/scripts/harness_negative_control.py
++++ b/scripts/harness_negative_control.py
+@@ -285,6 +285,16 @@ MUTATIONS = [
+      ],
+      "TestMalformedPageIsNeverAnEmptyAccount"),
+ 
++    # `productionExchange` walks Programs before startup can adopt the selected
++    # ticker. The API defaults type to all; an active volume record without
++    # target_size_fp would fail the whole walk. Active volume count was zero
++    # when checked on 2026-09-26, so this is a latent compatibility ratchet.
++    ("M-R-PROGRAMTYPE",
++     "omit the liquidity type filter from the active-program walk",
++     [("harness/rest/read.go",
++       '\tfilters.Set("type", "liquidity")\n', "")],
++     "TestProgramsFiltersActiveLiquidityOnEveryPage"),
++
+     ("M-R-WALKZERO",
+      "make WalkComplete the zero value again "
+      "-- an unpopulated or closed-channel Walk replaces state with nothing",
+@@ -2236,6 +2246,204 @@ MUTATIONS = [
+      ],
+      'TestAdoptionPolicyReceivesEffectiveSelectionAndExclusionsAsDefensiveCopies'),
+ 
++    # lip-y3q: the reducing aggregate cap is an invariant of every reducing
++    # state, including SETTLING when no gate-failure episode is open. Under the
++    # deployed §10.3 S=12 profile, an ordinary fill can leave |q|=1 and
++    # H-CLOSE-2 enters SETTLING with gateStopped=false; an at-touch 12-contract
++    # reducer then has an eleven-contract adding overhang. Reintroducing the old
++    # gateStopped condition would leave that overhang live, so the symmetric
++    # long/short settling seam must catch it.
++    ('M-Y3Q-GATESTOPCAP',
++     'make the reducing aggregate recap conditional on gateStopped, leaving an oversized at-touch reducer live in SETTLING when the gate is healthy',
++     [
++         ('cmd/harness/run.go',
++          '\t\tif role == quote.RoleReducing && target > 0 &&\n\t\t\t!o.cancelConfirmed[side] && o.atRisk(side) > target {\n',
++          '\t\tif role == quote.RoleReducing && gateStopped && target > 0 &&\n\t\t\t!o.cancelConfirmed[side] && o.atRisk(side) > target {\n'),
++     ],
++     'TestTheSettlingMarketRecapsAnOversizedReducerWithoutAGateFailure'),
++
++    # H-Q-4a's production consumer must use the configured debounce rather than
++    # extend it silently. Under the deployed 30-second default, doubling the
++    # configured interval postpones cancellation to 60 seconds. The deterministic
++    # seam uses a distinct four-second setting and checks the configured deadline.
++    ('M-HQ4A-DOUBLE-DEBOUNCE',
++     'double configured gate_fail_debounce_s and leave adding orders resting twice as long',
++     [
++         ('cmd/harness/run.go',
++          'return open && d >= o.p.GateFailDebounce',
++          'return open && d >= 2*o.p.GateFailDebounce'),
++     ],
++     'TestSustainedGateFailureCancelsTheAddingSideAtTheConfiguredDebounce'),
++
++    # D1 / I1: SizesFor has target zero when inventory exists but the reducing
++    # side has no current book depth (startup adoption before first snapshot, or
++    # immediately after an abnormal disconnect). Such a target cannot fund a
++    # replacement, but does not make a compliant resting exit an overshoot to
++    # cancel. This is reachable in the deployed canary and pilot; the symmetric
++    # disconnect seam distinguishes target-zero protection from the independent
++    # oversized-reducer recap.
++    ('M-D1-TARGETZERO-RECAP',
++     'drop the target-positive guard and cancel a compliant reducer when a disconnect makes funded target zero',
++     [
++         ('cmd/harness/run.go',
++          '\t\tif role == quote.RoleReducing && target > 0 &&\n\t\t\t!o.cancelConfirmed[side] && o.atRisk(side) > target {\n',
++          '\t\tif role == quote.RoleReducing &&\n\t\t\t!o.cancelConfirmed[side] && o.atRisk(side) > target {\n'),
++     ],
++     'TestAnAbnormalDisconnectDoesNotCancelTheCompliantExit'),
++
++    # A deployed canary or pilot stop reaches CancelAndSweep through the
++    # dispatcher and startup adoption sweep. Exchange orders are sharded by
++    # market; dropping ticker-aware routing sends an order-id-only cancel to
++    # shard zero, where it can receive an irrelevant success while the selected
++    # market's order remains live. The complete verifying walk is what catches
++    # the stranded order, not the HTTP status.
++    ('M-R-CANCEL-SHARD-ROUTE',
++     'route a cancel sweep by order id alone and leave a selected-market order resting on its actual shard',
++     [
++         ('harness/rest/cancel.go',
++          '\t\t\tres.Cancels = append(res.Cancels, c.cancelForMarket(ctx, ticker,\n\t\t\t\to.OrderID))\n',
++          '\t\t\tres.Cancels = append(res.Cancels, c.Cancel(ctx, o.OrderID))\n'),
++     ],
++     'TestCancelSweepAutoRoutesByMarketAndVerifiesAbsence'),
++
++    # H-Q-5a's dependent replacement can be built before the next portfolio
++    # orders walk. A completed CancelAndSweep is positive absence evidence for
++    # the selected market/side, and the canary/pilot dispatcher reaches this
++    # path whenever it resizes or drains a reducer. If either source of known
++    # IDs is not stamped, the preceding complete walk still shows the retired
++    # reducer and blocks the replacement (or keeps it in the cap).
++    ('M-D2-OMIT-ABSENT-STAMP',
++     'do not remember ids proved absent by a complete cancel sweep, so the stale portfolio reducer blocks its replacement',
++     [
++         ('cmd/harness/run.go',
++          '\t\t\tfor _, lo := range o.r.pf.LiveOrders() {\n'
++          '\t\t\t\tif lo.Ticker == res.Req.Market && lo.Side == res.Req.Side {\n'
++          '\t\t\t\t\to.absentOrders[lo.OrderID] = struct{}{}\n'
++          '\t\t\t\t}\n'
++          '\t\t\t}\n',
++          ''),
++         ('cmd/harness/run.go',
++          '\t\t\t\t\to.absentOrders[ord.OrderID] = struct{}{}\n',
++          ''),
++     ],
++     'TestConfirmedAbsentReducerWaitsForFreshPosition'),
++
++    # An UNKNOWN create may have reached the exchange without an ACK or ID. A
++    # cancel sweep only proves the known resting orders absent; it cannot
++    # discharge that unknown maximum. Under §10.3, the dedicated account's
++    # reducing capacity remains reserved until a complete orders walk resolves
++    # the create, so clearing every pending row on cancel would authorize an
++    # overlapping replacement.
++    ('M-D2-RELEASE-UNKNOWN',
++     'release every pending create on the side after a cancel sweep, including an UNKNOWN create with no exchange id',
++     [
++         ('cmd/harness/run.go',
++          '\t\t\tfor coid, p := range o.pending {\n'
++          '\t\t\t\tif p.side != res.Req.Side || !p.acked || p.id == "" {\n'
++          '\t\t\t\t\tcontinue\n'
++          '\t\t\t\t}\n'
++          '\t\t\t\tif _, named := requested[p.id]; named {\n'
++          '\t\t\t\t\tdelete(o.pending, coid)\n'
++          '\t\t\t\t}\n'
++          '\t\t\t}\n',
++          '\t\t\tfor coid, p := range o.pending {\n'
++          '\t\t\t\tif p.side == res.Req.Side {\n'
++          '\t\t\t\t\tdelete(o.pending, coid)\n'
++          '\t\t\t\t}\n'
++          '\t\t\t}\n'),
++     ],
++     'TestConfirmedAbsenceDoesNotReleaseUnknownCreate'),
++
++    # A later COMPLETE orders walk is newer positive truth and supersedes every
++    # tombstone. If the same order id has reappeared on the selected market, it
++    # is live again and must re-enter the deployed canary/pilot's exposure and
++    # reducer calculations. This is distinct from an incomplete walk, which may
++    # not clear absence evidence.
++    ('M-D2-KEEP-ABSENT-AFTER-WALK',
++     'retain cancel-sweep absence tombstones after a complete orders walk positively lists the order again',
++     [
++         ('cmd/harness/run.go',
++          '\t\tclear(o.absentOrders)\n',
++          ''),
++     ],
++     'TestCompleteOrdersWalkRestoresPositiveOrderEvidence'),
++
++    # Exposure aggregation is the capital gate's independent view of resting
++    # orders. Without this exclusion, a stale pre-sweep portfolio row continues
++    # reserving capital after a complete cancel verification, even though the
++    # replacement path correctly excludes it. The primary D2 seam asserts this
++    # exposure is zero before dispatch, so this separate consumer omission is
++    # deterministically visible on the deployed one-market canary.
++    ('M-D2-COUNT-ABSENT-EXPOSURE',
++     'count a reducer id proved absent by the complete cancel sweep in aggregate exposure',
++     [
++         ('cmd/harness/run.go',
++          '\t\tif _, absent := o.absentOrders[lo.OrderID]; absent {\n'
++          '\t\t\tcontinue\n'
++          '\t\t}\n\t\te := get(lo.Ticker)\n',
++          '\t\te := get(lo.Ticker)\n'),
++     ],
++     'TestConfirmedAbsentReducerWaitsForFreshPosition'),
++
++    # A completed cancel sweep proves order absence, not inventory. The order
++    # can fill just before DELETE, so the deployed canary/pilot must hold the
++    # dependent quote until fresh fills, orders, and positions all start after
++    # the sweep. This removes only that hold; the named test checks both the
++    # immediate no-placement state and replacement sizing after reconciliation.
++    ('M-D2-PLACE-BEFORE-FRESH-TRUTH',
++     'allow a replacement reducer immediately after an absent cancel sweep, before fresh fills, orders, and positions reconcile a possible fill',
++     [
++         ('cmd/harness/run.go',
++          '\t\t\to.awaitCancelTruth = true\n',
++          ''),
++     ],
++     'TestConfirmedAbsentReducerWaitsForFreshPosition'),
++
++    # A cycle may have started before DELETE and finish afterwards. Completion
++    # time alone cannot prove that its portfolio views include the possible
++    # fill. Requiring all three starts to postdate the sweep is reachable on
++    # the one-market canary whenever an in-flight cycle overlaps cancellation.
++    ('M-D2-ACCEPT-PRECANCEL-READ',
++     'let a portfolio cycle that started before the absent cancel sweep release the placement hold when it completes afterwards',
++     [
++         ('cmd/harness/run.go',
++         '\t\tread.StartedAt(wsx.TruthFills).Mono > o.cancelTruthAfter &&\n'
++         '\t\tread.StartedAt(wsx.TruthOrders).Mono > o.cancelTruthAfter &&\n'
++         '\t\tread.StartedAt(wsx.TruthPositions).Mono > o.cancelTruthAfter {\n',
++          '\t\ttrue {\n'),
++     ],
++     'TestPreCancelStartedPortfolioReadCannotReleaseReducer'),
++
++    # The same uncertainty must keep lifecycle truth unknown so a flat stale
++    # position cannot declare a drained stop while the canceled order may have
++    # filled. This mutation targets the drain gate independently of the quote
++    # placement hold.
++    ('M-D2-DRAIN-WITHOUT-CANCEL-TRUTH',
++     'treat reducer truth as known for drain decisions while an absent cancel still awaits fresh portfolio reconciliation',
++     [
++         ('cmd/harness/run.go',
++          '\tif o.awaitCancelTruth {\n'
++          '\t\treturn false\n'
++          '\t}\n'
++          '\tnow := o.r.ex.Clock.Now()\n',
++          '\tnow := o.r.ex.Clock.Now()\n'),
++     ],
++     'TestFlatToFillCancelCannotDeclareDrainedBeforeReconciliation'),
++
++    # Before the first complete portfolio cycle, no truth is known at all.
++    # The deployed service can receive a stop or signal before that poll; its
++    # initially flat local snapshot cannot authorize DRAINED until each truth
++    # age is nonnegative. This is separate from cancel uncertainty after a
++    # poll has previously established known truth.
++    ('M-D2-DRAIN-BEFORE-FIRST-WALK',
++     'treat a never-observed portfolio endpoint as fresh enough to authorize drain before the first complete walk',
++     [
++         ('cmd/harness/run.go',
++          '\t\tif age < 0 || age > o.p.TruthMaxAge {\n',
++          '\t\tif age > o.p.TruthMaxAge {\n'),
++     ],
++     'TestMissingFirstPortfolioWalkCannotAuthorizeDrain'),
++
+     # -----------------------------------------------------------------------
+     # lip-3af -- the seams. Every component below was already individually
+     # guarded here; what was NOT guarded, because it did not exist, is the
+@@ -2870,9 +3078,11 @@ MUTATIONS = [
+           '\tif eff.Stop {\n\t\to.requestStop("portfolio_read", "")\n\t}\n',
+           ''),
+          ('cmd/harness/run.go',
+-          '\tif eff.Applied[wsx.TruthOrders] {\n',
++          '\tif eff.Applied[wsx.TruthOrders] &&\n'
++          '\t\t(!o.awaitCancelTruth || read.StartedAt(wsx.TruthOrders).Mono > o.cancelTruthAfter) {\n',
+           '\tif eff.Stop {\n\t\to.requestStop("portfolio_read", "")\n\t}\n'
+-          '\tif eff.Applied[wsx.TruthOrders] {\n'),
++          '\tif eff.Applied[wsx.TruthOrders] &&\n'
++          '\t\t(!o.awaitCancelTruth || read.StartedAt(wsx.TruthOrders).Mono > o.cancelTruthAfter) {\n'),
+      ],
+      'TestATakerFillOnTheCanaryKeepsTheStrongerCause'),
+ 

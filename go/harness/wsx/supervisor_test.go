@@ -470,6 +470,11 @@ func TestSupervisorSubscribesToBothStreamsOrNeither(t *testing.T) {
 		t.Fatalf("second write = %s", s)
 	}
 
+	// The book acknowledgement establishes this socket's SID. Commands for
+	// another subscription, including one queued across reconnect, are stale.
+	sock.frames <- []byte(`{"type":"subscribed","id":1,"msg":{"channel":"orderbook_delta","sid":7}}`)
+	waitEvent(t, events, EventFrame)
+	cmds <- Command{Kind: CmdResnapshot, Sids: []int64{9}, Tickers: []string{fxTicker}}
 	// A resnapshot command reaches the socket as id 3.
 	cmds <- Command{Kind: CmdResnapshot, Sids: []int64{7},
 		Tickers: []string{fxTicker}}

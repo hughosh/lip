@@ -28,7 +28,7 @@ const (
 // failure mode is "the frame may or may not have been sent".
 type Command struct {
 	Kind CommandKind
-	// Sids are the subscription ids to resnapshot, in `core.Rig.Sids()` order.
+	// Sids contains exactly the current orderbook_delta subscription ID.
 	Sids []int64
 	// Tickers is the market set to resnapshot.
 	Tickers []string
@@ -40,7 +40,10 @@ func (c Command) Validate() error {
 		return fmt.Errorf("command kind %d is not a request this session "+
 			"knows how to make", c.Kind)
 	}
-	return ValidateTickers(c.Tickers)
+	if _, err := resnapshotRequest(c.Sids, c.Tickers); err != nil {
+		return err
+	}
+	return nil
 }
 
 // EventKind is what happened on the socket.
@@ -86,6 +89,9 @@ type Event struct {
 	// and nothing else -- H-FAIL-5 quarantines the book either way.
 	Clean bool
 	Cause error
+	// UniverseRevision identifies the filtered subscription that produced this
+	// event. The owner drops older revisions before handing frames to core.
+	UniverseRevision uint64
 
 	// Down is how long the socket has been down, for EventDisconnectReduce.
 	Down time.Duration
@@ -95,10 +101,14 @@ type Event struct {
 // discarded; there is no reset path, because a reconnect also has to advance
 // the gate's generation and reusing the object would invite forgetting that.
 type session struct {
-	sock Socket
-	clk  Clock
-	p    cfg.Params
+	sock            Socket
+	clk             Clock
+	p               cfg.Params
+	revision        uint64
+	universeChanged <-chan struct{}
 }
+
+var errUniverseChanged = fmt.Errorf("market universe changed")
 
 // run drives one connection until it fails, and returns why.
 //
@@ -127,6 +137,7 @@ type session struct {
 // harness that trades cannot make that trade.
 func (s *session) run(ctx context.Context, cmds <-chan Command,
 	events chan<- Event) error {
+	var bookSID int64 // scoped to this socket; old queued commands cannot cross reconnect
 
 	frames := make(chan []byte)
 	readErr := make(chan error, 1)
@@ -209,8 +220,15 @@ func (s *session) run(ctx context.Context, cmds <-chan Command,
 			// publishing path is alive, so it is the only thing that clears the
 			// backstop.
 			readTimer.Reset(s.p.ReadDeadline)
+			info := InspectFrame(b)
+			if info.BookSubscribeSID != nil {
+				bookSID = *info.BookSubscribeSID
+			} else if bookSID == 0 && info.Kind == FrameSnapshot &&
+				info.Deliver && info.SID != nil && *info.SID > 0 {
+				bookSID = *info.SID
+			}
 			select {
-			case events <- Event{Kind: EventFrame, At: s.clk.Now(), Frame: b}:
+			case events <- Event{Kind: EventFrame, At: s.clk.Now(), Frame: b, UniverseRevision: s.revision}:
 			case <-ctx.Done():
 				return ctx.Err()
 			}
@@ -247,6 +265,9 @@ func (s *session) run(ctx context.Context, cmds <-chan Command,
 				"the ping ladder cannot see because pongs are answered from "+
 				"inside the library's read loop", s.p.ReadDeadline)
 
+		case <-s.universeChanged:
+			return errUniverseChanged
+
 		case c, ok := <-cmds:
 			if !ok {
 				cmds = nil
@@ -255,6 +276,11 @@ func (s *session) run(ctx context.Context, cmds <-chan Command,
 			if err := c.Validate(); err != nil {
 				// A malformed command is the caller's defect and does not
 				// justify dropping a healthy socket.
+				continue
+			}
+			if c.Sids[0] != bookSID {
+				// A command queued by the previous connection must never be
+				// written against this socket's (possibly renumbered) book.
 				continue
 			}
 			b, err := resnapshotRequest(c.Sids, c.Tickers)

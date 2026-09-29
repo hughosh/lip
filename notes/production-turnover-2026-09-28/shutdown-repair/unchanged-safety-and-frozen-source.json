@@ -1,0 +1,185 @@
+{
+  "at_utc": "2026-09-28T17:51:14.003382+00:00",
+  "files": [
+    {
+      "path": "go/cmd/harness/qualification.go",
+      "starting_sha256": "b662c9efb3445cf424eae7abe47b01e27e582f906e434fbc45cf7d607ddfb2b4",
+      "current_sha256": "b662c9efb3445cf424eae7abe47b01e27e582f906e434fbc45cf7d607ddfb2b4",
+      "unchanged": true
+    },
+    {
+      "path": "go/cmd/harness/qualification_test.go",
+      "starting_sha256": "a04f222fce4031bfd11a6458e49cc845a66753bbbbe3baf922f86aa6c95a78d5",
+      "current_sha256": "a04f222fce4031bfd11a6458e49cc845a66753bbbbe3baf922f86aa6c95a78d5",
+      "unchanged": true
+    },
+    {
+      "path": "go/cmd/rig/main.go",
+      "starting_sha256": "5031e6022ce3aca8c7458f48b304b03f7c0b1dc78c3af8e7e08622a5f0881f0a",
+      "current_sha256": "5031e6022ce3aca8c7458f48b304b03f7c0b1dc78c3af8e7e08622a5f0881f0a",
+      "unchanged": true
+    },
+    {
+      "path": "go/cmd/rig/main_test.go",
+      "starting_sha256": "812466d901359ed1c2351943a8de249d32f6116174af7f348e02d14640930129",
+      "current_sha256": "812466d901359ed1c2351943a8de249d32f6116174af7f348e02d14640930129",
+      "unchanged": true
+    },
+    {
+      "path": "go/core/book.go",
+      "starting_sha256": "8f7c72812ae2dfa8e800fb87717ac2b2fbd193a4285c07b508e09f2223c402d3",
+      "current_sha256": "8f7c72812ae2dfa8e800fb87717ac2b2fbd193a4285c07b508e09f2223c402d3",
+      "unchanged": true
+    },
+    {
+      "path": "go/core/book_test.go",
+      "starting_sha256": "39bf7491ec860b05eb4c9e252e79a4e4a04309386968c438400652645770119b",
+      "current_sha256": "39bf7491ec860b05eb4c9e252e79a4e4a04309386968c438400652645770119b",
+      "unchanged": true
+    },
+    {
+      "path": "go/core/levels.go",
+      "starting_sha256": "b29ffa505f6dbd9627655653ff68fe3d0d2e7f8e8b382b5485dfa1d83f849c38",
+      "current_sha256": "b29ffa505f6dbd9627655653ff68fe3d0d2e7f8e8b382b5485dfa1d83f849c38",
+      "unchanged": true
+    },
+    {
+      "path": "go/core/levels_test.go",
+      "starting_sha256": "65a04bc92d7d7ed3413e21ae7f03249a1167c1d93dbe5dfc424e3a5e8ed7a4c3",
+      "current_sha256": "65a04bc92d7d7ed3413e21ae7f03249a1167c1d93dbe5dfc424e3a5e8ed7a4c3",
+      "unchanged": true
+    },
+    {
+      "path": "go/core/num.go",
+      "starting_sha256": "330540c7e28371771e67469775d2bb606009e23eac657ac997a012456008bbd8",
+      "current_sha256": "330540c7e28371771e67469775d2bb606009e23eac657ac997a012456008bbd8",
+      "unchanged": true
+    },
+    {
+      "path": "go/core/num_test.go",
+      "starting_sha256": "975baaaed3d2cc03eb73845ea7d1bc7ab5a58dcd82131d8de0bfb16116d5358d",
+      "current_sha256": "975baaaed3d2cc03eb73845ea7d1bc7ab5a58dcd82131d8de0bfb16116d5358d",
+      "unchanged": true
+    },
+    {
+      "path": "go/core/reconnect_test.go",
+      "starting_sha256": "93a4d3dac9930346f59a8289f38999109e771fecfa5d5b2a34510f79a4dde5d1",
+      "current_sha256": "93a4d3dac9930346f59a8289f38999109e771fecfa5d5b2a34510f79a4dde5d1",
+      "unchanged": true
+    },
+    {
+      "path": "go/core/rig.go",
+      "starting_sha256": "27200b01523e1b59a33f4836341088f32f5ef6449efed817067132b798ed3772",
+      "current_sha256": "27200b01523e1b59a33f4836341088f32f5ef6449efed817067132b798ed3772",
+      "unchanged": true
+    },
+    {
+      "path": "go/core/rig_test.go",
+      "starting_sha256": "7dc4ac715525fecfd9afc44b94300d77754f237343fe45572de245da86fbb03b",
+      "current_sha256": "7dc4ac715525fecfd9afc44b94300d77754f237343fe45572de245da86fbb03b",
+      "unchanged": true
+    },
+    {
+      "path": "go/core/sum_test.go",
+      "starting_sha256": "e46cbadf544d263407b9a69435de332792c5432c2d0e673bb0245fe2e3ca55e1",
+      "current_sha256": "e46cbadf544d263407b9a69435de332792c5432c2d0e673bb0245fe2e3ca55e1",
+      "unchanged": true
+    },
+    {
+      "path": "go/feed/auth.go",
+      "starting_sha256": "e100dd3e18126bc60425e8e86dca04662d907911f34a726b652f24ddaeac0b6e",
+      "current_sha256": "e100dd3e18126bc60425e8e86dca04662d907911f34a726b652f24ddaeac0b6e",
+      "unchanged": true
+    },
+    {
+      "path": "go/feed/auth_test.go",
+      "starting_sha256": "24f100109f89d171acc0132fb56628ae27184cd132ba98d0d40735348ca36db4",
+      "current_sha256": "24f100109f89d171acc0132fb56628ae27184cd132ba98d0d40735348ca36db4",
+      "unchanged": true
+    },
+    {
+      "path": "go/feed/feed.go",
+      "starting_sha256": "cb7be1b31231649b861570e33db01617b5da43295ac04609f5b5c414c4bb0a0b",
+      "current_sha256": "cb7be1b31231649b861570e33db01617b5da43295ac04609f5b5c414c4bb0a0b",
+      "unchanged": true
+    },
+    {
+      "path": "go/feed/feed_test.go",
+      "starting_sha256": "59223e048871c38321d576ca10b8f1e0ae141f16bdee3ce474f46541b88e0bf1",
+      "current_sha256": "59223e048871c38321d576ca10b8f1e0ae141f16bdee3ce474f46541b88e0bf1",
+      "unchanged": true
+    },
+    {
+      "path": "go/feed/universe.go",
+      "starting_sha256": "cf1ec70c9b2476ebdaae3ad73effed4d3a3dc875a2f82a2f0503c39dda788da1",
+      "current_sha256": "cf1ec70c9b2476ebdaae3ad73effed4d3a3dc875a2f82a2f0503c39dda788da1",
+      "unchanged": true
+    },
+    {
+      "path": "go/harness/qual/assess.go",
+      "starting_sha256": "325a600ab97049d0199a9daa71e08cf457c7910045a0744d03d69590c346e8f9",
+      "current_sha256": "325a600ab97049d0199a9daa71e08cf457c7910045a0744d03d69590c346e8f9",
+      "unchanged": true
+    },
+    {
+      "path": "go/harness/qual/assess_test.go",
+      "starting_sha256": "e3eccf5ae4d33cfcd5c01610b63b64b942c72ea2529e5165ac75e13ae2f8d035",
+      "current_sha256": "e3eccf5ae4d33cfcd5c01610b63b64b942c72ea2529e5165ac75e13ae2f8d035",
+      "unchanged": true
+    },
+    {
+      "path": "go/harness/qual/atomic.go",
+      "starting_sha256": "904613c311785a052900eb09de0889dc02d39fad2ca69b4a4ff71d6abd521bf2",
+      "current_sha256": "904613c311785a052900eb09de0889dc02d39fad2ca69b4a4ff71d6abd521bf2",
+      "unchanged": true
+    },
+    {
+      "path": "go/harness/qual/doc.go",
+      "starting_sha256": "5ea5239a7b5fff6e94ce4776cb3590e65aa3d14707f498a208b7c97141ec40f4",
+      "current_sha256": "5ea5239a7b5fff6e94ce4776cb3590e65aa3d14707f498a208b7c97141ec40f4",
+      "unchanged": true
+    },
+    {
+      "path": "go/harness/qual/q01.go",
+      "starting_sha256": "7249d1cf9bbe9134378bde8178fe5de9b75a00700ff352c556a94bfe46f82184",
+      "current_sha256": "7249d1cf9bbe9134378bde8178fe5de9b75a00700ff352c556a94bfe46f82184",
+      "unchanged": true
+    },
+    {
+      "path": "go/harness/qual/q01_test.go",
+      "starting_sha256": "74ecbe46d2fd384afcf9f020c4d93d3589734b7e60251e3194c6460e6695e610",
+      "current_sha256": "74ecbe46d2fd384afcf9f020c4d93d3589734b7e60251e3194c6460e6695e610",
+      "unchanged": true
+    },
+    {
+      "path": "go/harness/qual/recorder.go",
+      "starting_sha256": "98d1bbfeaefc811269a6e1f18f7bde494aa2b665efa190378e5c37ac90445fc7",
+      "current_sha256": "98d1bbfeaefc811269a6e1f18f7bde494aa2b665efa190378e5c37ac90445fc7",
+      "unchanged": true
+    },
+    {
+      "path": "go/harness/qual/recorder_test.go",
+      "starting_sha256": "cee9eee42e75f09021fffa9c9f30302bf0dea80b43c07a02b977a8c8ccec5e17",
+      "current_sha256": "cee9eee42e75f09021fffa9c9f30302bf0dea80b43c07a02b977a8c8ccec5e17",
+      "unchanged": true
+    },
+    {
+      "path": "go/store/resolve_test.go",
+      "starting_sha256": "656a9a44c4bf8461ed8fa2c4f1ca6b411bfabdbc03498caf980e3db23cd17213",
+      "current_sha256": "656a9a44c4bf8461ed8fa2c4f1ca6b411bfabdbc03498caf980e3db23cd17213",
+      "unchanged": true
+    },
+    {
+      "path": "go/store/store.go",
+      "starting_sha256": "d0ab45112d0572e7c2e912de06c3bc1a7c89df3bed780aab85190df53676fb72",
+      "current_sha256": "d0ab45112d0572e7c2e912de06c3bc1a7c89df3bed780aab85190df53676fb72",
+      "unchanged": true
+    },
+    {
+      "path": "go/store/store_test.go",
+      "starting_sha256": "335c84b6536b3b93f1e6e226a316b49485983a30460fc143ff5b0bf2f7320a3b",
+      "current_sha256": "335c84b6536b3b93f1e6e226a316b49485983a30460fc143ff5b0bf2f7320a3b",
+      "unchanged": true
+    }
+  ]
+}

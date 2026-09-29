@@ -1,0 +1,5 @@
+{
+  "exit": 0,
+  "stdout": "provisioned the harness store for KXOPENSOURCESHARE-26OCT01-T81 (rung sizing)\n  database      /Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-2026-09-27/runtime/harness.db\n  anomaly log   /Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-2026-09-27/runtime/anomaly.jsonl (mode 0600)\n  tables        anomaly, balance_poll, our_fill, owned_order, run, state_event\n  user_version  3\n  journal_mode  wal\n  our_fill.order_id -> owned_order(order_id): declared\n\nThis will not run again over this file. Every later start OPENS it: a fresh\nledger recognises no order id, and one created by accident makes the harness's\nown resting orders read as a third party's (H-ORD-9).\n",
+  "stderr": ""
+}

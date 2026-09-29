@@ -1,0 +1,19 @@
+{
+  "started_at": "2026-09-28T17:15:28.271797+00:00",
+  "command": [
+    "/usr/local/bin/go",
+    "test",
+    "-race",
+    "./cmd/harness",
+    "-run",
+    "^TestServingClose|^TestRuntimeStore|^TestRigClose|^TestDialFence|^TestFinalAlert|^TestOrderlyStopRuns|^TestOnlyAnAuthorisedDrain|^TestOperatorSignals",
+    "-count=3",
+    "-timeout=180s"
+  ],
+  "cwd": "/Users/hugh/kek/lip/go",
+  "source_manifest_before": "55540938347672f155536bc8da31b1d1e6edccc51c9663b5852fabf09524fd9c",
+  "finished_at": "2026-09-28T17:16:10.936354+00:00",
+  "exit_code": 0,
+  "source_manifest_after": "55540938347672f155536bc8da31b1d1e6edccc51c9663b5852fabf09524fd9c",
+  "log_sha256": "baf55df58fd9058a96650107714ef53e5c8b8549ab7d16275ab0e11d501d77b0"
+}

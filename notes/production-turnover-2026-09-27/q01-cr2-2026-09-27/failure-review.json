@@ -1,0 +1,21 @@
+{
+  "scope": "failed exact-candidate attempt retained",
+  "binary_sha256": "ecf16ea19c4f0e05dad8cce0c261d6e6f2204eeb8f9615913a79b54816b311c6",
+  "config_sha256": "48b8edb308b824cacfac4b161d5e125bf7bad03bb0d804c1c2269f99877f18f6",
+  "active_seconds": 136.56962729,
+  "zero_network_non_get": true,
+  "root_cause": "forced disconnect while generation-4 portfolio callback was in flight; generation 5 correctly rejected stale token 84ms later; not proof of REST pagination failure",
+  "assessment_exit": 1,
+  "final_process_exit": 0,
+  "preserved_paths": [
+    "evidence.json",
+    "assessment.json",
+    "assessment.stderr",
+    "runtime/anomaly.jsonl",
+    "runtime/harness.db",
+    "runtime/harness.halt",
+    "heartbeat-stopped.json"
+  ],
+  "account_after_failure": "2026-09-27T18:25:42.746772Z",
+  "retry_changes": "new isolated paths and timed forced disconnect; unchanged binary and q01 criteria"
+}

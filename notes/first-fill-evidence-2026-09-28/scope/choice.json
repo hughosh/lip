@@ -1,0 +1,7 @@
+{
+  "chosen_by": "Hugh (AskUserQuestion, 2026-09-29 ~00:20Z)",
+  "ticker": "KXAAAGASW-26OCT05-4.4200",
+  "size": 12,
+  "basis": "GET-only public scope 00:01-00:15Z: complete incentive walk (5084 programs), public /markets join, per-candidate orderbook + last 1000 trades. Joining the touch (H-Q-2), estimated first-fill wait YES ~0.7 min (queue 5, ~400/h), NO ~17 min (queue 106, ~370/h). Series fee_type quadratic (operator_stage.py requires it; KXCPIYOY is quadratic_with_maker_fees and was excluded).",
+  "limits": "Diagnostic and refreshable; not launch authority. Estimates are historical averages over the last 1000 trades, not a fill promise. Preparation must re-read program/book/fees/account within 60 s of arming."
+}

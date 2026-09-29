@@ -145,6 +145,11 @@ func (c *Client) Walk(ctx context.Context, ep Endpoint, filters url.Values) Walk
 				Err: fmt.Errorf("%s page %d: %w", ep.Path, pages+1, err)}
 		}
 		if resp.Status != 200 {
+			if resp.Status == 429 {
+				return Walk{Outcome: WalkFailed, Pages: pages,
+					Err: fmt.Errorf("%s page %d: %w", ep.Path, pages+1,
+						rateLimitError(resp))}
+			}
 			return Walk{Outcome: WalkFailed, Pages: pages,
 				Err: fmt.Errorf("%s page %d: HTTP %d: %s",
 					ep.Path, pages+1, resp.Status, snippet(resp.Body))}

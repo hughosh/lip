@@ -1,0 +1,509 @@
+{
+  "ticker": "KXBRRATECUT-27JAN01-E5",
+  "read_only": true,
+  "calls": {
+    "market": {
+      "path": "/markets/KXBRRATECUT-27JAN01-E5",
+      "at_utc": "2026-09-27T17:10:05.275451+00:00",
+      "status": 200,
+      "latency_ms": 261.068,
+      "body": {
+        "market": {
+          "can_close_early": true,
+          "cap_strike": 5,
+          "close_time": "2027-01-01T14:59:00Z",
+          "created_time": "2026-06-02T21:50:29.403923Z",
+          "event_ticker": "KXBRRATECUT-27JAN01",
+          "exchange_index": 0,
+          "expected_expiration_time": "2027-01-08T16:30:00Z",
+          "expiration_time": "2027-01-08T16:30:00Z",
+          "expiration_value": "",
+          "floor_strike": 5,
+          "last_price_dollars": "0.2000",
+          "latest_expiration_time": "2027-01-08T16:30:00Z",
+          "liquidity_dollars": "0.0000",
+          "market_type": "binary",
+          "no_ask_dollars": "0.8100",
+          "no_bid_dollars": "0.8000",
+          "no_sub_title": "Exactly 5 cuts",
+          "notional_value_dollars": "1.0000",
+          "occurrence_datetime": "2027-01-01T16:30:00Z",
+          "open_interest_fp": "4460.50",
+          "open_time": "2026-06-02T23:00:00Z",
+          "previous_price_dollars": "0.2000",
+          "previous_yes_ask_dollars": "0.2000",
+          "previous_yes_bid_dollars": "0.1900",
+          "price_level_structure": "linear_cent",
+          "price_ranges": [
+            {
+              "end": "1.0000",
+              "start": "0.0000",
+              "step": "0.0100"
+            }
+          ],
+          "result": "",
+          "rules_primary": "If the total number of Central Bank of Brazil rate cuts for 2026 is exactly 5, then the market resolves to Yes.",
+          "rules_secondary": "The Underlying is the number of discrete decreases in the Brazil interest rate value during calendar year 2026.\n\nEach separate decrease counts as one rate cut, regardless of the size of the decrease. For example, a decrease from 14.75% to 14.50% counts as one rate cut, and a decrease from 14.50% to 14.25% would count as another rate cut.\n\nRate cuts before market issuance count, provided they occurred during calendar year 2026. As of issuance, Brazil has already had 2 qualifying 2026 rate cuts: the Selic target was reduced to 14.75% in March 2026 and to 14.50% in April 2026.\n\nRate hikes do not offset prior rate cuts. If the Brazil interest rate is cut, then later hiked, then later cut again, the two cuts count separately.",
+          "settlement_timer_seconds": 1800,
+          "status": "active",
+          "strike_type": "between",
+          "ticker": "KXBRRATECUT-27JAN01-E5",
+          "title": "Will Central Bank of Brazil rate cuts for 2026 be exactly 5?",
+          "updated_time": "2026-06-02T23:00:00.94559Z",
+          "volume_24h_fp": "0.00",
+          "volume_fp": "22309.15",
+          "yes_ask_dollars": "0.2000",
+          "yes_ask_size_fp": "3973.01",
+          "yes_bid_dollars": "0.1900",
+          "yes_bid_size_fp": "3354.65",
+          "yes_sub_title": "Exactly 5 cuts"
+        }
+      }
+    },
+    "orderbook": {
+      "path": "/markets/KXBRRATECUT-27JAN01-E5/orderbook",
+      "at_utc": "2026-09-27T17:10:05.536550+00:00",
+      "status": 200,
+      "latency_ms": 282.388,
+      "body": {
+        "orderbook_fp": {
+          "no_dollars": [
+            [
+              "0.0100",
+              "11050.01"
+            ],
+            [
+              "0.2200",
+              "550.00"
+            ],
+            [
+              "0.2600",
+              "3135.00"
+            ],
+            [
+              "0.2700",
+              "188.00"
+            ],
+            [
+              "0.3800",
+              "118.92"
+            ],
+            [
+              "0.3900",
+              "1.98"
+            ],
+            [
+              "0.8000",
+              "3973.01"
+            ]
+          ],
+          "yes_dollars": [
+            [
+              "0.0100",
+              "1550.14"
+            ],
+            [
+              "0.0200",
+              "2560.64"
+            ],
+            [
+              "0.0300",
+              "160.05"
+            ],
+            [
+              "0.0400",
+              "54.03"
+            ],
+            [
+              "0.0500",
+              "13.49"
+            ],
+            [
+              "0.1400",
+              "200.00"
+            ],
+            [
+              "0.1900",
+              "3354.65"
+            ]
+          ]
+        }
+      }
+    },
+    "event": {
+      "path": "/events/KXBRRATECUT-27JAN01",
+      "at_utc": "2026-09-27T17:10:05.818961+00:00",
+      "status": 200,
+      "latency_ms": 280.185,
+      "body": {
+        "event": {
+          "category": "Economics",
+          "collateral_return_type": "MECNET",
+          "event_ticker": "KXBRRATECUT-27JAN01",
+          "exchange_index": 0,
+          "last_updated_ts": "0001-01-01T00:00:00Z",
+          "mutually_exclusive": true,
+          "series_ticker": "KXBRRATECUT",
+          "settlement_sources": [
+            {
+              "name": "Trading Economics",
+              "url": "https://tradingeconomics.com/brazil/interest-rate"
+            }
+          ],
+          "strike_period": "",
+          "sub_title": "In 2026",
+          "title": "Number of Brazil rate cuts in 2026?"
+        },
+        "markets": [
+          {
+            "can_close_early": true,
+            "cap_strike": 2,
+            "close_time": "2026-08-11T15:40:41Z",
+            "created_time": "2026-06-02T21:50:29.403923Z",
+            "event_ticker": "KXBRRATECUT-27JAN01",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-01-08T16:30:00Z",
+            "expiration_time": "2027-01-08T16:30:00Z",
+            "expiration_value": "No",
+            "floor_strike": 2,
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2027-01-08T16:30:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.0000",
+            "no_sub_title": "Exactly 2 cuts",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-01-01T16:30:00Z",
+            "open_interest_fp": "3865.76",
+            "open_time": "2026-06-02T23:00:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "1.0000",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "no",
+            "rules_primary": "If the total number of Central Bank of Brazil rate cuts for 2026 is exactly 2, then the market resolves to Yes.",
+            "rules_secondary": "The Underlying is the number of discrete decreases in the Brazil interest rate value during calendar year 2026.\n\nEach separate decrease counts as one rate cut, regardless of the size of the decrease. For example, a decrease from 14.75% to 14.50% counts as one rate cut, and a decrease from 14.50% to 14.25% would count as another rate cut.\n\nRate cuts before market issuance count, provided they occurred during calendar year 2026. As of issuance, Brazil has already had 2 qualifying 2026 rate cuts: the Selic target was reduced to 14.75% in March 2026 and to 14.50% in April 2026.\n\nRate hikes do not offset prior rate cuts. If the Brazil interest rate is cut, then later hiked, then later cut again, the two cuts count separately.",
+            "settlement_timer_seconds": 1800,
+            "settlement_ts": "2026-08-11T16:10:49.858731Z",
+            "settlement_value_dollars": "0.0000",
+            "status": "finalized",
+            "strike_type": "between",
+            "ticker": "KXBRRATECUT-27JAN01-E2",
+            "title": "Will Central Bank of Brazil rate cuts for 2026 be exactly 2?",
+            "updated_time": "2026-08-11T16:10:49.901669Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "9899.35",
+            "yes_ask_dollars": "1.0000",
+            "yes_ask_size_fp": "0.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Exactly 2 cuts"
+          },
+          {
+            "can_close_early": true,
+            "cap_strike": 3,
+            "close_time": "2026-08-11T15:40:47Z",
+            "created_time": "2026-06-02T21:50:29.403923Z",
+            "event_ticker": "KXBRRATECUT-27JAN01",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-01-08T16:30:00Z",
+            "expiration_time": "2027-01-08T16:30:00Z",
+            "expiration_value": "No",
+            "floor_strike": 3,
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2027-01-08T16:30:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.0000",
+            "no_sub_title": "Exactly 3 cuts",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-01-01T16:30:00Z",
+            "open_interest_fp": "5054.50",
+            "open_time": "2026-06-02T23:00:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "1.0000",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "no",
+            "rules_primary": "If the total number of Central Bank of Brazil rate cuts for 2026 is exactly 3, then the market resolves to Yes.",
+            "rules_secondary": "The Underlying is the number of discrete decreases in the Brazil interest rate value during calendar year 2026.\n\nEach separate decrease counts as one rate cut, regardless of the size of the decrease. For example, a decrease from 14.75% to 14.50% counts as one rate cut, and a decrease from 14.50% to 14.25% would count as another rate cut.\n\nRate cuts before market issuance count, provided they occurred during calendar year 2026. As of issuance, Brazil has already had 2 qualifying 2026 rate cuts: the Selic target was reduced to 14.75% in March 2026 and to 14.50% in April 2026.\n\nRate hikes do not offset prior rate cuts. If the Brazil interest rate is cut, then later hiked, then later cut again, the two cuts count separately.",
+            "settlement_timer_seconds": 1800,
+            "settlement_ts": "2026-08-11T16:10:49.858731Z",
+            "settlement_value_dollars": "0.0000",
+            "status": "finalized",
+            "strike_type": "between",
+            "ticker": "KXBRRATECUT-27JAN01-E3",
+            "title": "Will Central Bank of Brazil rate cuts for 2026 be exactly 3?",
+            "updated_time": "2026-08-11T16:10:49.901669Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "16357.38",
+            "yes_ask_dollars": "1.0000",
+            "yes_ask_size_fp": "0.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Exactly 3 cuts"
+          },
+          {
+            "can_close_early": true,
+            "cap_strike": 4,
+            "close_time": "2026-09-18T12:27:30Z",
+            "created_time": "2026-06-02T21:50:29.403923Z",
+            "event_ticker": "KXBRRATECUT-27JAN01",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-01-08T16:30:00Z",
+            "expiration_time": "2027-01-08T16:30:00Z",
+            "expiration_value": "No",
+            "floor_strike": 4,
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2027-01-08T16:30:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.0000",
+            "no_sub_title": "Exactly 4 cuts",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-09-18T12:25:00Z",
+            "open_interest_fp": "6030.80",
+            "open_time": "2026-06-02T23:00:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "1.0000",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "no",
+            "rules_primary": "If the total number of Central Bank of Brazil rate cuts for 2026 is exactly 4, then the market resolves to Yes.",
+            "rules_secondary": "The Underlying is the number of discrete decreases in the Brazil interest rate value during calendar year 2026.\n\nEach separate decrease counts as one rate cut, regardless of the size of the decrease. For example, a decrease from 14.75% to 14.50% counts as one rate cut, and a decrease from 14.50% to 14.25% would count as another rate cut.\n\nRate cuts before market issuance count, provided they occurred during calendar year 2026. As of issuance, Brazil has already had 2 qualifying 2026 rate cuts: the Selic target was reduced to 14.75% in March 2026 and to 14.50% in April 2026.\n\nRate hikes do not offset prior rate cuts. If the Brazil interest rate is cut, then later hiked, then later cut again, the two cuts count separately.",
+            "settlement_timer_seconds": 1800,
+            "settlement_ts": "2026-09-18T12:57:34.504933Z",
+            "settlement_value_dollars": "0.0000",
+            "status": "finalized",
+            "strike_type": "between",
+            "ticker": "KXBRRATECUT-27JAN01-E4",
+            "title": "Will Central Bank of Brazil rate cuts for 2026 be exactly 4?",
+            "updated_time": "2026-09-18T12:57:34.637022Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "21867.95",
+            "yes_ask_dollars": "1.0000",
+            "yes_ask_size_fp": "0.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Exactly 4 cuts"
+          },
+          {
+            "can_close_early": true,
+            "cap_strike": 5,
+            "close_time": "2027-01-01T14:59:00Z",
+            "created_time": "2026-06-02T21:50:29.403923Z",
+            "event_ticker": "KXBRRATECUT-27JAN01",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-01-08T16:30:00Z",
+            "expiration_time": "2027-01-08T16:30:00Z",
+            "expiration_value": "",
+            "floor_strike": 5,
+            "last_price_dollars": "0.2000",
+            "latest_expiration_time": "2027-01-08T16:30:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.8100",
+            "no_bid_dollars": "0.8000",
+            "no_sub_title": "Exactly 5 cuts",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-01-01T16:30:00Z",
+            "open_interest_fp": "4460.50",
+            "open_time": "2026-06-02T23:00:00Z",
+            "previous_price_dollars": "0.2000",
+            "previous_yes_ask_dollars": "0.2000",
+            "previous_yes_bid_dollars": "0.1900",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the total number of Central Bank of Brazil rate cuts for 2026 is exactly 5, then the market resolves to Yes.",
+            "rules_secondary": "The Underlying is the number of discrete decreases in the Brazil interest rate value during calendar year 2026.\n\nEach separate decrease counts as one rate cut, regardless of the size of the decrease. For example, a decrease from 14.75% to 14.50% counts as one rate cut, and a decrease from 14.50% to 14.25% would count as another rate cut.\n\nRate cuts before market issuance count, provided they occurred during calendar year 2026. As of issuance, Brazil has already had 2 qualifying 2026 rate cuts: the Selic target was reduced to 14.75% in March 2026 and to 14.50% in April 2026.\n\nRate hikes do not offset prior rate cuts. If the Brazil interest rate is cut, then later hiked, then later cut again, the two cuts count separately.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "between",
+            "ticker": "KXBRRATECUT-27JAN01-E5",
+            "title": "Will Central Bank of Brazil rate cuts for 2026 be exactly 5?",
+            "updated_time": "2026-06-02T23:00:00.94559Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "22309.15",
+            "yes_ask_dollars": "0.2000",
+            "yes_ask_size_fp": "3973.01",
+            "yes_bid_dollars": "0.1900",
+            "yes_bid_size_fp": "3354.65",
+            "yes_sub_title": "Exactly 5 cuts"
+          },
+          {
+            "can_close_early": true,
+            "cap_strike": 6,
+            "close_time": "2027-01-01T14:59:00Z",
+            "created_time": "2026-06-02T21:50:29.403923Z",
+            "event_ticker": "KXBRRATECUT-27JAN01",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-01-08T16:30:00Z",
+            "expiration_time": "2027-01-08T16:30:00Z",
+            "expiration_value": "",
+            "floor_strike": 6,
+            "last_price_dollars": "0.4300",
+            "latest_expiration_time": "2027-01-08T16:30:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.5800",
+            "no_bid_dollars": "0.5700",
+            "no_sub_title": "Exactly 6 cuts",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-01-01T16:30:00Z",
+            "open_interest_fp": "9797.97",
+            "open_time": "2026-06-02T23:00:00Z",
+            "previous_price_dollars": "0.4300",
+            "previous_yes_ask_dollars": "0.4300",
+            "previous_yes_bid_dollars": "0.4200",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the total number of Central Bank of Brazil rate cuts for 2026 is exactly 6, then the market resolves to Yes.",
+            "rules_secondary": "The Underlying is the number of discrete decreases in the Brazil interest rate value during calendar year 2026.\n\nEach separate decrease counts as one rate cut, regardless of the size of the decrease. For example, a decrease from 14.75% to 14.50% counts as one rate cut, and a decrease from 14.50% to 14.25% would count as another rate cut.\n\nRate cuts before market issuance count, provided they occurred during calendar year 2026. As of issuance, Brazil has already had 2 qualifying 2026 rate cuts: the Selic target was reduced to 14.75% in March 2026 and to 14.50% in April 2026.\n\nRate hikes do not offset prior rate cuts. If the Brazil interest rate is cut, then later hiked, then later cut again, the two cuts count separately.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "between",
+            "ticker": "KXBRRATECUT-27JAN01-E6",
+            "title": "Will Central Bank of Brazil rate cuts for 2026 be exactly 6?",
+            "updated_time": "2026-06-02T23:00:00.94559Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "22407.84",
+            "yes_ask_dollars": "0.4300",
+            "yes_ask_size_fp": "1449.62",
+            "yes_bid_dollars": "0.4200",
+            "yes_bid_size_fp": "2165.28",
+            "yes_sub_title": "Exactly 6 cuts"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-01T14:59:00Z",
+            "created_time": "2026-06-02T21:50:29.403923Z",
+            "event_ticker": "KXBRRATECUT-27JAN01",
+            "exchange_index": 0,
+            "expected_expiration_time": "2027-01-08T16:30:00Z",
+            "expiration_time": "2027-01-08T16:30:00Z",
+            "expiration_value": "",
+            "floor_strike": 7,
+            "last_price_dollars": "0.4100",
+            "latest_expiration_time": "2027-01-08T16:30:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.5900",
+            "no_bid_dollars": "0.5600",
+            "no_sub_title": "7 or more cuts",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2027-01-01T16:30:00Z",
+            "open_interest_fp": "19283.53",
+            "open_time": "2026-06-02T23:00:00Z",
+            "previous_price_dollars": "0.4400",
+            "previous_yes_ask_dollars": "0.4400",
+            "previous_yes_bid_dollars": "0.4100",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If the total number of Central Bank of Brazil rate cuts for 2026 is at least 7 , then the market resolves to Yes.",
+            "rules_secondary": "The Underlying is the number of discrete decreases in the Brazil interest rate value during calendar year 2026.\n\nEach separate decrease counts as one rate cut, regardless of the size of the decrease. For example, a decrease from 14.75% to 14.50% counts as one rate cut, and a decrease from 14.50% to 14.25% would count as another rate cut.\n\nRate cuts before market issuance count, provided they occurred during calendar year 2026. As of issuance, Brazil has already had 2 qualifying 2026 rate cuts: the Selic target was reduced to 14.75% in March 2026 and to 14.50% in April 2026.\n\nRate hikes do not offset prior rate cuts. If the Brazil interest rate is cut, then later hiked, then later cut again, the two cuts count separately.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "greater_or_equal",
+            "ticker": "KXBRRATECUT-27JAN01-T7",
+            "title": "Will Central Bank of Brazil rate cuts for 2026 be 7 or more?",
+            "updated_time": "2026-06-02T23:00:00.94559Z",
+            "volume_24h_fp": "39.06",
+            "volume_fp": "37428.40",
+            "yes_ask_dollars": "0.4400",
+            "yes_ask_size_fp": "4150.00",
+            "yes_bid_dollars": "0.4100",
+            "yes_bid_size_fp": "418.66",
+            "yes_sub_title": "7 or more cuts"
+          }
+        ]
+      }
+    },
+    "series": {
+      "path": "/series/KXBRRATECUT",
+      "at_utc": "2026-09-27T17:10:06.099314+00:00",
+      "status": 200,
+      "latency_ms": 278.478,
+      "body": {
+        "series": {
+          "additional_prohibitions": [
+            "Persons who are employed by any of the Source Agencies are not permitted to trade on the Contract.",
+            "Persons who hold any material, non-public information on the Underlying are not permitted to trade on the Contract."
+          ],
+          "categories": [
+            "Economics"
+          ],
+          "category": "Economics",
+          "contract_terms_url": "https://assets.kalshi.com/contract_terms/ECONSTAT.pdf",
+          "contract_url": "https://assets.kalshi.com/regulatory/product-certifications/ECONSTAT.pdf",
+          "exchange_index": 0,
+          "fee_multiplier": 1,
+          "fee_type": "quadratic",
+          "frequency": "annual",
+          "last_updated_ts": "2026-09-23T21:11:47.412292Z",
+          "settlement_sources": [
+            {
+              "name": "Bureau of Labor Statistics- Employment Situation",
+              "url": "https://www.bls.gov/news.release/empsit.nr0.htm"
+            },
+            {
+              "name": "Bureau of Labor Statistics- Consumer Price Index",
+              "url": "https://www.bls.gov/news.release/cpi.nr0.htm"
+            }
+          ],
+          "tags": [
+            "Global Central Banks"
+          ],
+          "ticker": "KXBRRATECUT",
+          "title": "Number of Brazil rate cuts this year"
+        }
+      }
+    }
+  },
+  "completed_at_utc": "2026-09-27T17:10:06.377836+00:00",
+  "note": "Sequential snapshots, not executable quotes or actual fees. Re-read immediately before arming."
+}

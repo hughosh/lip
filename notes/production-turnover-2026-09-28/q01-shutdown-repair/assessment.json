@@ -1,0 +1,41 @@
+{
+  "scope": "local_evidence_only",
+  "local_requirements_met": false,
+  "elapsed": 224907170422,
+  "above_guard_non_get": 0,
+  "below_guard_non_get": 0,
+  "would_write_observations": 0,
+  "historical_unclean_segments": 1,
+  "expected_monitor_slots": 226,
+  "observed_monitor_slots": 224,
+  "fresh_monitor_slots": 222,
+  "monitor_fresh_slot_ratio": 0.9823008849557522,
+  "expected_portfolio_slots": 46,
+  "observed_portfolio_slots": 45,
+  "fresh_complete_portfolio_slots": 45,
+  "portfolio_fresh_complete_slot_ratio": 0.9782608695652174,
+  "protocol_deviations": [],
+  "external_outstanding": [
+    "real-account, real-feed, launchd, and caffeinate provenance",
+    "operator provenance and timestamps for forced qualification actions",
+    "alert-provider receipt and proof that a missed-heartbeat alarm fired"
+  ],
+  "failures": [
+    {
+      "code": "elapsed_too_short",
+      "detail": "linked monotonic active time 3m44.907170422s is below fixed q01 minimum 20m0s"
+    },
+    {
+      "code": "no_would_write",
+      "detail": "no would-write decision was observed from the real read-only decision path"
+    },
+    {
+      "code": "q01_monitor_slot_coverage",
+      "detail": "fresh monitor slots 222/226 are below fixed q01 minimum 99% (224 distinct slots observed)"
+    },
+    {
+      "code": "q01_portfolio_slot_coverage",
+      "detail": "fresh+complete portfolio slots 45/46 are below fixed q01 minimum 99% (45 distinct slots observed)"
+    }
+  ]
+}

@@ -1,0 +1,162 @@
+[
+  {
+    "id": "deDkYlSUzA2a",
+    "time": 1790715338,
+    "delivered_utc": "2026-09-29T20:55:38Z",
+    "priority": 3,
+    "title": "lip STARTING | store healthy",
+    "message": "global: STARTING\ncapital: $98.43\nintegrated: unknown\nuptime: 1s\nsource: unknown\nundelivered: 0\nstore: healthy\nmarkets: none"
+  },
+  {
+    "id": "akmvInxa8h36",
+    "time": 1790715339,
+    "delivered_utc": "2026-09-29T20:55:39Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXAAAGASW-26OCT05-4.4200",
+    "message": "fill 0723573e-e589-a158-f331-5f44a8010c85 on order 01a0ee44-7920-77d4-92d2-bae201f4f7c8 carries no coid of ours and was already on the accou"
+  },
+  {
+    "id": "n9XvOq90pDtR",
+    "time": 1790715339,
+    "delivered_utc": "2026-09-29T20:55:39Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+    "message": "fill 1582884a-1f64-7c20-fab4-b40468ad5df6 on order 0f0a2cee-ab64-4c1f-9814-50e5fb4f22a3 was already on the account when this process started"
+  },
+  {
+    "id": "7ojDpWGgmbXL",
+    "time": 1790715340,
+    "delivered_utc": "2026-09-29T20:55:40Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXHOODA-28JANFUNDED-33000000",
+    "message": "fill c34ffc9a-8134-64c8-5e3b-45cb21b74a89 on order 09577398-c959-4716-bd32-880d0240f20d was already on the account when this process started"
+  },
+  {
+    "id": "ZZg4ME3jBBCT",
+    "time": 1790715347,
+    "delivered_utc": "2026-09-29T20:55:47Z",
+    "priority": 3,
+    "title": "SEV2 CANCEL_UNVERIFIED KXEPLRELEGATION-27-MCI",
+    "message": "the cancel of 1 order(s) on KXEPLRELEGATION-27-MCI/yes did not come back verified absent (complete); H-FAIL-3 keeps every one of them in the"
+  },
+  {
+    "id": "WC4tJ3AqGuuK",
+    "time": 1790715830,
+    "delivered_utc": "2026-09-29T21:03:50Z",
+    "priority": 3,
+    "title": "SEV2 PNL_MARK_UNAVAILABLE KXEPLRELEGATION-27-MCI",
+    "message": "H-HALT-5 cannot be evaluated while KXEPLRELEGATION-27-MCI: the last accepted book frame is 30.001s old, past pnl_mark_max_age_s 30s. STALE, "
+  },
+  {
+    "id": "SbjJKWC4aD4x",
+    "time": 1790716107,
+    "delivered_utc": "2026-09-29T21:08:27Z",
+    "priority": 3,
+    "title": "SEV2 BOOK_QUIET KXEPLRELEGATION-27-MCI",
+    "message": "no book frame for 1m0.034200269s while the socket is healthy, past quiet_s 1m0s; F5's REST cross-check is requested and no placement decisio"
+  },
+  {
+    "id": "TPpfjEEDBLcC",
+    "time": 1790716107,
+    "delivered_utc": "2026-09-29T21:08:27Z",
+    "priority": 3,
+    "title": "SEV2 BOOK_CROSSCHECK_MISMATCH KXEPLRELEGATION-27-MCI",
+    "message": "F5's REST cross-check disagrees with the websocket book: the yes side disagrees at depth 6 of the Target Size walk: 28c is 29.99999999999998"
+  },
+  {
+    "id": "VQUkcUiP5wA5",
+    "time": 1790716107,
+    "delivered_utc": "2026-09-29T21:08:27Z",
+    "priority": 3,
+    "title": "SEV2 QUOTING_STOPPED_UNTIL_RESTART KXEPLRELEGATION-27-MCI",
+    "message": "KXEPLRELEGATION-27-MCI stops adding for the life of this process: the gate's reduce is sticky and nothing clears it, reconnects included. Re"
+  },
+  {
+    "id": "RMjhthblfFxk",
+    "time": 1790716239,
+    "delivered_utc": "2026-09-29T21:10:39Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+    "message": "fill 937bcde3-4a7c-51e8-c775-dee94d2c6391 on order 48fb1c82-91f0-4731-971c-9babc0c303b7 was already on the account when this process started"
+  },
+  {
+    "id": "ach71RtyCDY5",
+    "time": 1790716239,
+    "delivered_utc": "2026-09-29T21:10:39Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXAAAGASW-26OCT05-4.4200",
+    "message": "fill 0723573e-e589-a158-f331-5f44a8010c85 on order 01a0ee44-7920-77d4-92d2-bae201f4f7c8 was already on the account when this process started"
+  },
+  {
+    "id": "D5iqd0kkkyWx",
+    "time": 1790716240,
+    "delivered_utc": "2026-09-29T21:10:40Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXHOODA-28JANFUNDED-33000000",
+    "message": "fill 952cc2ad-6564-4fcc-a126-a5052485c0f1 on order 09577398-c959-4716-bd32-880d0240f20d was already on the account when this process started"
+  },
+  {
+    "id": "TeCXz9JFsb4L",
+    "time": 1790716849,
+    "delivered_utc": "2026-09-29T21:20:49Z",
+    "priority": 3,
+    "title": "SEV2 SIGNAL_DRAIN account",
+    "message": "sigterm received after 25m11.156104197s of uptime with inventory=false and live orders=false; the process does NOT exit. It stops adding, ke"
+  },
+  {
+    "id": "IZS0QhigloNj",
+    "time": 1790716986,
+    "delivered_utc": "2026-09-29T21:23:06Z",
+    "priority": 3,
+    "title": "SEV2 BOOK_QUIET KXEPLRELEGATION-27-MCI",
+    "message": "no book frame for 1m0.000392748s while the socket is healthy, past quiet_s 1m0s; F5's REST cross-check is requested and no placement decisio"
+  },
+  {
+    "id": "JRPuSxynYcLm",
+    "time": 1790716986,
+    "delivered_utc": "2026-09-29T21:23:06Z",
+    "priority": 3,
+    "title": "SEV2 BOOK_CROSSCHECK_MISMATCH KXEPLRELEGATION-27-MCI",
+    "message": "F5's REST cross-check disagrees with the websocket book: the no side disagrees at depth 2 of the Target Size walk: 64c is 90.85000000000002 "
+  },
+  {
+    "id": "wjtw0TQmZ9Ms",
+    "time": 1790716986,
+    "delivered_utc": "2026-09-29T21:23:06Z",
+    "priority": 3,
+    "title": "lip STARTING | store healthy",
+    "message": "global: STARTING\ncapital: $98.55\nintegrated: unknown\nuptime: 1s\nsource: unknown\nundelivered: 10\nstore: healthy\nmarkets: none\nnotices:\n  [SEV"
+  },
+  {
+    "id": "7o0jhsbYlKNt",
+    "time": 1790716987,
+    "delivered_utc": "2026-09-29T21:23:07Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXAAAGASW-26OCT05-4.4200",
+    "message": "fill 0723573e-e589-a158-f331-5f44a8010c85 on order 01a0ee44-7920-77d4-92d2-bae201f4f7c8 carries no coid of ours and was already on the accou"
+  },
+  {
+    "id": "AA5cqVDOsIDD",
+    "time": 1790716987,
+    "delivered_utc": "2026-09-29T21:23:07Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXHOODA-28JANFUNDED-33000000",
+    "message": "fill c34ffc9a-8134-64c8-5e3b-45cb21b74a89 on order 09577398-c959-4716-bd32-880d0240f20d was already on the account when this process started"
+  },
+  {
+    "id": "bOGeuKZFLpBV",
+    "time": 1790716987,
+    "delivered_utc": "2026-09-29T21:23:07Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+    "message": "fill 1582884a-1f64-7c20-fab4-b40468ad5df6 on order 0f0a2cee-ab64-4c1f-9814-50e5fb4f22a3 was already on the account when this process started"
+  },
+  {
+    "id": "ZkYWQTMWaS6Q",
+    "time": 1790717020,
+    "delivered_utc": "2026-09-29T21:23:40Z",
+    "priority": 3,
+    "title": "SEV2 SIGNAL_DRAIN account",
+    "message": "sigterm received after 34.752922721s of uptime with inventory=false and live orders=false; the process does NOT exit. It stops adding, keeps"
+  }
+]

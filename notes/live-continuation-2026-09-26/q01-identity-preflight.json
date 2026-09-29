@@ -1,0 +1,6 @@
+{
+  "prior_identity": "notes/live-readiness-2026-09-26/candidate-identity.json",
+  "source_drift": [],
+  "binary": "/Users/hugh/kek/lip/notes/live-readiness-2026-09-26/harness-candidate-v2",
+  "binary_sha256": "77b61ff23c763aa0e29f8bb0d5a77e5e5aeca4bfef7bf2dc24d71673dc5747bd"
+}

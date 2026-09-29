@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"lip/core"
 	"lip/harness/cfg"
 	"lip/harness/hstore"
 	"lip/harness/lifecycle"
@@ -15,6 +16,7 @@ import (
 	"lip/harness/quote"
 	"lip/harness/rest"
 	"lip/harness/risk"
+	"lip/harness/turnover"
 	"lip/harness/wsx"
 )
 
@@ -41,7 +43,7 @@ import (
 //     contexts, so a socket failure cannot reach anything else (H-FAIL-2).
 //   - the PORTFOLIO POLLER -- a separate goroutine on a separate context from
 //     any session, for the same reason. It keeps polling through an outage.
-//   - the DISPATCHER -- the single REST writer (D3, H-ORD-6). It is separate
+//   - the DISPATCHER POOL -- bounded transport workers (H-ORD-6, H-QUE-3). It is separate
 //     from the owner because `rest.Create` blocks for up to `restTimeout` and
 //     retries the same coid up to `retry_same_coid_max` times: an owner parked
 //     inside one is an owner not publishing snapshots, and `owner_stall_s` is
@@ -77,11 +79,25 @@ const (
 	// the newest answer supersedes every older one completely, so a queue of
 	// them is a queue of answers about the past -- and §9's whole point is that
 	// the schedule moves.
-	scheduleBuffer = 1
+	scheduleBuffer   = 1
+	crossCheckBuffer = 1
 )
 
 // owner is the state exactly one goroutine may touch.
 type owner struct {
+	crossCheckPending       []wsx.CrossCheckRequest
+	turnoverPlan            *turnover.Plan
+	turnoverResolved        map[string]time.Duration
+	turnoverAccountingReady bool
+	activeTicker            string
+	markets                 map[string]*marketRuntime
+	selected                map[string]bool
+	targets                 map[string]float64
+	turnoverReady           bool
+	selectionAt             time.Duration
+	selectionRankAt         time.Duration
+	selectionSeen           bool
+
 	r *rig
 	// sd is the stop path: signals, the A9 state_event mirror, the drain and the
 	// result loop. It is a collaborator rather than a set of methods here
@@ -90,8 +106,19 @@ type owner struct {
 	sd *shutdown
 	p  cfg.Params
 
-	global quote.GlobalState
-	market quote.MarketState
+	// F7 samples the independent wall and monotonic readings on every owner
+	// iteration. Only the owner touches this detector or its accumulated total.
+	sleep               lifecycle.SleepDetector
+	sleepDowntime       time.Duration
+	wsCommands          chan<- wsx.Command
+	crossChecks         chan<- wsx.CrossCheckRequest
+	restReducer         rest.ReducerBook
+	f5ResnapshotPending bool
+	bookSID             int64 // current connection's orderbook_delta SID; zero until proven
+
+	global            quote.GlobalState
+	market            quote.MarketState
+	programMembership programMembership
 
 	// --- the §12 cause that is not on disk yet -------------------------------
 	//
@@ -183,10 +210,14 @@ type owner struct {
 	capCarry float64
 	coidSeq  uint64
 
-	// inflight is the one write the dispatcher is executing. At most one,
-	// because there is one dispatcher: D3's "ONE REST writer" is a goroutine
-	// count, and this field is what makes it observable from here.
-	inflight *writeRequest
+	// inflight tracks every request occupying the bounded transport pool.
+	// The owner alone grants work; reducers retain a reserved worker slot.
+	inflight       []*writeRequest
+	retries        []writeRequest
+	throttled      bool
+	throttleAt     time.Duration
+	throttleFirst  time.Duration
+	throttlePinged bool
 
 	// startupTrades is the trade id of every fill §7.5 saw on the account,
 	// frozen out of the Adoption that licensed this process to leave STARTING.
@@ -244,12 +275,10 @@ type owner struct {
 	// reduceNoted is the reduce requests observed SINCE THE LAST EVALUATION, and
 	// it is cleared at the end of every one.
 	//
-	// It is not a latch, and an earlier version of this field being one was a
-	// wedge: `wsx.Gate` already holds the sticky reduce -- `Gate.Reducing`
-	// answers it and the gate is what clears it when the condition that set it
-	// goes away -- so a second latch here could only ever be an unclearable
-	// copy. One disconnect would have sent this market to REDUCING for the life
-	// of the process, and the socket coming back would not have brought it out.
+	// It is not a latch. `wsx.Gate` already holds the sticky reduce and
+	// `Gate.Reducing` answers it. Nothing clears the gate's flag for the life of
+	// the process, reconnecting included (`Gate.NoteDisconnectSustained`), so a
+	// latch here would only be a second copy of it.
 	//
 	// What the field IS for is the reduce requests that do NOT come from the
 	// gate: H-POS-2's position drift, arriving through `ApplyPortfolio`. Those
@@ -262,6 +291,135 @@ type owner struct {
 	// than a market event, so it is worth saying once and worth not saying four
 	// times a second into a 256-slot buffer.
 	reducerCancelPinged [2]bool
+
+	// cancelConfirmed is, per side of the one market, H-FAIL-3's own licence:
+	// a COMPLETE verifying read found NOTHING OF OURS resting there.
+	//
+	// It is the only thing that ends a cancellation obligation, and it has to be
+	// held because `risk.Portfolio.LiveOrders` does not learn it. `LiveOrders`
+	// is replaced wholesale from a complete ORDERS WALK (H-POS-4) and the next
+	// one is up to `position_poll_s` away, so for those five seconds `atRisk`
+	// still reports the order we have just watched the exchange confirm gone --
+	// and `evaluate` would reissue the cancel on every one of the twenty ticks
+	// in between. Each of those is a DELETE for an id the exchange no longer
+	// has plus a full verifying walk, spending the §16 write budget the reducer
+	// shares.
+	//
+	// It is set ONLY from `writeResult.Absent`, which `dispatch.go` grants only
+	// for a complete read that found none of the requested orders AND no other
+	// order of ours on that side. It is cleared by anything that could put one
+	// back: a create on that side that may have left quantity live, and a
+	// complete orders walk started after the latest cancel sweep, which is
+	// when our own model becomes authoritative again. Both clears are generous
+	// on purpose -- a redundant
+	// cancel costs one write, and a missed one costs an adding order left
+	// resting in a market the harness has stopped adding in.
+	cancelConfirmed [2]bool
+	// absentOrders are ids still present in the last portfolio orders walk but
+	// subsequently proved absent by a complete cancel sweep. A replacement
+	// create clears cancelConfirmed, so that side-wide flag cannot also be the
+	// sizing rule: it would resurrect the cancelled reducer before the next
+	// portfolio walk. A new complete walk started after the sweep replaces this
+	// older evidence; a previously in-flight walk cannot supersede it.
+	absentOrders map[string]struct{}
+	// A cancel sweep proves absence, but the old order may have filled just
+	// before its DELETE. Until a subsequent complete portfolio cycle started
+	// after the sweep, q may be too large for a replacement reducer. Hold all
+	// placements while that uncertainty exists; cancels still run.
+	//
+	// The hold is account-wide on purpose (lip-mgh). exposures() drops the
+	// swept ids, and every market's add and reducer budget sums exposure across
+	// all markets (H-CAP-1, H-CAP-4), so a fill hidden in one market overstates
+	// what every other market may commit. The sweep requests an immediate
+	// portfolio cycle, so other markets wait about one read rather than a poll
+	// interval. Turnover keeps both fields owner-level, outside the per-market
+	// swap.
+	awaitCancelTruth bool
+	cancelTruthAfter time.Duration
+	// The latest Gate-issued token and the poller's input are retained so a
+	// cancel can request an immediate account reconciliation on this generation.
+	reconcileToken   wsx.ReconcileToken
+	reconcileOut     chan<- wsx.ReconcileToken
+	reconcilePending bool
+
+	// --- H-Q-4a's continuous gate-failure episode ---------------------------
+	//
+	// `gate_fail_debounce_s` was configured, defaulted and unit-tested before
+	// `lip-732` and had no production reader at all. H-Q-4a is what reads it:
+	// "after gate_fail_debounce_s (30s) of continuous gate failure, cancel and
+	// exchange-confirm every adding order. If q != 0, keep only the
+	// aggregate-capped reducer."
+	//
+	// gateFailSince is, per market, the monotonic instant the CURRENT unbroken
+	// run of accepted, current-generation, NON-qualifying books began. No entry
+	// means no episode is open.
+	//
+	// Three properties, and each of them is a way this goes silently wrong:
+	//
+	//   - The stamp comes from the injected clock (`wsx.Stamp.Mono`) and is
+	//     compared against `owner.evaluate`'s `now`, which is `exchange.Mono`.
+	//     Both are monotonic. F21's clock step moves the WALL clock and must not
+	//     shorten, extend or reset this interval, and a wall-derived stamp here
+	//     would let a one-hour NTP correction retire an adding order instantly
+	//     or hold one live for an hour.
+	//   - A continuing failure does NOT move the start. H-Q-4a says *continuous*
+	//     failure, so a market publishing a thin book four times a second must
+	//     accumulate one 30-second interval, not restart a 30-second interval
+	//     every 250 ms -- which would make the rule unreachable in exactly the
+	//     busy market it matters in.
+	//   - Only book evidence writes here. `wsx.Gate.BookCurrent` is separate
+	//     from `Actionable` for this reason: a stale portfolio walk must not be
+	//     able to start, extend or clear a book's episode.
+	gateFailSince map[string]time.Duration
+	// gateFailPinged dedupes the SEV2 to one per EPISODE and re-arms when a
+	// qualifying book clears it. Same argument as `pnlPinged` and
+	// `reducerCancelPinged`: a standing condition is worth saying once, and at
+	// four evaluations a second into a 256-slot buffer it is worth not saying
+	// two hundred times a minute -- which evicts the anomaly the operator needs.
+	gateFailPinged map[string]bool
+
+	// stickyReducePinged is each market already told that the gate's reduce
+	// keeps it from adding until the process restarts (lip-pcr).
+	stickyReducePinged map[string]bool
+
+	// F16 episodes are owned by this goroutine and read only accepted position truth.
+	inventoryStuck    inventoryStuckTracker
+	operationsDisk    operationsDiskGuard
+	storeHealth       storeHealthGuard
+	fundingStopPinged bool
+	rejects           rejectWindow
+	postOnlyCrossSeen map[string]bool
+	listedBindings    map[string]string
+
+	// sweptOrders is every order of OURS that a cancel's VERIFYING READ found
+	// resting and that no complete orders walk has listed into `risk.Portfolio`
+	// yet, keyed by exchange order id.
+	//
+	// It exists because `build` could previously only cancel what
+	// `Portfolio.LiveOrders` held, and `LiveOrders` is replaced wholesale from a
+	// complete orders walk (H-POS-4) that is up to `position_poll_s` away. So an
+	// adding order that was created between two walks -- acked, UNKNOWN, or
+	// simply young -- was in every aggregate CAP (`pending`, and therefore
+	// `atRisk`) and in no cancel REQUEST: H-Q-4a's expiry would raise the
+	// obligation to retire it and `build` would answer "nothing of ours rests on
+	// this side" and drop it. The order stayed live and fillable through the
+	// whole gated-out interval, which is precisely HR-012's hole reached one
+	// layer down.
+	//
+	// `rest.SweepResult` already reports the two sets a complete verifying read
+	// establishes -- `StillResting` for what we asked to cancel and `OtherOurs`
+	// for everything else of ours in the ticker -- and `OtherOurs` is exactly
+	// where such an order turns up. It is REPLACED WHOLESALE from a complete
+	// read and never edited from a partial one (H-PAGE-1: stale, never empty),
+	// which is what makes "the order is gone" a fact the exchange stated rather
+	// than one we inferred from silence (H-FAIL-3, H-ORD-2a).
+	//
+	// It deliberately contributes NO quantity to `atRisk`. Every order in it is
+	// also in `LiveOrders` or in `pending`, so counting it again would double a
+	// size the aggregate caps are evaluated against (H-Q-5b) -- and an
+	// overstated reducer aggregate is a reducer that never gets placed. What it
+	// contributes is the IDENTIFIER, which is the half that was missing.
+	sweptOrders map[string]rest.Order
 
 	// --- H-HALT-5's ledger ---------------------------------------------------
 
@@ -363,8 +521,9 @@ type owner struct {
 // caps a reducer at |q| and A12 says no fill sequence may change the sign of q
 // via a reducer; that sequence can.
 type pendingOrder struct {
-	side  quote.Side
-	cents int
+	ticker string
+	side   quote.Side
+	cents  int
 	// qty is what this order may have live: `CreateResult.MaxLive`, which is
 	// the requested count for anything that is not a definite rejection. It is
 	// the conservative figure on purpose -- H-Q-5b counts RESTING + SENDING +
@@ -377,17 +536,39 @@ type pendingOrder struct {
 	// simply younger than the poll.
 	acked  bool
 	pinged bool
+	// id is the exchange order id the acknowledgement carried, and "" when the
+	// create ended UNKNOWN and there is none.
+	//
+	// It is what makes an acked-but-unlisted order CANCELLABLE. Without it the
+	// only cancel target `build` had was `Portfolio.LiveOrders`, so a stop
+	// raised between two orders walks -- H-Q-4a's expiry, H-CLOSE-3's final
+	// cancel, A8 -- could name the obligation and not the order, and the
+	// quantity stayed live for up to `position_poll_s` with the harness
+	// believing it had asked for it back.
+	//
+	// An UNKNOWN create has no id here and that is not a gap: H-ORD-2a forbids
+	// inferring anything from absence, so it is resolved POSITIVELY, either by
+	// the orders walk listing the coid or by the sweep's verifying read finding
+	// the order -- which is what `sweptOrders` catches.
+	id string
 }
 
 func newOwner(r *rig, sd *shutdown) *owner {
 	o := &owner{
-		r:        r,
-		sd:       sd,
-		p:        r.cfg.Params,
-		global:   quote.Starting,
-		market:   quote.Idle,
-		capacity: r.cap,
-		pending:  make(map[string]pendingOrder),
+		r:                 r,
+		sd:                sd,
+		p:                 r.cfg.Params,
+		global:            quote.Starting,
+		market:            quote.Idle,
+		programMembership: programMembership{ticker: r.cfg.Ticker},
+		operationsDisk:    operationsDiskGuard{enabled: true, db: r.cfg.Paths.DB, journal: r.cfg.Paths.AnomalyLog, evidence: r.qualificationPath},
+		capacity:          r.cap,
+		pending:           make(map[string]pendingOrder),
+		absentOrders:      make(map[string]struct{}),
+
+		gateFailSince:  make(map[string]time.Duration),
+		gateFailPinged: make(map[string]bool),
+		sweptOrders:    make(map[string]rest.Order),
 
 		pnl:        risk.NewTradingPnL(),
 		pnlTickers: make(map[string]struct{}),
@@ -425,13 +606,25 @@ func newOwner(r *rig, sd *shutdown) *owner {
 // licence every record beneath it requires -- and a method shadowing it would
 // make `r.run` mean two different things one keystroke apart.
 func (r *rig) serve(ctx context.Context) error {
+	return r.serveWithShutdown(ctx, newShutdown(r), nil)
+}
+
+// serveWithShutdown keeps signal delivery and the final exit injectable for
+// composed lifecycle tests. Production supplies the real shutdown and signals.
+func (r *rig) serveWithShutdown(ctx context.Context, sd *shutdown, signals <-chan os.Signal) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	var checkpoints, monitorLoop, resultLoop, inputs runtimeGroup
+	defer func() {
+		inputs.stop()
+		monitorLoop.stop()
+		resultLoop.stop()
+		checkpoints.stop()
+	}()
 	if r.qual != nil {
-		go r.runQualificationCheckpoints(ctx)
+		checkpoints.start(ctx, r.runQualificationCheckpoints)
 	}
 
-	sd := newShutdown(r)
 	o := newOwner(r, sd)
 
 	// The monitor starts FIRST, before the startup walk and before anything can
@@ -440,21 +633,27 @@ func (r *rig) serve(ctx context.Context) error {
 	// the one where it is deciding what it inherited.
 	monTick := time.NewTicker(time.Second)
 	defer monTick.Stop()
-	go r.mon.run(ctx, monTick.C)
+	startMonitor := func() {
+		monitorLoop.start(ctx, func(ctx context.Context) { r.mon.run(ctx, monTick.C) })
+	}
+	startMonitor()
 
 	// The result loop starts before the first submission that is not the run
 	// row, so no record's outcome sits unclaimed. It also drains `r.deferred` --
 	// results that arrived while construction was waiting for the run handle.
-	go func() {
-		if err := sd.runResults(ctx); err != nil && ctx.Err() == nil {
-			r.anom.raise(risk.Anomaly{
-				Class: "RESULT_LOOP_EXIT", Sev: risk.SEV1,
-				Text: fmt.Sprintf("the store result loop returned %v; from here "+
-					"no lost record raises its SEV1 and no anomaly reaches "+
-					"either journal", err),
-			})
-		}
-	}()
+	startResults := func() {
+		resultLoop.start(ctx, func(ctx context.Context) {
+			if err := sd.runResults(ctx); err != nil && ctx.Err() == nil {
+				r.anom.raise(risk.Anomaly{
+					Class: "RESULT_LOOP_EXIT", Sev: risk.SEV1,
+					Text: fmt.Sprintf("the store result loop returned %v; from here "+
+						"no lost record raises its SEV1 and no anomaly reaches "+
+						"either journal", err),
+				})
+			}
+		})
+	}
+	startResults()
 
 	// Alerting is independent of startup and begins with an immediate Step.
 	// In particular, a startup walk which stalls or fails must not prevent a
@@ -469,52 +668,84 @@ func (r *rig) serve(ctx context.Context) error {
 	}
 	o.install(adoption)
 
-	events := make(chan wsx.Event, eventBuffer)
-	reads := make(chan wsx.PortfolioRead, readBuffer)
-	tokens := make(chan wsx.ReconcileToken, 1)
-	writes := make(chan writeRequest)
-	results := make(chan writeResult, 1)
+	var events chan wsx.Event
+	var reads chan wsx.PortfolioRead
+	var tokens chan wsx.ReconcileToken
+	var commands chan wsx.Command
+	var writes chan writeRequest
+	var results chan writeResult
+	var schedules chan rest.ScheduleResult
+	var programs chan rest.ProgramsResult
+	var selectionReads chan turnoverSelectionRead
+	var terminalReads chan turnoverTerminalRead
+	var balanceThrottles chan *rest.RateLimitError
+	var crossChecks chan wsx.CrossCheckRequest
+	var crossResults chan crossCheckResult
+	startInputs := func() {
+		events = make(chan wsx.Event, eventBuffer)
+		reads = make(chan wsx.PortfolioRead, readBuffer)
+		tokens = make(chan wsx.ReconcileToken, 1)
+		commands = make(chan wsx.Command, 1)
+		o.wsCommands = commands
+		writes = make(chan writeRequest, dispatchWorkers)
+		results = make(chan writeResult, dispatchWorkers)
 
-	go func() {
-		// The supervisor never returns because of a socket; only the process
-		// context ends it. Its error is therefore always the context's.
-		if err := r.sup.Run(ctx, nil, events); err != nil && ctx.Err() == nil {
-			r.anom.raise(risk.Anomaly{
-				Class: "WS_SUPERVISOR_EXIT", Sev: risk.SEV1,
-				Text: fmt.Sprintf("the websocket supervisor returned %v while "+
-					"the process context was still live; the book feed is gone "+
-					"and every market is non-actionable until it comes back", err),
-			})
-		}
-	}()
-	go func() {
-		if err := r.poll.Run(ctx, tokens, reads); err != nil && ctx.Err() == nil {
-			r.anom.raise(risk.Anomaly{
-				Class: "PORTFOLIO_POLLER_EXIT", Sev: risk.SEV1,
-				Text: fmt.Sprintf("the portfolio poller returned %v; position "+
-					"truth stops advancing from here, so it ages out and "+
-					"H-FAIL-4 stops all dispatch, which is the correct end "+
-					"state but not a recoverable one", err),
-			})
-		}
-	}()
-	// The dispatcher is handed the RESERVATION OUTCOMES it needs and never the
-	// store's FIFO itself. `runResults` is the sole consumer of `TakeResults`,
-	// because it is the only thing that must see every result: a second consumer
-	// racing it would sometimes take a terminal outcome belonging to another
-	// record, and that record's SEV1 `STORE_RECORD_REJECTED` would never be
-	// raised -- `reject.go`'s whole argument is that the loss is observable
-	// exactly once, per record, from `Result.Err`.
-	go r.dispatchLoop(ctx, writes, sd.Permits(), results)
+		inputs.start(ctx, func(ctx context.Context) {
+			// The supervisor never returns because of a socket; only the process
+			// context ends it. Its error is therefore always the context's.
+			if err := r.sup.Run(ctx, commands, events); err != nil && ctx.Err() == nil {
+				r.anom.raise(risk.Anomaly{
+					Class: "WS_SUPERVISOR_EXIT", Sev: risk.SEV1,
+					Text: fmt.Sprintf("the websocket supervisor returned %v while "+
+						"the process context was still live; the book feed is gone "+
+						"and every market is non-actionable until it comes back", err),
+				})
+			}
+		})
+		inputs.start(ctx, func(ctx context.Context) {
+			if err := r.poll.Run(ctx, tokens, reads); err != nil && ctx.Err() == nil {
+				r.anom.raise(risk.Anomaly{
+					Class: "PORTFOLIO_POLLER_EXIT", Sev: risk.SEV1,
+					Text: fmt.Sprintf("the portfolio poller returned %v; position "+
+						"truth stops advancing from here, so it ages out and "+
+						"H-FAIL-4 stops all dispatch, which is the correct end "+
+						"state but not a recoverable one", err),
+				})
+			}
+		})
+		// The dispatcher is handed the RESERVATION OUTCOMES it needs and never the
+		// store's FIFO itself. `runResults` is the sole consumer of `TakeResults`,
+		// because it is the only thing that must see every result: a second consumer
+		// racing it would sometimes take a terminal outcome belonging to another
+		// record, and that record's SEV1 `STORE_RECORD_REJECTED` would never be
+		// raised -- `reject.go`'s whole argument is that the loss is observable
+		// exactly once, per record, from `Result.Err`.
+		inputs.start(ctx, func(ctx context.Context) { r.dispatchLoop(ctx, writes, sd.Permits(), results) })
 
-	// §9's schedule poll. It is a SEPARATE goroutine for the same reason the
-	// portfolio poller is: it is a REST read that must keep answering while the
-	// socket is down, and it must not be able to park the owner. Its cadence is
-	// `schedule_poll_s`, which `cfg.Validate` has already asserted is at least
-	// twice per `final_lead` -- H-CLOSE-0's sampling rule, checked as arithmetic
-	// rather than discovered at the close (HR-017).
-	schedules := make(chan rest.ScheduleResult, scheduleBuffer)
-	go r.scheduleLoop(ctx, schedules)
+		// §9's schedule poll. It is a SEPARATE goroutine for the same reason the
+		// portfolio poller is: it is a REST read that must keep answering while the
+		// socket is down, and it must not be able to park the owner. Its cadence is
+		// `schedule_poll_s`, which `cfg.Validate` has already asserted is at least
+		// twice per `final_lead` -- H-CLOSE-0's sampling rule, checked as arithmetic
+		// rather than discovered at the close (HR-017).
+		schedules = make(chan rest.ScheduleResult, scheduleBuffer)
+		inputs.start(ctx, func(ctx context.Context) { r.scheduleLoop(ctx, schedules) })
+		programs = make(chan rest.ProgramsResult, 1)
+		inputs.start(ctx, func(ctx context.Context) { r.programLoop(ctx, programs) })
+		selectionReads = make(chan turnoverSelectionRead, 1)
+		inputs.start(ctx, func(ctx context.Context) { r.turnoverSelectionLoop(ctx, selectionReads) })
+		terminalReads = make(chan turnoverTerminalRead, 1)
+		inputs.start(ctx, func(ctx context.Context) { r.turnoverTerminalLoop(ctx, terminalReads) })
+		balanceThrottles = make(chan *rest.RateLimitError, 1)
+		inputs.start(ctx, func(ctx context.Context) { r.balanceLoop(ctx, balanceThrottles) })
+
+		crossChecks = make(chan wsx.CrossCheckRequest, crossCheckBuffer)
+		crossResults = make(chan crossCheckResult, crossCheckBuffer)
+		o.crossChecks = crossChecks
+		inputs.start(ctx, func(ctx context.Context) { r.crossCheckLoop(ctx, crossChecks, crossResults) })
+
+	}
+	startInputs()
 
 	// The drain runs on its own goroutine, fed observations by this one.
 	//
@@ -525,6 +756,7 @@ func (r *rig) serve(ctx context.Context) error {
 	// from a second goroutine. So the owner supplies the facts and the drain
 	// supplies the authority, and neither can perform the other's half.
 	observations := make(chan lifecycle.DrainObservation, 1)
+	sd.stopRequests = make(chan stopRequest)
 	go func() {
 		if err := sd.drainLoop(ctx, observations); err != nil && ctx.Err() == nil {
 			r.anom.raise(risk.Anomaly{
@@ -536,11 +768,17 @@ func (r *rig) serve(ctx context.Context) error {
 		}
 	}()
 
-	signals, stopSignals := installSignals()
-	defer stopSignals()
+	if signals == nil {
+		var stopSignals func()
+		signals, stopSignals = installSignals()
+		defer stopSignals()
+	}
 
 	tick := time.NewTicker(ownerTick)
 	defer tick.Stop()
+	// Establish F7's baseline before the first owner iteration. The first
+	// sample cannot declare a gap by itself.
+	o.observeSleep(r.ex.NowMs(), r.ex.Mono(), tokens)
 
 	for {
 		select {
@@ -548,6 +786,61 @@ func (r *rig) serve(ctx context.Context) error {
 			return ctx.Err()
 		case err := <-r.qualErrors:
 			return fmt.Errorf("qualification evidence failed: %w", err)
+
+		case request := <-sd.stopRequests:
+			// The earlier drain observation is not a licence to cancel work
+			// admitted since then. Recheck on the sole owner, at an iteration
+			// boundary: no dispatched or ambiguous order may be in flight.
+			if !o.truthKnown() || o.anyInventory() || o.anyLiveOrder() {
+				request.done <- errors.New("owner no longer has fresh flat drain truth")
+				continue
+			}
+			// A recorded close failure is returned unchanged by every retry, so
+			// pausing the inputs for it would only drop the socket and force a
+			// resnapshot each time the drain asks (lip-6w8).
+			if _, err := r.closeFailed(); err != nil {
+				request.done <- err
+				continue
+			}
+			closeCtx, closeCancel := context.WithTimeout(request.ctx, finalCloseTimeout)
+			// Keep the independent monitor and result consumer alive while
+			// network/direct producers unwind. On timeout, each completed loop
+			// resumes immediately; a blocked callback keeps its store open and
+			// its replacement waits for it, never overlapping mutable state.
+			err := inputs.pause(closeCtx)
+			if err == nil {
+				err = monitorLoop.pause(closeCtx)
+			}
+			if err == nil {
+				err = resultLoop.pause(closeCtx)
+			}
+			if err == nil {
+				err = r.ex.quiesce(closeCtx)
+			}
+			if err == nil {
+				err = sd.stopStore(closeCtx)
+			}
+			closeCancel()
+			if err == nil {
+				checkpoints.stop()
+				request.done <- nil
+				// No callback can run against the closed store while the drain
+				// goroutine finalizes evidence and performs its authorized exit.
+				<-ctx.Done()
+				return ctx.Err()
+			}
+			// A fresh subscription invalidates old feed/truth generations.
+			// Reads canceled during quiescence are reacquired, never treated
+			// as completed observations. Retain the owner and stop latch.
+			r.ex.resume()
+			resultLoop.resume(ctx)
+			o.applyEvent(wsx.Event{Kind: wsx.EventDisconnected, At: r.ex.Clock.Now(), UniverseRevision: r.sup.UniverseRevision(), Clean: true}, tokens)
+			inputs.resume(ctx)
+			o.evaluate(r.ex.Mono())
+			o.publish(r.ex.Mono())
+			monitorLoop.resume(ctx)
+			request.done <- err
+			continue
 
 		case ev := <-events:
 			o.applyEvent(ev, tokens)
@@ -561,6 +854,21 @@ func (r *rig) serve(ctx context.Context) error {
 		case sch := <-schedules:
 			o.applySchedule(sch)
 
+		case terminal := <-terminalReads:
+			o.applyTurnoverTerminals(terminal)
+
+		case selection := <-selectionReads:
+			o.applyTurnoverSelection(selection.result, selection.started)
+
+		case prog := <-programs:
+			o.applyProgramMembership(prog)
+
+		case throttle := <-balanceThrottles:
+			o.noteRESTThrottle(throttle)
+
+		case check := <-crossResults:
+			o.applyCrossCheck(check)
+
 		case sig := <-signals:
 			o.applySignal(sig)
 
@@ -568,6 +876,7 @@ func (r *rig) serve(ctx context.Context) error {
 		}
 
 		now := r.ex.Mono()
+		o.observeSleep(r.ex.NowMs(), now, tokens)
 		o.evaluate(now)
 		o.pump(now, writes)
 		o.publish(now)
@@ -582,13 +891,14 @@ func (r *rig) serve(ctx context.Context) error {
 // and `drain_timeout_h` escalates rather than exiting. The exit, if it ever
 // happens, is authorised by the drain and by nothing else.
 func (o *owner) applySignal(sig os.Signal) {
+	known := o.truthKnown()
 	eff := o.sd.onSignal(sig, quote.GlobalInput{
 		State:         o.global,
 		Latched:       o.r.ctrl.Latched(),
-		TruthReadable: o.truthKnown(),
-		Reconciled:    true,
+		TruthReadable: known,
+		Reconciled:    known,
 		Stop:          true,
-		RiskKnown:     true,
+		RiskKnown:     known,
 		AnyInventory:  o.anyInventory(),
 		AnyLiveOrder:  o.anyLiveOrder(),
 	})
@@ -680,7 +990,7 @@ func (o *owner) startup(ctx context.Context) (lifecycle.Adoption, error) {
 func (o *owner) install(a lifecycle.Adoption) {
 	o.r.pf = a.Portfolio()
 	o.global = o.r.start.State()
-	if st, ok := a.States()[o.r.cfg.Ticker]; ok {
+	if st, ok := a.States()[o.ticker()]; ok {
 		o.market = st
 	}
 	// The history/live boundary, taken from the adoption that licensed this
@@ -692,16 +1002,18 @@ func (o *owner) install(a lifecycle.Adoption) {
 	o.recordBackfilled(a.OwnedFills())
 	o.seedPnL(a.OwnedFills())
 	o.r.anom.raiseAll(a.Anomalies())
+	o.recordFundingLimits()
+	o.installTurnover(a)
 
 	sum := a.Summary()
 	o.r.anom.raise(risk.Anomaly{
-		Class: "STARTUP", Sev: risk.SEV3, Ticker: o.r.cfg.Ticker,
+		Class: "STARTUP", Sev: risk.SEV3, Ticker: o.ticker(),
 		Text: fmt.Sprintf("run %s adopted %d order(s), cancelled %d stale, saw "+
 			"%d foreign order(s) and %d foreign fill(s); balance %s, managed %v, "+
 			"excluded %v, reducing %v. Global state is %s and %s is %s",
 			o.r.runID, sum.AdoptedOrders, sum.CancelledStale, sum.ForeignOrders,
 			sum.ForeignFills, sum.Balance, sum.Managed, sum.Excluded,
-			sum.Reducing, o.global, o.r.cfg.Ticker, o.market),
+			sum.Reducing, o.global, o.ticker(), o.market),
 	})
 }
 
@@ -739,7 +1051,7 @@ func (o *owner) recordBackfilled(fills []rest.Fill) {
 		// because the alternative to reaching it is a silent `_ = err` on the
 		// one table that joins our fills to the public tape.
 		o.r.anom.raise(risk.Anomaly{
-			Class: "FILL_NOT_RECORDED", Sev: risk.SEV1, Ticker: o.r.cfg.Ticker,
+			Class: "FILL_NOT_RECORDED", Sev: risk.SEV1, Ticker: o.ticker(),
 			Text: fmt.Sprintf("the adoption's %d owned fill(s) did not convert "+
 				"(%v), so none of the history this process inherited reaches "+
 				"our_fill; H-ORD-6 makes trade_id the join against rig.db and "+
@@ -791,7 +1103,7 @@ func (o *owner) seedPnL(adopted []rest.Fill) {
 		// authoritative-quantity check turns that into a refusal to evaluate
 		// rather than into a wrong number.
 		o.r.anom.raise(risk.Anomaly{
-			Class: "PNL_BASIS_UNAVAILABLE", Sev: risk.SEV2, Ticker: o.r.cfg.Ticker,
+			Class: "PNL_BASIS_UNAVAILABLE", Sev: risk.SEV2, Ticker: o.ticker(),
 			Text: fmt.Sprintf("the durable our_fill history could not be read "+
 				"(%v), so H-HALT-5's ledger starts from this adoption alone; any "+
 				"position older than it has no cost basis and the trigger will "+
@@ -812,7 +1124,7 @@ func (o *owner) seedPnL(adopted []rest.Fill) {
 		// ledger's opening balance and a silent `_ = err` here is a loss floor
 		// measured from the wrong zero.
 		o.r.anom.raise(risk.Anomaly{
-			Class: "PNL_BASIS_UNAVAILABLE", Sev: risk.SEV2, Ticker: o.r.cfg.Ticker,
+			Class: "PNL_BASIS_UNAVAILABLE", Sev: risk.SEV2, Ticker: o.ticker(),
 			Text: fmt.Sprintf("the adoption's %d owned fill(s) did not convert "+
 				"(%v), so none of the history this process inherited reaches "+
 				"H-HALT-5's ledger", len(adopted), err),
@@ -882,6 +1194,9 @@ func (o *owner) applyPnLFill(f risk.FillEvent) {
 // the book when the handler refuses, and `FrameEffects.Delivered` is its REPORT
 // of what it did rather than permission for the caller to do it afterwards.
 func (o *owner) applyEvent(ev wsx.Event, tokens chan<- wsx.ReconcileToken) {
+	if !o.r.gate.AcceptsUniverse(ev.UniverseRevision) {
+		return
+	}
 	if o.r.qual != nil && ev.Kind != wsx.EventFrame {
 		name := "websocket:" + ev.Kind.String()
 		if err := o.r.qual.RecordEvent("state", name, time.Now().UTC()); err != nil {
@@ -890,16 +1205,24 @@ func (o *owner) applyEvent(ev wsx.Event, tokens chan<- wsx.ReconcileToken) {
 	}
 	switch ev.Kind {
 	case wsx.EventConnected:
-		eff := o.r.gate.OnConnect(ev.At)
+		o.bookSID = 0
+		eff, accepted := o.r.gate.OnConnectForUniverse(ev.At, ev.UniverseRevision)
+		if !accepted {
+			return
+		}
 		o.r.anom.raiseAll(eff.Anomalies)
+		o.invalidateMarketBooks()
 		// A new generation invalidates every read taken under the old one, and
 		// the token is what says so. Delivering it triggers an IMMEDIATE poll,
 		// which is H-ORD-5's reconciliation and is what unlocks placement.
 		o.offerToken(tokens, eff.Token)
-		o.resnapshot(eff.Resnapshot)
+		// subscribeDelta already causes the exchange's initial snapshot. There
+		// is no SID to address until its acknowledgement or snapshot arrives.
 
 	case wsx.EventDisconnected:
+		o.bookSID = 0
 		eff := o.r.gate.ApplyDisconnect(ev.At, ev.Clean)
+		o.invalidateMarketBooks()
 		o.r.anom.raiseAll(eff.Anomalies)
 		if eff.ResetBooks {
 			// Every level carried across the gap may already be wrong, and a
@@ -926,11 +1249,19 @@ func (o *owner) applyEvent(ev wsx.Event, tokens chan<- wsx.ReconcileToken) {
 	case wsx.EventFrame:
 		info := wsx.InspectFrame(ev.Frame)
 		frame := ev.Frame
-		eff := o.r.gate.ApplyFrame(info, func() error {
+		eff := o.r.gate.ApplyFrameForUniverse(info, func() error {
 			return o.r.book.Handle(frame)
-		}, ev.At)
+		}, ev.At, ev.UniverseRevision)
 		o.r.anom.raiseAll(eff.Anomalies)
 		o.noteReduce(eff.Reduce)
+		if info.BookSubscribeSID != nil {
+			o.bookSID = *info.BookSubscribeSID
+		} else if o.bookSID == 0 && info.Kind == wsx.FrameSnapshot && eff.Delivered &&
+			o.manages(info.Ticker) && info.SID != nil && *info.SID > 0 &&
+			o.r.gate.BookCurrent(info.Ticker) {
+			o.bookSID = *info.SID
+		}
+		o.retryF5Resnapshot()
 		// `core.Rig` detects its own subscription-wide sequence gaps and asks
 		// for a resnapshot through `NeedsResnapshot`; the gate asks separately
 		// through `FrameEffects`. Both are honoured, and the gate is told about
@@ -944,51 +1275,225 @@ func (o *owner) applyEvent(ev wsx.Event, tokens chan<- wsx.ReconcileToken) {
 			o.resnapshot(true)
 		}
 		o.resnapshot(eff.Resnapshot)
+		// H-Q-4a's episode, folded from the OUTCOME of this frame and taken
+		// LAST -- after `NoteSeqGap` has had its chance to quarantine every
+		// book. A delivered delta that arrived in the same read as a
+		// subscription-wide gap is a delta onto a book the gate has just
+		// stopped trusting, and clearing an episode from it would be certifying
+		// depth nothing has re-established.
+		o.noteBookGate(info, eff.Delivered, ev.At)
+		if o.manages(info.Ticker) {
+			restore := o.marketContext(info.Ticker)
+			o.expireRESTIfRecovered()
+			restore()
+		}
 	}
 }
 
-// offerToken hands a reconcile token to the poller without ever blocking.
+// noteBookGate advances H-Q-4a's continuous gate-failure episode, and it is the
+// ONLY thing that writes to it.
 //
-// The channel holds one. A token that cannot be delivered because an earlier one
-// is still queued is not lost information: the poller reads the LATEST token and
-// polls immediately on it, and two generations' worth of "reconcile now" is one
-// reconciliation. Blocking here would park the owner on a goroutine it is
-// supposed to be independent of.
+// The rule is stated as a conjunction because every clause is load-bearing:
+//
+//   - `delivered` is `wsx.FrameEffects.Delivered`, which is "ApplyFrame invoked
+//     the handler AND the handler returned nil". A frame core REFUSED left the
+//     book exactly as it was, so it is evidence about the feed and none at all
+//     about depth. Neither starting nor clearing an episode from one is right,
+//     and clearing is the one that costs money: a market whose every frame is
+//     malformed would look permanently recovered.
+//   - A BOOK frame. A trade print says nothing about resting depth, and the
+//     unfiltered `trade` subscription delivers the whole exchange tape, so
+//     judging the qualifying walk on one would re-evaluate this market from
+//     somebody else's fill.
+//   - `BookCurrent`, which is connected, unquarantined and snapshotted on THIS
+//     generation. A delta cannot reopen a quarantined or unsnapshotted
+//     generation -- it is an increment against a book we have decided not to
+//     trust -- while an accepted delta against a book this connection DID
+//     snapshot can perfectly well recover it, which is why the test is on the
+//     resulting book rather than on the frame kind.
+//
+// What is deliberately absent is any other event. A disconnect, a reconnect, a
+// generation change, a portfolio walk, a rejected frame and a clock step all
+// leave the episode exactly as they found it: H-Q-4a's interval is CONTINUOUS
+// FAILURE OF THE BOOK, and an episode that reset on a reconnect would give a
+// market that flapped every 25 seconds an adding quote that never came off.
+func (o *owner) noteBookGate(info wsx.FrameInfo, delivered bool, at wsx.Stamp) {
+	if !delivered || !o.manages(info.Ticker) {
+		return
+	}
+	if info.Kind != wsx.FrameSnapshot && info.Kind != wsx.FrameDelta {
+		return
+	}
+	if !o.r.gate.BookCurrent(info.Ticker) {
+		return
+	}
+	book := o.r.book.Book(info.Ticker)
+	if book == nil {
+		// Delivered, current, and core holds no book for it. There is nothing to
+		// judge, so nothing is judged: this is the fail-closed reading, because
+		// the alternative -- treating "no book" as a failing walk -- would start
+		// an episode from an absence rather than from a measured thin market.
+		return
+	}
+
+	// H-Q-4's own words: "if the market's own qualifying walk fails on either
+	// side (core.Book.Qualifies() == 0), the snapshot is excluded for everyone
+	// and our presence earns nothing".
+	if book.Qualifies() != 0 {
+		// A fresh, complete, qualifying book. H-Q-4a's re-entry condition, and
+		// the ONLY thing that clears the episode. The next failure gets a whole
+		// new `gate_fail_debounce_s`, which is what "continuous" means.
+		delete(o.gateFailSince, info.Ticker)
+		delete(o.gateFailPinged, info.Ticker)
+		return
+	}
+	if _, open := o.gateFailSince[info.Ticker]; open {
+		// Continues. The start is NOT moved -- see `gateFailSince`.
+		return
+	}
+	o.gateFailSince[info.Ticker] = at.Mono
+}
+
+// gateFailFor is how long this market's continuous gate failure has run, and
+// whether one is running at all.
+//
+// `now` is the caller's monotonic reading and this function reads no clock, for
+// the same reason `wsx.Gate` reads none: one clock, injected, so a test can
+// drive thirty seconds in one call and a scenario can replay it exactly.
+func (o *owner) gateFailFor(now time.Duration, ticker string) (time.Duration, bool) {
+	since, open := o.gateFailSince[ticker]
+	if !open {
+		return 0, false
+	}
+	return now - since, true
+}
+
+// gateFailStopped is H-Q-4a's threshold: the market has been failing its
+// qualifying walk continuously for `gate_fail_debounce_s`.
+//
+// The comparison is `>=` and the boundary belongs to the STOPPED side. §16
+// states the parameter as a duration of continuous failure and H-Q-4a as
+// "after gate_fail_debounce_s of continuous gate failure", so a market that has
+// been failing for exactly the debounce has satisfied it. A `>` here is not a
+// rounding preference: the owner re-evaluates on a tick and on every event, so
+// with a strictly-greater test the response waits for whatever wakes the loop
+// NEXT -- up to `ownerTick` in a market that has gone quiet, and in a replay
+// against a frozen clock, forever.
+func (o *owner) gateFailStopped(now time.Duration, ticker string) bool {
+	d, open := o.gateFailFor(now, ticker)
+	return open && d >= o.p.GateFailDebounce
+}
+
+// gateFailQuiet is the DEBOUNCE ITSELF: an episode is open and has not yet run
+// its `gate_fail_debounce_s`.
+//
+// H-Q-4 forbids placing into a non-qualifying book from the first frame -- "our
+// presence earns nothing. Do not place." -- and HR-012 is explicit that the
+// debounce protects against CHURN on transient blips and nothing else. So this
+// window is one-sided: no new quote-derived write of either kind, and no cancel
+// either. What is already resting stays exactly where it is, which is what makes
+// a book that recovers in two seconds cost nothing at all.
+func (o *owner) gateFailQuiet(now time.Duration, ticker string) bool {
+	d, open := o.gateFailFor(now, ticker)
+	return open && d < o.p.GateFailDebounce
+}
+
+// gateFailBlocksPlacement is §6.6's re-evaluation of a QUEUED placement against
+// the episode.
+//
+// It is not the same test as the one `evaluate` applies, and the difference is
+// the whole reason it exists: `evaluate` decides whether to enqueue anything
+// NEW, while this decides whether an intent enqueued from a book that qualified
+// may still leave the process. §6.6 holds intents re-evaluated at dequeue
+// precisely so that a decision taken against conditions that have since changed
+// is dropped rather than sent, and "the book stopped qualifying while this sat
+// in the queue" is exactly that.
+//
+// Past the debounce the block narrows to the ADDING side. H-Q-4a keeps the
+// aggregate-capped reducer (H-Q-5a, H-Q-5b) and §5.2's REDUCING row is what
+// rests it, so a reducing-side placement is the EXIT and must still be able to
+// go out -- I1: every stop path here stops adding risk, none of them stops
+// reducing it.
+func (o *owner) gateFailBlocksPlacement(now time.Duration, in quote.Intent) bool {
+	if o.gateFailQuiet(now, in.Market) {
+		return true
+	}
+	return o.gateFailStopped(now, in.Market) && in.Role == quote.RoleAdding
+}
+
+// offerToken retains the newest generation when the poller's channel is full.
+// A disconnect token already queued must never strand a later reconnect.
 func (o *owner) offerToken(tokens chan<- wsx.ReconcileToken, tok wsx.ReconcileToken) {
 	if !tok.Valid() {
 		return
 	}
+	o.reconcileToken, o.reconcileOut = tok, tokens
+	o.reconcilePending = true
+	o.flushCrossChecks()
+	o.retryReconcile()
+}
+
+func (o *owner) retryReconcile() {
+	if !o.reconcilePending || o.reconcileOut == nil {
+		return
+	}
 	select {
-	case tokens <- tok:
+	case o.reconcileOut <- o.reconcileToken:
+		o.reconcilePending = false
 	default:
 	}
 }
 
-// resnapshot asks the exchange to re-send the book.
-//
-// The command channel to the live session is deliberately not wired: this
-// harness subscribes one market, and `wsx.Supervisor.Run` re-subscribes on every
-// reconnect, which is the only path that produces a snapshot the exchange will
-// actually send after a gap. What a resnapshot request would buy on a LIVE
-// socket is a faster recovery from a sequence gap; what it costs is a second
-// writer to the socket. The gate already quarantines the book until a snapshot
-// arrives, so the slow path is safe rather than merely tolerable.
-//
-// This is recorded as an anomaly rather than silently skipped, because a market
-// that stays quarantined until the next reconnect is a market that is not
-// quoting, and the operator should be able to see why.
-func (o *owner) resnapshot(want bool) {
-	if !want {
+// observeSleep relays F7 from the owner's actual iteration into the live
+// socket, poller and audit stream. The two inputs stay separate integers:
+// time.Time.Sub would silently use its embedded monotonic reading for both.
+func (o *owner) observeSleep(wallMs int64, mono time.Duration,
+	tokens chan<- wsx.ReconcileToken) {
+	eff := o.sleep.Observe(wallMs, mono)
+	if !eff.Detected {
 		return
 	}
-	o.r.anom.raise(risk.Anomaly{
-		Class: "RESNAPSHOT_DEFERRED", Sev: risk.SEV2, Ticker: o.r.cfg.Ticker,
-		Text: "the gate asked for a book resnapshot; this build recovers by " +
-			"reconnect rather than by an in-session update_subscription, so " +
-			"the book stays quarantined and the market non-actionable until " +
-			"the socket cycles. No placement decision is taken from a " +
-			"quarantined book (A13, H-FAIL-5)",
-	})
+
+	if eff.Resnapshot {
+		// A sleep invalidates the accepted book before evaluate can place from
+		// it. NoteSeqGap supplies the existing quarantine until a full snapshot
+		// lands; its BOOK_SEQ_GAP anomaly would misidentify this cause, so F7's
+		// own anomaly below is the durable explanation.
+		o.reconcileToken = o.r.gate.ObservationGap(o.r.ex.Clock.Now())
+		o.resnapshot(true)
+	}
+	if eff.ReconcileNow {
+		// The poller treats every token receipt as an immediate complete walk,
+		// including a repeat token on the current connection generation.
+		o.offerToken(tokens, o.reconcileToken)
+	}
+
+	o.sleepDowntime += eff.Downtime
+	for _, a := range eff.Anomalies {
+		a.Ticker = o.ticker()
+		if eff.Downtime > 0 {
+			// `uptime` is deferred from the pilot's five-table store. Keep a
+			// compact durable interval in its existing anomaly journal so the
+			// unobserved time is not silently counted as healthy uptime.
+			a.Text += fmt.Sprintf("; uptime downtime interval wall_ms=[%d,%d] "+
+				"duration=%s cumulative=%s",
+				wallMs-int64(eff.Downtime/time.Millisecond), wallMs,
+				eff.Downtime, o.sleepDowntime)
+		}
+		o.r.anom.raise(a)
+	}
+}
+
+// resnapshot asks the supervisor, the socket's sole writer, to send the
+// existing subscription a fresh snapshot request. A full channel is retried.
+func (o *owner) resnapshot(want bool) {
+	if want {
+		for _, t := range o.managedTickers() {
+			restore := o.marketContext(t)
+			o.requestF5Resnapshot()
+			restore()
+		}
+	}
 }
 
 // scheduleLoop reads §9's schedule on `schedule_poll_s`, forever.
@@ -1005,20 +1510,35 @@ func (o *owner) resnapshot(want bool) {
 // on its own that a schedule was too old would be a second opinion about the
 // same fact.
 func (r *rig) scheduleLoop(ctx context.Context, out chan<- rest.ScheduleResult) {
+	if r.cfg.Turnover {
+		r.turnoverScheduleLoop(ctx, out)
+		return
+	}
 	t := time.NewTicker(r.cfg.Params.SchedulePoll)
 	defer t.Stop()
+	var backoff readBackoff
 
 	for {
-		res := r.api.Schedule(ctx, r.cfg.Ticker)
-		select {
-		case out <- res:
-		case <-ctx.Done():
-			return
-		default:
-			// The owner has not taken the previous one. Drop THIS one rather
-			// than blocking: the reads are replacements, so the owner is about
-			// to consume an answer at most one interval older than this, and a
-			// poller parked on a send is a poller that has stopped observing.
+		res := backoff.schedule(ctx, r.api, r.cfg.Ticker, r.ex.Mono)
+		var throttle *rest.RateLimitError
+		if errors.As(res.Err, &throttle) {
+			// Every throttle observation must reach the shared rate controller.
+			select {
+			case out <- res:
+			case <-ctx.Done():
+				return
+			}
+		} else {
+			select {
+			case out <- res:
+			case <-ctx.Done():
+				return
+			default:
+				// The owner has not taken the previous one. Drop THIS one rather
+				// than blocking: the reads are replacements, so the owner is about
+				// to consume an answer at most one interval older than this, and a
+				// poller parked on a send is a poller that has stopped observing.
+			}
 		}
 		select {
 		case <-ctx.Done():
@@ -1038,6 +1558,14 @@ func (r *rig) scheduleLoop(ctx context.Context, out chan<- rest.ScheduleResult) 
 // attributed, and reporting the endpoint current on that basis leaves A13
 // authorising placement from a read we could not interpret").
 func (o *owner) applySchedule(res rest.ScheduleResult) {
+	if res.Ticker != "" {
+		if !o.manages(res.Ticker) {
+			return
+		}
+		restore := o.marketContext(res.Ticker)
+		defer restore()
+	}
+	o.noteRESTError(res.Err)
 	o.r.anom.raiseAll(res.Anomalies)
 	if !res.Observed() {
 		return
@@ -1048,11 +1576,11 @@ func (o *owner) applySchedule(res rest.ScheduleResult) {
 		// coming, and until this read existed nothing in this binary could
 		// produce the flag at all.
 		o.r.anom.raise(risk.Anomaly{
-			Class: "TRADING_CLOSED", Sev: risk.SEV2, Ticker: o.r.cfg.Ticker,
+			Class: "TRADING_CLOSED", Sev: risk.SEV2, Ticker: o.ticker(),
 			Text: fmt.Sprintf("%s reports status %q: trading has stopped. This "+
 				"is the close OBSERVED rather than computed, which is the only "+
 				"way a can_close_early market's close is ever seen (H-CLOSE-4)",
-				o.r.cfg.Ticker, res.Status),
+				o.ticker(), res.Status),
 		})
 	}
 
@@ -1074,7 +1602,7 @@ func (o *owner) untilClose() (time.Duration, bool) {
 	if !o.hasClose || o.scheduleStale() {
 		return 0, false
 	}
-	return time.Until(o.closeAt), true
+	return o.closeAt.Sub(time.UnixMilli(o.r.ex.NowMs())), true
 }
 
 // scheduleStale is H-CLOSE-0 stated as an expiry on the reading itself.
@@ -1147,14 +1675,14 @@ func (o *owner) closeUnknown(hasClose bool) bool {
 		o.schedulePinged = true
 		age, known := o.scheduleAge()
 		o.r.anom.raise(risk.Anomaly{
-			Class: "SCHEDULE_UNUSABLE", Sev: risk.SEV1, Ticker: o.r.cfg.Ticker,
+			Class: "SCHEDULE_UNUSABLE", Sev: risk.SEV1, Ticker: o.ticker(),
 			Text: fmt.Sprintf("%s has no usable close_time (%s). No close lead "+
 				"can be enforced from a schedule this process does not hold, "+
 				"and H-CLOSE-3's final cancel cannot run either, so the market "+
 				"is STOPPED: the adding side comes off and is confirmed absent, "+
 				"and the capped reducer stays (§5.2, A8, I1). §9 reads it from "+
 				"/markets/{ticker} every schedule_poll_s %v",
-				o.r.cfg.Ticker, scheduleWhy(age, known, o.p.FinalLead),
+				o.ticker(), scheduleWhy(age, known, o.p.FinalLead),
 				o.p.SchedulePoll),
 		})
 	}
@@ -1223,10 +1751,35 @@ func (o *owner) earlyCloseDue(untilClose time.Duration, hasClose bool) bool {
 
 func (o *owner) noteReduce(tickers []string) {
 	for _, t := range tickers {
-		if t == o.r.cfg.Ticker {
+		if o.manages(t) {
+			restore := o.marketContext(t)
 			o.reduceNoted = true
+			restore()
+			o.pingStickyReduce(t)
 		}
 	}
+}
+
+// pingStickyReduce says once per market that the gate's reduce is permanent for
+// this process. The cause raises its own anomaly; this one names the recovery,
+// which is an operator restart (H-FAIL-1a). A reduce request the gate does not
+// hold, such as H-POS-2's drift, ends at q == 0 and is not reported here.
+func (o *owner) pingStickyReduce(t string) {
+	if !o.r.gate.Reducing(t) || o.stickyReducePinged[t] {
+		return
+	}
+	if o.stickyReducePinged == nil {
+		o.stickyReducePinged = make(map[string]bool)
+	}
+	o.stickyReducePinged[t] = true
+	o.r.anom.raise(risk.Anomaly{
+		Class: "QUOTING_STOPPED_UNTIL_RESTART", Sev: risk.SEV2, Ticker: t,
+		Text: fmt.Sprintf("%s stops adding for the life of this process: the "+
+			"gate's reduce is sticky and nothing clears it, reconnects "+
+			"included. Reducers, cancels and monitoring continue. Adding "+
+			"resumes only after an operator restart (runbook: sticky "+
+			"REDUCING)", t),
+	})
 }
 
 // applyRead folds one poll cycle into the gate and the position model.
@@ -1237,6 +1790,9 @@ func (o *owner) noteReduce(tickers []string) {
 // they overwrite (H-POS-1), and applying them first double-counts every fill
 // that landed inside the cycle.
 func (o *owner) applyRead(read wsx.PortfolioRead) {
+	for _, throttle := range read.RateLimits() {
+		o.noteRESTThrottle(throttle)
+	}
 	now := o.r.ex.Mono()
 	eff := wsx.ApplyPortfolio(o.r.gate, o.r.pf, o.r.store.Ownership(), o.r.store,
 		read, risk.Live, now, o.p)
@@ -1251,6 +1807,8 @@ func (o *owner) applyRead(read wsx.PortfolioRead) {
 
 	o.r.anom.raiseAll(eff.Anomalies)
 	o.noteReduce(eff.Reduce)
+	o.stopForForeignOrders(eff.Foreign)
+	o.expireRESTIfRecovered()
 
 	for _, f := range eff.OwnedFill {
 		if _, err := o.r.store.RecordFill(o.r.run, f, o.r.ex.NowMs(), false); err != nil {
@@ -1305,15 +1863,18 @@ func (o *owner) applyRead(read wsx.PortfolioRead) {
 	// from the total -- while also making it a market the ledger knows and the
 	// caller did not ask about, which `Evaluate` refuses on.
 	if eff.Applied[wsx.TruthPositions] {
+		o.recordPositionDisagreements(eff.Records)
 		o.pnlQExch = make(map[string]num.Qty, len(eff.Records))
 		for _, rec := range eff.Records {
 			o.pnlQExch[rec.Ticker] = rec.QExch
 		}
+		o.inventoryStuck.observe(now, o.r.gate.Generation(), o.pnlQExch, o.p.InvHard)
 		o.pnlQKnown = true
 	}
-	if eff.Stop {
-		o.requestStop("portfolio_read", "")
+	if eff.Applied[wsx.TruthPositions] || eff.Applied[wsx.TruthOrders] {
+		o.discoverManaged()
 	}
+	o.stopForPortfolio(eff)
 	// F17, and it sits in the ONLY place it can: below `eff.Stop` and above the
 	// canary, because `commitStop` is first-writer-wins and this is a ranking of
 	// causes rather than a sequence of steps.
@@ -1397,34 +1958,60 @@ func (o *owner) applyRead(read wsx.PortfolioRead) {
 		}
 	}
 
-	if eff.Applied[wsx.TruthOrders] {
+	if eff.Applied[wsx.TruthOrders] &&
+		(!o.awaitCancelTruth || read.StartedAt(wsx.TruthOrders).Mono > o.cancelTruthAfter) {
+		// A complete orders walk supersedes every earlier cancel sweep. An id
+		// listed here is positive evidence of presence and must count again.
+		// A walk started before the sweep does not supersede that later proof,
+		// even if it happened to finish afterwards.
+		clear(o.absentOrders)
+		o.noteListedBindings(eff.Bound)
 		// A complete orders walk is the ONLY thing that resolves an unknown
 		// create, and it resolves it positively: the coid is listed, so the
 		// order exists and is now in `Portfolio.LiveOrders`. Absence is not
 		// evidence in either direction (H-ORD-2a), so nothing is cleared for
 		// not appearing.
 		o.clearListed()
+		o.clearSwept()
+		// A complete orders walk is our model becoming authoritative again, so
+		// the sweep-derived shortcut retires with it: whatever this walk lists
+		// is in `LiveOrders`, `atRisk` sees it, and the next evaluation decides
+		// the side from that rather than from a read taken before it.
+		o.cancelConfirmed = [2]bool{}
+		for _, state := range o.markets {
+			state.cancelConfirmed = [2]bool{}
+		}
+	}
+	// A sweep's verifying orders read contains no position or fill truth. Only
+	// an independently applied cycle whose three walks STARTED after that sweep
+	// can resolve a possible fill-before-cancel. A pre-sweep in-flight cycle
+	// may finish later and must not open the placement gate.
+	if o.awaitCancelTruth && eff.Applied[wsx.TruthFills] &&
+		eff.Applied[wsx.TruthOrders] && eff.Applied[wsx.TruthPositions] &&
+		read.StartedAt(wsx.TruthFills).Mono > o.cancelTruthAfter &&
+		read.StartedAt(wsx.TruthOrders).Mono > o.cancelTruthAfter &&
+		read.StartedAt(wsx.TruthPositions).Mono > o.cancelTruthAfter {
+		o.awaitCancelTruth = false
 	}
 }
 
 // clearListed drops pending creates the resting-order walk has since listed.
 //
-// Listing the coid is the ONLY release. It is a positive fact -- the exchange
-// named the order -- and it is also the moment the quantity appears in
-// `Portfolio.LiveOrders`, so releasing it here is exactly what stops the same
-// order being counted in two places at once.
+// Listing the coid is this path's positive release. A separate completed
+// cancel sweep may retire a named ACKed order before it is ever listed; an
+// UNKNOWN create without an id cannot use that release. A listed order's
+// quantity enters Portfolio.LiveOrders as pending releases, avoiding a double
+// count.
 func (o *owner) clearListed() {
+	if o.r.cfg.Turnover {
+		o.rememberTurnoverOrders()
+		return
+	}
 	if len(o.pending) == 0 {
 		return
 	}
-	listed := make(map[string]struct{})
-	for _, lo := range o.r.pf.LiveOrders() {
-		if bound, ok := o.r.store.Ownership().Bound(lo.OrderID); ok {
-			listed[bound] = struct{}{}
-		}
-	}
-	for coid := range o.pending {
-		if _, seen := listed[coid]; seen {
+	for coid, pending := range o.pending {
+		if o.hasListedCreate(coid, o.pendingTicker(pending), pending.side) {
 			delete(o.pending, coid)
 		}
 	}
@@ -1524,7 +2111,7 @@ func (o *owner) evaluatePnL() {
 	}
 	o.pnlKilled = true
 	o.r.anom.raise(risk.Anomaly{
-		Class: "PNL_KILL", Sev: risk.SEV1, Ticker: o.r.cfg.Ticker,
+		Class: "PNL_KILL", Sev: risk.SEV1, Ticker: o.ticker(),
 		Text: fmt.Sprintf("trading P&L %s has reached pnl_kill %s (§12 reads "+
 			"\"P&L <= pnl_kill\", so the floor itself fires). §12 makes this a "+
 			"GLOBAL halt: every market stops adding, every reducing quote stays "+
@@ -1608,7 +2195,9 @@ func (o *owner) pnlInputs() ([]risk.PnLInput, map[string]string) {
 // unevaluable, and names the market. A held position nobody can price is exactly
 // the state a loss floor must refuse to guess about.
 func (o *owner) mark4(ticker string) (int64, bool, string) {
-	if ticker != o.r.cfg.Ticker {
+	restore := o.marketContext(ticker)
+	defer restore()
+	if !o.manages(ticker) {
 		return 0, false, fmt.Sprintf("%s is not the configured market, so this "+
 			"process subscribes to no book for it and no mark exists at any "+
 			"age. ABSENT, not stale", ticker)
@@ -1760,6 +2349,13 @@ func (o *owner) checkHarnessStop() {
 
 // evaluate is one pass of §5.2, §6.2 and §6.5 over the one market.
 func (o *owner) evaluate(now time.Duration) {
+	o.flushCrossChecks()
+	o.retryReconcile()
+	o.escalateUnresolved()
+	o.checkRuntimeDisk(now)
+	o.checkRuntimeStore()
+	o.checkFundingHealth()
+	o.updateTurnoverPlan()
 	// `RetryLatch`, honoured, and FIRST: a held cause that becomes durable on
 	// this tick publishes its WINDING_DOWN on this tick, and one that does not
 	// keeps `stopHeld` set for the `MarketInput.Stop` term below. Driving it
@@ -1801,13 +2397,14 @@ func (o *owner) evaluate(now time.Duration) {
 	// that must outlive a tick is held by the thing that owns it -- the gate for
 	// a disconnect or a book quarantine, `quote.NextMarket`'s own state for
 	// inventory and drift -- and never by a second copy here.
-	defer func() { o.reduceNoted = false }()
 
 	tick := o.r.gate.Tick(o.r.ex.Clock.Now())
 	o.r.anom.raiseAll(tick.Anomalies)
 	o.noteReduce(tick.Reduce)
+	o.requestCrossChecks(tick.CrossCheck)
+	o.resnapshot(tick.Resnapshot)
 	if tick.Stop {
-		o.requestStop("gate", o.r.cfg.Ticker)
+		o.requestStop("gate", o.ticker())
 	}
 
 	// H-HALT-5 on the tick, which is also H-HALT-5 after every accepted frame:
@@ -1830,10 +2427,48 @@ func (o *owner) evaluate(now time.Duration) {
 	// what keeps a real §12 finding as the cause §10.4 reads when both are true
 	// on the same evaluation.
 	o.checkHarnessStop()
+	for _, ticker := range o.managedTickers() {
+		restore := o.marketContext(ticker)
+		o.retryF5Resnapshot()
+		o.expireRESTIfRecovered()
+		o.evaluateMarket(now)
+		o.reduceNoted = false
+		restore()
+	}
+}
 
-	ticker := o.r.cfg.Ticker
+func (o *owner) evaluateMarket(now time.Duration) {
+	ticker := o.ticker()
+	if a, ok := o.inventoryStuck.step(ticker, now, o.r.gate.Generation(),
+		o.r.gate.TruthAge(wsx.TruthPositions, o.r.ex.Clock.Now()),
+		o.p.TruthMaxAge, o.p.Stuck); ok {
+		o.r.anom.raise(a)
+	}
 	q := o.r.pf.Q(ticker)
 	untilClose, hasClose := o.untilClose()
+
+	// H-Q-4a, evaluated once and used twice: as a §5.2 stop below, and as the
+	// suppression window in the side loop. Reading it from one place is what
+	// keeps the two from disagreeing about the boundary instant.
+	gateStopped := o.gateFailStopped(now, ticker)
+	gateQuiet := o.gateFailQuiet(now, ticker)
+	if gateStopped && !o.gateFailPinged[ticker] {
+		o.gateFailPinged[ticker] = true
+		age, _ := o.gateFailFor(now, ticker)
+		o.r.anom.raise(risk.Anomaly{
+			Class: "BOOK_GATE_SUSTAINED", Sev: risk.SEV2, Ticker: ticker,
+			Text: fmt.Sprintf("this market's own qualifying walk has failed "+
+				"continuously for %v, past gate_fail_debounce_s %v; H-Q-4a "+
+				"cancels and exchange-confirms every ADDING order and keeps only "+
+				"the aggregate-capped reducer. Reward in a gated-out interval is "+
+				"zero for every participant, so an order left resting here takes "+
+				"directional inventory during an interval that cannot pay -- and "+
+				"the gated-out accounting excludes the interval from our uptime "+
+				"denominator, so the loss is invisible in the metric (HR-012). "+
+				"Re-entry needs a fresh, complete, qualifying book",
+				age, o.p.GateFailDebounce),
+		})
+	}
 
 	next, trig := quote.NextMarket(quote.MarketInput{
 		State:  o.market,
@@ -1846,10 +2481,7 @@ func (o *owner) evaluate(now time.Duration) {
 		// §5.2's IDLE -> QUOTING edge already requires `!Stop`, so folding a
 		// reduce condition into `Selected` as well would be the same rule
 		// applied twice and clearable in only one of the two places.
-		Selected: o.global == quote.Running,
-		// The gate owns the sticky reduce. `Gate.Reducing` is the latch and the
-		// gate is what clears it; `reduceNoted` carries only this evaluation's
-		// non-gate requests, principally H-POS-2's drift.
+		Selected: o.global == quote.Running && o.isSelected(ticker),
 		// The gate owns the sticky reduce; `reduceNoted` carries this
 		// evaluation's non-gate requests, principally H-POS-2's drift. The last
 		// term is the operator's H-CLOSE-4 backoff -- see `earlyCloseDue`.
@@ -1868,32 +2500,22 @@ func (o *owner) evaluate(now time.Duration) {
 		// would be one rule clearable in only one of the two places, and
 		// MTDeselected would label the A9 row an operator selection decision
 		// rather than a stop.
+		//
+		// The LAST term is H-Q-4a, and expressing it as a market-scoped stop
+		// rather than as a branch of its own is the point. §5.2 answers a stop
+		// with REDUCING, which is exactly the response H-Q-4a asks for: the
+		// adding side is cancelled and exchange-confirmed absent (A8, H-FAIL-3)
+		// and the aggregate-capped reducer keeps resting (H-Q-5a, H-Q-5b). A
+		// flat market goes to IDLE and rests nothing, which is the same rule
+		// with q == 0 substituted in. §5.2 is explicit that there is "no HALTED
+		// per-market state that cancels everything"; a bespoke H-Q-4a branch
+		// that cancelled both sides would be that state arriving through a side
+		// door, and it would strand the position the reducer exists to exit.
 		Stop: o.stopHeld || o.reduceNoted || o.r.gate.Reducing(ticker) ||
 			!o.r.gate.Connected() || o.earlyCloseDue(untilClose, hasClose) ||
-			o.closeUnknown(hasClose),
-		// ProgramEnded is H-CLOSE-1 and is NOT wired. It is a literal false and
-		// not an owner field, deliberately: a field nothing ever writes reads
-		// as wired to everyone downstream, and this file argues everywhere else
-		// that an assertion resting on a constructor existing is a comment.
-		//
-		// What it needs is not `program.end_date` read once. The live universe
-		// on 2026-08-07 shows LIP programmes are short REWARD PERIODS inside a
-		// market's life -- one sampled programme ran 21:45Z to 22:00Z on a
-		// market closing over a day later -- so `end_date` passing is a gap
-		// between periods, not the end of the incentive. H-CLOSE-1's condition
-		// is "this ticker is in no active programme any more", which is a poll
-		// of `/incentive_programs?status=active` and a membership test, and
-		// `feed.Universe` cannot answer it (it returns ticker and target size
-		// and is hash-pinned).
-		//
-		// Left false because the cost is ECONOMIC and not safety. False keeps
-		// the adding quote alive, so the failure is quoting while unpaid --
-		// unremunerated risk on an S=1 canary. Every rule that bounds actual
-		// exposure is wired: the close lead, the operator's early-close
-		// backoff, the inventory ladder, the gate, and the capital caps. The
-		// opposite error would be worse: reading a between-periods gap as "the
-		// programme ended" stops quoting in a market that is still paying.
-		ProgramEnded:  false,
+			o.closeUnknown(hasClose) || gateStopped,
+		// A complete active-liquidity walk is the only source of absence.
+		ProgramEnded:  o.programMembership.ended || !o.isSelected(ticker),
 		UntilClose:    untilClose,
 		HasClose:      hasClose,
 		TradingClosed: o.tradingClosed,
@@ -1906,7 +2528,7 @@ func (o *owner) evaluate(now time.Duration) {
 	sz := quote.SizesFor(quote.SizeInput{
 		State:         o.market,
 		Q:             q,
-		Funded:        o.fundedReducer(q),
+		Funded:        o.f5FundedReducer(q),
 		PastFinalLead: quote.PastFinalLead(untilClose, hasClose, o.p),
 	}, o.p)
 
@@ -1921,7 +2543,8 @@ func (o *owner) evaluate(now time.Duration) {
 	}
 
 	reducing, held := quote.ReducingSide(q)
-	actionable := o.r.gate.Actionable(ticker, o.r.ex.Clock.Now())
+	actionable := !o.awaitCancelTruth &&
+		o.r.gate.Actionable(ticker, o.r.ex.Clock.Now())
 
 	for _, side := range []quote.Side{quote.SideYes, quote.SideNo} {
 		role := quote.RoleAdding
@@ -1936,16 +2559,137 @@ func (o *owner) evaluate(now time.Duration) {
 			// The state rests nothing on this side. If something of ours is
 			// there, it comes off -- A8 for REDUCING's adding side, and the
 			// same act for every other state that quotes nothing.
-			if o.atRisk(side) > 0 {
+			//
+			// The second term is H-FAIL-3's "off means exchange-confirmed
+			// absent" read backwards. `atRisk` is the aggregate the SIZING is
+			// evaluated against, and an order the exchange has shown us resting
+			// that no complete orders walk has listed yet may be missing from it
+			// -- not because the quantity is unknown, but because the order is
+			// carried in `pending` under a coid rather than in `LiveOrders`
+			// under an id. `sweptOn` asks the other question: has a verifying
+			// read SEEN one of ours on this side. Either answer is an obligation
+			// to cancel, and only exchange-confirmed absence ends it.
+			//
+			// Adding side only. A reducing side has no standalone cancel at all
+			// (H-QUE-2) -- `enqueueCancel` refuses one loudly -- so widening the
+			// trigger there would trade a real cancel for a per-tick SEV2.
+			//
+			// `cancelConfirmed` is the other end of the same rule. H-FAIL-3
+			// says "off" means exchange-confirmed absent -- and it means it in
+			// BOTH directions. A side a complete verifying read has already
+			// found empty is off, whatever `LiveOrders` still says until the
+			// next walk refreshes it, and reissuing the cancel every tick until
+			// then is churn against the §16 budget rather than diligence.
+			if !o.cancelConfirmed[side] &&
+				(o.atRisk(side) > 0 ||
+					(role == quote.RoleAdding && o.sweptOn(side))) {
+
 				o.enqueueCancel(now, side, role)
 			}
 			continue
 		}
-		if !actionable {
+		// H-Q-5b, on the REDUCING side, retired by SIZE rather than by price.
+		//
+		// Every state that designates a reducing side -- SKEWED, REDUCING and
+		// SETTLING -- caps that side's aggregate at |q| (H-Q-5a), and `SizesFor`
+		// has just computed `target` as that cap. Yet the only thing that would
+		// otherwise resize the resting exit is `decideSide`, and `quote.Decide`
+		// there is PRICE-only: it asks "is our order at the touch?" and returns no
+		// move for an at-touch reducer WHATEVER its size. A reducer that is at the
+		// touch but oversized -- an exchange-confirmed 12-contract exit against a
+		// |q| of one, an order sized when |q| was larger and left behind when a
+		// fill (or a positions walk that shrank q ahead of the orders walk that
+		// still lists the order) reduced it -- sails past §6.5, leaving an
+		// aggregate above |q|. A reducer above |q| is a reducing quote of |q| plus
+		// an ADDING quote on the opposite side (A11, A12), which is precisely what
+		// each of these states exists to switch off, and price-unchanged is
+		// exactly when that is invisible. So the aggregate (RESTING + SENDING +
+		// UNKNOWN + in-flight + unconfirmed-cancel, which is `atRisk`) is checked
+		// against the freshly-capped target HERE.
+		//
+		// It is gated on the reducing ROLE and NOT on `gateStopped`. H-Q-5b names
+		// SETTLING alongside REDUCING -- "REDUCING and SETTLING use
+		// cancel-confirm-place whenever an overlap could exceed |q|" -- so the
+		// obligation is not gate-failure-specific. Under §10.3, S=12 and an
+		// ordinary legal fill can leave q = +/-1, and H-CLOSE-2 then enters
+		// SETTLING at close_time - close_lead with `gateStopped` false; the
+		// at-touch 12-contract order the price-only path leaves alone is exactly
+		// the overshoot A12 forbids, and A12 is invariant at every tick, not only
+		// during a sustained gate failure.
+		//
+		// One DEPENDENT cancel-confirm-place, never a standalone reducing-side
+		// cancel: H-QUE-2 has no row for the latter, because cancelling the exit is
+		// not work this harness does on its own account. This reuses the ordinary
+		// cancel/sweep confirmation path -- the first leg retires every
+		// possibly-live reducer, the replacement is gated on `ConfirmAbsent` (H-Q-9
+		// clause 3, H-ORD-4, H-FAIL-3), and `build` sizes the remainder against the
+		// shrunken aggregate, so no replacement overlaps a reducer still resting.
+		//
+		// It sits ABOVE the `!actionable` guard because its first leg is a CANCEL,
+		// and a cancel that removes risk above |q| is exactly the reducing-risk
+		// action every stop path keeps alive (I1) whether or not a placement could
+		// be taken; `Conditions.Valid` still holds the replacement leg until the
+		// side is actionable again. A reducer that is ALREADY the quantized |q| --
+		// down to the 0.01-contract exit of a fractional canary -- has
+		// `atRisk == target`, so `atRisk > target` is false and this fires on
+		// genuine overshoot alone, never on a compliant exit: WINDING_DOWN forbids
+		// adding but keeps a correctly capped reducer live. `cancelConfirmed` and
+		// `enqueue`'s (market, side) dedup are the same two guards the `!wanted`
+		// branch relies on, and together they keep repeated evaluations from
+		// queuing a second cancel for one overhang; once `build` rebuilds the
+		// aggregate to |q| the comparison never re-enters, so it settles without
+		// churn.
+		//
+		// The `target > 0` guard is A4/I1, and it is NOT redundant. `SizesFor`
+		// sets `HasReduce` for any q != 0 while `SizeR` caps `Reduce` at `funded`,
+		// and `fundedReducer` answers 0 whenever the reducing side of the book has
+		// no levels -- which `ResetOnReconnect` guarantees after every ABNORMAL
+		// disconnect, and which also holds at startup with adopted inventory,
+		// before the first snapshot lands. Without the guard `target` is 0 there,
+		// EVERY resting exit reads as pure overshoot, and this branch -- which sits
+		// above `!actionable` precisely so that cancels survive a stop -- would
+		// DELETE the exit at the moment the harness is blind, with the replacement
+		// leg held by `Conditions.Valid` until the side is actionable again. That
+		// is the one thing I1 forbids: no stop path may stop reducing risk. An
+		// unfundable reducer is "not placed" (SizeR); that is never a licence to
+		// cancel the one already working. Overshoot that cannot yet be replaced is
+		// strictly safer than no exit at all.
+		if role == quote.RoleReducing && target > 0 &&
+			!o.cancelConfirmed[side] && o.atRisk(side) > target {
+
+			o.enqueue(now, quote.Intent{
+				Market: o.ticker(), Side: side, Role: quote.RoleReducing,
+				Kind: quote.KindCancelConfirmPlace, Reason: quote.ReasonReduce,
+			})
+			continue
+		}
+		_, roleActionable := o.pricingBook(role)
+		if !actionable && !(role == quote.RoleReducing && roleActionable && !o.awaitCancelTruth) {
 			// A13 / H-FAIL-4 / H-FAIL-5: no PLACEMENT decision may be taken
 			// from a quarantined or stale book. Cancels are unaffected and were
 			// handled above, which is the asymmetry every stop path in this
 			// system has (I1).
+			continue
+		}
+		if gateQuiet && !o.r.gate.F5Quarantined(ticker) {
+			// H-Q-4, inside H-Q-4a's debounce. The book has stopped qualifying
+			// and has not yet been failing long enough to earn the cancel, so
+			// this window does exactly two things and no more: it places
+			// NOTHING, because a gated-out interval pays every participant zero
+			// and "do not place" is H-Q-4's own instruction from the first
+			// frame; and it touches nothing that is already resting, because
+			// HR-012 says the debounce exists to protect against churn on
+			// transient blips and cancelling here would BE that churn.
+			//
+			// `continue` rather than a narrower guard inside `decideSide` is
+			// deliberate: §6.5 answers an unrefreshed side with a requote or a
+			// presence restoration, and both of those are writes derived from
+			// the book we have just decided not to quote into. The cancel LEG of
+			// a cancel-confirm-place is one of them.
+			//
+			// It sits BELOW the `!wanted` branch, so a market stopped for any
+			// other reason still gets its adding side off during the window.
+			// Suppressing that would let a thin book postpone an unrelated stop.
 			continue
 		}
 		o.decideSide(now, side, role, target)
@@ -1956,8 +2700,8 @@ func (o *owner) evaluate(now time.Duration) {
 func (o *owner) decideSide(now time.Duration, side quote.Side, role quote.Role,
 	target num.Qty) {
 
-	book := o.r.book.Book(o.r.cfg.Ticker)
-	if book == nil {
+	book, allowed := o.pricingBook(role)
+	if !allowed {
 		return
 	}
 	levels := book.Yes()
@@ -2018,7 +2762,7 @@ func (o *owner) decideSide(now time.Duration, side quote.Side, role quote.Role,
 		kind = quote.KindPlace
 	}
 	o.enqueue(now, quote.Intent{
-		Market: o.r.cfg.Ticker, Side: side, Role: role,
+		Market: o.ticker(), Side: side, Role: role,
 		Kind: kind, Reason: reason,
 	})
 }
@@ -2036,7 +2780,7 @@ func (o *owner) enqueueCancel(now time.Duration, side quote.Side, role quote.Rol
 			o.reducerCancelPinged[side] = true
 			o.r.anom.raise(risk.Anomaly{
 				Class: "REDUCER_CANCEL_REFUSED", Sev: risk.SEV2,
-				Ticker: o.r.cfg.Ticker,
+				Ticker: o.ticker(),
 				Text: fmt.Sprintf("a standalone cancel was wanted for the %s "+
 					"reducing side; H-QUE-2 has no row for one, because "+
 					"cancelling the exit is not work this harness does on its "+
@@ -2047,7 +2791,7 @@ func (o *owner) enqueueCancel(now time.Duration, side quote.Side, role quote.Rol
 		return
 	}
 	o.enqueue(now, quote.Intent{
-		Market: o.r.cfg.Ticker, Side: side, Role: role,
+		Market: o.ticker(), Side: side, Role: role,
 		Kind: quote.KindCancel, Reason: quote.ReasonCancel,
 	})
 }
@@ -2059,6 +2803,16 @@ func (o *owner) enqueueCancel(now time.Duration, side quote.Side, role quote.Rol
 // it is the same decision taken again from the same state, and admitting it
 // would let a quiet market accumulate one entry per owner tick.
 func (o *owner) enqueue(now time.Duration, in quote.Intent) {
+	for _, req := range o.inflight {
+		if req.Market == in.Market && req.Side == in.Side {
+			return
+		}
+	}
+	for _, req := range o.retries {
+		if req.Market == in.Market && req.Side == in.Side {
+			return
+		}
+	}
 	for _, pending := range o.r.queue.Pending() {
 		if pending.Market == in.Market && pending.Side == in.Side &&
 			pending.Op() == in.Op() {
@@ -2074,78 +2828,81 @@ func (o *owner) enqueue(now time.Duration, in quote.Intent) {
 	}
 }
 
-// pump refills the write budget and hands at most one write to the dispatcher.
-//
-// At most one, because there is one dispatcher goroutine and it is synchronous:
-// D3's "ONE REST writer" is what makes `AllowPlaceThenCancel = false`
-// enforceable rather than aspirational, and a second concurrent write is the
-// shape that would quietly undo it.
+// pump is the sole dispatch authority; every launch is charged before handoff.
 func (o *owner) pump(now time.Duration, writes chan<- writeRequest) {
-	o.capacity, o.capCarry = refillWrites(o.capacity, o.p, now-o.capAt, o.capCarry)
+	o.updateThrottle(now)
+	params := o.p
+	if o.throttled {
+		params.WriteRate /= 2
+	}
+	o.capacity, o.capCarry = refillWrites(o.capacity, params, now-o.capAt, o.capCarry)
 	o.capAt = now
 
-	if o.inflight != nil {
-		return
-	}
-	d, ok := o.r.queue.Dequeue(o.conditions(now), o.capacity)
-	if !ok {
-		return
-	}
-
-	req, err := o.build(d)
-	if err != nil {
-		// The dispatch cannot be built, so the intents it would have discharged
-		// are dropped rather than left to be re-selected forever at a class that
-		// keeps rising. Dropping is §6.6's own answer to an intent whose
-		// condition no longer holds, and "we cannot express this write" is a
-		// condition that will not hold on the next tick either.
-		for _, id := range d.IDs {
-			o.r.queue.Drop(id)
+	for n := 0; n < dispatchWorkers; n++ {
+		if o.pumpRetry(now, writes) {
+			continue
 		}
-		o.r.anom.raise(risk.Anomaly{
-			Class: "WRITE_NOT_BUILDABLE", Sev: risk.SEV2, Ticker: d.Market,
-			Text: fmt.Sprintf("a %s on %s/%s was selected but could not be "+
-				"built: %v", d.Op, d.Market, d.Side, err),
-		})
-		return
-	}
+		d, ok := o.r.queue.Dequeue(o.conditions(now), o.capacity)
+		if !ok {
+			return
+		}
 
-	// A read-only process rehearses the exact decision but never enters the
-	// dispatch-authority path. In particular it takes no ownership reservation:
-	// owned_order is proof that a write was licensed to leave, not a telemetry
-	// table for a write the invocation forbade. Dropping the selected intents
-	// also prevents the guarded-refusal completion loop that previously minted
-	// and abandoned rows at SQLite speed.
-	if !o.r.cfg.Live {
-		if o.r.qual != nil {
-			fp := wouldWriteFingerprint(req, o.global, o.market,
-				o.r.gate.Generation())
-			if err := o.r.qual.RecordWouldWrite(fp, time.Now().UTC()); err != nil {
-				o.r.failQualification(fmt.Errorf("recording would-write: %w", err))
+		req, err := o.build(d)
+		if err != nil {
+			// The dispatch cannot be built, so the intents it would have discharged
+			// are dropped rather than left to be re-selected forever at a class that
+			// keeps rising. Dropping is §6.6's own answer to an intent whose
+			// condition no longer holds, and "we cannot express this write" is a
+			// condition that will not hold on the next tick either.
+			for _, id := range d.IDs {
+				o.r.queue.Drop(id)
 			}
+			o.r.anom.raise(risk.Anomaly{
+				Class: "WRITE_NOT_BUILDABLE", Sev: risk.SEV2, Ticker: d.Market,
+				Text: fmt.Sprintf("a %s on %s/%s was selected but could not be "+
+					"built: %v", d.Op, d.Market, d.Side, err),
+			})
+			return
 		}
-		for _, id := range d.IDs {
-			o.r.queue.Drop(id)
-		}
-		return
-	}
 
-	// The capacity is charged BEFORE the send and never after. `Capacity.Take`
-	// is the caller's half of H-QUE-3, and charging it on completion would let
-	// the same token fund every write issued while one was in flight.
-	o.capacity = o.capacity.Take(d.Grant)
-	select {
-	case writes <- req:
-		o.inflight = &req
-	default:
-		// The dispatcher did not take it. Nothing left the process, so the token
-		// comes back with the worker slot -- and the intents are RELEASED rather
-		// than left queued, because `Dequeue` has already advanced a dependent
-		// one to stage-first-sent and nothing but a confirmation moves it from
-		// there. §6.5 re-decides on the next tick.
-		o.capacity = releaseWrite(o.capacity, o.p, d.Grant, false)
-		for _, id := range d.IDs {
-			o.r.queue.Drop(id)
+		// A read-only process rehearses the exact decision but never enters the
+		// dispatch-authority path. In particular it takes no ownership reservation:
+		// owned_order is proof that a write was licensed to leave, not a telemetry
+		// table for a write the invocation forbade. Dropping the selected intents
+		// also prevents the guarded-refusal completion loop that previously minted
+		// and abandoned rows at SQLite speed.
+		if !o.r.cfg.Live {
+			if o.r.qual != nil {
+				// build restored the active market; the state is req.Market's.
+				restore := o.marketContext(req.Market)
+				fp := wouldWriteFingerprint(req, o.global, o.market,
+					o.r.gate.Generation())
+				restore()
+				if err := o.r.qual.RecordWouldWrite(fp, time.Now().UTC()); err != nil {
+					o.r.failQualification(fmt.Errorf("recording would-write: %w", err))
+				}
+			}
+			for _, id := range d.IDs {
+				o.r.queue.Drop(id)
+			}
+			return
+		}
+
+		// The capacity is charged BEFORE the send and never after. `Capacity.Take`
+		// is the caller's half of H-QUE-3, and charging it on completion would let
+		// the same token fund every write issued while one was in flight.
+		o.capacity = o.capacity.Take(d.Grant)
+		select {
+		case writes <- req:
+			o.inflight = append(o.inflight, &req)
+		default:
+			o.capacity = releaseWrite(o.capacity, o.p, d.Grant, false)
+			// No bytes were sent. Release the selected intent so the next
+			// owner evaluation rebuilds price, size and role from current truth.
+			for _, id := range d.IDs {
+				o.r.queue.Drop(id)
+			}
+			return
 		}
 	}
 }
@@ -2154,14 +2911,23 @@ func (o *owner) pump(now time.Duration, writes chan<- writeRequest) {
 // nowhere. A condition that was true 30 seconds ago is exactly what "not
 // pre-built requests" is guarding against.
 func (o *owner) conditions(now time.Duration) quote.Conditions {
-	q := o.r.pf.Q(o.r.cfg.Ticker)
+	above := map[string]bool{}
+	for _, ticker := range o.managedTickers() {
+		above[ticker] = o.r.pf.Q(ticker).Abs() > o.p.InvSoft
+	}
 	return quote.Conditions{
-		Now:    now,
-		Global: o.global,
-		AboveSoft: map[string]bool{
-			o.r.cfg.Ticker: q.Abs() > o.p.InvSoft,
-		},
+		Now:       now,
+		Global:    o.global,
+		AboveSoft: above,
 		Valid: func(in quote.Intent) bool {
+			if !o.manages(in.Market) {
+				return false
+			}
+			restore := o.marketContext(in.Market)
+			defer restore()
+			if in.Op() == quote.OpPlace && in.Role == quote.RoleAdding && !o.isSelected(in.Market) {
+				return false
+			}
 			// A placement is still wanted only while the market may place at
 			// all. A cancel is always still wanted: it can only reduce
 			// exposure, and an intent to remove an order does not stop being
@@ -2169,7 +2935,19 @@ func (o *owner) conditions(now time.Duration) quote.Conditions {
 			if in.Op() == quote.OpCancel {
 				return true
 			}
-			return o.r.gate.Actionable(in.Market, o.r.ex.Clock.Now())
+			if o.awaitCancelTruth {
+				return false
+			}
+			if _, allowed := o.pricingBook(in.Role); !allowed {
+				return false
+			}
+			// H-Q-4, applied to work that was decided BEFORE the book stopped
+			// qualifying. Without this the rule has a hole exactly one dequeue
+			// wide: `evaluate` stops enqueuing, and the placement already
+			// sitting in the queue -- selected, priced at dispatch from the
+			// current book -- goes out anyway, into the interval that pays
+			// nobody. §6.6 holds intents re-evaluated at dequeue for this.
+			return !o.f5GateFailBlocksPlacement(now, in)
 		},
 	}
 }
@@ -2181,34 +2959,69 @@ func (o *owner) conditions(now time.Duration) quote.Conditions {
 // the sequence it counts is owner state: a counter living in the goroutine that
 // also blocks on the network would advance on retries it did not author.
 func (o *owner) build(d quote.Dispatch) (writeRequest, error) {
+	restore := o.marketContext(d.Market)
+	defer restore()
 	req := writeRequest{
 		IDs: append([]uint64(nil), d.IDs...), Market: d.Market,
-		Side: d.Side, Role: d.Role, Op: d.Op, Grant: d.Grant,
+		Side: d.Side, Role: d.Role, Op: d.Op, Grant: d.Grant, class: d.Class,
 	}
 
 	if d.Op == quote.OpCancel {
+		seen := make(map[string]bool)
 		for _, lo := range o.r.pf.LiveOrders() {
 			if lo.Ticker != d.Market || lo.Side != d.Side {
+				continue
+			}
+			if _, absent := o.absentOrders[lo.OrderID]; absent {
 				continue
 			}
 			cents, exact := rest.CentsExact(lo.Price4)
 			if !exact {
 				cents = 0
 			}
+			seen[lo.OrderID] = true
 			req.Orders = append(req.Orders, rest.Order{
 				OrderID: lo.OrderID, Ticker: lo.Ticker, Side: lo.Side,
 				Price4: lo.Price4, PriceCents: cents, Fractional: !exact,
 				Remaining: lo.Remaining, Status: rest.StatusResting,
 			})
 		}
+		// Everything else of ours this side may still have live that no complete
+		// orders walk has listed into `LiveOrders` yet. See `unlistedOn`.
+		for _, ord := range o.unlistedOn(d.Market, d.Side) {
+			if seen[ord.OrderID] {
+				continue
+			}
+			seen[ord.OrderID] = true
+			req.Orders = append(req.Orders, ord)
+		}
 		if len(req.Orders) == 0 {
-			return writeRequest{}, fmt.Errorf("nothing of ours rests on %s/%s",
-				d.Market, d.Side)
+			// EMPTY IS NOT ALWAYS AN ERROR, and this is the branch H-ORD-2a
+			// forces. An UNKNOWN create has quantity in every aggregate cap
+			// (H-ORD-2 clause 6) and no order id anywhere, so "we hold no id for
+			// this side" and "nothing of ours rests on this side" are different
+			// statements and only the second one licenses giving up.
+			//
+			// `writeRequest.Orders` documents the empty case as legitimate:
+			// H-ORD-4's sweep then issues no DELETE and performs only the
+			// verifying read, "which is still the read that turns absence into a
+			// fact (H-FAIL-3)". That read is the whole point here -- it either
+			// finds the order, which puts an id in `sweptOrders` for the next
+			// tick to cancel, or it finds nothing of ours on this side, which is
+			// the exchange-confirmed absence that ends the obligation.
+			//
+			// Refusing instead would report a WRITE_NOT_BUILDABLE SEV2 per tick
+			// and leave an order live and fillable for up to `position_poll_s`
+			// with the harness believing it had asked for it back.
+			if d.Market != o.ticker() || o.atRisk(d.Side) <= 0 {
+				return writeRequest{}, fmt.Errorf(
+					"nothing of ours rests on %s/%s", d.Market, d.Side)
+			}
 		}
 		return req, nil
 	}
 
-	price, ok := o.targetPrice(d.Side)
+	price, ok := o.f5TargetPrice(d.Side, d.Role)
 	if !ok {
 		return writeRequest{}, fmt.Errorf("no external touch to place against")
 	}
@@ -2219,11 +3032,11 @@ func (o *owner) build(d quote.Dispatch) (writeRequest, error) {
 	}
 
 	o.coidSeq++
-	// The pilot quotes ONE market, so the market index is 0. It is written as a
-	// named constant rather than a bare literal because `ParseCoid` reads it
-	// back as the market this order belongs to, and a second market added
-	// without giving it a distinct index would attribute both to the first.
-	coid, err := rest.Coid(o.r.runID, pilotMarketIdx, d.Side, o.coidSeq)
+	// The market index is `marketIndex`: 0 for the configured market, else the
+	// turnover market's insertion index. No production code attributes an
+	// order by it; `rest` parses it back only to check the coid round-trips.
+	// Uniqueness comes from the run id and `coidSeq`, shared by every market.
+	coid, err := rest.Coid(o.r.runID, o.marketIndex(d.Market), d.Side, o.coidSeq)
 	if err != nil {
 		return writeRequest{}, err
 	}
@@ -2232,10 +3045,13 @@ func (o *owner) build(d quote.Dispatch) (writeRequest, error) {
 		return writeRequest{}, err
 	}
 	req.Order = order
+	if err := o.checkPlacementCapital(req); err != nil {
+		return writeRequest{}, err
+	}
 	return req, nil
 }
 
-// pilotMarketIdx is the `%03d` field of H-ORD-1's coid. See `build`.
+// pilotMarketIdx is the configured market's `%03d` coid field. See `marketIndex`.
 const pilotMarketIdx = 0
 
 // targetPrice re-reads the touch at dispatch rather than carrying the price the
@@ -2246,7 +3062,12 @@ const pilotMarketIdx = 0
 // the time a write is admitted through the rate limiter, and placing at the old
 // touch is how an order arrives already behind.
 func (o *owner) targetPrice(side quote.Side) (int, bool) {
-	book := o.r.book.Book(o.r.cfg.Ticker)
+	return o.targetPriceOn(o.r.book.Book(o.ticker()), side)
+}
+
+// targetPriceOn is targetPrice against a given book. F5's quarantined market
+// prices through it with the REST book, so both sources share the final clamp.
+func (o *owner) targetPriceOn(book *core.Book, side quote.Side) (int, bool) {
 	if book == nil {
 		return 0, false
 	}
@@ -2288,11 +3109,11 @@ func (o *owner) targetPrice(side quote.Side) (int, bool) {
 // against. Passing it rather than zero is what makes an over-sized reducer a
 // construction error instead of a placed order.
 func (o *owner) targetSize(side quote.Side, role quote.Role) (num.Qty, num.Qty) {
-	q := o.r.pf.Q(o.r.cfg.Ticker)
+	q := o.r.pf.Q(o.ticker())
 	sz := quote.SizesFor(quote.SizeInput{
 		State:         o.market,
 		Q:             q,
-		Funded:        o.fundedReducer(q),
+		Funded:        o.f5FundedReducer(q),
 		PastFinalLead: quote.PastFinalLead(o.untilCloseOrZero()),
 	}, o.p)
 
@@ -2320,6 +3141,13 @@ func (o *owner) targetSize(side quote.Side, role quote.Role) (num.Qty, num.Qty) 
 // an `insufficient_balance` reject, which H-CAP-5 makes a correctness failure
 // and a global WINDING_DOWN rather than a market condition.
 func (o *owner) fundedReducer(q num.Qty) num.Qty {
+	return o.fundedReducerOn(o.r.book.Book(o.ticker()), q)
+}
+
+// fundedReducerOn is fundedReducer against a given book. F5's quarantined
+// market sizes its reducer through it with the REST book, so both sources share
+// the budget and shard rules.
+func (o *owner) fundedReducerOn(book *core.Book, q num.Qty) num.Qty {
 	reducing, held := quote.ReducingSide(q)
 	if !held {
 		return 0
@@ -2334,7 +3162,6 @@ func (o *owner) fundedReducer(q num.Qty) num.Qty {
 	// reducer is being resized.
 	var price int
 	{
-		book := o.r.book.Book(o.r.cfg.Ticker)
 		if book == nil {
 			return 0
 		}
@@ -2349,6 +3176,10 @@ func (o *owner) fundedReducer(q num.Qty) num.Qty {
 		price = best
 	}
 	now, _ := risk.ReducingBudget(o.exposures(), o.p)
+	if o.r.cfg.Turnover {
+		now = min(now, o.turnoverPlacementBudget(o.ticker()))
+		return o.atRisk(reducing) + risk.FundedContracts(now, num.Price4FromCents(price))
+	}
 	return risk.FundedContracts(now, num.Price4FromCents(price))
 }
 
@@ -2374,6 +3205,9 @@ func (o *owner) exposures() []risk.Exposure {
 		get(t).Position += risk.SideCost(q, risk.SettlementPrice4)
 	}
 	for _, lo := range o.r.pf.LiveOrders() {
+		if _, absent := o.absentOrders[lo.OrderID]; absent {
+			continue
+		}
 		e := get(lo.Ticker)
 		reducing, held := quote.ReducingSide(o.r.pf.Q(lo.Ticker))
 		if held && lo.Side == reducing {
@@ -2381,6 +3215,32 @@ func (o *owner) exposures() []risk.Exposure {
 			continue
 		}
 		e.Adding += risk.SideCost(lo.Remaining, lo.Price4)
+	}
+	// The owner reserves collateral at handoff, before any second build.
+	add := func(market string, side quote.Side, qty num.Qty, price int64) {
+		e := get(market)
+		reducing, held := quote.ReducingSide(o.r.pf.Q(market))
+		if held && side == reducing {
+			e.Reducing += risk.SideCost(qty, price)
+		} else {
+			e.Adding += risk.SideCost(qty, price)
+		}
+	}
+	for _, req := range o.inflight {
+		if req.Op == quote.OpPlace {
+			if o.hasListedCreate(req.Order.ClientOrderID(), req.Market, req.Side) {
+				continue
+			}
+			if _, counted := o.pending[req.Order.ClientOrderID()]; !counted {
+				add(req.Market, req.Side, req.Order.Count(), num.Price4FromCents(req.Order.PriceCents()))
+			}
+		}
+	}
+	for coid, u := range o.pending {
+		if o.hasListedCreate(coid, o.pendingTicker(u), u.side) {
+			continue
+		}
+		add(o.pendingTicker(u), u.side, u.qty, num.Price4FromCents(u.cents))
 	}
 	out := make([]risk.Exposure, 0, len(by))
 	for _, e := range by {
@@ -2394,12 +3254,17 @@ func (o *owner) exposures() []risk.Exposure {
 //
 // It returns the AGGREGATE (H-Q-5b): exchange-confirmed resting, plus the write
 // currently in flight, plus every unresolved create's maximum possibly-live
-// quantity. Leaving any of the three out would leave that size in the external
-// touch, and we would then chase ourselves (H-Q-10).
+// quantity. An order id a complete cancel sweep proved absent is excluded even
+// if an older portfolio walk still lists it. Leaving any possibly-live size
+// out would leave it in the external touch, and we would chase ourselves
+// (H-Q-10).
 func (o *owner) restingOn(side quote.Side) ([]quote.Resting, int, bool) {
 	byPrice := make(map[int]num.Qty)
 	for _, lo := range o.r.pf.LiveOrders() {
-		if lo.Ticker != o.r.cfg.Ticker || lo.Side != side {
+		if lo.Ticker != o.ticker() || lo.Side != side {
+			continue
+		}
+		if _, absent := o.absentOrders[lo.OrderID]; absent {
 			continue
 		}
 		cents, exact := rest.CentsExact(lo.Price4)
@@ -2411,12 +3276,21 @@ func (o *owner) restingOn(side quote.Side) ([]quote.Resting, int, bool) {
 		}
 		byPrice[cents] += lo.Remaining
 	}
-	if o.inflight != nil && o.inflight.Market == o.r.cfg.Ticker &&
-		o.inflight.Side == side && o.inflight.Op == quote.OpPlace {
-		byPrice[o.inflight.Order.PriceCents()] += o.inflight.Order.Count()
+	for _, req := range o.inflight {
+		if req.Market == o.ticker() && req.Side == side && req.Op == quote.OpPlace {
+			if o.hasListedCreate(req.Order.ClientOrderID(), req.Market, req.Side) {
+				continue
+			}
+			if _, counted := o.pending[req.Order.ClientOrderID()]; !counted {
+				byPrice[req.Order.PriceCents()] += req.Order.Count()
+			}
+		}
 	}
-	for _, u := range o.pending {
-		if u.side == side {
+	for coid, u := range o.pending {
+		if o.pendingTicker(u) == o.ticker() && u.side == side {
+			if o.hasListedCreate(coid, o.pendingTicker(u), u.side) {
+				continue
+			}
 			byPrice[u.cents] += u.qty
 		}
 	}
@@ -2433,6 +3307,124 @@ func (o *owner) restingOn(side quote.Side) ([]quote.Resting, int, bool) {
 		}
 	}
 	return out, best, has
+}
+
+// unlistedOn is every order of ours on one side that a cancel can NAME but that
+// `risk.Portfolio.LiveOrders` does not hold yet.
+//
+// Two sources, and they are the two ways an order id reaches this process
+// outside a portfolio walk:
+//
+//   - `pending`, for a create whose acknowledgement carried an `order_id`. The
+//     order demonstrably exists; `Portfolio.ReplaceOrders` is wholesale from a
+//     complete walk (H-POS-4) and the next one is up to `position_poll_s` away,
+//     so between them the only record of the id is here.
+//   - `sweptOrders`, for an order a cancel's VERIFYING READ found resting. This
+//     covers the UNKNOWN create, which has no id at all until something
+//     positively identifies it (H-ORD-2a), and the order placed by a previous
+//     incarnation that §7.5 adopted.
+//
+// The result is sorted by order id. Map iteration order is random in Go, and a
+// cancel whose target list is shuffled between two ticks is a write nobody can
+// replay -- the scenario runner, the qualification evidence and every test that
+// asserts on `deletedIDs` would each see a different history of the same run.
+func (o *owner) unlistedOn(market string, side quote.Side) []rest.Order {
+	var out []rest.Order
+	for _, u := range o.pending {
+		if o.pendingTicker(u) != market || u.side != side || u.id == "" {
+			continue
+		}
+		out = append(out, rest.Order{
+			OrderID: u.id, Ticker: market, Side: side,
+			Price4: num.Price4FromCents(u.cents), PriceCents: u.cents,
+			Remaining: u.qty, Status: rest.StatusResting,
+		})
+	}
+	for _, ord := range o.sweptOrders {
+		if ord.Ticker != market || ord.Side != side {
+			continue
+		}
+		out = append(out, ord)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].OrderID < out[j].OrderID })
+	return out
+}
+
+// sweptOn reports whether a verifying read has SEEN one of ours resting on this
+// side and no complete read has since said otherwise.
+//
+// It is a presence question and never a quantity one: these orders are already
+// counted in `atRisk` through `LiveOrders` or `pending`, and adding their size a
+// second time would overstate the aggregate every cap is measured against
+// (H-Q-5b) -- which on a reducing side is a reducer that never gets placed.
+func (o *owner) sweptOn(side quote.Side) bool {
+	for _, ord := range o.sweptOrders {
+		if ord.Ticker == o.ticker() && ord.Side == side {
+			return true
+		}
+	}
+	return false
+}
+
+// noteSwept records what a cancel's VERIFYING READ found still resting.
+//
+// Wholesale from a COMPLETE read and from nothing else. `SweepResult.Walk` is
+// the last verifying read and `Replaces()` is `wsx`'s own test for one that
+// finished; an incomplete read is H-PAGE-1's "stale, never empty" and may
+// neither add an obligation nor retire one. That asymmetry is H-FAIL-3 exactly:
+// the only thing that ends a cancellation obligation is the exchange saying the
+// order is gone, and a read that did not finish did not say it.
+//
+// Both sets are kept. `StillResting` is the requested orders the sweep could not
+// remove -- those are the SEV1 `SWEEP_INCOMPLETE` case and are unambiguously
+// still live -- and `OtherOurs` is every other `lipH-` order in the ticker,
+// which is where an acked-but-unlisted or UNKNOWN create of ours turns up.
+// `rest.CancelAndSweep` deliberately does not cancel `OtherOurs` itself, because
+// on a halt that set contains the reducing quote and A4 requires it stay alive;
+// deciding which of them to retire is this file's job, and `evaluate` does it
+// per side from §5.2.
+func (o *owner) noteSwept(market string, sweep rest.SweepResult) {
+	if !sweep.Replaces() {
+		return
+	}
+	for id, ord := range o.sweptOrders {
+		if ord.Ticker == market {
+			delete(o.sweptOrders, id)
+		}
+	}
+	record := func(orders []rest.Order) {
+		for _, ord := range orders {
+			if ord.OrderID == "" {
+				continue
+			}
+			if ord.Ticker != "" && ord.Ticker != market {
+				continue
+			}
+			ord.Ticker = market
+			if o.r.cfg.Turnover && !o.acceptTurnoverOwnedSighting(ord) {
+				continue
+			}
+			o.sweptOrders[ord.OrderID] = ord
+		}
+	}
+	record(sweep.StillResting)
+	record(sweep.OtherOurs)
+}
+
+// clearSwept drops the entries a complete orders walk has since listed.
+//
+// Listing is the ONLY release here, exactly as in `clearListed`, and for the
+// same reason: the order is now in `Portfolio.LiveOrders`, so `build` reaches it
+// there and a duplicate record would be a second copy of one fact. Absence from
+// the walk releases nothing (H-ORD-2a) -- what retires an entry that the walk
+// does not list is the next sweep's own complete verifying read.
+func (o *owner) clearSwept() {
+	if len(o.sweptOrders) == 0 {
+		return
+	}
+	for _, lo := range o.r.pf.LiveOrders() {
+		delete(o.sweptOrders, lo.OrderID)
+	}
 }
 
 // bestOn is our own best price on one side, for H-CO-6.
@@ -2501,13 +3493,29 @@ func (o *owner) strandedFor(now time.Duration, side quote.Side) time.Duration {
 // applyWriteResult folds the dispatcher's answer back into the queue and the
 // risk model.
 func (o *owner) applyWriteResult(res writeResult) {
-	o.inflight = nil
+	restore := o.marketContext(res.Req.Market)
+	defer restore()
+	for i, req := range o.inflight {
+		if sameWrite(*req, res.Req) {
+			o.inflight = append(o.inflight[:i], o.inflight[i+1:]...)
+			if len(o.inflight) == 0 {
+				o.inflight = nil
+			}
+			break
+		}
+	}
 	o.r.anom.raiseAll(res.Anomalies)
 	// The worker slot always comes back; the TOKEN comes back only when nothing
 	// left the process. A write refused by H-STORE-3 or rebuilt by the owner
 	// spent no exchange write, and charging the §16 bucket for it would let a
 	// store outage spend the reducer's share of the budget on nothing at all.
 	o.capacity = releaseWrite(o.capacity, o.p, res.Req.Grant, res.Sent)
+	if res.Req.Op == quote.OpPlace {
+		o.observeRejectResponse(res.Req.Market, res.Create, res.Sent)
+	}
+	if o.retryThrottled(res) {
+		return
+	}
 
 	// A WRITE THAT DID NOT COMPLETE MUST RELEASE ITS INTENTS, and this is the
 	// least obvious rule in the file.
@@ -2526,6 +3534,9 @@ func (o *owner) applyWriteResult(res writeResult) {
 	// decision still holds, which is what §6.6 means by holding intents rather
 	// than requests.
 	if res.Err != nil {
+		if res.Req.Op == quote.OpPlace && !res.Sent && res.Req.attempts == 0 {
+			o.resolveTurnoverOrder(res.Req.Order.ClientOrderID())
+		}
 		for _, id := range res.Req.IDs {
 			o.r.queue.Drop(id)
 		}
@@ -2555,13 +3566,62 @@ func (o *owner) applyWriteResult(res writeResult) {
 	}
 
 	if res.Req.Op == quote.OpCancel {
+		// FIRST, and on both branches. The verifying read is the same read
+		// whether or not it declared the side clean, and what it saw is what
+		// decides which orders the next tick can still name. Recording it only
+		// on the unverified branch would lose the one case this exists for: a
+		// sweep that cleanly removed what we asked for and reported an
+		// acked-but-unlisted order of ours still resting beside it.
+		o.noteSwept(res.Req.Market, res.Sweep)
 		if res.Absent {
-			// H-ORD-4 and H-FAIL-3. `Absent` is the ONLY thing that may reach
-			// `ConfirmAbsent`, and `dispatch.go` is strict about what earns it:
-			// a COMPLETE verifying read that found nothing of ours resting on
-			// this (market, side). A 2xx is a cancel REQUEST, and a
-			// cancel-requested order is still live and still fillable.
-			o.r.queue.ConfirmAbsent(res.Req.Market, res.Req.Side)
+			// The sweep says the order is absent, but a just-before-DELETE fill
+			// may have changed q. Drop the dependent placement and rederive it
+			// only after fresh fills, orders, and positions have been applied.
+			// This is deliberately independent of reduced_by, which is no fill
+			// report and whose response identity is not yet validated here.
+			o.awaitCancelTruth = true
+			o.cancelTruthAfter = o.r.ex.Clock.Now().Mono
+			for _, id := range res.Req.IDs {
+				o.r.queue.Drop(id)
+			}
+			o.offerToken(o.reconcileOut, o.reconcileToken)
+			// The complete verifying read found nothing of ours on this side.
+			// Record the ids represented by an older portfolio walk before the
+			// next reconciliation. Keep this evidence by id across a new create;
+			// the side-wide cancelConfirmed flag must clear on that create.
+			requested := make(map[string]struct{}, len(res.Req.Orders))
+			for _, lo := range o.r.pf.LiveOrders() {
+				if lo.Ticker == res.Req.Market && lo.Side == res.Req.Side {
+					o.absentOrders[lo.OrderID] = struct{}{}
+				}
+			}
+			for _, ord := range res.Req.Orders {
+				if ord.OrderID != "" && ord.Ticker == res.Req.Market &&
+					ord.Side == res.Req.Side {
+					o.absentOrders[ord.OrderID] = struct{}{}
+					requested[ord.OrderID] = struct{}{}
+				}
+			}
+			// A known-id ACK that the cancel named has also been positively
+			// retired, even if no portfolio walk ever listed it. Otherwise its
+			// pending quantity would block the replacement indefinitely. An
+			// UNKNOWN create has no id to match and retains its maximum live size.
+			for coid, p := range o.pending {
+				if o.pendingTicker(p) != res.Req.Market || p.side != res.Req.Side || !p.acked || p.id == "" {
+					continue
+				}
+				if _, named := requested[p.id]; named {
+					o.resolveTurnoverOrder(coid)
+					delete(o.pending, coid)
+				}
+			}
+			// H-ORD-4 and H-FAIL-3: only the complete verifying sweep can
+			// discharge the cancellation obligation. A 2xx alone cannot. The
+			// dependent intent was discarded above so a fresh position walk will
+			// rederive its role and size. Keep the obligation discharged until a
+			// newer orders walk; otherwise §5.2 would keep cancelling the same
+			// stale LiveOrders id on every owner tick.
+			o.cancelConfirmed[res.Req.Side] = true
 			return
 		}
 		// Not verified absent. The intents are RELEASED for the reason above:
@@ -2591,10 +3651,16 @@ func (o *owner) applyWriteResult(res writeResult) {
 	}
 
 	create := res.Create
+	if create.Outcome == rest.CreateRejected || (create.Outcome.Exists() && create.MaxLive == 0) {
+		o.resolveTurnoverOrder(res.Req.Order.ClientOrderID())
+	}
+	o.stopForInsufficientBalance(res.Req.Market, create)
 
 	// EVERY create that may have left quantity live enters the aggregate HERE,
-	// before anything else reads it, and it stays until a complete orders walk
-	// lists the coid back.
+	// before anything else reads it. A complete orders walk that lists the coid
+	// moves it into LiveOrders; a complete cancel sweep can retire a named ACKed
+	// order before that walk. An UNKNOWN create keeps its maximum possibly-live
+	// quantity until positive resolution.
 	//
 	// Both outcomes, not just the unknown one. `CreateRejected` is the single
 	// case with nothing live -- `MaxLive` is zero only there -- so the test is
@@ -2608,12 +3674,22 @@ func (o *owner) applyWriteResult(res writeResult) {
 	// (H-Q-5b, H-CAP-7) until it is positively resolved."
 	if create.MaxLive > 0 {
 		o.pending[create.Coid] = pendingOrder{
-			side:  res.Req.Side,
-			cents: res.Req.Order.PriceCents(),
-			qty:   create.MaxLive,
-			at:    o.r.ex.Mono(),
-			acked: create.Outcome.Exists(),
+			ticker: res.Req.Market,
+			side:   res.Req.Side,
+			cents:  res.Req.Order.PriceCents(),
+			qty:    create.MaxLive,
+			at:     o.r.ex.Mono(),
+			acked:  create.Outcome.Exists(),
+			// The id from the acknowledgement, when there is one. It is empty
+			// for an UNKNOWN create and that is the honest answer: H-ORD-2a
+			// deleted the "declare it never landed" branch, so an id we do not
+			// have is resolved positively by a walk or by a sweep, never
+			// guessed.
+			id: create.OrderID,
 		}
+		// Something may now be resting on this side again, so the last
+		// verifying read's "nothing of ours here" no longer describes it.
+		o.cancelConfirmed[res.Req.Side] = false
 	}
 
 	switch {
@@ -2692,20 +3768,10 @@ func (o *owner) applyWriteResult(res writeResult) {
 	}
 
 	if create.ReconcileNow() {
-		// §7.2 clause 2. There is no way to force the poller off-cadence from
-		// here -- it polls on its own timer and on a reconcile token, and a
-		// token is a connection generation rather than a request. Recorded so
-		// the delay is visible: the resolution is at most one `position_poll_s`
-		// away, and the quantity stays in every cap until it arrives.
-		o.r.anom.raise(risk.Anomaly{
-			Class: "RECONCILE_DEFERRED", Sev: risk.SEV2, Ticker: res.Req.Market,
-			Text: fmt.Sprintf("create %s ended %s and §7.2 asks for an "+
-				"immediate reconciliation; this build waits for the next "+
-				"portfolio poll (at most %v), and the order's maximum "+
-				"possibly-live quantity stays in every aggregate cap until then",
-				create.Coid, create.Outcome, o.p.PositionPoll),
-		})
+		o.offerToken(o.reconcileOut, o.reconcileToken)
 	}
+
+	o.clearListed()
 	o.escalateUnresolved()
 }
 
@@ -2728,7 +3794,7 @@ func (o *owner) escalateUnresolved() {
 		u.pinged = true
 		o.pending[coid] = u
 		o.r.anom.raise(risk.Anomaly{
-			Class: "ORDER_UNKNOWN", Sev: risk.SEV2, Ticker: o.r.cfg.Ticker,
+			Class: "ORDER_UNKNOWN", Sev: risk.SEV2, Ticker: o.pendingTicker(u),
 			Text: fmt.Sprintf("coid %s has been unresolved for %v (past "+
 				"unknown_ping_s %v): %s contracts may be live on %s and are "+
 				"still held against every aggregate cap. Only a complete orders "+
@@ -3005,7 +4071,7 @@ func (o *owner) anyInventory() bool {
 // fillable orders on the book is not drained: it is one ignored cancel away from
 // being long again."
 func (o *owner) anyLiveOrder() bool {
-	return len(o.r.pf.LiveOrders()) > 0 || o.inflight != nil ||
+	return len(o.r.pf.LiveOrders()) > 0 || len(o.inflight) > 0 || len(o.retries) > 0 ||
 		len(o.pending) > 0
 }
 
@@ -3015,9 +4081,13 @@ func (o *owner) anyLiveOrder() bool {
 // reading before the outage, and H-FAIL-4 exists because that reading looks
 // exactly like a good one.
 func (o *owner) truthKnown() bool {
+	if o.awaitCancelTruth {
+		return false
+	}
 	now := o.r.ex.Clock.Now()
 	for _, k := range []wsx.Truth{wsx.TruthOrders, wsx.TruthFills, wsx.TruthPositions} {
-		if o.r.gate.TruthAge(k, now) > o.p.TruthMaxAge {
+		age := o.r.gate.TruthAge(k, now)
+		if age < 0 || age > o.p.TruthMaxAge {
 			return false
 		}
 	}
@@ -3035,57 +4105,65 @@ func (o *owner) truthKnown() bool {
 // real inventory grew unobserved.
 func (o *owner) publish(now time.Duration) {
 	o.snapSeq++
-	ticker := o.r.cfg.Ticker
-	book := o.r.book.Book(ticker)
-
 	snap := &risk.Snapshot{
 		Seq:       o.snapSeq,
 		PubMono:   now,
 		PubWallMs: o.r.ex.NowMs(),
 		Global:    o.global,
 	}
+	snap.Account = risk.AccountSnapshot{TruthFresh: o.truthKnown(), CapitalMax: o.p.CapitalMax, Exposures: o.exposures()}
+	if o.pnl != nil && o.pnlQKnown {
+		inputs, _ := o.pnlInputs()
+		snap.Account.TradingPnL = o.pnl.Evaluate(inputs)
+		snap.Account.TradingPnL.Evaluable = snap.Account.TradingPnL.Evaluable && snap.Account.TruthFresh
+	}
 
-	m := risk.MarketSnap{
-		Ticker:         ticker,
-		State:          o.market,
-		Q:              o.r.pf.Q(ticker),
-		Selected:       true,
-		BookActionable: o.r.gate.Actionable(ticker, o.r.ex.Clock.Now()),
-	}
-	if book != nil {
-		// Gated: the market's own qualifying walk fails on either side. Reward
-		// for a gated interval is zero for every participant, so it is excluded
-		// from the uptime denominator rather than counted as our downtime
-		// (H-Q-4).
-		m.Gated = book.Qualifies() == 0
-		for _, side := range []quote.Side{quote.SideYes, quote.SideNo} {
-			levels := book.Yes()
-			if side == quote.SideNo {
-				levels = book.No()
-			}
-			ours, price, has := o.restingOn(side)
-			ext := quote.ExternalBest(levels, ours)
-			s := risk.SideSnap{AtRisk: o.atRisk(side)}
-			if has {
-				s.PriceCents = price
-			}
-			for _, r := range ours {
-				if r.Price == price {
-					s.Resting = r.Size
-				}
-			}
-			if ext.Found {
-				s.TouchCents = ext.Price
-				s.FieldScore = ext.Size
-			}
-			m.Sides[side] = s
+	for _, ticker := range o.managedTickers() {
+		restore := o.marketContext(ticker)
+		book := o.r.book.Book(ticker)
+		m := risk.MarketSnap{
+			Ticker:         ticker,
+			State:          o.market,
+			Q:              o.r.pf.Q(ticker),
+			Selected:       o.isSelected(ticker),
+			BookActionable: o.r.gate.Actionable(ticker, o.r.ex.Clock.Now()),
 		}
+		if book != nil {
+			// Gated: the market's own qualifying walk fails on either side. Reward
+			// for a gated interval is zero for every participant, so it is excluded
+			// from the uptime denominator rather than counted as our downtime
+			// (H-Q-4).
+			m.Gated = book.Qualifies() == 0
+			for _, side := range []quote.Side{quote.SideYes, quote.SideNo} {
+				levels := book.Yes()
+				if side == quote.SideNo {
+					levels = book.No()
+				}
+				ours, price, has := o.restingOn(side)
+				ext := quote.ExternalBest(levels, ours)
+				s := risk.SideSnap{AtRisk: o.atRisk(side)}
+				if has {
+					s.PriceCents = price
+				}
+				for _, r := range ours {
+					if r.Price == price {
+						s.Resting = r.Size
+					}
+				}
+				if ext.Found {
+					s.TouchCents = ext.Price
+					s.FieldScore = ext.Size
+				}
+				m.Sides[side] = s
+			}
+		}
+		snap.Markets = append(snap.Markets, m)
+		restore()
 	}
-	snap.Markets = []risk.MarketSnap{m}
 	o.r.snap.Store(snap)
 	if o.r.qual != nil {
 		name := fmt.Sprintf("global=%s;market=%s;actionable=%t;truth_generation=%d",
-			o.global, o.market, m.BookActionable, o.r.gate.Generation())
+			o.global, o.market, o.r.gate.Actionable(o.ticker(), o.r.ex.Clock.Now()), o.r.gate.Generation())
 		if err := o.r.qual.RecordEvent("state", name, time.Now().UTC()); err != nil {
 			o.r.failQualification(fmt.Errorf("recording state summary: %w", err))
 		}

@@ -1,0 +1,17 @@
+{
+  "observed_at_utc": "2026-09-26T22:47:38.422Z",
+  "source": "visible logged-in Kalshi portfolio Rewards popover",
+  "september_rewards_usd": "0.00",
+  "lifetime_rewards_usd": "7.65",
+  "displayed_credit": {
+    "description": "Liquidity Incentive for event KXGENERICBALLOTVOTEHUB-26JUL31",
+    "date": "2026-07-31",
+    "amount_usd": "7.65"
+  },
+  "paid_ledger_corroboration": "UI displayed credit; no independent payment transaction obtained",
+  "selected_market_estimate": null,
+  "selected_market_pool_usd": "200",
+  "pool_is_personal_estimate": false,
+  "estimate_timestamp": null,
+  "private_data_policy": "no credentials/cookies/session tokens retained"
+}

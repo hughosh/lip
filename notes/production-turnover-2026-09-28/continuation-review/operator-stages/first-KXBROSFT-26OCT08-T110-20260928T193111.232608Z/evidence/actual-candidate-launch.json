@@ -1,0 +1,11 @@
+{
+  "decision_receipt_sha256": "dadc2fe962b2cf9f24accf28e4c0b215a17826557fe9323c20d2729c91ce72b4",
+  "config_sha256_at_observation": "d2e621fd810dbe9c6a885593a62a480e800fd35d55228bf003138458bb5d562b",
+  "binary_sha256": "e3f8a697a20c3153f5c2a8650094b949ff57b985f94b154a7defdad22e9ef361",
+  "run_id": "20260928T1933054SN2H",
+  "pid": 70087,
+  "actual_start_utc": "2026-09-28T19:33:03Z",
+  "activation_actor": "human operator Hugh, reported terminal commands and verified process",
+  "prelaunch_freshness_deviation": "launch-freshness-deviation.json",
+  "current_stage": "attended first-owned-fill attempt; no success asserted"
+}

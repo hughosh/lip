@@ -1,27 +1,27 @@
 package hstore
 
 // ---------------------------------------------------------------------------
-// §15 — the pilot five, and nothing else
+// §15 — the pilot records plus observed balance telemetry
 // ---------------------------------------------------------------------------
 //
 // notes/pilot-plan.md §2.3 cut §15's full table set to five records for the
-// pilot. `order_intent`, `order_event`, `position_poll` and the rest are
-// DEFERRED, not forgotten, and `TestSchemaIsExactlyThePilotFiveAndPragmasArePinned`
-// enumerates `sqlite_schema` to prove the deferred ones are absent. A sixth
-// table appearing quietly is how a deferred decision becomes an implemented one
-// that nobody argued for.
+// pilot. lip-o7a restores balance_poll for payout observation. The other dense
+// records remain deferred, and the schema test enumerates sqlite_schema so an
+// unreviewed table cannot appear silently.
 
 // schemaVersion is `PRAGMA user_version`. An unknown NON-ZERO version is
 // rejected rather than migrated: a database written by a schema we do not know
 // is one whose `owned_order` rows we cannot safely read, and reading them wrong
 // classifies a fill.
 //
-// Version 2 added `owned_order.abandoned_ms`. There is no migration and version
-// 1 is refused by name, because nothing is deployed: the only version-1 files in
-// existence are test fixtures and a developer's scratch database, and a
-// migration path written for no user is a code path that is exercised for the
-// first time on the day it runs against real evidence.
-const schemaVersion = 2
+// Version 2 added `owned_order.abandoned_ms`. Version 3 adds balance_poll and
+// migrates version 2 atomically. Version 1 remains refused because its missing
+// abandonment state changes how an unrecognised order id is classified.
+const schemaVersion = 3
+
+// pilotSchemaVersion is the original five-table store. Opening one preserves
+// its ownership and fill history while adding the independent telemetry table.
+const pilotSchemaVersion = 2
 
 // legacySchemaVersion is the pre-`abandoned_ms` schema. Named so the refusal can
 // say WHICH old version it found and why the difference matters, rather than
@@ -43,19 +43,17 @@ const (
 
 // userTables is every table this schema is permitted to contain, sorted.
 var userTables = []string{
-	"anomaly", "our_fill", "owned_order", "run", "state_event",
+	"anomaly", "balance_poll", "our_fill", "owned_order", "run", "state_event",
 }
 
-// deferredTables are §15 tables the pilot cut. Named here so the schema test
-// asserts their ABSENCE positively rather than by counting -- a count says five
-// and does not say WHICH five, and the failure this guards against is a
-// deferred decision quietly becoming an implemented one.
+// deferredTables are §15 tables still cut from the pilot. Named here so the
+// schema test asserts their absence positively.
 var deferredTables = []string{
-	"balance_poll", "market", "order_event", "order_intent",
+	"market", "order_event", "order_intent",
 	"position_poll", "snap", "uptime",
 }
 
-// Schema is the five pilot records.
+// Schema is the pilot records and the independent balance observation.
 //
 // Notes on the constraints that are load-bearing rather than tidy:
 //
@@ -87,6 +85,12 @@ CREATE TABLE IF NOT EXISTS run (
     run_id      TEXT    PRIMARY KEY,
     started_ms  INTEGER NOT NULL,
     config_json BLOB    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS balance_poll (
+    ts_ms         INTEGER PRIMARY KEY,
+    run_id        TEXT    NOT NULL REFERENCES run(run_id),
+    balance_cents INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS owned_order (

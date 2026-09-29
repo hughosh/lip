@@ -1,0 +1,66 @@
+gui/501/com.lip.harness = {
+	active count = 0
+	path = /Users/hugh/Library/LaunchAgents/com.lip.harness.plist
+	type = LaunchAgent
+	state = spawn scheduled
+
+	program = /usr/bin/caffeinate
+	arguments = {
+		/usr/bin/caffeinate
+		-is
+		/Users/hugh/.lip/bin/harness
+		-config
+		/Users/hugh/.lip/canary/config.json
+		-live
+	}
+
+	working directory = /Users/hugh/.lip/canary
+
+	stdout path = /Users/hugh/.lip/canary/harness.out
+	stderr path = /Users/hugh/.lip/canary/harness.err
+	inherited environment = {
+		SSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		XPC_SERVICE_NAME => com.lip.harness
+	}
+
+	domain = gui/501 [100002]
+	asid = 100002
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 327865
+	last exit code = 1
+
+	resource coalition = {
+		ID = 962
+		type = resource
+		state = active
+		active count = 1
+		name = com.lip.harness
+	}
+
+	jetsam coalition = {
+		ID = 963
+		type = jetsam
+		state = active
+		active count = 1
+		name = com.lip.harness
+	}
+
+	spawn type = daemon (3)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	jetsam thread limit = 32
+	cpumon = default
+
+	properties = keepalive | runatload | inferred program | managed LWCR | has LWCR
+}

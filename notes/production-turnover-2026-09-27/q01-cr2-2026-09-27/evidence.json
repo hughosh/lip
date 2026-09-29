@@ -1,0 +1,365 @@
+{
+  "metadata": {
+    "schema_version": 4,
+    "config_hash": "sha256:48b8edb308b824cacfac4b161d5e125bf7bad03bb0d804c1c2269f99877f18f6",
+    "binary_identity": "sha256:ecf16ea19c4f0e05dad8cce0c261d6e6f2204eeb8f9615913a79b54816b311c6;vcs.revision=f7e9571547bb948418b7a27adc9c30ae38314b00;vcs.modified=true",
+    "ticker": "KXOPENSOURCESHARE-26OCT01-T81",
+    "rung": "sizing",
+    "live": false
+  },
+  "created_at": "2026-09-27T18:22:14.238732Z",
+  "updated_at": "2026-09-27T18:24:32.965802Z",
+  "segments": [
+    {
+      "id": "d1935f67a3e1856ea6f19f88d4415adb",
+      "run_id": "20260927T182216QVED3",
+      "pid": 98765,
+      "started_at": "2026-09-27T18:22:14.238732Z",
+      "ended_at": "2026-09-27T18:24:32.965802Z",
+      "end_reason": "finalized",
+      "active_nanos": 136569627290,
+      "monitor_slots": {
+        "observed": 136,
+        "fresh": 135
+      },
+      "portfolio_slots": {
+        "observed": 27,
+        "fresh_complete": 27,
+        "stale_walks": 1,
+        "incomplete_walks": 1
+      }
+    }
+  ],
+  "attempted_http": [
+    {
+      "method": "GET",
+      "endpoint": "/incentive_programs",
+      "count": 66
+    },
+    {
+      "method": "GET",
+      "endpoint": "/markets/{ticker}",
+      "count": 91
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/balance",
+      "count": 59
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/fills",
+      "count": 31
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/orders",
+      "count": 89
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/positions",
+      "count": 61
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/subaccounts/balances",
+      "count": 61
+    }
+  ],
+  "http": [
+    {
+      "method": "GET",
+      "endpoint": "/incentive_programs",
+      "count": 66
+    },
+    {
+      "method": "GET",
+      "endpoint": "/markets/{ticker}",
+      "count": 91
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/balance",
+      "count": 59
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/fills",
+      "count": 31
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/orders",
+      "count": 89
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/positions",
+      "count": 61
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/subaccounts/balances",
+      "count": 61
+    }
+  ],
+  "would_writes": [
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXOPENSOURCESHARE-26SEP29-T70",
+        "side": "yes",
+        "price": "2",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=4"
+      },
+      "segment_id": "d1935f67a3e1856ea6f19f88d4415adb",
+      "first_at": "2026-09-27T18:22:19.565167Z",
+      "last_at": "2026-09-27T18:23:49.596943Z",
+      "observations": 11726
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXOPENSOURCESHARE-26SEP29-T70",
+        "side": "no",
+        "price": "2",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=4"
+      },
+      "segment_id": "d1935f67a3e1856ea6f19f88d4415adb",
+      "first_at": "2026-09-27T18:22:19.59867Z",
+      "last_at": "2026-09-27T18:23:49.596911Z",
+      "observations": 11724
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXOPENSOURCESHARE-26SEP29-T70",
+        "side": "yes",
+        "price": "2",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=6"
+      },
+      "segment_id": "d1935f67a3e1856ea6f19f88d4415adb",
+      "first_at": "2026-09-27T18:23:51.302083Z",
+      "last_at": "2026-09-27T18:24:32.654046Z",
+      "observations": 5676
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXOPENSOURCESHARE-26SEP29-T70",
+        "side": "no",
+        "price": "2",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=6"
+      },
+      "segment_id": "d1935f67a3e1856ea6f19f88d4415adb",
+      "first_at": "2026-09-27T18:23:51.316112Z",
+      "last_at": "2026-09-27T18:24:32.660648Z",
+      "observations": 5676
+    }
+  ],
+  "would_write_overflow": {
+    "episodes": 0,
+    "observations": 0
+  },
+  "monitor": {
+    "checks": 136,
+    "fresh": 135,
+    "stale": 1,
+    "last_check_at": "2026-09-27T18:24:32.397881Z",
+    "last_fresh_at": "2026-09-27T18:24:32.397881Z"
+  },
+  "portfolio": {
+    "walks": 30,
+    "fresh": 29,
+    "stale": 1,
+    "complete": 29,
+    "incomplete": 1,
+    "fresh_complete": 29,
+    "last_walk_at": "2026-09-27T18:24:31.322257Z",
+    "last_fresh_at": "2026-09-27T18:24:31.322257Z",
+    "last_complete_at": "2026-09-27T18:24:31.322257Z"
+  },
+  "events": [
+    {
+      "category": "anomaly",
+      "name": "SEV2:BOOK_QUIET",
+      "count": 2,
+      "first_at": "2026-09-27T18:23:19.376377Z",
+      "last_at": "2026-09-27T18:23:19.376391Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:FOREIGN_FILL_INHERITED",
+      "count": 15,
+      "first_at": "2026-09-27T18:22:18.102581Z",
+      "last_at": "2026-09-27T18:22:18.102615Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:RECONCILE_TOKEN_STALE",
+      "count": 1,
+      "first_at": "2026-09-27T18:23:49.692467Z",
+      "last_at": "2026-09-27T18:23:49.692467Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:SIGNAL_DRAIN",
+      "count": 1,
+      "first_at": "2026-09-27T18:24:32.755932Z",
+      "last_at": "2026-09-27T18:24:32.755932Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:WRITE_NOT_BUILDABLE",
+      "count": 1,
+      "first_at": "2026-09-27T18:24:32.756068Z",
+      "last_at": "2026-09-27T18:24:32.756068Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:WS_DISCONNECT",
+      "count": 1,
+      "first_at": "2026-09-27T18:23:49.608085Z",
+      "last_at": "2026-09-27T18:23:49.608085Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:BOOK_CROSSCHECK_AGREED",
+      "count": 2,
+      "first_at": "2026-09-27T18:23:19.485707Z",
+      "last_at": "2026-09-27T18:23:19.580737Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:FUNDING_LIMITS",
+      "count": 1,
+      "first_at": "2026-09-27T18:22:17.388697Z",
+      "last_at": "2026-09-27T18:22:17.388697Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:STARTUP",
+      "count": 1,
+      "first_at": "2026-09-27T18:22:17.388728Z",
+      "last_at": "2026-09-27T18:22:17.388728Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:TURNOVER_MANAGED",
+      "count": 1,
+      "first_at": "2026-09-27T18:22:17.388727Z",
+      "last_at": "2026-09-27T18:22:17.388727Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:TURNOVER_SELECTION",
+      "count": 1,
+      "first_at": "2026-09-27T18:22:18.900571Z",
+      "last_at": "2026-09-27T18:22:18.900571Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "deadman_checkin_sent",
+      "count": 5,
+      "first_at": "2026-09-27T18:22:17.182843Z",
+      "last_at": "2026-09-27T18:24:17.103757Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "sent",
+      "count": 5,
+      "first_at": "2026-09-27T18:22:17.182831Z",
+      "last_at": "2026-09-27T18:24:17.103755Z"
+    },
+    {
+      "category": "state",
+      "name": "global=DRAINED;market=IDLE;actionable=true;truth_generation=6",
+      "count": 68,
+      "first_at": "2026-09-27T18:24:32.756034Z",
+      "last_at": "2026-09-27T18:24:32.963541Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=1",
+      "count": 4,
+      "first_at": "2026-09-27T18:22:17.493649Z",
+      "last_at": "2026-09-27T18:22:17.64124Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=2",
+      "count": 112,
+      "first_at": "2026-09-27T18:22:17.695183Z",
+      "last_at": "2026-09-27T18:22:18.060723Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=3",
+      "count": 3,
+      "first_at": "2026-09-27T18:22:18.900556Z",
+      "last_at": "2026-09-27T18:22:19.140167Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=4",
+      "count": 124,
+      "first_at": "2026-09-27T18:22:19.158723Z",
+      "last_at": "2026-09-27T18:23:19.479731Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=5",
+      "count": 8,
+      "first_at": "2026-09-27T18:23:49.608112Z",
+      "last_at": "2026-09-27T18:23:50.763967Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=6",
+      "count": 149,
+      "first_at": "2026-09-27T18:23:50.91143Z",
+      "last_at": "2026-09-27T18:23:51.300141Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=2",
+      "count": 257,
+      "first_at": "2026-09-27T18:22:18.102601Z",
+      "last_at": "2026-09-27T18:22:18.891929Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=4",
+      "count": 23468,
+      "first_at": "2026-09-27T18:22:19.56518Z",
+      "last_at": "2026-09-27T18:23:49.596947Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=6",
+      "count": 11352,
+      "first_at": "2026-09-27T18:23:51.302095Z",
+      "last_at": "2026-09-27T18:24:32.660656Z"
+    },
+    {
+      "category": "state",
+      "name": "websocket:connected",
+      "count": 3,
+      "first_at": "2026-09-27T18:22:17.69513Z",
+      "last_at": "2026-09-27T18:23:50.911326Z"
+    },
+    {
+      "category": "state",
+      "name": "websocket:disconnected",
+      "count": 1,
+      "first_at": "2026-09-27T18:23:49.60805Z",
+      "last_at": "2026-09-27T18:23:49.60805Z"
+    }
+  ],
+  "finalized_at": "2026-09-27T18:24:32.965802Z"
+}

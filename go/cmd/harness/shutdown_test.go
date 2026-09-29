@@ -128,6 +128,7 @@ func newFixture(t *testing.T, tune func(*cfg.Params)) *fixture {
 		alerts:      quietTestAlertStepper{},
 		alertWake:   make(chan struct{}, 1),
 		alertFlush:  make(chan chan struct{}),
+		qualErrors:  make(chan error, 1),
 	}
 	if err := f.rig.startAlerts(context.Background()); err != nil {
 		t.Fatalf("starting fixture alert loop: %v", err)
@@ -136,8 +137,26 @@ func newFixture(t *testing.T, tune func(*cfg.Params)) *fixture {
 	// The whole point of the injection: the real os.Exit would take the test
 	// binary with it, and "SIGTERM does not exit" would be unassertable.
 	f.sd.exit = func(code int) { f.exits = append(f.exits, code) }
+	// The owner's side of the stop request. serveWithShutdown joins its inputs
+	// before stopStore; this fixture runs none, so answering is all that is left.
+	f.sd.stopRequests = make(chan stopRequest)
+	ownerCtx, stopOwner := context.WithCancel(context.Background())
+	ownerDone := make(chan struct{})
+	go func() {
+		defer close(ownerDone)
+		for {
+			select {
+			case <-ownerCtx.Done():
+				return
+			case request := <-f.sd.stopRequests:
+				request.done <- f.sd.stopStore(request.ctx)
+			}
+		}
+	}()
 
 	t.Cleanup(func() {
+		stopOwner()
+		<-ownerDone
 		// Idempotent: rig.close on an already-closed store drains an empty queue
 		// and Close returns nil, so a test that stopped deliberately is not
 		// penalised here.
@@ -364,6 +383,89 @@ func TestOnlyAnAuthorisedDrainReachesTheProcessExit(t *testing.T) {
 		t.Fatalf("process exits = %v, want exactly [0]: the undrained "+
 			"observation must change nothing and the drained one must end the "+
 			"process cleanly", f.exits)
+	}
+}
+
+// The signal handler must leave a durable reason on disk before its decision
+// can license the planned drain. Exercise both operator signals at the composed
+// shutdown seam, including the intermediate known-but-still-resting state.
+func TestOperatorSignalsCommitBeforeDrainingAndWaitForEveryOrder(t *testing.T) {
+	for _, tc := range []struct {
+		sig     os.Signal
+		trigger string
+	}{
+		{syscall.SIGINT, "sigint"},
+		{syscall.SIGTERM, "sigterm"},
+	} {
+		t.Run(tc.trigger, func(t *testing.T) {
+			f := newFixture(t, nil)
+			eff := f.sd.onSignal(tc.sig, quote.GlobalInput{
+				State: quote.Running, TruthReadable: true, Reconciled: true,
+				AnyInventory: true, AnyLiveOrder: true, RiskKnown: true,
+			})
+			if !eff.Recognised || !eff.Decision.Committed ||
+				eff.Decision.State != quote.WindingDown || !eff.Permit.Valid() ||
+				eff.Permit.Trigger() != tc.trigger || !f.rig.drain.Started() {
+				t.Fatalf("%s did not start a committed planned drain: %+v", tc.trigger, eff)
+			}
+			rec, present, err := f.rig.latch.Load()
+			if err != nil || !present || rec.Trigger != tc.trigger || rec.TsMillis != f.now() {
+				t.Fatalf("%s granted a drain without its durable latch: record=%+v present=%v err=%v", tc.trigger, rec, present, err)
+			}
+			if len(f.exits) != 0 {
+				t.Fatalf("%s exited at signal delivery: %v", tc.trigger, f.exits)
+			}
+
+			for _, obs := range []lifecycle.DrainObservation{
+				{TruthKnown: true, AnyInventory: true, AnyLiveOrder: true},
+				{TruthKnown: true, AnyLiveOrder: true},
+			} {
+				if f.sd.observeDrain(obs) {
+					t.Fatalf("%s authorised exit while inventory or an order remained: %+v", tc.trigger, obs)
+				}
+			}
+			if !f.sd.observeDrain(lifecycle.DrainObservation{TruthKnown: true}) {
+				t.Fatalf("%s did not authorise exit after known-flat, unrested observation", tc.trigger)
+			}
+		})
+	}
+}
+
+// Once the store refuses new records, submitAnomaly's final copy must reach
+// stderr with the anomaly identity and reason. launchd captures this stream.
+func TestAnomalySubmissionFailureKeepsAFallbackCopy(t *testing.T) {
+	f := newFixture(t, nil)
+	if err := f.rig.close(context.Background()); err != nil {
+		t.Fatalf("closing fixture store: %v", err)
+	}
+	log, err := os.CreateTemp(t.TempDir(), "stderr-*.log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer log.Close()
+	prior := os.Stderr
+	os.Stderr = log
+	t.Cleanup(func() { os.Stderr = prior })
+
+	f.sd.submitAnomaly(risk.Anomaly{
+		Class: "STORE_UNAVAILABLE", Sev: risk.SEV1,
+		Ticker: f.rig.cfg.Ticker, Text: "the final audit record was refused",
+	})
+	if err := log.Sync(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(log.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"STORE_UNAVAILABLE", "SEV1", f.rig.cfg.Ticker,
+		"the final audit record was refused", "could not be submitted to either journal",
+		f.rig.runID + "-a1",
+	} {
+		if !strings.Contains(string(data), want) {
+			t.Fatalf("fallback line %q omitted %q", data, want)
+		}
 	}
 }
 
@@ -642,5 +744,18 @@ func TestAFullAnomalyBufferProducesADropReportRatherThanSilence(t *testing.T) {
 	if n := f.rig.anom.takeDropped(); n != 0 {
 		t.Fatalf("the drop counter still reads %d after being reported; the "+
 			"next report would count these a second time", n)
+	}
+}
+
+// lip-tdz: stop is the owner's entry. Without serveWithShutdown's channel it
+// refuses instead of closing the store on the caller's goroutine.
+func TestOrderlyStopWithoutTheOwnerClosesNothing(t *testing.T) {
+	f := newFixture(t, nil)
+	err := newShutdown(f.rig).stop(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "no owner") {
+		t.Fatalf("an ownerless stop returned %v, want a refusal", err)
+	}
+	if !f.rig.store.Health().AllowsAdding() {
+		t.Fatal("an ownerless stop closed the store")
 	}
 }

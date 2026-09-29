@@ -1,0 +1,334 @@
+{
+  "metadata": {
+    "schema_version": 4,
+    "config_hash": "sha256:c837f27045061a7d9ac908702f23ad037430518325851834fecd51ccba5a96de",
+    "binary_identity": "sha256:ecf16ea19c4f0e05dad8cce0c261d6e6f2204eeb8f9615913a79b54816b311c6;vcs.revision=f7e9571547bb948418b7a27adc9c30ae38314b00;vcs.modified=true",
+    "ticker": "KXOPENSOURCESHARE-26OCT01-T81",
+    "rung": "sizing",
+    "live": false
+  },
+  "created_at": "2026-09-27T18:27:07.959895Z",
+  "updated_at": "2026-09-27T18:29:25.001659Z",
+  "segments": [
+    {
+      "id": "ccf1bed7c01accc25fac1470314c3f81",
+      "run_id": "20260927T182709GAAZ8",
+      "pid": 99261,
+      "started_at": "2026-09-27T18:27:07.959895Z",
+      "active_nanos": 135000974940,
+      "monitor_slots": {
+        "observed": 135,
+        "fresh": 134
+      },
+      "portfolio_slots": {
+        "observed": 27,
+        "fresh_complete": 27,
+        "stale_walks": 0,
+        "incomplete_walks": 0
+      }
+    }
+  ],
+  "attempted_http": [
+    {
+      "method": "GET",
+      "endpoint": "/incentive_programs",
+      "count": 66
+    },
+    {
+      "method": "GET",
+      "endpoint": "/markets/{ticker}",
+      "count": 92
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/balance",
+      "count": 58
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/fills",
+      "count": 30
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/orders",
+      "count": 86
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/positions",
+      "count": 59
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/subaccounts/balances",
+      "count": 59
+    }
+  ],
+  "http": [
+    {
+      "method": "GET",
+      "endpoint": "/incentive_programs",
+      "count": 66
+    },
+    {
+      "method": "GET",
+      "endpoint": "/markets/{ticker}",
+      "count": 92
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/balance",
+      "count": 58
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/fills",
+      "count": 30
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/orders",
+      "count": 86
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/positions",
+      "count": 59
+    },
+    {
+      "method": "GET",
+      "endpoint": "/portfolio/subaccounts/balances",
+      "count": 59
+    }
+  ],
+  "would_writes": [
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXOPENSOURCESHARE-26SEP29-T70",
+        "side": "yes",
+        "price": "2",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=4"
+      },
+      "segment_id": "ccf1bed7c01accc25fac1470314c3f81",
+      "first_at": "2026-09-27T18:27:13.381139Z",
+      "last_at": "2026-09-27T18:28:15.061711Z",
+      "observations": 5942
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXOPENSOURCESHARE-26SEP29-T70",
+        "side": "no",
+        "price": "2",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=4"
+      },
+      "segment_id": "ccf1bed7c01accc25fac1470314c3f81",
+      "first_at": "2026-09-27T18:27:13.397489Z",
+      "last_at": "2026-09-27T18:28:15.061757Z",
+      "observations": 5942
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXOPENSOURCESHARE-26SEP29-T70",
+        "side": "yes",
+        "price": "2",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=6"
+      },
+      "segment_id": "ccf1bed7c01accc25fac1470314c3f81",
+      "first_at": "2026-09-27T18:28:16.742956Z",
+      "last_at": "2026-09-27T18:29:24.995127Z",
+      "observations": 6600
+    },
+    {
+      "fingerprint": {
+        "kind": "create",
+        "ticker": "KXOPENSOURCESHARE-26SEP29-T70",
+        "side": "no",
+        "price": "2",
+        "quantity": "12.00",
+        "state": "role=adding;global=RUNNING;market=IDLE;truth_generation=6"
+      },
+      "segment_id": "ccf1bed7c01accc25fac1470314c3f81",
+      "first_at": "2026-09-27T18:28:16.743024Z",
+      "last_at": "2026-09-27T18:29:25.000665Z",
+      "observations": 6599
+    }
+  ],
+  "would_write_overflow": {
+    "episodes": 0,
+    "observations": 0
+  },
+  "monitor": {
+    "checks": 135,
+    "fresh": 134,
+    "stale": 1,
+    "last_check_at": "2026-09-27T18:29:25.001659Z",
+    "last_fresh_at": "2026-09-27T18:29:25.001659Z"
+  },
+  "portfolio": {
+    "walks": 29,
+    "fresh": 29,
+    "stale": 0,
+    "complete": 29,
+    "incomplete": 0,
+    "fresh_complete": 29,
+    "last_walk_at": "2026-09-27T18:29:21.755353Z",
+    "last_fresh_at": "2026-09-27T18:29:21.755353Z",
+    "last_complete_at": "2026-09-27T18:29:21.755353Z"
+  },
+  "events": [
+    {
+      "category": "anomaly",
+      "name": "SEV2:BOOK_QUIET",
+      "count": 4,
+      "first_at": "2026-09-27T18:28:13.058389Z",
+      "last_at": "2026-09-27T18:29:16.454853Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:FOREIGN_FILL_INHERITED",
+      "count": 15,
+      "first_at": "2026-09-27T18:27:11.8601Z",
+      "last_at": "2026-09-27T18:27:11.860132Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV2:WS_DISCONNECT",
+      "count": 1,
+      "first_at": "2026-09-27T18:28:15.06493Z",
+      "last_at": "2026-09-27T18:28:15.06493Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:BOOK_CROSSCHECK_AGREED",
+      "count": 4,
+      "first_at": "2026-09-27T18:28:13.15101Z",
+      "last_at": "2026-09-27T18:29:16.666259Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:FUNDING_LIMITS",
+      "count": 1,
+      "first_at": "2026-09-27T18:27:11.151987Z",
+      "last_at": "2026-09-27T18:27:11.151987Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:STARTUP",
+      "count": 1,
+      "first_at": "2026-09-27T18:27:11.152004Z",
+      "last_at": "2026-09-27T18:27:11.152004Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:TURNOVER_MANAGED",
+      "count": 1,
+      "first_at": "2026-09-27T18:27:11.152001Z",
+      "last_at": "2026-09-27T18:27:11.152001Z"
+    },
+    {
+      "category": "anomaly",
+      "name": "SEV3:TURNOVER_SELECTION",
+      "count": 1,
+      "first_at": "2026-09-27T18:27:12.679484Z",
+      "last_at": "2026-09-27T18:27:12.679484Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "deadman_checkin_sent",
+      "count": 5,
+      "first_at": "2026-09-27T18:27:10.897419Z",
+      "last_at": "2026-09-27T18:29:10.682572Z"
+    },
+    {
+      "category": "heartbeat",
+      "name": "sent",
+      "count": 5,
+      "first_at": "2026-09-27T18:27:10.897407Z",
+      "last_at": "2026-09-27T18:29:10.68257Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=1",
+      "count": 4,
+      "first_at": "2026-09-27T18:27:11.253664Z",
+      "last_at": "2026-09-27T18:27:11.404261Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=2",
+      "count": 49,
+      "first_at": "2026-09-27T18:27:11.461791Z",
+      "last_at": "2026-09-27T18:27:11.832969Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=3",
+      "count": 3,
+      "first_at": "2026-09-27T18:27:12.679476Z",
+      "last_at": "2026-09-27T18:27:12.902564Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=4",
+      "count": 65,
+      "first_at": "2026-09-27T18:27:12.976446Z",
+      "last_at": "2026-09-27T18:28:13.150942Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=5",
+      "count": 8,
+      "first_at": "2026-09-27T18:28:15.06495Z",
+      "last_at": "2026-09-27T18:28:16.256778Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=false;truth_generation=6",
+      "count": 62,
+      "first_at": "2026-09-27T18:28:16.33908Z",
+      "last_at": "2026-09-27T18:29:16.56262Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=2",
+      "count": 171,
+      "first_at": "2026-09-27T18:27:11.860103Z",
+      "last_at": "2026-09-27T18:27:12.674756Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=4",
+      "count": 11898,
+      "first_at": "2026-09-27T18:27:13.381152Z",
+      "last_at": "2026-09-27T18:28:15.061761Z"
+    },
+    {
+      "category": "state",
+      "name": "global=RUNNING;market=IDLE;actionable=true;truth_generation=6",
+      "count": 13222,
+      "first_at": "2026-09-27T18:28:16.742966Z",
+      "last_at": "2026-09-27T18:29:25.000676Z"
+    },
+    {
+      "category": "state",
+      "name": "websocket:connected",
+      "count": 3,
+      "first_at": "2026-09-27T18:27:11.46173Z",
+      "last_at": "2026-09-27T18:28:16.339001Z"
+    },
+    {
+      "category": "state",
+      "name": "websocket:disconnected",
+      "count": 1,
+      "first_at": "2026-09-27T18:28:15.064916Z",
+      "last_at": "2026-09-27T18:28:15.064916Z"
+    }
+  ]
+}

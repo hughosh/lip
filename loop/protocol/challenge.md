@@ -1,3 +1,13 @@
+# Archived conductor template: challenge
+
+This template is retained only to explain historical receipts. It is not active
+agent guidance. Use [RULES.md](RULES.md) and
+[the verification workflow](../../notes/verification-workflow.md). The legacy
+conductor is disabled; its instructions below must not be executed.
+
+<details>
+<summary>Historical template</summary>
+
 You are a FRESH challenger. You have not seen the directive, the endorsement,
 or any prior argument, and you are not going to be given them. Read `AGENTS.md`
 and `loop/protocol/RULES.md`.
@@ -65,3 +75,5 @@ A single fenced ```json block:
   ]
 }
 ```
+
+</details>

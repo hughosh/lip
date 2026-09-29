@@ -1,0 +1,20 @@
+{
+  "recorded_at_utc": "2026-09-26T19:01:49.779225+00:00",
+  "test": "TestAFullAnomalyBufferProducesADropReportRatherThanSilence",
+  "observed": "20-second fixture drain deadline expired with 8 durable-in-progress records still unwritten; no reported write failure or data-race diagnostic",
+  "context": "Overlapped isolated full-suite mutation verification jobs. Final full-module non-race baseline previously passed.",
+  "status": "Unresolved at recording; preserve and compare unchanged race check with heavy parallel jobs stopped. Do not infer a product fix from a retry.",
+  "source_analysis": {
+    "fixture": "go/cmd/harness/shutdown_test.go:160-167 and 605-621",
+    "workload": "261 raised anomalies; 256 buffered records plus one drop report; up to 257 store records before Drain",
+    "unwritten_at_deadline": 8,
+    "deadline_seconds": 20,
+    "interpretation": "Consistent with slow durable writer progress under concurrent verification load; not yet proof of the cause. No deadline, assertion, or source change."
+  },
+  "followup": {
+    "observed_at_utc": "2026-09-26T19:22:04.999243+00:00",
+    "result": "Unchanged full harness/cmd-harness race step passed after all mutation batches ended.",
+    "cmd_harness_seconds": 77.409,
+    "limitation": "Consistent with verification-load sensitivity; no source or timeout fix was made, and this does not prove universal load-independent determinism."
+  }
+}

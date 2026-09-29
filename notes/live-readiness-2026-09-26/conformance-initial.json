@@ -1,0 +1,78 @@
+{
+  "ran_at": "2026-09-26T22:35:53Z",
+  "endpoints": [
+    {
+      "name": "fills",
+      "path": "/portfolio/fills",
+      "latent": false,
+      "walk_outcome": "failed",
+      "pages": 0,
+      "records": 0,
+      "failed": 0,
+      "walk_error": "/portfolio/fills page 1: GET /portfolio/fills: no answer received: Get \"https://api.elections.kalshi.com/trade-api/v2/portfolio/fills?limit=1000\": dial tcp: lookup api.elections.kalshi.com: no such host",
+      "full_walk_decodes": false
+    },
+    {
+      "name": "orders",
+      "path": "/portfolio/orders",
+      "latent": false,
+      "walk_outcome": "failed",
+      "pages": 0,
+      "records": 0,
+      "failed": 0,
+      "walk_error": "/portfolio/orders page 1: GET /portfolio/orders: no answer received: Get \"https://api.elections.kalshi.com/trade-api/v2/portfolio/orders?limit=1000\": dial tcp: lookup api.elections.kalshi.com: no such host",
+      "full_walk_decodes": false
+    },
+    {
+      "name": "positions.market",
+      "path": "/portfolio/positions",
+      "latent": false,
+      "walk_outcome": "failed",
+      "pages": 0,
+      "records": 0,
+      "failed": 0,
+      "walk_error": "/portfolio/positions page 1: GET /portfolio/positions: no answer received: Get \"https://api.elections.kalshi.com/trade-api/v2/portfolio/positions?limit=200\": dial tcp: lookup api.elections.kalshi.com: no such host",
+      "full_walk_decodes": false
+    },
+    {
+      "name": "positions.event",
+      "path": "/portfolio/positions",
+      "latent": false,
+      "walk_outcome": "failed",
+      "pages": 0,
+      "records": 0,
+      "failed": 0,
+      "walk_error": "/portfolio/positions page 1: GET /portfolio/positions: no answer received: Get \"https://api.elections.kalshi.com/trade-api/v2/portfolio/positions?limit=200\": dial tcp: lookup api.elections.kalshi.com: no such host",
+      "full_walk_decodes": false
+    },
+    {
+      "name": "programs",
+      "path": "/incentive_programs",
+      "latent": false,
+      "walk_outcome": "failed",
+      "pages": 0,
+      "records": 0,
+      "failed": 0,
+      "walk_error": "/incentive_programs page 1: GET /incentive_programs: no answer received: Get \"https://api.elections.kalshi.com/trade-api/v2/incentive_programs?limit=1000\u0026status=active\u0026type=liquidity\": dial tcp: lookup api.elections.kalshi.com: no such host",
+      "full_walk_decodes": false
+    },
+    {
+      "name": "programs.unfiltered",
+      "path": "/incentive_programs",
+      "latent": true,
+      "walk_outcome": "failed",
+      "pages": 0,
+      "records": 0,
+      "failed": 0,
+      "walk_error": "/incentive_programs page 1: GET /incentive_programs: no answer received: Get \"https://api.elections.kalshi.com/trade-api/v2/incentive_programs?limit=1000\": dial tcp: lookup api.elections.kalshi.com: no such host",
+      "full_walk_decodes": false
+    }
+  ],
+  "failures": null,
+  "prices": {
+    "records_with_both_price_fields": 0,
+    "complement_violations": 0,
+    "examples": null
+  },
+  "balance": "REFUSED: GET /portfolio/balance: no answer received: Get \"https://api.elections.kalshi.com/trade-api/v2/portfolio/balance\": dial tcp: lookup api.elections.kalshi.com: no such host"
+}

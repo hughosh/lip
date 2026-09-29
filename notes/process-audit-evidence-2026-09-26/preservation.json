@@ -1,0 +1,44 @@
+{
+  "changed_starting_files": [
+    "notes/readiness-2026-09-26.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "loop/START.md",
+    "loop/conductor.py",
+    "loop/gates.sh",
+    "loop/protocol/RULES.md",
+    "loop/protocol/adjudicate.md",
+    "loop/protocol/audit.md",
+    "loop/protocol/challenge.md",
+    "loop/protocol/driver.md",
+    "loop/protocol/implement.md",
+    "notes/harness-spec.md",
+    "notes/overnight-loop.md",
+    "notes/pilot-plan.md",
+    "scripts/harness_negative_control.py",
+    "scripts/test_harness_negative_control.py"
+  ],
+  "new_process_files": [
+    "notes/process-audit-2026-09-26.md",
+    "notes/verification-workflow.md",
+    "scripts/run_gates.py",
+    "scripts/safety_mutations.json",
+    "scripts/test_gates.py",
+    "scripts/test_verification_support.py",
+    "scripts/verification_support.py"
+  ],
+  "go_source_bytes_unchanged": true,
+  "preexisting_nonprocess_dirty_files_unchanged": true,
+  "readiness_body_preserved_with_addendum": true,
+  "catalogue_preservation": "catalogue-preservation.json",
+  "beads_notes_appended": [
+    "lip-q01",
+    "lip-8hn.1",
+    "lip-dwf"
+  ],
+  "beads_status_changes": [],
+  "beads_process_acceptance_updated": [
+    "lip-8hn.1",
+    "lip-q01"
+  ]
+}

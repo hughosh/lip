@@ -1,0 +1,1 @@
+70087 70075 Mon Sep 28 12:33:03 2026     /Users/hugh/kek/lip/notes/production-turnover-2026-09-28/candidate-2/harness -config /Users/hugh/kek/lip/notes/production-turnover-2026-09-28/continuation-review/operator-stages/first-KXBROSFT-26OCT08-T110-20260928T193111.232608Z/config.json -rung sizing -live

@@ -1,0 +1,1239 @@
+[
+  {
+    "id": "lip-8hn",
+    "title": "EPIC CR-1: one-market continuous runtime",
+    "description": "CR-1 means one operator-selected active-program market at S=12 may repeat\nmaker-entry, reduction, flat and requote cycles without synchronous operator\ninvolvement during one declared market assignment. It runs under launchd and\ncaffeinate, survives process and websocket restarts through safe adoption, and\neither continues safely or durably enters WINDING_DOWN while reduction,\nmonitoring, heartbeat and alert retry remain alive.\n\nThe closed operating envelope is: one selected ticker; dedicated account with\nonly declared capital and no unrelated cash, positions, orders or manual\nactivity; manual market replacement; no claim of automatic programme rotation.\nRequired evidence is a green read-only qualification, clean S=1 first-fill\ncanary, clean attended S=12 burn-in, final scenario/invariant and operational\nreadiness, exact full promotion gate, active external dead man, and explicit\noperator review.\n\nNew work blocks CR-1 only after adjudication that its failure is reachable in\nthis operating envelope or that CR-1 acceptance cannot be evidenced without it.\nPriority labels alone do not move the finish line. Dynamic selection, rotation\nand automatic management of unrelated held markets belong to CR-2; CR-1 instead\nrefuses a dirty account and stops on foreign activity.\n\nAcceptance: record exact commit, config/rung, assignment window, dedicated-\naccount check, supervision state, runbook/drill evidence and links to all three\npromotion rungs. After closure, repeated cycles are authorised only inside that\nassignment.\n",
+    "status": "open",
+    "priority": 0,
+    "issue_type": "epic",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-09T22:29:26Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-11T20:02:37Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-732",
+    "title": "H-Q-4a: sustained gate-failure cancel and sweep",
+    "description": "`cfg.Params.GateFailDebounce` is configured and tested but has no production\nreader. The owner publishes book qualification as telemetry, yet H-Q-4a's\nresponse never occurs: after 30 seconds of a non-qualifying book, adding orders\nremain live and fillable while the interval earns no reward.\n\nImplement a per-market, monotonic continuous-failure interval from accepted,\ncurrent-generation book state. Before the debounce expires, place no new order\nfrom a non-qualifying book but avoid cancel churn. At expiry, cancel and sweep\nevery adding order. If q is nonzero, retain or restore only the aggregate-capped\nreducer. A fresh complete qualifying book resets the episode; an incomplete,\nstale, quarantined, or rejected frame cannot.\n\nAcceptance covers just below/at/above the duration, transient recovery, both\nposition signs, flat and non-flat markets, existing in-flight/unknown adding\norders, cancel ambiguity, a clock step, disconnect generation changes, and no\nresumption from stale truth. Add a composed owner test and a compiling mutation\nwhose deterministic catcher proves the configured duration reaches its final\nconsumer.",
+    "notes": "2026-08-14 OPERATOR: raised to P0 for the overnight loop run. Direct dependency of lip-8hn.1 (R1 promotion gate), which blocks lip-dwf (attended first-fill canary). Priority reflects position on the critical path, not a change in severity.\n2026-08-15 OPERATOR: any directive for this unit MUST keep all five of these in allowed_paths, or the conductor scope check at conductor.py:727 will git-checkout the accumulated work of earlier rounds and destroy it: go/cmd/harness/run.go, go/cmd/harness/gate_failure_test.go, go/cmd/harness/seam_test.go, go/harness/wsx/gate.go, go/harness/wsx/gate_test.go. This already happened once: iteration 26's driver narrowed allowed_paths to the three cmd/harness files and rounds 1-2 wsx work was reverted after a GREEN full gate. changed_paths() reports the WHOLE tree, so work from a previous round reads as out-of-scope even though the implementer never touched it. Round 3 was refunded (3 -\u003e 2) because the round produced no verdict at all: the scope branch short-circuits before the audit.\n=== 2026-08-19: OFFLINE REVIEW (no codex). VERDICT REVISE. ONE BLOCKING\n=== REGRESSION FOUND AND FIXED; ONE CONFIRMED DEFECT LEFT OPEN.\n\nCodex was out of quota, so the loop's audit/challenge/adjudicate was run offline\nwith two independent non-codex reviewer threads plus operator adjudication. Note\nthe independence caveat: both reviewers were Claude-family, so this is\ndifferent-model independence, NOT the cross-vendor independence codex supplies.\nEvery citation below was re-verified by the operator against the source.\n\nThe GREEN full gate of iteration 26 was TRUE BUT NOT SUFFICIENT. Seven steps and\n287 mutations passed while a blocking regression sat in the change, because no\ntest covered disconnect-with-inventory or pre-snapshot evaluation, and both new\nSETTLING tests inject a clean orders walk BEFORE the replacement leg is sized.\nA mutation catalogue can only kill code the tests exercise.\n\n--- D1. BLOCKING REGRESSION. FIXED 2026-08-19. ---\n\nThe recap predicate had no target \u003e 0 guard, and target is legitimately 0:\n\n  fundedReducer returns 0 on a nil book OR empty levels (run.go, the levels.Max\n  !ok branch). SizesFor sets HasReduce unconditionally for any q != 0 while\n  SizeR caps Reduce at funded (skew.go), so wanted stays TRUE and target is 0 --\n  the !wanted branch never sees it. The predicate then degenerates to\n  atRisk(side) \u003e 0 and cancels ANY resting exit, including a compliant one.\n\nReachability, traced end to end and then reproduced in a test:\n  ApplyDisconnect sets ResetBooks: !clean, so an ABNORMAL close calls\n  core.Rig.ResetOnReconnect, which empties every level. The owner loop runs\n  evaluate and pump after EVERY select arm including the event arm, so evaluate\n  executes immediately with empty books. The recap sits deliberately ABOVE the\n  !actionable guard, so its cancel leg dispatches from a book nothing may be\n  placed against, and Conditions.Valid then holds the replacement until\n  resnapshot. Same collapse at startup with adopted inventory, before the first\n  snapshot lands.\n\nNet pre-fix behaviour: on every abnormal disconnect while holding inventory, the\nharness DELETED its own correctly-sized exit at the moment it went blind, and\ncould not replace it until reconnect and resnapshot. That is the exact inversion\nof I1 (\"no stop path may stop reducing risk\") and A4, both of which this unit's\nown comments cite. SizeR's doc says an unfundable reducer is \"not placed\"; the\nchange silently promoted that to \"cancel the one you have\".\n\nThis was a REGRESSION, not a pre-existing hazard: HEAD has zero\nKindCancelConfirmPlace enqueue sites and no cancelConfirmed field at all, so the\nentire branch is new. lip-732 also introduces the FIRST activation of the\ncancel-confirm-place machinery in quote/queue.go, which was dead code until now.\n\nThe in-code comment asserting this \"fires on genuine overshoot alone, never on a\ncompliant exit\" was false at target = 0. It has been corrected in place.\n\nFIX APPLIED: guard the predicate on target \u003e 0. Given q != 0, target is 0\nexactly when funded is 0 -- either the book is unreadable or capital is\nexhausted -- and cancelling the exit is wrong in BOTH cases. Overshoot that\ncannot yet be replaced is strictly safer than no exit at all.\n\nTEST ADDED: TestAnAbnormalDisconnectDoesNotCancelTheCompliantExit in\ngate_failure_test.go. The exit is sized at EXACTLY the quantized |q|, so the\nonly thing that can produce a reducing-side cancel is the target collapse; the\nclean-close case is the control, and there is a pre-disconnect control assertion\nso nothing is attributable to the fixture. Verified to FAIL on both abnormal\ncases with the guard reverted and PASS with it restored. build, vet and every\nharness package pass with the fix.\n\n--- D2. CONFIRMED, STILL OPEN. Hand to the next round. ---\n\nThe replacement leg of the cancel-confirm-place is deterministically unbuildable\nin production timing, so the designed confirm-then-place mechanism never\nactually operates.\n\napplyWriteResult on Absent calls ConfirmAbsent and sets cancelConfirmed but does\nNOT touch pf.LiveOrders. restingOn never consults cancelConfirmed. The same loop\niteration then runs pump: the place leg is released, dequeues, and build calls\ntargetSize, where remainder = target - atRisk(side) and atRisk still counts the\njust-cancelled order. remainder clamps to 0, build errors with \"the side is\nalready carrying its aggregate target\", the intents are dropped and a\nWRITE_NOT_BUILDABLE SEV2 is raised. Recovery is the fallback path only: the next\ncomplete walk clears LiveOrders and the latch, then decideSide places a fresh\nKindPlace.\n\nCost per recap: one spurious SEV2, and the reducing side ABSENT from the book\nfor up to position_poll_s rather than the documented single dispatch cycle. The\nin-code comment claiming build \"sizes the remainder against the shrunken\naggregate\" is false at dispatch time.\n\nThe two new SETTLING tests structurally step over this window: both inject the\nclean walk BEFORE the replacement is sized, then assert the replacement does not\ndispatch, and hand-reset the latch. No test in the suite builds the replacement\nin the stale-LiveOrders window that production always occupies.\n\nNot fixed here because the repair is a design decision, not a typo: the\ndefensible fix is to let restingOn discount quantity on a side where\ncancelConfirmed is true (ConfirmAbsent is, after all, a complete verifying read\nshowing absence), but that trades against H-FAIL-3's rule of counting an order\nuntil the exchange confirms it gone. That judgment is worth codex's independent\nread rather than an operator's.\n\nMISSING TEST for D2: a production-timing SETTLING case with NO manufactured\npost-Absent walk, asserting the place leg acks at 1 contract with zero\nWRITE_NOT_BUILDABLE anomalies.\n\n--- D3. NOTED, NOT VERIFIED, LOW WEIGHT. ---\n\nPossible recap churn when a reducer partial fill lands in the orders-then-\npositions fetch window: q shrinks before LiveOrders.Remaining does, so atRisk\nbriefly exceeds target on a healthy at-touch exit. The reviewer conceded the\ndirective's \"possibly-live quantity above target\" arguably endorses firing here.\nThe operator did NOT independently verify the poller ordering claim. Treat as a\nchurn cost to weigh, not an established defect.\n\n--- ALSO NOTED ---\n\nA composite involving stale Intent.Role on a released StageSecond place leg plus\nenqueue deduping on Op() rather than Kind/Role was raised and marked UNVERIFIED\nby the reviewer. Both mechanisms are pre-existing and untouched by this diff\n(quote/queue.go is not in the deliverable). BUT they are unreachable at HEAD, so\nlip-732 is what activates them; it is not a free \"pre-existing\" pass. Left as a\nhunch, not a finding.\n\n--- RECOVERY REFS (local, no remote) ---\n  refs/backup/lip-732-round3    76ba1f9  the GREEN iteration-26 tree\n  refs/backup/lip-732-pre-d1fix 8aec288  identical to the above, taken pre-fix\n  refs/backup/lip-732-d1fix     436d5f6  the same tree plus the D1 fix and test\nAll three include the untracked gate_failure_test.go. Note that 02.patch is a\ngit diff HEAD and has NEVER contained that file.\n\nSTATUS: the D1 fix is in the working tree and the authoritative FULL gate was\nlaunched on it 2026-08-19 21:32:49Z under caffeinate. lip-732 must NOT be closed\nuntil that gate is green AND D2 is dispositioned.\n2026-09-26 readiness integration: D2 reproduced against the exact starting run.go (SHA 954ffbe0cffd21b449e7b8258f7a33eabefa769bd07f3ea7c9b7f3dafbe578a6). Independent review rejected unconditional immediate replacement after an orders-only Absent sweep: the retired reducer may have filled, leaving stale q. Revised repair must use fresh complete portfolio evidence whose endpoint start stamps follow cancel confirmation before replacement; do not infer a position delta from reduced_by. Historical request for unconditional pre-poll replacement is not a safety acceptance criterion. Full promotion gate still required; no closure or live authorization.\n2026-09-26 repair implemented and independently reviewed: complete absent sweep retires only named ACKed ids, preserves UNKNOWN maxima, drops stale replacement, requests current-generation reconciliation, blocks place/drain until all three applied endpoint walks START after sweep; newer positive orders supersede absence. Added real fake-REST full/partial fill-before-DELETE, overlapping-read, flat-to-fill, missing-first-walk, ACK-before-list, UNKNOWN and cancel-service controls. Recap fixtures now enforce no replacement before fresh position truth; lifecycle fixtures use real polls; exact PnL reward assertions retained with real held inventory. Full Go module/vet passed; unchanged standalone race passed after one retained concurrent-load store-drain timeout. All 8 D2 mutations and existing CANARYFIRST catchers passed regular full-suite subset runs; all 300 compile. Evidence and session-only diffs: notes/readiness-2026-09-26.md and notes/readiness-evidence-2026-09-26/. Full cumulative outcome gate not run; keep in progress, no promotion.\nPaused at user request at a clean checkpoint, 2026-09-26T19:30Z. Final standalone loop/gates.sh --quick completed GREEN on unchanged frozen source: build, vet, format, race, repository checks, 9 catalogue tests and 300 mutation compilations passed. ADVANCE_ELIGIBLE: NO; full 300-outcome catalogue not run. 22 affected full-suite mutation outcomes passed across three green baselines with no reported flaps. Earlier concurrent-load race timeout retained. Handoff: notes/readiness-2026-09-26.md; consolidated receipts: notes/readiness-evidence-2026-09-26/verification.json. Work remains uncommitted; no background verification or live orders.",
+    "status": "in_progress",
+    "priority": 0,
+    "issue_type": "bug",
+    "assignee": "Hugh",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-09T22:29:21Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T19:31:29Z",
+    "started_at": "2026-09-26T18:21:18Z",
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-q6r",
+    "title": "F8/H-QUE-3: 429 recovery with reserved P1 dispatch",
+    "description": "Implement F8 for reads, creates, and cancels. A 429 is neither a definite\ncreate rejection nor proof that a cancel failed; preserve ownership and maximum\npossibly-live quantity, requeue safely, halve the effective write rate,\nexponentially back off with jitter, restore after 60 seconds clean, and emit\nSEV2 after 60 seconds sustained.\n\nBackoff must not sleep while owning a dispatcher slot. Reverse the current\none-worker cut: retain one dispatch authority but run a bounded transport pool\nwith at least one slot reserved for P1 reducers, as H-QUE-3 requires. Keep\ncapital reservation atomic across workers and prove a hard upper bound from P1\nreadiness to network dispatch under an unbounded coalesced-cancel storm,\nrepeated 429s, and one hung non-reserved request.\n\nAcceptance covers 429 on every REST method, Retry-After if present and malformed,\nrate halve/restore, jitter bounds, cancellation during backoff, request timeout,\nP0/P1 fairness, no duplicate coid, no false cancel absence, and no lost intent.\nAdd composed scenario coverage and compiling mutations for status\nmisclassification, immutable rate, sleeping worker, and reducer starvation.",
+    "notes": "2026-08-14 OPERATOR: raised to P0 for the overnight loop run. Direct dependency of lip-8hn.1 (R1 promotion gate). Enters the ready queue once lip-4ak closes.",
+    "status": "open",
+    "priority": 0,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-08T18:04:38Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-14T08:03:15Z",
+    "dependencies": [
+      {
+        "issue_id": "lip-q6r",
+        "depends_on_id": "lip-4ak",
+        "type": "blocks",
+        "created_at": "2026-08-10T16:49:57Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 1,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-wif",
+    "title": "Qualify selected-shard funding before client promotion",
+    "description": "Official Kalshi Get Balance and exchange-sharding docs inspected 2026-09-26 state that unscoped balance totals all exchange indexes while collateral checks and balances are local to a matching engine. rest.Balance reads unscoped /portfolio/balance and keeps only aggregate cents; create routes by ticker. The August corpus and current startup fundability tests do not establish selected-shard spendable funds. This is a qualification/design investigation separate from lip-ghg cancellation routing; do not count aggregate account funding as reducer funding. No live experiment was performed.",
+    "acceptance_criteria": "Establish authoritative market exchange_index and selected-shard balance semantics with current read-only conformance evidence. Demonstrate, using a compiling mutation and composed fake account with money on the wrong shard, that startup/reducer fundability cannot pass on unavailable collateral. Implement strict scoped funding or a rigorously verified supported-shard restriction without weakening $2 canary limits; retain exact-tree release evidence.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-09-26T18:28:52Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T18:28:52Z",
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-ghg",
+    "title": "Route event-market cancellation by ticker across exchange shards",
+    "description": "Readiness investigation from official Kalshi API documentation inspected 2026-09-26. Cancel Order V2 defaults to exchange_index 0 when neither market_ticker nor exchange_index is supplied; current rest.Cancel sends order ID only. Sharding documentation dates sports and other shard migrations after the August corpus. Establish current-client reachability with a shard-aware fake transport, retain compiling mutation and existing-gate outcome evidence, then repair the bounded cancellation path. Separately establish selected-shard balance/fundability requirements; aggregate /portfolio/balance is not proof of money available on the matching engine. No live writes or account access authorized in this session.",
+    "acceptance_criteria": "Cancellation sends explicit routing identity on every initial and retry leg, guarded writes remain guarded, complete sweeps remain the only absence authority; semantic compiling mutation and named catcher recorded. Account/shard funding uncertainty remains explicitly gated pending its own proof. Full release gate required for promotion.",
+    "notes": "2026-09-26 integration: cancellation is the bounded implementation here. Selected-shard balance/fundability qualification is tracked separately as lip-wif, and both are causal R1 dependencies. Public source comparison and fake shard-aware transport are not authenticated operational evidence.\n2026-09-26 bounded repair complete in working tree: CancelAndSweep supplies market_ticker and omits exchange_index on every DELETE, including retries. Public ID-only helper remains for explicit shard-0 callers; production callsites use sweep. Shard-aware fake verifies retry after accepted-but-ineffective DELETE and only complete-read absence. M-R-CANCEL-SHARD-ROUTE compiles and is caught by TestCancelSweepAutoRoutesByMarketAndVerifiesAbsence in regular full-suite subset A with green baseline/no flap. Official Get Orders documentation confirms omitted exchange_index includes all shards for the verifying read. Full release outcomes/authenticated conformance still absent; lip-wif selected-shard funding remains open; no promotion.\nPaused at user request at a clean checkpoint, 2026-09-26T19:30Z. Final standalone loop/gates.sh --quick completed GREEN on unchanged frozen source: build, vet, format, race, repository checks, 9 catalogue tests and 300 mutation compilations passed. ADVANCE_ELIGIBLE: NO; full 300-outcome catalogue not run. 22 affected full-suite mutation outcomes passed across three green baselines with no reported flaps. Earlier concurrent-load race timeout retained. Handoff: notes/readiness-2026-09-26.md; consolidated receipts: notes/readiness-evidence-2026-09-26/verification.json. Work remains uncommitted; no background verification or live orders.",
+    "status": "in_progress",
+    "priority": 1,
+    "issue_type": "task",
+    "assignee": "Hugh",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-09-26T18:24:14Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T19:31:30Z",
+    "started_at": "2026-09-26T18:24:19Z",
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-yca",
+    "title": "Revalidate LIP economics under July 30 terms and current per-series fees",
+    "description": "Revival verified current July 15 amendment effective July 30 and July 30 clean terms: reference at one fifth of target; per-side scores capped at full credit above reference; payout scaled by non-excluded/total snapshots. notes/economics.md assumes old intact pool and frozen core/score.py are historical. Active rewards verified Sept 26; no net profitable edge established. Build a separately versioned offline reward/EV analysis against timestamped data without altering frozen trees or harness-spec. Include attributable realized payouts, true private fills, round-trip fees, executable exit prices, inventory and settlement, and chronological held-out policy comparison.",
+    "acceptance_criteria": "Reproduce updated scoring on fixtures; reconcile estimated vs observed payout for bounded eligible account; report net EV and uncertainty for simple touch/offset quotes and immediate-vs-maker exits; momentum adds value only on timestamped out-of-sample data after latency and queue effects.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-09-26T17:48:41Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T17:48:41Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-ivz",
+    "title": "Revival: offline baseline, current program evidence, and bounded client repairs",
+    "description": "User-requested manual revival at /Users/hugh/kek/lip. Preserve existing uncommitted harness work; no conductor, live credentials, or live orders. Establish offline build/test baseline, verify current public program/API/fees, repair contained defects without weakening pilot safeguards, record evidence and autonomy gaps.",
+    "acceptance_criteria": "Verified repository; baseline and targeted/integration checks recorded; repairs reviewed; current public incentive evidence and net-EV assessment delivered; live writes remain disabled.",
+    "notes": "Revival implementation and report delivered at inner-development verification tier: intended repo and seven pre-existing dirty hashes verified; latent program filter fixed, public GET-only incentives inspector added, load-sensitive ping fixture repaired, stale config/economics docs corrected. Final build/vet/test/race/check.py/9 catalogue tests pass, all 288 variants compile, affected filter mutation caught. Current July 30 terms and 7026 active public liquidity programs verified; profitability unproven. Detailed report notes/revival-2026-09-26.md and evidence directory contain exact checks, public responses, fee/scoring terms, counterfactual arithmetic, and CR-1/rotation prerequisites. No conductor, credentials, private API, or live orders used. No full outcome gate or release/bead advancement; remaining economics work lip-yca and existing pilot safety/qualification beads retained.",
+    "status": "in_progress",
+    "priority": 1,
+    "issue_type": "task",
+    "assignee": "Hugh",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-09-26T17:37:41Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T18:10:47Z",
+    "started_at": "2026-09-26T17:37:54Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-048",
+    "title": "Implementer can end its turn waiting on a background task, and the loop scores it as success",
+    "description": "Loop iteration 26's implement turn ended after 34 minutes having returned 297\nbytes:\n\n  \"The Monitor is armed and the background gate task will also notify me on\n  completion. My implementation work is done and locally verified; I'm now\n  waiting on the authoritative quick-gate run before giving the final report.\n  I'll report the gate result (verbatim if it fails) as soon as it completes.\"\n\nThe implementer armed a background watcher and ended its turn expecting to be\nwoken. It is invoked as a single non-interactive \"claude -p\" run, so ending the\nturn ends the run and nothing wakes it. No gate result was ever reported.\n\nWHY THIS IS NOT COSMETIC. run_claude treats any non-empty result as success --\nthe \"implement failed after retries\" guard only fires when the value is None. So\na turn that quits early while claiming it will report later is indistinguishable\nfrom a completed one, and the conductor goes straight on to spend roughly six\nhours on the authoritative full gate. On this occasion the code happened to be\ncomplete and the gate came back GREEN, but nothing in the loop checked that. A\nturn that ended the same way with HALF the work done would have consumed the\nsame six hours and a round.\n\nThe implement report is written to NN-implement.md for the operator; the audit\ntemplate is fed the directive, the diff and the gate output rather than the\nreport, so a missing report degrades the operator's audit trail rather than the\naudit itself. The scheduling cost is the real damage.\n\nFIX. loop/protocol/implement.md should state plainly that the run is single-shot\nand that the turn must not end while waiting on anything: run loop/gates.sh\n--quick to completion inside the turn, block on the result, and put the observed\noutcome in the final message. Worth considering a conductor-side guard as well,\nsince the prompt is advice and this failure mode is silent -- for example\nrejecting a result that is implausibly short, or that contains no gate outcome,\nin the same way ALREADY_SATISFIED is verified rather than trusted.\n\nimplement.md is hash-pinned in conductor.py CONTROL_FILES, so changing it is an\noperator action requiring a re-pin of st[\"control\"].\n",
+    "acceptance_criteria": "An implement turn that ends without a gate outcome is not accepted as a successful implementation. implement.md states the run is single-shot and the turn must not end while waiting on a background task.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "bug",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-15T22:11:49Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-15T22:11:49Z",
+    "dependencies": [
+      {
+        "issue_id": "lip-048",
+        "depends_on_id": "lip-732",
+        "type": "discovered-from",
+        "created_at": "2026-08-15T15:11:49Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-y3q",
+    "title": "Add a negative-control mutation for the gateStopped-restricted reducer aggregate check",
+    "description": "Loop iteration 25 (lip-732 round 2) submitted a tree in which the H-Q-5a/A12\naggregate-size check in go/cmd/harness/run.go:2291 was conditioned on\ngateStopped. That condition is a defect: entering SETTLING at S=12 with q=+1\nconverts an at-touch 12-contract symmetric order into a reducer with target 1\nwhile gateStopped is false, and quote.Decide returns no move for the unchanged\nprice (go/harness/quote/requote.go:262-265), so the aggregate reducer quantity\nstays at 12 against |q|=1.\n\nEvery gate step passed on that tree, including test-race and the full 287\nmutation negative control. The auditor's words: the compiling defect mutation is\nprecisely prefixing the otherwise-required reducing-role check with\n\"gateStopped \u0026\u0026\", the submitted tree contains that mutation, and the supplied\ngates show it survives. Only the xhigh audit caught it.\n\nSo the catalogue has a hole exactly where this unit lives. Once lip-732's fix\nlands and the reducing-role check no longer carries gateStopped, add a mutation\nthat re-introduces the restriction, expected to be caught by the symmetric\nq=+1/q=-1 gateStopped=false SETTLING tests the repair adds. The mutation cannot\nbe added before the fix: its anchor text is the post-fix condition, which does\nnot exist in the tree yet.\n\nBEARING ON THE PROMOTION GATE. lip-8hn.1 treats a green catalogue as evidence\nthat the harness is verified. A defect of exactly the shape this unit exists to\nprevent passed the complete catalogue untouched, so for this area the catalogue\nis not yet evidence. Adding the mutation converts a one-off audit catch into a\nstanding regression guard.\n\nRelated: lip-bca (the runner attributes any suite flake to the mutation in\nflight) is about the oracle's reliability; this bead is about its coverage.\n",
+    "acceptance_criteria": "A mutation re-introducing the gateStopped restriction on the reducing-role aggregate check exists in the catalogue and is caught by a named test. Added only after lip-732's fix lands, since the anchor is the post-fix condition.",
+    "notes": "2026-09-26 permanent M-Y3Q-GATESTOPCAP now reintroduces gateStopped-only recap, with deployed S=12/SETTLING reachability. It compiles and TestTheSettlingMarketRecapsAnOversizedReducerWithoutAGateFailure catches it in a regular full-suite subset run with green baseline and no reported flap. Added related DOUBLE-DEBOUNCE and TARGETZERO controls. Raw subset A receipt retained in notes/readiness-evidence-2026-09-26/final/. No full cumulative promotion gate, so status remains in progress.\nPaused at user request at a clean checkpoint, 2026-09-26T19:30Z. Final standalone loop/gates.sh --quick completed GREEN on unchanged frozen source: build, vet, format, race, repository checks, 9 catalogue tests and 300 mutation compilations passed. ADVANCE_ELIGIBLE: NO; full 300-outcome catalogue not run. 22 affected full-suite mutation outcomes passed across three green baselines with no reported flaps. Earlier concurrent-load race timeout retained. Handoff: notes/readiness-2026-09-26.md; consolidated receipts: notes/readiness-evidence-2026-09-26/verification.json. Work remains uncommitted; no background verification or live orders.",
+    "status": "in_progress",
+    "priority": 1,
+    "issue_type": "task",
+    "assignee": "Hugh",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-15T15:01:18Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T19:31:30Z",
+    "started_at": "2026-09-26T18:21:20Z",
+    "dependencies": [
+      {
+        "issue_id": "lip-y3q",
+        "depends_on_id": "lip-732",
+        "type": "discovered-from",
+        "created_at": "2026-08-15T08:01:18Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-bca",
+    "title": "Negative control attributes any suite flake to the mutation in flight",
+    "description": "The negative control decides whether a mutation was caught from the exit status\nof ONE \"go test -count=1\" run across all of PKGS (harness_negative_control.py,\nthe run/evaluate block in main). The catcher names come from parsing which tests\nfailed in that same output. So a flaky test anywhere in PKGS is attributed to\nwhichever mutation happened to be in flight, and for a row expected to be inert\nthe flake is reported as NOT INERT.\n\nObserved 2026-08-15 on loop iteration 24 (lip-732 round 1). The full gate went\nRED on exactly one of 287 mutations: M26 NOT INERT, naming\nTestSEV2IsLimitedPerClassMarketAndReportsSuppression. M26 cannot be caught by\nanything. It rewrites q == 0 as q.Float() == 0.0 in Qty.IsFlat, where Qty is\nint64 (num/qty.go:37), QtyScale is 100 (:20) and Float is float64(q)/QtyScale\n(:130). At q = 0 both forms are true; at any q != 0 the magnitude of float64(q)\nis at least 1, so the quotient is at least 0.01 and both forms are false. The\ntwo expressions agree on every representable Qty, so no test can distinguish\nthem and no code change can make the mutation observable. Verified empirically\nas well: the named test passes under the mutation, and the whole harness/ping\npackage passes 12 of 12 mutated runs plus one under -race.\n\nCost of a spurious row: the authoritative gate is about six hours, and the\nconductor debits a unit's round before launching (conductor.py, the round debit\njust after unit selection), so one flake costs six hours and one of a unit's\nthree rounds, and sends the adjudicator's repair instruction after a defect that\ndoes not exist. At 287 mutations times one run each, a per-run flake rate of a\nfew tenths of a percent yields roughly one spurious row per gate.\n\nMITIGATED, NOT FIXED. A confirm-rerun now re-runs any mutation whose outcome\ndisagrees with the catalogue and records the disagreement only if it reproduces,\nreporting the flap rather than swallowing it. That removes the false verdict but\nleaves the flaky test in place.\n\nLEAD. harness/ping/stub_test.go awaitHealthy waits out the store's real retry\nladder against a 30-second WALL-CLOCK deadline. Under the load of a 287x\nfull-suite sweep that is exactly the kind of bound that breaks; it passes\ncomfortably on an idle machine, which is why 28 unmutated local runs did not\nreproduce it. Not confirmed as the culprit -- the failing run's output was not\nretained, which is itself worth fixing.\n\nBEARING ON THE PROMOTION GATE. lip-8hn.1 requires the complete catalogue green\nwith no survivor, did-not-build, wrong catcher or unexplained inert result. An\noracle that emits about one spurious row per run cannot certify that criterion,\nso this arguably belongs as a dependency of lip-8hn.1 rather than merely\nadjacent to it. Left for the operator to decide.\n",
+    "acceptance_criteria": "A flaky test elsewhere in PKGS can no longer change a mutation's recorded verdict, and the flake itself is identified and fixed rather than only re-run. A full gate reports zero flaps on an otherwise green tree.",
+    "notes": "2026-09-26 readiness verification: unchanged quick race step failed TestAFullAnomalyBufferProducesADropReportRatherThanSilence at its existing 20-second fixture Drain deadline, 8 accepted records unwritten, while 3 full-suite mutation batches overlapped. No data-race/write-failure diagnostic. After those jobs ended, identical race command/source passed (cmd/harness 77.409s). No timeout/assertion/source relaxation. All 22 selected mutation outcomes had green baselines and no reported flaps. Preserve first failure and treat as verification-load sensitivity to resolve in exact-candidate release review, not an erased failure or proof of load-independent determinism. Evidence: notes/readiness-evidence-2026-09-26/intermediate/first-quick-race-failure.json and final/standalone-test-race.log.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "bug",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-15T06:08:40Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T19:22:06Z",
+    "dependencies": [
+      {
+        "issue_id": "lip-bca",
+        "depends_on_id": "lip-732",
+        "type": "discovered-from",
+        "created_at": "2026-08-14T23:08:40Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-44s",
+    "title": "Programs() refuses volume-type incentive programmes; one active volume programme stops the harness booting",
+    "description": "MEASURED 2026-08-12 by go/cmd/conform. The /incentive_programs endpoint carries 137,616 records: 115,298 of incentive_type 'liquidity', ALL of which have target_size_fp, and 22,318 of incentive_type 'volume', NONE of which do. rest.Client.Programs (read.go:655-657) refuses any record without target_size_fp -- 'the Target Size is Qualifies()'s threshold and there is no defensible default for it' -- and the walk is first-error-wins, so ONE such record fails the whole walk.\n\nruntime.go:328-334 turns that into a refusal to start: 'reading the active LIP universe: the walk %s after %d pages'. So this is a boot failure, not a degradation.\n\nNOT FIRING TODAY, AND THAT IS THE ONLY REASON IT IS NOT P0. Production sends status=active (read.go:631-632), and the active set today is 3,276 records, all liquidity, all with target_size_fp -- conform measured 0 refusals against exactly what production reads. The harness is protected by a SERVER-SIDE filter over a field the walk never reads, on an endpoint the exchange populates with a second programme type. The day Kalshi runs a volume programme concurrently with the LIP ones, the harness stops booting, with an error naming the walk rather than the record.\n\nWHY IT WAS INVISIBLE. There are no real-payload fixtures anywhere under go/ (see the fixture-corpus bead): every rest test fixture is a hand-written literal with synthetic ids, and nobody hand-writes the record shape they did not know existed.\n\nFIX SHAPE. A record whose incentive_type is not the one this harness is about is not a malformed record, it is a programme for someone else; skipping it by type is defensible where defaulting its Target Size is not. Whatever is chosen must keep the refusal for a LIQUIDITY record missing target_size_fp, which is the case the current error is actually about.\n\nEVIDENCE: notes/conform.json, endpoint 'programs.unfiltered', record_shapes.",
+    "notes": "2026-09-26 revival: added status=active,type=liquidity on every Programs cursor page; conformance production probe aligned. New deterministic filter and malformed-target regressions pass; compiling removal mutation caught. Public active-volume count was 0 at current verification, so this remains a latent compatibility repair, not an observed production outage. Full 287-mutation promotion catalogue not run; leave issue open pending exact-tree promotion gate.\nFinal 2026-09-26 revival verification: Go build, vet, full module test and race suites green; repository checks and 9 catalogue tests green. Catalogue now has 288 compiling replacements. M-R-PROGRAMTYPE pristine baseline green and removal CAUGHT by both named program filter tests. Receipts: notes/revival-evidence-2026-09-26/verification.json and programtype-negative-control.partial.md. Full 288-outcome promotion gate remains unrun; no rung or bead promotion.",
+    "status": "in_progress",
+    "priority": 1,
+    "issue_type": "bug",
+    "assignee": "Hugh",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-12T18:04:12Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T18:10:45Z",
+    "started_at": "2026-09-26T17:44:03Z",
+    "labels": [
+      "harness",
+      "pre-gate"
+    ],
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-8hn.2",
+    "title": "R2 promotion gate: exact S=12 CR-1 candidate",
+    "description": "Nominate and promote the exact S=12 continuous-pilot candidate after the S=1\ncanary. This gate collects the remaining CR-1 operating-envelope work: retained\nrelease scenarios, reject-response policies, live foreign-order stop, host-\nsleep detection, stuck inventory, active-program membership and operational\nreadiness.\n\nImplementation proceeds in coherent production/scenario seams with targeted\ncontrols. The complete catalogue runs once on the cumulative candidate before\nthe attended S=12 burn-in. Closed earlier work remains commit provenance rather\nthan an active dependency edge.\n\nThis bead does not run the live harness or authorise continuous operation. The\noperator performs lip-9j3 on the exact nominated tree and reviews its evidence.\n",
+    "acceptance_criteria": "Record the exact S=12 candidate commit, config/rung hash, dedicated-account\npreflight and runbook evidence. Every candidate catcher has been observed\nagainst its exact compiling mutation. The complete catalogue is green with no\nsurvivor, did-not-build, wrong catcher or unexplained inert result. Any tree or\nconfig change invalidates the gate. Passing authorises only the attended\nlip-9j3 burn-in; CR-1 starts after its evidence is reviewed.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-11T20:00:34Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-11T13:06:45Z",
+    "labels": [
+      "cr1",
+      "promotion"
+    ],
+    "dependencies": [
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-2v0",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:57Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-34l",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:45Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-xp3",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:47Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-2gn",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:49Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-8qv",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:51Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-b7r",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:53Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-9vc",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:59Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-8hn",
+        "type": "parent-child",
+        "created_at": "2026-08-11T13:00:34Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.2",
+        "depends_on_id": "lip-2da",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:55Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 8,
+    "dependent_count": 1,
+    "comment_count": 0,
+    "parent": "lip-8hn"
+  },
+  {
+    "id": "lip-8hn.1",
+    "title": "R1 promotion gate: exact S=1 first-writer candidate",
+    "description": "Nominate and promote the exact S=1 first-writer candidate after q01. This gate\ncollects the known defects that can lose cancel/reducer service or strand a\nreducer during an attended canary: 429/reserved-P1 dispatch, sustained gate-\nfailure cancel+sweep, and websocket quarantine recovery.\n\nImplementation may proceed as coherent seams with baseline, real-tree anchor,\ntouched-catcher and affected-mutation checks. No member is release-green until\nthe cumulative candidate passes the complete catalogue once.\n\nThis bead does not run the writer. The live canary remains lip-dwf and is an\noperator action on a dedicated account capped at the canary loss boundary.\n",
+    "acceptance_criteria": "Record the exact candidate commit and config/rung hash. The complete current\nmutation catalogue is green on that tree with no survivor, did-not-build, wrong\ncatcher or unexplained inert result. The dedicated-account cleanliness and $2\ncapital-bound checklist is ready. Any code/config change invalidates the gate\nevidence. Passing this bead authorises only the attended lip-dwf canary.",
+    "notes": "2026-09-26 paused handoff: cancellation/reconciliation repair, shard-aware cancel routing and 12 added semantic controls are in working tree. Final quick gate GREEN, all 300 compile; 22 affected outcomes caught; full cumulative outcome catalogue NOT run and no promotion. Source/receipt hashes and remaining priorities (q6r,357,wif/current conformance, wiring/scenario proof, q01 then R1) are in notes/readiness-2026-09-26.md and readiness-evidence-2026-09-26/verification.json. No candidate commit or runnable live config nominated, no account access or live order, no background verification remains.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-11T20:00:31Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T19:31:32Z",
+    "labels": [
+      "canary",
+      "promotion"
+    ],
+    "dependencies": [
+      {
+        "issue_id": "lip-8hn.1",
+        "depends_on_id": "lip-732",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:40Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.1",
+        "depends_on_id": "lip-8hn",
+        "type": "parent-child",
+        "created_at": "2026-08-11T13:00:31Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.1",
+        "depends_on_id": "lip-wif",
+        "type": "blocks",
+        "created_at": "2026-09-26T11:30:14Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.1",
+        "depends_on_id": "lip-ghg",
+        "type": "blocks",
+        "created_at": "2026-09-26T11:30:12Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.1",
+        "depends_on_id": "lip-q6r",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:38Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-8hn.1",
+        "depends_on_id": "lip-357",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:42Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 5,
+    "dependent_count": 1,
+    "comment_count": 0,
+    "parent": "lip-8hn"
+  },
+  {
+    "id": "lip-9vc",
+    "title": "CR-1 operations: recovery, disk headroom, runbook, and alert escalation",
+    "description": "CR-1 is authorised for unattended repeated cycles inside one declared market\nassignment. Before that authorization, make the operational recovery boundary\nexecutable rather than implicit.\n\nDeliver one concise operator runbook and its tested software checks: dedicated\naccount cleanliness; config/commit/rung confirmation; disk headroom and bounded\nstore/evidence growth; durable-latch stop/resume; recovery when the harness\nstore is unreadable while exchange orders or inventory may exist; disposition\nof every SEV1/SEV2; and escalation when a SEV1 or missed heartbeat is not\nacknowledged. No procedure may clear a latch or infer flatness from unavailable\ntruth.\n\nThis is one operational-readiness unit, not one bead per checklist row. It does\nnot run the live harness; operator drills and evidence remain operator actions.\n",
+    "acceptance_criteria": "The runbook names exact commands, preconditions, stop conditions and evidence\nfor normal start, planned stop, latched restart, corrupt/unreadable store,\ninsufficient disk headroom, missed heartbeat and unacknowledged SEV1. Automated\ntests prove unsafe states refuse or enter durable WINDING_DOWN while reduction\nand observation continue wherever authoritative truth permits. The final CR-1\nevidence links a completed operator drill for the external escalation path.",
+    "notes": "=== 2026-08-11: DISK HEADROOM IS NOT THEORETICAL — MEASURED ===\n\nThe negative-control gate is a build-cache bomb, and it took out two consecutive\nR0 gate rounds for lip-jy4 before the cause was visible.\n\nMEASURED:\n- ~/Library/Caches/go-build had grown to ~193GB. 'go clean -cache' took over ten\n  minutes and returned the volume from 100% used / 1.1GB free to 55% / 194GB free.\n- One full 273-mutation round consumes roughly 13GB of NEW cache entries: round 2\n  started with 9.8GB free and died partway through the catalogue at ~46MB per\n  mutation. Budget ~15GB free per round, and treat that as a floor.\n- Go's automatic cache trimming (entries unused for 5 days) does not reclaim this\n  fast enough, because every mutated tree produces cache entries that are unique\n  to that mutation and are never reused.\n\nHOW IT PRESENTED (both times as something else):\n- Round 1: the baseline suite failed immediately after the 273-mutation preflight.\n  Reported as an unreadable 'FAIL negative-control (rc=1)' because of lip-8k3.\n- Round 2: 'shutil.Error: [Errno 28] No space left on device' inside\n  make_sandbox's copytree, ~3.5h in, followed by a cascade of DID-NOT-BUILD and\n  'caught, but NOT by the named test -\u003e []' rows for mutations that had compiled\n  successfully in that same run's preflight minutes earlier.\n\nThe second signature is the dangerous one: a disk-exhausted round looks exactly\nlike a catalogue that rotted, and an agent or operator reading only the summary\nwould start 'fixing' mutations that are fine.\n\nFOR CR-1 OPERATIONS:\n- q01 is a 4-6h real run that writes a durable evidence bundle, an anomaly journal\n  and a SQLite store to this same volume. A full disk during q01 fails\n  qualification for a reason that has nothing to do with the harness.\n- The runbook needs a pre-flight free-space assertion before both a gate round and\n  any live run, plus a scheduled 'go clean -cache'. Consider having gates.sh refuse\n  to start below a threshold rather than discovering it at hour 3.5.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-11T19:54:38Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-12T04:00:41Z",
+    "labels": [
+      "cr1",
+      "operations"
+    ],
+    "dependencies": [
+      {
+        "issue_id": "lip-9vc",
+        "depends_on_id": "lip-8hn",
+        "type": "parent-child",
+        "created_at": "2026-08-11T13:02:39Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0,
+    "parent": "lip-8hn"
+  },
+  {
+    "id": "lip-one",
+    "title": "Shutdown composition and mutation ratchet",
+    "description": "Found by the lip-7u4 final-consumer audit while filling the mutation column.\n\nMutations per composition-root file:\n  run.go 33, runtime.go 8, deploy.go 7, dispatch.go 4, config.go 4,\n  monitor.go 2, shutdown.go ZERO.\n\nshutdown.go is not a quiet file. It holds:\n  - installSignals (:139) and onSignal (:165), the SIGINT/SIGTERM entry point\n  - drainLoop, the ONLY goroutine in the process permitted to call os.Exit\n  - ExitAuthorised, which requires a valid permit AND TruthKnown AND flat\n    inventory AND no live order -- the four-way conjunction that stands between\n    the harness and abandoning inventory\n  - handleResults (:465) and submitAnomaly (:546), F19's final consumer,\n    including the fallback journal used when SQLite itself is broken\n\nEvery one of those is a place where a single dropped conjunct or reordered call\nis catastrophic and silent. HR-009 already records that a 12h auto-exit was\nremoved from this path; nothing currently prevents its reintroduction.\n\nThis is the last place in the system where \"no mutation exists\" is being read as\n\"cannot fail\". Note the asymmetry against F19: 32 mutations cover harness/hstore,\nall caught by hstore's own tests, while the consumer that decides what to DO with\na store failure has none.\n\nSCOPE: add mutations for (a) each conjunct of ExitAuthorised independently,\n(b) the CommitStop-before-Advance ordering in the signal path, (c) the\nsubmitAnomaly fallback when the store is unavailable, (d) the drain permit's\nplanned/unplanned distinction. Each needs a named cmd/harness catching test.\nDo not weaken any gate to make a mutation catchable.\n",
+    "notes": "ABSORBS lip-3rl. In addition to ExitAuthorised and fallback-journal mutations, the composed scenario must prove SIGINT/SIGTERM durably enters WINDING_DOWN, keeps monitoring and reduction alive with inventory outstanding, and returns only after flat/closed drain authorization.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-11T00:00:22Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-11T20:07:22Z",
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-357",
+    "title": "F5: H-FAIL-6's REST cross-check does not exist, and quarantine strands the reducer",
+    "description": "Found by the lip-7u4 final-consumer audit. Distinct from lip-2vc, whose\nacceptance (\"no composed test shows a wedged feed reaching REDUCING\") covers the\nhalf that WORKS -- gate.Tick (harness/wsx/gate.go:597-629), called from\ncmd/harness/run.go:1191, does reach REDUCING.\n\nTHREE FACTS, EACH INDEPENDENTLY VERIFIED:\n\n1. H-FAIL-6's cross-check is ABSENT, not deferred behind a stub. F5 requires:\n   book silent \u003e60s while socket healthy -\u003e GET /markets/{t}/orderbook, compare\n   prices AND SIZES through the full Target Size walk on both sides, including\n   our own expected resting size; agree -\u003e reset the staleness clock and KEEP\n   QUOTING; disagree -\u003e replace and quarantine.\n   There is no REST orderbook fetch anywhere in the tree. Grepping \"orderbook\"\n   across all non-test .go yields exactly one hit, a comment in core/levels.go.\n   gate.go:622-624 admits it in its own anomaly text: \"H-FAIL-6's full-depth\n   comparison is deferred, so this reduces rather than trying to prove the book\n   right.\"\n\n2. THEREFORE F5 IS ONE-WAY. With no cross-check there is no \"agree\" branch, so a\n   quiet market can never resolve back to quoting. It degrades to quarantine +\n   REDUCING and stays there.\n\n3. QUARANTINE BLOCKS NEW REDUCER PLACEMENT. cmd/harness/run.go:1300-1316: after\n   the cancel branch, \"if !actionable { continue }\" skips o.decideSide for BOTH\n   roles, commented \"no PLACEMENT decision may be taken from a quarantined or\n   stale book. Cancels are unaffected.\" Existing resting orders survive and\n   cancels still work, which is how §12's \"reducing: live\" LOOKS satisfied.\n\nTHE HAZARD THIS COMPOSES TO, which is why it is P1 and launch-relevant:\na market goes quiet -\u003e quarantined and REDUCING -\u003e resnapshot is LOG-ONLY\n(cmd/harness/run.go:757-782 raises RESNAPSHOT_DEFERRED SEV2 and does not\nresubscribe; its own comment says the book \"stays quarantined until the socket\ncycles\") -\u003e so if the resting reducer is FILLED, or the position moves so the\nreducer needs resizing, NO REPLACEMENT CAN BE PLACED. Inventory then sits\nunmanaged until a socket cycle happens for some unrelated reason. A healthy\nsocket does not cycle merely because one market went silent, so on a one-market\npilot there may be nothing to cycle it.\n\nThat is a directional position held open, unattended, with no reducer and no\nmechanism to place one. It is exactly the state CR-1 must not be able to reach.\n\nSCOPE -- ADJUDICATED 2026-08-14 BY THE OPERATOR. DO NOT RE-ADJUDICATE.\nThe earlier (a)/(b)/(c) fork is CLOSED. The driver correctly ruled SPEC_CONFLICT\non it, the operator patched notes/harness-spec.md, and the contract now answers\nthe question. Implement the spec as it currently reads; see NOTES for the full\ndecision and the file:line starting points.\n\nIn short: new rule H-FAIL-7 retains H-FAIL-6's REST cross-check book as the\nreducer's pricing source for the duration of an F5 quarantine, so the reducing\nside stays live and resizable while the adding side stays off. A13 is not\nweakened -- the quarantined websocket book remains a source for nothing.\nH-FAIL-7 also requires an immediate in-session resubscription on disagree, so\nthe quarantine ends on snapshot + reconcile as F2's does instead of waiting for\na socket cycle that a one-market pilot may never get.\n\nThis means (a) and (b) are both IN SCOPE and required, and (c) is superseded by\na narrower, better-sourced rule than the one it proposed.\n\nBlocks the read-only qualification, per lip-7u4's instruction that every\nlaunch-relevant finding must.\n",
+    "notes": "=== 2026-08-11, ABSORBS lip-2vc (lip-7u4 final adjudication, codex directive) ===\nlip-2vc is closed as superseded by this bead. Its acceptance is NOT dropped --\nit is absorbed here, because closing it without carrying the observable forward\nwould lose the only composed proof required of F5's working half.\n\nWHY SUPERSEDE RATHER THAN KEEP BOTH. This bead's own description says the two\nare \"distinct\", and on the facts they are: lip-2vc was verification debt over a\npath that works (gate.Tick, harness/wsx/gate.go:597-629, called from\ncmd/harness/run.go:1191, does reach REDUCING), while this bead is a production\ndefect. But they cannot be SEQUENCED independently. Fixing F5 changes what the\ncomposed path does -- adding the missing cross-check creates an \"agree\" branch\nthat lip-2vc's test would then have to account for, and whichever of (a)/(b)/(c)\nbelow is chosen decides whether a quarantined market can place a reducer at all.\nA composed test written against today's one-way behaviour would have to be\nrewritten by this bead's own fix. Two beads over one seam, where the first must\nbe redone by the second, is the sequencing this consolidates away.\n\nABSORBED ACCEPTANCE, carried verbatim in substance from lip-2vc:\n  A composed test in cmd/harness -- newRig + serve, not harness/wsx -- in which\n  ONE market's book goes silent past the threshold WHILE THE SOCKET STAYS\n  HEALTHY, and the harness publishes that market REDUCING with its adding side\n  cancelled and swept, A SECOND MARKET UNAFFECTED, and REST and the monitor\n  still running.\n  The existing detector proof, M-W-QUIET caught by\n  TestQuietMarketAloneReducesAndResnapshots, lives in harness/wsx and observes\n  the GATE. Per lip-7u4's central finding, a mutation caught by its own\n  package's tests proves internals rather than wiring, so the relay mutation for\n  this seam needs its catching test in cmd/harness.\n  Suspected seam: wsx gate -\u003e PortfolioEffects/Reduce -\u003e owner.noteReduce -\u003e\n  quote machine market state.\n\nThis bead therefore now carries BOTH obligations: adjudicate and implement the\nF5 fix -- (a) implement H-FAIL-6's cross-check, (b) make resnapshot actually\nresubscribe, or (c) permit REDUCER placement from a quarantined book while still\nforbidding adding, noting (c) alone changes an A13/H-FAIL-4 invariant and must\nnot be done casually -- AND prove the composed relay above once the chosen\nbehaviour is settled.\n\nDEPENDENCY NOTE: lip-2vc blocked both lip-q01 and lip-jy4. This bead already\nblocked lip-q01; the lip-jy4 link is added in the same change so that closing\nlip-2vc removes no gate from the ratchet.\n2026-08-14T08:1xZ OPERATOR — PARTIAL IMPLEMENTATION IS IN THE WORKING TREE (uncommitted, ~2275 inserted lines, compiles clean). The round-1 implement turn died on subtype error_max_turns (121 turns vs a then-limit of 120) and returned no report, so the work was never gated or audited. It is a starting point, NOT accepted work. The tree carries changes at exactly these paths: go/harness/rest/orderbook.go (new), go/harness/rest/orderbook_test.go (new), go/harness/wsx/gate.go, go/harness/wsx/gate_test.go, go/harness/wsx/seal_test.go, go/cmd/harness/run.go, go/cmd/harness/seam_test.go. ANY directive for this unit MUST include all seven in allowed_paths, otherwise the conductor's scope check reverts them and the work is lost. Implementer budgets were raised to 168 turns / 2725s and the implementer now runs gates.sh --quick; the conductor still runs the authoritative full gate.\nSPEC_CONFLICT at iteration 21: Do not advance the partial implementation. F5 requires a disagreeing REST cross-check to replace and quarantine the book and enter REDUCING; A13 then forbids every placement decision from that quarantined book, while A4, §5.2, and §12 require a live or in-flight reducer whenever q is nonzero, including after a resting reducer fills or requires resizing. The spec defines no F5 resubscription or bounded quarantine-exit mechanism. Option (a) restores the agree branch but leaves the disagree hazard; option (b) is not specified by F5 and cannot guarantee A4 before a snapshot arrives; option (c) directly contradicts A13. An operator-reviewed spec patch must choose the invariant before implementation can continue.\n2026-08-14T08:2xZ OPERATOR — partial work PRESERVED IN GIT STASH, not lost. Restore with: git stash pop (it is stash@{0}, message 'lip-357 partial: F5 REST cross-check, SPEC_CONFLICT parked 2026-08-14'). ~2275 inserted lines across the seven paths; it passed loop/gates.sh --quick GREEN (build, vet, gofmt, test-race, check.py, catalogue-tests, mutation-preflight) but was NEVER audited or adjudicated. It was stashed rather than left in the tree because the loop moved on to lip-4ak, and an uncommitted foreign diff would have been folded into that unit's audit and commit. THE BLOCKER IS A SPEC DECISION, NOT CODE: F5's disagree branch quarantines the book, A13 then forbids every placement decision from a quarantined book, but A4/section 5.2/section 12 require a live or in-flight reducer whenever q is nonzero. The spec defines no F5 resubscription or bounded quarantine-exit mechanism, so the three implementable options each violate one of them. An operator must choose the invariant and patch notes/harness-spec.md (SHA-pinned, agents cannot). Until then this bead cannot advance and lip-8hn.1 stays blocked.\n=== 2026-08-14 OPERATOR: SPEC CONFLICT RESOLVED, unit is implementable again ===\n\nThe round-2 driver ruled SPEC_CONFLICT because F5's disagree branch quarantines\nthe book, A13 forbids every placement decision from a quarantined book, and\nA4 / section 5.2 / section 12 require a live reducer whenever q is nonzero.\nThe spec defined no quarantine-exit and no reducer exception, so all three of\nthis bead's options (a)(b)(c) violated something.\n\nThe operator has patched notes/harness-spec.md. The chosen invariant:\n\n  THE REDUCER IS PRICED FROM THE RETAINED REST CROSS-CHECK BOOK.\n\nNew rule H-FAIL-7 says the full-depth orderbook that H-FAIL-6's cross-check\nalready fetches is RETAINED as the market's reducer-pricing source for the\nduration of an F5 quarantine, refreshed on the cross-check's own cadence.\nDuring that quarantine the reducing side may be placed, resized and requoted\nunder section 6.5 from that REST book -- including after the resting reducer\nfills or after |q| moves -- while the adding side stays off under A8 and A13.\nA7, A11 and A12 are evaluated exactly as when quoting from the websocket book.\nOnly the pricing source changes.\n\nA13 is NOT weakened: the quarantined websocket book remains a source for\nnothing. The REST book is a different, independently fetched book.\n\nH-FAIL-7 also ENDS the quarantine. On disagree the harness must request an\nin-session resubscription immediately rather than waiting for the socket to\ncycle, which is the live defect at cmd/harness/run.go:980-992 where resnapshot\nis log-only and raises RESNAPSHOT_DEFERRED. The quarantine lifts on fresh\nsnapshot + portfolio reconcile, exactly as F2's does. Unlifted after\ndisconnect_halt_s escalates to SEV1. No new config parameter was added.\n\nSpec lines patched: F5 row, H-FAIL-5, new H-FAIL-7, section 12 F5 row, A13.\n\nIMPLEMENTATION NOTES FOR THE NEXT DRIVER:\n- The gate ALREADY lifts quarantine on a snapshot (harness/wsx/gate.go:419-422,\n  'The snapshot is what lifts the quarantine'). The missing half is the\n  resubscription request, not the lift.\n- decideSide (cmd/harness/run.go:1955-1962) reads ONLY the websocket book via\n  o.r.book.Book(). Plumbing the retained REST book in as the reducer's source\n  is the substantive new machinery this unit needs.\n- The actionable guard is at cmd/harness/run.go:1944-1949 and must become\n  role-aware: it currently skips decideSide for BOTH roles.\n- unit_rounds was reset to 0. Rounds 1-3 were spent on a spec that could not be\n  satisfied; the contract has changed, so the attempt budget starts fresh.\n- The ~2,275-line partial from the earlier attempt is in git stash@{0}. It is\n  UNAUDITED and UNACCEPTED, but it implemented H-FAIL-6's REST cross-check,\n  which H-FAIL-7 now makes MORE relevant, not less -- the cross-check is what\n  fetches the book the reducer is priced from. Treat it as an untrusted repair\n  base, not as satisfying the unit.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "bug",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-10T23:48:45Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-14T16:56:17Z",
+    "dependency_count": 0,
+    "dependent_count": 2,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-zpo",
+    "title": "§12 inv_hard relay unproven: no composed test shows the market-scoped adding-off/reducer-live pair",
+    "description": "lip-7u4 pass 1 classified the §12 inv_hard row UNPROVEN.\n\n§12 is explicit about the SHAPE of every halt: adding off, reducing LIVE, monitoring FULL, process alive. For inv_hard that is market-scoped. No composed test asserts all four together for an inv_hard breach, and 'adding off' without 'reducer live' is the failure mode that turns a risk limit into a trapped position.\n\nSEAM: risk inventory check -\u003e market state -\u003e quote machine -\u003e dispatcher.\nOBSERVABLE: a composed run breaching inv_hard in one market: that market's adding cancelled and swept, its reducer still resting and still aggregate-capped, monitoring and heartbeat continuing, another market unaffected.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-10T15:10:31Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-10T15:10:31Z",
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-8qv",
+    "title": "F15/H-ORD-9: live foreign orders do not reach the durable global stop",
+    "description": "lip-7u4 pass 1 classified F15 UNPROVEN.\n\nDETECTOR PROVEN: M-L-EXCLUDESELECT is caught by TestAdoptionPolicyReceivesEffectiveSelectionAndExclusionsAsDefensiveCopies (harness/lifecycle), and startup exclusion is well covered.\n\nRELAY UNPROVEN: startup is not the only place a foreign order can appear. No composed test shows a foreign order arriving DURING a run excluding that market from new selection while never being cancelled (F15 is explicit: do not cancel it).\n\nSEAM: live orders walk -\u003e foreign guard -\u003e excluded set -\u003e selection.\nOBSERVABLE: a composed run in which a non-lipH- order appears mid-run and the harness stops adding in that market, leaves the foreign order alone, and keeps quoting elsewhere.",
+    "notes": "=== 2026-08-10, lip-7u4 audit: THIS BEAD'S TITLE AND SCOPE ARE WRONG ===\nTitle says \"no composed test shows a foreign order excluding its market from\nlive selection\". That frames it as verification debt. It is a production gap,\nand the specified response is also wrong.\n\nVERIFIED:\n- STARTUP foreign handling IS wired: ForeignGuard.Classify (foreign.go:161)\n  called from startup.go:685 with PhaseStartup; fe.Exclude flows to\n  AdoptionFacts.Selected and is consumed at policy.go:170. Market exclusion is\n  the STARTUP treatment and it works.\n- LIVE foreign handling IS NOT. PhaseLive is never passed anywhere in the tree.\n  foreign.go:213-227's PhaseLive branch -- the one that would latch the stop --\n  has zero production callers. Live foreign ORDERS raise FOREIGN_ORDER SEV2\n  (position.go:914) and are then neither excluded nor stopped; eff.Foreign is\n  read nowhere in cmd/harness.\n- Foreign FILLS are different and ARE wired: position.go:559-573 sets eff.Stop,\n  reaching run.go:1068's requestStop. So the hole is specifically live foreign\n  ORDERS.\n\nAND THE RESPONSE IS MIS-SPECIFIED: spec:977 (H-ORD-9) requires a GLOBAL STOP for\nforeign activity discovered AFTER startup. Market exclusion is what startup\ndoes. So this bead currently asks for the wrong behaviour to be proven.\n\nRESCOPE TO: pass PhaseLive from the live portfolio path, consume eff.Foreign in\napplyRead, and latch a global stop per H-ORD-9 -- then prove it. Do NOT batch\nthis into a \"confirmed-wired relay proofs\" round; it is a production change.\n=== 2026-08-11, RESCOPE COMPLETED (lip-7u4 final adjudication, codex directive) ===\nThe 2026-08-10 note above diagnosed this correctly but left the title in place.\nThe title is now changed to match, the type is now `bug`, and the REQUIRED\nRESPONSE is pinned below -- with one part of it deliberately left open, because\nthe spec does not settle it and inventing an answer here would be worse than\nrecording the gap.\n\nREQUIRED, and well-supported by the spec:\n1. PASS PhaseLive from the live portfolio path. foreign.go:213-227's PhaseLive\n   branch has zero production callers today because PhaseLive is never passed\n   anywhere in the tree.\n2. CONSUME eff.Foreign in applyRead. It is read nowhere in cmd/harness.\n3. LATCH A DURABLE GLOBAL STOP. spec:887 -- \"Foreign activity appearing *after*\n   startup latches global `WINDING_DOWN`\" (H-ORD-9) -- \"because by then it is\n   not a pre-existing condition we adopted but a live third party trading the\n   account we are modelling.\"\n4. DO NOT CANCEL THE FOREIGN ORDER. §11's F15 row (spec:1506) is explicit, and\n   spec:2237 restates it: §7.5 does not cancel foreign orders, it excludes.\n5. STARTUP BEHAVIOUR IS UNCHANGED AND MUST STAY UNCHANGED. Classify at\n   PhaseStartup (foreign.go:161 \u003c- startup.go:685) -\u003e fe.Exclude -\u003e\n   AdoptionFacts.Selected -\u003e policy.go:170 is correct and covered. This bead\n   adds the live path; it does not touch the startup one.\n\nOPEN, AND TO BE ADJUDICATED BEFORE IMPLEMENTATION -- THE SEVERITY.\nThe directive that prompted this rescope specified SEV1. That is an\nextrapolation rather than a citation, and the tree and spec disagree with it as\nwritten:\n  - §11 F15 (spec:1506) gives a foreign ORDER `SEV2`.\n  - §7.5 step 5 (spec:885) gives the STARTUP foreign order `SEV2 FOREIGN_ORDER`.\n  - H-ORD-9 (spec:995-999) gives `SEV1 FOREIGN_FILL` + global WINDING_DOWN to a\n    foreign FILL, not to an order.\n  - spec:887, the post-startup rule this bead implements, prescribes the global\n    latch and RESTATES NO SEVERITY.\n  - Today's code raises FOREIGN_ORDER SEV2 at position.go:914.\nSo the live foreign ORDER severity is genuinely underdetermined. The defensible\nreadings are (a) SEV2, consistent with every foreign-ORDER row, with the global\nlatch carrying the weight; or (b) SEV1, on the argument that a live third party\non the account is the same epistemic event as a foreign fill and H-ORD-9's\nseverity should follow the CONCLUSION rather than the artefact type. Decide\nthis explicitly and record the reasoning; do not let the implementation pick by\naccident. The spec is SHA-pinned and must not be edited either way.\n\nMUTATION NOTE: M-L-EXCLUDESELECT's catcher lives in harness/lifecycle. The\nmutations proving the LIVE wiring must have catching tests in cmd/harness.\n=== 2026-08-13: lip-9cc CLOSED AS DUPLICATE INTO THIS BEAD ===\n\nlip-9cc (filed 2026-08-13 from the negative control on 91badd2, via the\nM-L-STARTUPCAUSE survivor) described the same defect as this bead: nothing calls\nlifecycle.ForeignGuard.Classify with PhaseLive, so live foreign ORDERS raise SEV2\nand never reach the durable global stop H-ORD-9 requires. Re-verified against\n43bad0d, the current references are:\n\n  live foreign FILL    risk/position.go:591 raises SEV1 and sets eff.Stop at\n                       :601, reaching owner.requestStop. SATISFIED.\n  live foreign ORDER   risk/position.go:1035 raises SEV2, no stop, no latch.\n                       NOT SATISFIED. OrdersEffects has no Stop field at all.\n  adjudicator          lifecycle/foreign.go:216-227 implements the PhaseLive\n                       branch. lifecycle/startup.go:685 is the only non-test\n                       call site and hardcodes PhaseStartup.\n\nEVIDENCE CORRECTION. lip-9cc asserted that the conform sweep captured 8 real\nRESTING orders on this account, none carrying a lipH- coid, so all 8 would\nclassify foreign. That is wrong twice over, measured 2026-08-13:\n\n  1. All 8 are terminal. 7 executed, 1 canceled, every one with\n     remaining_count_fp 0.00, created between 2026-07-24 and 2026-07-29 on\n     KXGENERICBALLOTVOTEHUB-26JUL31-T5.7 and KXHOODA-28JANFUNDED-33000000.\n\n  2. Terminal orders cannot reach the classifier anyway. Both production call\n     sites that feed it request resting orders only: wsx/portfolio.go:152 and\n     lifecycle/startup.go:644 each pass rest.StatusResting, which becomes a\n     status=resting query parameter at rest/read.go:242-244. Order.Status is\n     decoded at rest/read.go:285 and never read again anywhere in the tree, so\n     the exchange filters terminal orders out before the harness sees them.\n\nThere were therefore ZERO resting foreign orders on this account. The defect is\nreal and unfixed, but the \"not hypothetical on this account\" argument does not\nhold. It bites only when a NEW resting order appears mid-run, which on this\naccount means manual trading while a run is live.\n\nMUTATION NOTE carried over from lip-9cc: once implemented this needs a mutation\nin which a live foreign order fails to latch, caught by a new test.\nM-L-STARTUPCAUSE was RETIRED in 43bad0d because the startup-side consumer loop it\nmutated was proven unreachable; if this fix introduces a live consumer, re-anchor\nthat mutation onto it rather than re-adding it at startup.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "bug",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-10T15:10:26Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-14T01:39:33Z",
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-xp3",
+    "title": "F10 unproven: no composed test shows insufficient_balance reaching a durable global WINDING_DOWN",
+    "description": "lip-7u4 pass 1 classified F10 and the §12 insufficient_balance row UNPROVEN.\n\nH-CAP-5 makes this a GLOBAL stop, not a market one, and §12 requires adding off everywhere with the reducer live and monitoring full. No catalogue mutation was found that severs the reject-reason classification, and no composed test observes the global effect.\n\nSEAM: rest create reject reason -\u003e writeResult -\u003e owner.applyWriteResult -\u003e requestStop -\u003e durable latch + state_event.\nOBSERVABLE: a composed run whose create is rejected with insufficient_balance and which reaches WINDING_DOWN with that cause durable before publication, adding cancelled everywhere, reducer retained.\n\nRelated but distinct from lip-lpf (CheckFundable has no production caller): that is the PRE-trade check, this is the POST-reject response.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-10T15:10:24Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-14T08:03:15Z",
+    "dependencies": [
+      {
+        "issue_id": "lip-xp3",
+        "depends_on_id": "lip-4ak",
+        "type": "blocks",
+        "created_at": "2026-08-10T16:50:01Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 1,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-2gn",
+    "title": "F9/F11 unproven: no detector or consumer found for reject-rate REDUCING or post_only-cross cross-check",
+    "description": "lip-7u4 pass 1 classified F9, F11 and the §12 reject-rate row UNPROVEN, and could not identify a production detector for either.\n\nF9: 'if reject rate \u003e 10% over the last 50 orders IN ONE MARKET, that market -\u003e REDUCING'. No per-market rolling reject-rate window was found, and no catalogue mutation severs one.\nF11: 'post_only would cross' should force F5's REST cross-check on that market immediately. No such forcing path was found.\n\nDO NOT ASSUME THESE ARE MISSING. Pass 1 classified them UNPROVEN, not KNOWN_MISSING, precisely because the production path is ambiguous rather than adjudicated -- that distinction is the point of the classification.\n\nREQUIRED: establish whether a detector exists. If it does, the observable is a composed run whose rejects cross the threshold in one market and put THAT market into REDUCING while others keep quoting. If it does not, this becomes a missing-consumer bug bead and the driver authors its mutation.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-10T15:10:21Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-10T16:50:06Z",
+    "dependencies": [
+      {
+        "issue_id": "lip-2gn",
+        "depends_on_id": "lip-4ak",
+        "type": "blocks",
+        "created_at": "2026-08-10T16:50:06Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-2gn",
+        "depends_on_id": "lip-357",
+        "type": "blocks",
+        "created_at": "2026-08-10T16:50:08Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 2,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-r90",
+    "title": "F13 relay unproven: no composed test shows position drift reaching market REDUCING or a hard global stop",
+    "description": "lip-7u4 pass 1 classified F13 and the §12 hard-drift row UNPROVEN.\n\nDETECTOR PROVEN: M-W-POS is caught by TestCompletePositionPollOverwritesLocalAndRecordsAgreements (harness/risk). ReplacePositions raises POSITION_DRIFT SEV1 past pos_drift_hard and streaks past pos_drift_tol.\n\nRELAY UNPROVEN: no composed test shows sustained tolerance drift putting the market into REDUCING, nor hard drift producing a durable global WINDING_DOWN with its cause preserved. lip-da6 showed how expensive a wrong drift path is -- it manufactured one from a restart -- and the fix was verified at the risk layer, not the owner's.\n\nSEAM: risk.ReplacePositions -\u003e PortfolioEffects.Stop/Reduce -\u003e owner.requestStop/noteReduce -\u003e durable latch + state_event.\nOBSERVABLE: a composed run with q_local and q_exch disagreeing past each threshold, asserting the market/global effect, the durable cause, and that the reducer stays live.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-10T15:09:47Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-10T15:09:47Z",
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-b7r",
+    "title": "F7: SleepDetector has no runtime caller, so host-sleep detection cannot fire in production",
+    "description": "lip-7u4 pass 1 classified F7 UNPROVEN.\n\nDETECTOR PROVEN: M-L-WALLCLOCK and M-L-SLEEP are caught by TestSleepDetectorUsesIndependentWallTime and TestClockDivergenceForcesResnapshotAndReconcile (harness/lifecycle).\n\nRELAY UNPROVEN: no composed test shows the owner treating the gap as downtime, forcing the resnapshot and RECONCILE_NOW, and recording the interval in uptime. The Mac idle-sleeps and a gap silently biases everything measured across it -- this is F7's whole reason for existing.\n\nSEAM: lifecycle sleep detector -\u003e owner tick -\u003e gate resnapshot + portfolio reconcile + uptime row.\nOBSERVABLE: a composed run whose injected clock diverges past 5s and which resnapshots, reconciles, and writes the interval.",
+    "notes": "=== 2026-08-11, RESCOPED by lip-7u4's final adjudication (codex directive) ===\n\nWAS: \"F7 relay unproven: no composed test shows a detected host sleep forcing\nresnapshot, RECONCILE_NOW and an uptime record.\" That framing is WRONG, and it\nunderstates the defect by one whole category.\n\nTHIS IS NOT AN UNPROVEN RELAY. IT IS AN ABSENT ONE.\n`SleepDetector` is never constructed in production. A grep for\n`SleepDetector|NewSleepDetector|HOST_SLEEP` over go/ excluding _test.go returns\nhits in exactly ONE file -- harness/lifecycle/sleep.go, its own definition\n(type at :53, Observe at :87, the two SEV2 HOST_SLEEP_OR_STALL raises at :118\nand :140, Downtime at :152). There is no caller in cmd/harness and no caller\nanywhere else in the module. Nothing constructs it, so `Observe` is never\ncalled, so HOST_SLEEP_OR_STALL can never fire on the deployed binary.\n\nThis is the same defect class as lip-lqw (inv_kill), lip-2da (stuck_s),\nlip-gp8 (pnl_kill), lip-lpf (H-CAP-8) and lip-6w5 (harness/ping): a component\nthat is BUILT, unit-tested and green, with zero production importers. The unit\ntests that pass -- TestSleepDetectorUsesIndependentWallTime and\nTestClockDivergenceForcesResnapshotAndReconcile, catching M-L-WALLCLOCK and\nM-L-SLEEP -- certify internals over a path the binary never takes. That is\nprecisely the same-package-catcher pattern lip-7u4 was opened to measure.\n\nWHY THIS ONE MATTERS MORE THAN ITS PRIORITY SUGGESTS. The iMac running this\nidle-sleeps. A sleep gap silently biases every rate, every uptime figure and\nevery realised-vs-predicted comparison measured across it, and F7 exists for\nexactly that. The operator currently works around it with a detached\n`caffeinate` before any long run -- an out-of-band mitigation for a detector\nthat is present in the source and absent from the process.\n\nSCOPE, unchanged in substance: construct the detector in cmd/harness, drive\n`Observe` from the owner tick with independent wall and monotonic clocks, and\nPRESERVE THE F7 RESPONSE EXACTLY AS SPECIFIED -- SEV2 HOST_SLEEP_OR_STALL,\nforced resnapshot, RECONCILE_NOW, and the downtime interval recorded as uptime\nevidence. The composed test this bead already describes remains the acceptance;\nit simply now has a production path to compose against.\n\nMUTATION NOTE: the existing M-L-WALLCLOCK / M-L-SLEEP catchers live in\nharness/lifecycle. Per lip-7u4's central finding, the mutation proving the\nWIRING must have its catching test in cmd/harness, not alongside them.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "bug",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-10T15:09:44Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-11T07:22:20Z",
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-ytr",
+    "title": "F1-F3: disconnect and half-open composed recovery",
+    "description": "lip-7u4 pass 1 classified F2 and F3 UNPROVEN.\n\nDETECTOR PROVEN: M-W-CLEAN and M-W-RECON are caught by TestEveryDisconnectQuarantinesUntilFreshSnapshotAndAllPortfolioTruth (harness/wsx).\n\nRELAY UNPROVEN: that test observes the GATE. H-FAIL-5 says the book is non-actionable until resnapshot plus portfolio reconcile complete; no composed test shows the owner declining to place against a quarantined book after a real disconnect, nor F3's backoff-then-reset-then-resnapshot path at all.\n\nSEAM: wsx gate quarantine -\u003e A13 actionability -\u003e owner dispatch decision.\nOBSERVABLE: a composed run where the socket closes 1000/1001, and no order is dispatched until both a fresh snapshot and every portfolio truth have been refreshed.",
+    "notes": "ABSORBS lip-dth. The same cmd/harness scenario must cover pong timeout/half-open plus clean and unclean disconnect: quarantine immediately, reconnect, accept a fresh snapshot, complete portfolio reconciliation, and only then restore actionability. One seam and one scenario train; no separate promotion round.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-10T15:09:42Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-11T20:07:21Z",
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-9j3",
+    "title": "Pilot: attended S=12 burn-in",
+    "description": "Run the first S=12 live cycle as an attended promotion, not as continuous\nruntime. Preconditions are a passed S=1 canary, working launchd rung argv,\nactive-program membership, H-CAP-8, inv_kill, INVENTORY_STUCK, exact trading\nP\u0026L kill, external alerts/dead man, and a full green gate on the deployed tree.\n\nFund only the dedicated pilot account and require an operator from before write\narming until the account is flat and evidence is copied. Observe one directional\nfill, immediate local reaction, authoritative position agreement, cancellation\nof the adding side, aggregate-capped maker reduction to flat, and restart/adopt\nbehaviour. No repeated unattended cycle is allowed during this bead.\n\nAcceptance: record the run ID, config hash, gate commit, order/fill IDs, state\ncauses, alert deliveries, position evidence before overwrite, final exchange\nposition, restart result, and disposition of every SEV1/SEV2. Success is flat,\nfully reconciled, and reviewed by the operator; failure leaves the durable stop\nset and creates a blocking bead before any retry.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-09T22:29:24Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-09T15:30:34Z",
+    "dependencies": [
+      {
+        "issue_id": "lip-9j3",
+        "depends_on_id": "lip-dwf",
+        "type": "blocks",
+        "created_at": "2026-08-09T15:30:34Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-9j3",
+        "depends_on_id": "lip-8hn.2",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:43Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-9j3",
+        "depends_on_id": "lip-8hn",
+        "type": "parent-child",
+        "created_at": "2026-08-09T17:58:22Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 2,
+    "dependent_count": 0,
+    "comment_count": 0,
+    "parent": "lip-8hn"
+  },
+  {
+    "id": "lip-2da",
+    "title": "F16: sustained inventory-stuck detection and alert",
+    "description": "Scope this bead to F16. The row-by-row §11 and §12 final-consumer audit is now a\nseparate launch-gate bead.\n\nImplement per-market INVENTORY_STUCK detection when absolute inventory remains\nstrictly above inv_hard for longer than stuck_s, using complete current-\ngeneration position truth and a monotonic duration. Emit SEV2 once per episode;\ndo not add a second mechanical response because the market is already REDUCING.\nReset the episode only when complete truth returns to or below the threshold.\n\nAcceptance: both inventory signs, exact threshold, one quantum above, incomplete\nand stale polls, time just below/at/above stuck_s, recovery and a second episode,\nclock step, and restart behaviour are explicit. Add a composed owner test and a\ncompiling mutation proving the configured duration reaches its final consumer.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-08T18:05:02Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-10T23:54:03Z",
+    "dependencies": [
+      {
+        "issue_id": "lip-2da",
+        "depends_on_id": "lip-lqw",
+        "type": "blocks",
+        "created_at": "2026-08-08T11:16:13Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 1,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-2v0",
+    "title": "H-CLOSE-1: stop adding when the ticker leaves the active LIP programme set",
+    "description": "cmd/harness/run.go passes quote.MarketInput.ProgramEnded=false unconditionally, with the reasoning at the call site.\n\nH-CLOSE-1: at end_date there is no reward left to earn, so the adding quote has no purpose; the reducing quote stays and is now genuinely free.\n\nThe naive read -- program.end_date from /incentive_programs -- is WRONG. Live universe 2026-08-07: LIP programmes are short REWARD PERIODS inside a market's life. Sampled programme KXSILVER15M-26AUG071800-00 ran start_date 21:45Z -\u003e end_date 22:00Z on a market whose close_time was 22:00Z, while 180 of 200 active programmes sit on markets closing \u003e24h out. So end_date passing is a gap between periods, not the end of the incentive.\n\nThe correct condition is membership: this ticker is in no active programme any more. That is a poll of /incentive_programs?status=active (public, unsigned) plus a membership test, on roughly the schedule_poll_s cadence. feed.Universe cannot answer it -- it returns {ticker: target_size} and a ticker order, and go/feed is hash-pinned.\n\nCost of leaving it: economic, not safety. false keeps the adding quote alive, so the failure is quoting while unpaid. Every rule bounding real exposure is wired (close lead, the operator early-close backoff, inventory ladder, gate, capital caps). The opposite error is worse: reading a between-periods gap as programme-ended stops quoting in a market that is still paying.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-07T22:06:13Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-07T22:06:13Z",
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-b1r",
+    "title": "Scenario exchange replacing V2 (pilot-plan §3)",
+    "description": "NOT a market simulator. A small deterministic fake: injected clock, order ledger, coid idempotency, scripted REST results, scripted websocket events, restartable state. Fills are EXPLICIT TEST INPUTS - zero, partial, full, delayed, duplicate, out-of-order, multiple, cancel-race - never inferred from public prints (core/rig.go:13-39: neither a print at our price nor a trade-through proves our private order filled). Plus a handful of captured-wire fixtures proving real snapshots/deltas/orders/positions/fills/cursor fields parse.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-05T20:21:06Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-05T20:21:06Z",
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-dgg",
+    "title": "Production invariants A1-A14: compose remaining enforcement",
+    "description": "A5 exists. Implement and compose the remaining V3 invariants A1–A4 and A6–A14\nin production and in the scenario exchange. Start with a row-by-row matrix of\ncurrent structural proofs and missing final consumers; do not duplicate a rule\nthat is already structurally impossible downstream.\n\nAt minimum cover structural post_only, no taker fill, no self-cross, a fundable\nreducer for every nonzero q through SETTLING until final_lead, recorded position\ndisagreement, capital at dispatch, no adding order in REDUCING, truthful state\ncauses, no new-coid UNKNOWN retry, aggregate caps, no reducer sign flip, no\ndecision from stale/quarantined truth, and latch/state monotonicity.\n\nRuntime violations emit SEV1 and offer their durable stop before lower-priority\npolicy causes. Persistence failure cannot be mistaken for an invariant failure\nwhen the invariant is about in-memory sample production.\n\nAcceptance: every row names its last common production enforcement seam,\nscenario assertion, composed owner test, and discriminating mutation. Tests\ncover incomplete and stale generations, in-flight and UNKNOWN orders,\nunconfirmed cancels, SETTLING, store failure, and restart with an existing\nlatch.",
+    "notes": "=== 2026-08-11, H-ORD-5b VECTOR ADDED (codex adjudication, found closing lip-gp8) ===\nAdded here rather than filed separately, on the driver's explicit ruling: this\nbead already carries the obligation to provide a reducer for every nonzero q, and\na second bead over the same seam would be a duplicate the tracker has to\nreconcile later.\n\nWHAT WAS OBSERVED, implementing lip-gp8's loss floor. A non-flat position in ANY\nmarket other than the configured one makes the WHOLE trading P\u0026L permanently\nunevaluable. The harness subscribes to one book, so no mark exists for a foreign\nmarket; H-HALT-5 forbids both skipping it and inventing a price for it, so the\nfigure refuses with SEV2 PNL_MARK_UNAVAILABLE once per episode and pnl_kill\ncannot fire at all until the account is flat in that market.\n\nTHE DRIVER'S RULING: lip-gp8 is behaving CORRECTLY and must not be changed.\nMaking it ignore a foreign market would convert an explicit refusal into a false\nP\u0026L, which is the failure H-HALT-5 exists to prevent. The defect is UPSTREAM:\n§7.5 adopts the position while H-ORD-5b says the harness subscribes to whatever\nit holds, and the current one-ticker core.Rig, gate and supervisor do not satisfy\nthat rule. The same foreign position therefore also lacks the reducer A4\nrequires -- which is this bead's subject.\n\nSO THE VECTOR IS: a held NON-SELECTED market must be subscribed, marked and\nreduced, not merely tracked. The eventual ratchet needs a compiling\nM-DGG-SELECTEDONLY caught by a COMPOSED restart/adoption test proving exactly\nthat -- a mutation caught by its own package's tests proves internals, not\nwiring (lip-7u4).\n\nBLOCKS S=12. If the verification matrix shows dynamic managed-set subscription is\ntoo large for this unit, split a P1 child AT THAT POINT rather than up front.\n=== 2026-08-11, CR-1 OPERATING-ENVELOPE ADJUDICATION ===\nThe prior H-ORD-5b note made dynamic subscription, marking and reduction of a\nheld non-selected market part of the one-market pilot. That silently turns CR-1\ninto part of CR-2.\n\nFor CR-1 the dedicated account is a binding precondition: startup must refuse if\ncomplete account truth contains a non-flat position or live order outside the\none declared ticker, and live foreign activity must durably stop adding without\ncancelling an order the harness does not own. P\u0026L remains correct to refuse an\nunevaluable foreign position. Automatic subscription and management of the\nnon-selected market is deferred to CR-2, where selection/rotation exists.\n\nThis bead still owns the one-market A1-A14 enforcement and scenario matrix. It\ndoes not own multi-market recovery merely because an audit found the broader\nspec vector.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-05T20:20:43Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-11T20:02:46Z",
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-dwf",
+    "title": "Attended S=1 first-fill canary",
+    "description": "Run one attended live writer on a dedicated account containing only the canary\ncapital, one currently active operator-selected ticker, rung canary, and S=1.\n\nThe first post-adoption directional entry from acknowledgement, newly\nclassified owned fill, or complete-position fallback must durably latch\nWINDING_DOWN. Demonstrate create visibility, structural post_only, complete\ncancel sweep, correct fill attribution and backfilled provenance, zero taker\nfees, one-sided aggregate-capped reduction, monitor and alert continuity, flat\ncompletion, no new adding order, and restart that remains latched.\n\nAcceptance: retain run ID, config hash, gate commit, order/fill IDs, transition\ncauses, anomaly and notification evidence, final exchange position, and restart\nresult. Every UNKNOWN is resolved, every SEV2 is dispositioned, no SEV1 occurs\nexcept the expected canary stop cause, and the account ends flat and latched.\nThis bead does not authorise repeated cycles or S=12.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "created_at": "2026-08-05T07:08:29Z",
+    "updated_at": "2026-08-09T22:29:33Z",
+    "dependencies": [
+      {
+        "issue_id": "lip-dwf",
+        "depends_on_id": "lip-q01",
+        "type": "blocks",
+        "created_at": "2026-08-05T00:08:59Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-dwf",
+        "depends_on_id": "lip-8hn.1",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:06:36Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-dwf",
+        "depends_on_id": "lip-8hn",
+        "type": "parent-child",
+        "created_at": "2026-08-11T13:02:49Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 2,
+    "dependent_count": 1,
+    "comment_count": 0,
+    "parent": "lip-8hn"
+  },
+  {
+    "id": "lip-q01",
+    "title": "Read-only qualification: 4-6h real process, zero writes",
+    "description": "Run the real one-market process for a supervised 4–6 hour operating window with H-VER-1 unarmed. This is a read-only operational qualification, not the promotion gate for the later writer. It proves that the nominated commit can observe the real account, restart from its durable paths, remain monitored, and expose every attempted write without any network non-GET call.\n\nUse the actual launchd/caffeinate supervision, five-record store, alert channel and external dead man. Force at least one websocket disconnect/quarantine/reconnect/resnapshot/reconcile and one process death/restart using the same durable paths. A safely forced event may discover and fail a missing relay; q01 does not require unrelated exchange write-response behavior to be implemented before the observer is allowed to run.\n\nOwner-only stall and exchange schedule/host-clock jump remain deterministic promotion scenarios, not q01 live drills. The production binary has no safe external mechanism to freeze one goroutine or make the exchange change its schedule, and changing the host clock is not a defensible real-account test. q01 still exercises ordinary schedule polling and proves the real monitor/heartbeat paths continue.\n\nRequire at least 99% monitor availability against elapsed-time cadence, fresh complete position/order/fill walks, continuing heartbeat in every reached global state, bounded durable would-write and attempted-method evidence, and no silent anomaly loss. Preserve the compact qualification bundle.\n\nNo agent executes this bead against the real account. Live-account execution, forced external events and alarm confirmation are operator actions.",
+    "acceptance_criteria": "Attach start/end timestamps, exact commit and config hash, actual transport method counts measured below the write guard, attempted methods measured above it, disconnect/reconnect/reconcile timestamps, state/anomaly summary, monitor/portfolio freshness evidence, committed-run restart linkage, bounded would-write episodes, heartbeat/dead-man check-in evidence, and proof that the external missed-heartbeat alarm fired.\n\nThe assessor requires at least four hours of linked monotonic active time; the operator plans an orderly end by six hours. Running long does not retroactively falsify safety evidence, so six hours is an operating cutoff rather than a qualification loophole or a machine failure condition. Any network non-GET call, unexplained SEV1, anomaly-drop evidence, cadence-adjusted monitor ratio below 99%, incomplete/stale portfolio coverage, missed heartbeat, incomplete adoption/reconciliation, corrupt evidence bundle, unlinked segment, or unbounded local reservation/evidence growth fails qualification. The complete mutation catalogue must be green on the exact nominated commit before the operator starts it.",
+    "notes": "Candidate identity for the q01 attempt (prepared 2026-08-12, not yet started).\n\n  nominated commit  dc77e3f  (the commit lip-jy4 closed GREEN, 273/273)\n  binary            /Users/hugh/.lip/bin/harness\n  binary sha256     1882b82fbec9c00aeb683086fb2d1e11a86cbcd7fff0462b96dfba3fdd8d0cf1\n  built from        /Users/hugh/kek/lip-q01-build/go  (detached worktree at\n                    dc77e3f, tree verified clean at build time)\n  toolchain         go1.26.4\n  config            /Users/hugh/.lip/canary/config.json\n  ticker            KXMAMDANIMENTION-26AUG12-SAFE\n  evidence bundle   /Users/hugh/.lip/canary/q01-evidence.json\n  launchd label     com.lip.harness\n  runbook           /Users/hugh/.lip/q01-runbook.md\n\nBINARY IDENTITY IS THE SHA256 ALONE. This repo's module lives in go/ while the\ngit root is one level up, and under that layout Go emits no vcs.revision /\nvcs.modified build setting even when -buildvcs=true is passed explicitly --\nverified, no error and no stamp. So currentBinaryIdentity()\n(cmd/harness/qualification.go:144) appends nothing to the hash. Two consequences\nworth recording here rather than rediscovering later:\n\n  - The dirty working tree at build time (.beads/interactions.jsonl modified,\n    .codex-handoff/ untracked) could not have contaminated the evidence bundle.\n    That risk does not exist under this layout.\n  - The commit linkage is an operator assertion, not a self-attestation by the\n    binary -- but it is checkable, because the build is deterministic. Checking\n    out dc77e3f to /Users/hugh/kek/lip-q01-build and running\n    `go build -o \u003cout\u003e ./cmd/harness` from go/ under go1.26.4 reproduces\n    1882b82f... byte for byte; two independent builds already did. The path\n    matters: without -trimpath the build directory is embedded.\n\nCONFIG. Byte-identical to the reviewed config.example.json apart from `ticker`,\nso the template's \"a diff of the file against an empty one is the whole config\nreview\" property holds. s=1 canary, so no -rung flag is required (main.go:370).\n\nTICKER SELECTION. The active LIP universe is 3,245 markets across 4 pages.\nscore.py, q1select.py and the lip.db collector all read ONE page of 200 with no\ncursor, so every view built on them is truncated; cmd/harness does a complete\ncursor walk (harness/rest/read.go:630) and refuses to start on a ticker outside\nthe complete set. Membership was therefore re-tested against the complete walk,\nwhich KXMAMDANIMENTION-26AUG12-SAFE passes. A lip.db-based reading that showed\nthis ticker present in only 17 of 61 recent snapshots was a paging artifact, not\na membership lapse.\n\nThe hazard the choice is made against is a programme lapsing ACROSS THE MANDATED\nRESTART DRILL: every restart re-runs the active-programme walk, and a ticker that\nhas fallen out by then turns KeepAlive:true into a respawn loop against a start\nrefusal, with the run dead and nothing reporting it. This ticker's programme end\nand market close are both 2026-09-03T14:00Z -- 22 days of runway, so neither can\nfire inside a 4-6h window. Book traffic is not a qualification risk: the monitor\nticks at 1 Hz unconditionally (cmd/harness/monitor.go:65), so slot freshness\ncomes from the harness's own cadence and not from market activity.\n\nTWO OPERATING TRAPS recorded before the run rather than after:\n\n  - The restart drill must SIGKILL the harness CHILD, by pid. The launchd job's\n    argv is `/usr/bin/caffeinate -is \u003charness\u003e ...`\n    (harness/lifecycle/launchd.go:125), so caffeinate is the process launchd\n    tracks and harness is its child. `pkill -f harness` matches both, and\n    SIGKILLing caffeinate orphans a still-running harness while launchd starts a\n    second one, which the instance lock then refuses in a respawn loop. SIGTERM\n    is also wrong: it sets WINDING_DOWN and commits a durable stop\n    (main.go:300-307), which would make the rest of the window a wind-down\n    rather than an observation.\n  - paths.stop cannot end the run. It is Section 12's out-of-band halt and\n    explicitly not a drain (config.go:148-161): it stops the harness adding and\n    can never end the process. The orderly end is\n    `launchctl bootout gui/501/com.lip.harness`.\n\nEditing the config or rebuilding the binary between deploy and assessment makes\nevery restart fail with ErrMetadataMismatch (harness/qual/recorder.go:307),\nwhich under KeepAlive is a silent respawn loop. Nothing changes mid-run.\n\nStart was blocked by lip-83o: LaunchdPlan.Render() writes booleans as \u003ctrue\u003e\u003c/true\u003e and launchd rejects that form with 'Bootstrap failed: 5: Input/output error', so -deploy's plist has never been loadable. Isolated by single-variable probe agents; only the tag form predicts the failure. Working around it operator-side in ~/.lip/q01.sh, which runs plutil -convert xml1 over the installed plist before bootstrapping and asserts no paired booleans remain. The conversion is semantics-preserving -- ProgramArguments verified byte-identical across it -- so the deployed argv is still exactly what installAgent wrote, and the run's identity is unaffected. No Go was edited, so the mutation catalogue that closed lip-jy4 against dc77e3f still holds.\nATTEMPT 1 ABORTED 2026-08-12T17:33Z after ~3 minutes, on lip-9tr. Portfolio slots read observed 12 / fresh_complete 0 / incomplete_walks 12 while monitor slots were a clean 60/60, so the local bar was already unreachable and six hours would only have produced a guaranteed failure. Cause is real exchange data: fill 1582884a-1f64-7c20-fab4-b40468ad5df6 carries fee_cost \"0.017200\", six decimals, and portfolio.go:564 parses fee_cost with rest.ParsePrice4, whose measured quantum is 1e-4 dollars. convertFills errors, FILL_UNCONVERTIBLE SEV1 fires, the whole walk is discarded and the fills freshness clock does not advance -- once per 5s poll, permanently, because the fill is historical and appears in every complete walk. No operational workaround exists. The alert path worked correctly throughout: the SEV1 was delivered to the operator's phone with urgent priority within seconds, alongside the STARTUP summary and a SEV2 RESNAPSHOT_DEFERRED.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "created_at": "2026-08-05T07:08:28Z",
+    "updated_at": "2026-08-12T12:45:39Z",
+    "dependencies": [
+      {
+        "issue_id": "lip-q01",
+        "depends_on_id": "lip-8hn",
+        "type": "parent-child",
+        "created_at": "2026-08-11T13:02:33Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-q01",
+        "depends_on_id": "lip-9tr",
+        "type": "blocks",
+        "created_at": "2026-08-12T10:32:44Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-q01",
+        "depends_on_id": "lip-8hn.3",
+        "type": "blocks",
+        "created_at": "2026-08-11T14:03:55Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 2,
+    "dependent_count": 1,
+    "comment_count": 0,
+    "parent": "lip-8hn"
+  },
+  {
+    "id": "lip-34l",
+    "title": "Eight retained pilot release scenarios end to end",
+    "description": "Use lip-b1r's scenario exchange to prove the retained one-market release\nscenarios end to end as one scenario train: disconnect/half-open/wedge recovery;\nsame-coid ambiguous create and UNKNOWN bounds; ignored/partial cancel; stale or\ndivergent portfolio truth; signal/SIGKILL restart with inventory and durable\nstop; clock/close-time catch-up; 429 storm; and SQLite/alert transport failure.\n\nThis train absorbs the audit-created relay evidence for disconnect quarantine,\nposition drift, inv_hard adding-off/reducer-live, UNKNOWN escalation, general\nclock-step deadlines and shutdown authorization. Those observations share the\nscenario exchange and cmd/harness composition seam; they do not earn separate\npromotion rounds.\n\nEach scenario asserts final exchange orders, local and exchange inventory,\nglobal and market states, ownership ledger, state/anomaly records, reducer\navailability, and monitor/heartbeat liveness—not merely an intermediate\nproducer effect. Each has at least one compiling mutation and validated named\ncatcher.\n",
+    "acceptance_criteria": "All retained scenarios run deterministically against the exact candidate APIs\nand assert the final owner consumer. The scenario train closes the linked relay\nbeads on the same cumulative tree. Targeted mutations may localize work, but the\nR2 gate supplies the one full-catalogue promotion result. Rare DNS fallback and\nautomatic multi-market management remain outside CR-1.",
+    "status": "open",
+    "priority": 1,
+    "issue_type": "task",
+    "created_at": "2026-08-05T07:08:27Z",
+    "updated_at": "2026-08-11T20:02:45Z",
+    "dependencies": [
+      {
+        "issue_id": "lip-34l",
+        "depends_on_id": "lip-jw1",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:07:09Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-34l",
+        "depends_on_id": "lip-t9u",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:07:07Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-34l",
+        "depends_on_id": "lip-ytr",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:07:01Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-34l",
+        "depends_on_id": "lip-r90",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:07:03Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-34l",
+        "depends_on_id": "lip-b1r",
+        "type": "blocks",
+        "created_at": "2026-08-09T15:29:53Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-34l",
+        "depends_on_id": "lip-one",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:07:11Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-34l",
+        "depends_on_id": "lip-dgg",
+        "type": "blocks",
+        "created_at": "2026-08-09T15:29:55Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      },
+      {
+        "issue_id": "lip-34l",
+        "depends_on_id": "lip-zpo",
+        "type": "blocks",
+        "created_at": "2026-08-11T13:07:05Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 8,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-7we",
+    "title": "Ping test fixture durability wait is sensitive to CPU contention",
+    "description": "During the revival targeted mutation baseline, TestSEV1IsUrgentImmediateAndFiveMinuteDeduplicated failed in fixture.settle with Pending=1 after 200,000 Gosched iterations (0.42s) while catalogue compilation ran concurrently. Normal and race suites had passed. Replace the CPU-iteration wait with a bounded deadline and store wake notification while preserving the exact Pending==0 and result-error assertions; production code and safety gates remain unchanged.",
+    "acceptance_criteria": "Bounded wait preserves durability assertions, repeated ping tests under load pass, final integration and targeted mutation pass.",
+    "notes": "Implemented test-helper-only repair in go/harness/ping/stub_test.go: Store.Wake plus 10s elapsed-time bound replaces 200000 Gosched iterations. Both success branches preserve post-Pending==0 result drain/error assertions; writer publishes completion under same mutex as health. Ten repetitions with GOMAXPROCS=1 and ping race pass; final full module tests/race and targeted mutation baseline also pass. Initial failing receipt retained. No production/safety limit changed; no full-catalogue promotion claimed.",
+    "status": "in_progress",
+    "priority": 2,
+    "issue_type": "bug",
+    "assignee": "Hugh",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-09-26T17:59:16Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T18:10:46Z",
+    "started_at": "2026-09-26T17:59:28Z",
+    "dependencies": [
+      {
+        "issue_id": "lip-7we",
+        "depends_on_id": "lip-ivz",
+        "type": "discovered-from",
+        "created_at": "2026-09-26T10:59:16Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-12d",
+    "title": "FromWire is dead code while its doc claims it guards 7.5 adoption",
+    "description": "rest/wire.go:59-71. FromWire enforces the 1..99 cent bound (quote.MinPrice/MaxPrice) and its doc comment at wire.go:55-58 says it is used for reading resting orders back off the exchange for 7.5 adoption. It is referenced only from wire_test.go: decodeOrder and readPrice never call it.\n\nCONSEQUENCE: the read path imposes no 1..99 bound at all, so a resting order the exchange reports at 0c or 100c near settlement decodes cleanly today. Whether that bound SHOULD apply on the read path is the open question -- the adoption path arguably wants it and the doc says it has it.\n\nWHY IT IS WORTH A BEAD RATHER THAN A SHRUG: this tree already names this exact shape as a recurring failure. runtime.go:307-311 describes the two BYPASS mutations as leaving F6 'implemented, tested, and on no path the harness actually uses -- which is the shape H-CAP-8 has already had once in this tree'. A tested-but-unreachable guard is worse than no guard, because the test reports coverage of a path production does not take.\n\nRESOLVE ONE OF THREE WAYS, deliberately: wire it into the read path if the bound belongs there; delete it and drop the doc claim if it does not; or keep it with the comment corrected to say it is unused and why. Leaving it as-is is the only option that is definitely wrong.\n\nFOUND during the 2026-08-12 decode-surface inventory, not by the live sweep -- conform found 0 price refusals on real records, so nothing is failing today.",
+    "status": "open",
+    "priority": 2,
+    "issue_type": "bug",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-12T18:06:13Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-12T18:06:13Z",
+    "labels": [
+      "harness"
+    ],
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-1m5",
+    "title": "go/cmd/conform: the read-only conformance sweep",
+    "description": "ADDED 2026-08-12. A read-only prober that walks every endpoint in rest.client.go's Endpoint table with the real credentials and pushes every record through the harness's OWN decoders, one record at a time.\n\nWHY IT IS NOT scripts/pagecontract.py: that script is pure Python and reimplements cursor-walking and decoding itself, so it cannot exercise the Go decoders and has no seam to be extended at. It measures the WIRE contract; this measures our READING of it.\n\nTHE ISOLATION IS THE POINT. Every decoder in rest is first-error-wins by design -- correct for production, where a partly-understood walk must not replace state, and useless for discovery, because it reports record 0 and hides records 1..N. conform walks with the real transport (Client.Walk, so pagination and rewind defects still surface), then replays each raw record through the real typed decoder ALONE by handing it back through a Doer that answers with a synthetic one-record page. Same decoder, only the batch boundary moves.\n\nREAD-ONLY IS STRUCTURAL: getOnly sits above the transport and refuses any non-GET before a socket is touched, mirroring pagecontract.py's dry_run=True.\n\nFILTERS MUST MATCH PRODUCTION. The first run walked /incentive_programs unfiltered and reported 22,318 refusals; production sends status=active and sees none of them. The probe table now carries per-probe filters, and a probe that deliberately walks wider is marked 'latent' so its refusals are reported as risk rather than as a live defect. Anyone extending this must keep that distinction -- it is the difference between a finding and a fabrication.\n\nNOT GATED: loop/gates.sh scopes vet/gofmt/test-race to ./harness/... and ./cmd/harness/..., so this package is only compiled by 'go build ./...'. It is a diagnostic instrument and must never be imported by the harness.\n\nFIRST RUN found: 0 refusals against everything production reads (fills, orders, both position arrays, the 3,276 active programmes, balance); fee_cost is 1e-6 on all 15 fills; 8 fills would trip TAKER_FILL; the volume-programme boot hazard (lip-44s); and the 'finalized' status SEV1 (lip-t4n). It also cleared four candidate defects that would otherwise have been guessed at.",
+    "notes": "TAPE MODE ADDED and run 2026-08-12. conform -rest=false -tapes \u003cpaths\u003e streams recorded tapes through go/tape and pushes every frame through wsx.InspectFrame, which is the pure part of the wsx decode surface -- raw bytes in, classification out, no socket. This is the answer to \"replay the tapes through the harness wsx handling\"; go/cmd/replay is NOT that entry point, since it drives the frozen lip/core, lip/store and lip/tape trio instead.\n\nRESULT ACROSS FOUR TAPES, ~4.8M real recorded frames:\n  testdata/gate-tape.jsonl.gz               410,375 frames\n  archive/raw-20260724T225527Z.jsonl.gz     410,422 frames\n  raw-20260724T231211Z.jsonl.gz             2,000,000 sampled of a 7.1GB live tape\n  shadow/raw-20260725T054112Z.jsonl.gz      2,000,000 sampled of a 6.5GB tape\n  UNDELIVERABLE: 0.  GRANULARITY VIOLATIONS: 0.  In all four.\n\nSo H-CO-3a is not being violated by real traffic -- no resting book price is a non-integer cent anywhere in the sample -- and there is no frame wsx would refuse to pass to core. The websocket decode surface is clean, in contrast to the REST fee surface.\n\nONE FALSE POSITIVE WAS FOUND AND FIXED IN THIS TOOL, recorded because the next person will hit it. The first run reported exactly 1 FRAME_UNDECODABLE per large tape, with an empty example. It was not a defect: tape.Envelope carries a Universe field alongside M, and an envelope may legitimately carry no frame bytes at all. Pushing those through InspectFrame manufactures a FRAME_UNDECODABLE no real consumer would ever see. sweepTape now counts them as envelopes_without_frame and does not judge them; the count is 1 per 2M in the sampled tapes.\n\nThat is the second time filters/inputs wider than production produced a fabricated finding in this tool -- the first was walking /incentive_programs without status=active. Anyone extending conform should assume the default is wrong until it is checked against what production actually sends.\n2026-09-26 public API review identifies required refresh topics before pilot evidence: cancellation routing by market_ticker (lip-ghg), market exchange_index plus scoped balance/fundability (lip-wif), and current token-cost/429 contract (lip-q6r). August account corpus predates published shard migrations. Public documentation and fake-transport tests are not authenticated conformance evidence. Source URLs retained in notes/readiness-evidence-2026-09-26/api-review.json. No private endpoint or live write was used.\n2026-09-26 public-document cross-check: GET /portfolio/orders and /portfolio/positions omit exchange_index to include all shards. Positions defaults to subaccount 0 while orders defaults to all subaccounts. Existing client has no explicit subaccount positions query. Dedicated-account qualification must prove no non-primary exposure or supply complete per-subaccount reads before calling its flatness account-wide. This is documentation/source scope evidence, not an authenticated position observation. Sources retained in notes/readiness-evidence-2026-09-26/api-review.json.",
+    "status": "open",
+    "priority": 2,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-12T18:05:41Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-09-26T19:13:35Z",
+    "labels": [
+      "harness",
+      "tooling"
+    ],
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-1in",
+    "title": "CR-2: manage held non-selected markets across rotation",
+    "description": "CR-2, not the one-market pilot, owns dynamic management when complete account\ntruth contains positions or live orders outside the currently selected ticker.\nImplement the H-ORD-5b expansion only with selection/rotation semantics: derive\nthe managed set from authoritative truth, subscribe and maintain required books,\nmark every non-flat position honestly, reduce owned exposure, and never cancel a\nforeign order.\n\nCR-1 instead binds a dedicated clean-account precondition and refuses startup\nor durably stops on foreign activity. Do not pull this work back onto the CR-1\npath without a new operating-envelope decision.\n",
+    "acceptance_criteria": "On the future CR-2 tree, a held non-selected market is subscribed, marked and\nreduced from complete truth across restart and rotation, while foreign orders\nremain untouched. Multi-market caps, P\u0026L, schedule and monitor evidence remain\ncomplete. A selected-only mutation is caught by a composed scenario. This bead\ndoes not block q01, the S=1 canary, S=12 burn-in or one-market CR-1.",
+    "status": "open",
+    "priority": 2,
+    "issue_type": "feature",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-11T20:00:37Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-11T20:02:43Z",
+    "labels": [
+      "cr2",
+      "deferred"
+    ],
+    "dependencies": [
+      {
+        "issue_id": "lip-1in",
+        "depends_on_id": "lip-dgg",
+        "type": "discovered-from",
+        "created_at": "2026-08-11T13:07:38Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-o7a",
+    "title": "§15: restore 60s balance-poll telemetry",
+    "description": "Adjudicated in lip-7u4 (2026-08-11) under a codex directive. `cfg.Params.BalancePoll`\n(harness/cfg/params.go:56, default 60s at :134) is DECLARED AND NEVER CONSUMED --\nthere is no periodic balance-poll loop anywhere in cmd/harness. The only\nproduction balance read in the module is a single startup call,\n`s.src.Balance(ctx)` at harness/lifecycle/startup.go:673, seeding the capital\nmodel (adopt.go:83,122,164-165). `balance_poll` is listed among hstore's\n`deferredTables` (harness/hstore/schema.go:53-56, \"§15 tables the pilot cut ...\nDEFERRED, not forgotten\").\n\nWHY THIS IS NOT A SAFETY DEFECT, and therefore not CR-1-blocking.\nUnlike `position_poll_s` -- which backs H-POS-1's authoritative overwrite and\nH-POS-2's drift ladder -- `balance_poll_s` has NO independent safety or\nfreshness rule anywhere in the spec. Its sole stated purpose is §15 payout\nobservation: spec:1780 gives the row as \"every 60s | the payout is observable\nonly as a balance delta\". pilot-plan.md:110 defers it explicitly, alongside\n`position_poll`, `snap` and `uptime`, while insisting \"deleting a table does not\ndelete the fact that must be proved\". So the unread parameter is deferred\nTELEMETRY, not a dead consumer in the class of lip-lqw (inv_kill), lip-2da\n(stuck_s), lip-gp8 (pnl_kill) or lip-lpf (H-CAP-8).\n\nSCOPE: a periodic balance poll at `balance_poll_s`, writing the `balance_poll`\nrow of §15's table, plus whatever compact evidence the qualification runner\nneeds in place of the dense table.\n\nHARD CONSTRAINT -- read this before implementing.\nThe balance delta MUST NOT feed H-HALT-5's pnl. H-HALT-5 (spec:1613-1641) pins\npnl to a fills-and-cost-basis definition PRECISELY BECAUSE a balance-delta\nreading is the one an arriving LIP reward corrupts: red-team HR-021 records two\nconforming implementations disagreeing completely, where \"an incoming $100 LIP\nreward masks the drawdown entirely\". Rewards, deposits and withdrawals are\nexcluded from pnl by definition. This bead restores the observation channel for\nthe payout; it does not create a second, wrong route into the loss floor.\n\nNOT CR-1-BLOCKING. Do not add it as a dependency of lip-9j3, lip-q01 or lip-jy4.\n",
+    "status": "open",
+    "priority": 2,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-11T07:21:17Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-11T07:21:17Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-9h1",
+    "title": "The scale rung permits an S that H-CAP-8 now refuses at its own described capital",
+    "description": "Now that risk.CheckFundable runs at startup (lip-lpf, aa12067), the `scale` rung\nin cmd/harness/config.go describes a configuration the capital rule forbids.\n\n  rungs[\"scale\"] = maxS 100, human: \"6 markets, larger S, $500 -- ONLY after a\n  real payout is observed\"\n\nAt the 6 markets and $500 that string names, with §16's capital_reserve = 0.25:\n\n  deployable = $500 * 0.75 = $375\n  6 markets * S * $0.99 \u003c= $375  =\u003e  S \u003c= 63\n\nSo the rung's own cap of S=100 costs 6 * 100 * $0.99 = $594 and is refused by\nCheckFundable at every start. The largest S that actually loads at scale's\ndescribed sizing is 63, not 100.\n\nThis is the lip-afr / HR-005 class reached from a third direction: a table whose\nrecommended step cannot be started. Before lip-lpf it was latent because nothing\nconsulted fundability; the check is now live, so the rung table and the capital\nmodel disagree in a way an operator meets as a refusal.\n\nNOT URGENT: scale is the last ladder step and is gated on a real payout being\nobserved first, so nothing on the current pilot path touches it. The other three\nrungs are clear -- canary 1*1*$0.99, pilot 1*12*$0.99 = $11.88 and second\n2*12*$0.99 = $23.76 all sit inside $75 deployable at the default capital_max.\n\nDECIDE, DO NOT ASSUME: the fix is either to lower scale's maxS to 63, to raise\nthe capital_max its human string names, or to record that the rung caps S alone\nand its prose is advisory. That is a spec question about what the ladder step\nMEANS, not a code change to make silently.\n\nFound while closing lip-lpf; not by a directed audit of the rung table.",
+    "status": "open",
+    "priority": 2,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-10T22:30:00Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-10T22:30:00Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-t9u",
+    "title": "F12 partial: the §7.2 UNKNOWN protocol has no composed final-consumer test",
+    "description": "lip-7u4 pass 1 classified F12 PROVEN_WIRED for intent release only.\n\nPROVEN: M-3AF-WEDGE is caught by the composed TestAnIncompleteWriteReleasesItsIntentsRatherThanWedgingTheSide -- a write that did not complete releases its intents rather than wedging the side.\n\nUNPROVEN: the rest of F12. 'No retry' and 'SEV2 after 120s unresolved' are the clauses that bound how long a possibly-live order stays unresolved, and both are observed only at component level. lip-es6 has just made this sharper: a guarded refusal must NOT enter UNKNOWN recovery, and the distinction between refusal and ambiguity now runs through WasSent, CancelResult.Sent and applyWriteResult.\n\nOBSERVABLE: a composed run whose create times out, asserting no same-coid retry beyond RetrySameCoidMax, the order held UNKNOWN in every aggregate cap, reconciliation demanded, and exactly one SEV2 raised after 120s.",
+    "status": "open",
+    "priority": 2,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-10T15:11:05Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-10T15:11:05Z",
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-jw1",
+    "title": "F21 partial: the general deadline recompute after a clock step is unproven",
+    "description": "lip-7u4 pass 1 classified F21 PROVEN_WIRED for the close-lead half only.\n\nPROVEN: M-3AF-STALESCHED is caught by the composed TestAnUnknownCloseStopsAddingAndLeavesTheExitAlive, and M-HS-STALLCLOCK by TestWriterStallUsesMonotonicTime.\n\nUNPROVEN: F21's actual clause is 'recompute ALL deadlines from the new wall clock; never let a step skip a close lead'. Only the close lead is observed. The other wall-clock deadlines -- drain timeout, heartbeat, unresolved-fill escalation at 120s, the 1800s stuck timer, alert rate-limit buckets -- have no composed test showing them recomputed across a step.\n\nOBSERVABLE: a composed run whose wall clock steps forward and whose deadlines are all rebased, asserted on at least the drain timeout and the heartbeat alongside the close lead.",
+    "notes": "=== 2026-08-10, lip-7u4 audit: F21 is safe TODAY, but incidentally ===\nDetection half is dead: F21 shares F7's lifecycle.SleepDetector, which has zero\nproduction callers, so HOST_SLEEP_OR_STALL never fires and there is no\nrecompute-on-step logic anywhere.\n\nThe spec's critical EFFECT -- \"never let a step skip a close lead\" -- nonetheless\nholds, for a reason unrelated to F21: o.untilClose() (cmd/harness/run.go:863-868)\ncalls time.Until(o.closeAt) FRESH EVERY TICK against the live wall clock instead\nof caching a computed deadline, and the write budget refills on monotonic elapsed\n(dispatch.go:519). A clock step is therefore absorbed rather than skipped.\n\nSo this bead's \"unproven\" is accurate but understates the fragility: the property\nis currently guaranteed by the ABSENCE of caching, not by any logic that would\nsurvive someone adding a cached deadline as an optimisation. Recommend the\ncomposed test assert the property AND that a mutation introduce a cached\ndeadline, so the protection stops being incidental.",
+    "status": "open",
+    "priority": 2,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-10T15:11:03Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-10T23:51:20Z",
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-52l",
+    "title": "[loop] parked units are re-picked after every restart -- skip set is in-memory only",
+    "acceptance_criteria": "On PARK / OPERATOR_ONLY / SPEC_CONFLICT the conductor should remove the unit from bd ready durably (bd defer, or a persisted parked list in STATE.json) rather than relying on the in-memory skip set. Today every restart re-picks each parked unit and spends a codex driver turn re-deciding it. lip-9r3 is tagged operator-only and still appears in bd ready.",
+    "notes": "OPERATOR_ONLY at iteration 6: Operator-only control-plane change in loop/conductor.py: replace the in-memory-only skip behavior with a checked durable `bd defer \u003cunit\u003e` operation for direct OPERATOR_ONLY, direct SPEC_CONFLICT, rejected control-plane directives, adjudicated PARK or SPEC_CONFLICT, and max-round exhaustion. Preserve existing notes, tags, counters, and queue continuation. Add restart-level regression coverage to the control-plane gate. loop/conductor.py is hash-pinned and therefore cannot be changed by the unattended implementer.",
+    "status": "deferred",
+    "priority": 2,
+    "issue_type": "task",
+    "created_at": "2026-08-05T17:43:47Z",
+    "updated_at": "2026-08-05T18:02:03Z",
+    "labels": [
+      "operator-only"
+    ],
+    "dependencies": [
+      {
+        "issue_id": "lip-52l",
+        "depends_on_id": "lip-7vq",
+        "type": "parent-child",
+        "created_at": "2026-08-05T10:43:49Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0,
+    "parent": "lip-7vq"
+  },
+  {
+    "id": "lip-9r3",
+    "title": "check.py: mechanically enforce H-HALT-1 (no identifier named 'halt')",
+    "notes": "OPERATOR-ONLY: requires editing scripts/check.py, which is hash-pinned in the conductor's control plane. An agent editing it passes scope+gates, gets accepted, then halts the run at the next drift check. Diagnosed by the loop's own implement turn, which correctly refused to write. Do this by hand.\nOPERATOR_ONLY at iteration 7: Operator-only change to scripts/check.py: extend the normal Go-source scan, including test files, to reject any exact Go identifier token named `halt` and report its file, line, and H-HALT-1. This file is hash-pinned and must not be changed by the unattended implementer.",
+    "status": "deferred",
+    "priority": 2,
+    "issue_type": "task",
+    "created_at": "2026-08-05T07:09:54Z",
+    "updated_at": "2026-08-05T18:02:04Z",
+    "labels": [
+      "operator-only"
+    ],
+    "dependencies": [
+      {
+        "issue_id": "lip-9r3",
+        "depends_on_id": "lip-9v2",
+        "type": "parent-child",
+        "created_at": "2026-08-05T00:09:55Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0,
+    "parent": "lip-9v2"
+  },
+  {
+    "id": "lip-428",
+    "title": "SPEC PATCH: rename disconnect_halt_s -\u003e disconnect_reduce_s (H-HALT-1 forbids the identifier)",
+    "notes": "OPERATOR_ONLY at iteration 9: Operator-only edit to the hash-pinned notes/harness-spec.md: rename both published occurrences of `disconnect_halt_s` to `disconnect_reduce_s`—the F4 failure-mode row and the §16 parameter-table row—without changing the 60-second default, units, trigger, scope, response, cancellation behavior, or severity. No implementation-agent file changes belong in this parked unit.\nOPERATOR_ONLY at iteration 12: An operator must edit the hash-pinned notes/harness-spec.md only, replacing both published occurrences of `disconnect_halt_s`—the F4 failure name and the §16 parameter name—with `disconnect_reduce_s`; no implementation-agent changes belong in this unit.",
+    "status": "deferred",
+    "priority": 2,
+    "issue_type": "task",
+    "created_at": "2026-08-05T07:09:46Z",
+    "updated_at": "2026-08-05T18:04:34Z",
+    "labels": [
+      "operator-only"
+    ],
+    "dependencies": [
+      {
+        "issue_id": "lip-428",
+        "depends_on_id": "lip-9v2",
+        "type": "parent-child",
+        "created_at": "2026-08-05T00:09:47Z",
+        "created_by": "Hugh",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0,
+    "parent": "lip-9v2"
+  },
+  {
+    "id": "lip-63b",
+    "title": "SPEC PATCH: reconcile stale post-red-team clauses",
+    "description": "The SHA-pinned harness spec contains post-red-team clauses that cannot all be\nimplemented literally. This is an operator-only dedicated spec-patch unit; an\nordinary implementation turn must not edit notes/harness-spec.md.\n\nReconcile these stale contradictions without changing the already-tested\ncanonical behaviour:\n\n1. H-ORD-2/H-ORD-4a/F12/A10/V4.11 say an ambiguous create is never retried,\n   while H-ORD-2b requires same-coid retry up to three times after measured 409\n   deduplication. Canonical rule: retry only the identical coid and byte-identical\n   payload; never a new coid; unresolved remains UNKNOWN.\n2. F19 says keep trading and use an on-disk journal, while H-STORE-3 says a\n   persistence failure stops adding and explicitly rejects disk journal as a\n   disk-failure fallback. H-STORE-3's later rule wins.\n3. H-TOP-4 gives hstore to owner, while H-STORE-2 requires a dedicated writer.\n   The topology table must name the dedicated writer.\n4. V4.2 says a clean-disconnect book is retained, while H-FAIL-5 requires every\n   disconnected book to remain non-actionable until resnapshot plus portfolio\n   reconciliation. Diagnostic retention is permitted; actionability is not.\n5. The header calls close_lead_keep_reducing unresolved, while §§9, 16, and 19\n   set it true on argument. The header must reflect the recorded resolution.\n\nAcceptance: make one quarantined spec-only diff, audit it against the original\nrules and current production tests, update the pinned checksum through the\noperator-controlled mechanism, and run the full gate. No runtime behaviour is\nadded in this bead.",
+    "status": "deferred",
+    "priority": 3,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-09T22:29:27Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-09T22:29:29Z",
+    "labels": [
+      "spec-patch"
+    ],
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-4nb",
+    "title": "Three files cite harness-spec §3.8, a section the spec does not contain",
+    "description": "`cmd/harness/run.go`, `harness/lifecycle/startup.go` and `scripts/harness_negative_control.py` all cite \"§3.8\" for the rule that the global state advances once per tick. A grep of notes/harness-spec.md, harness-spec.md.bak-preredteam, harness-redteam.md and harness-redteam-raw.md for the literal '3.8' returns ZERO matches: section 3 is 'Topology' and its subsections are named H-TOP-1..H-TOP-5, never numbered 3.N.\n\nThe invariant the citation is gesturing at is H-HALT-2 (harness-spec.md:1651): 'There is exactly one place in the codebase that transitions the global state, and exactly one that transitions a market's state. Both write a state_event row with the trigger.' That is a claim about the FUNCTION, not about calls per tick -- a weaker and different claim than the code asserted.\n\nrun.go's citation was corrected by lip-xdq, which also had to correct the claim itself: `owner.advance` is called twice on the tick a §12 cause becomes durable. The other two are untouched.\n\nFound by a survey during lip-xdq. Low priority: it misleads a reader rather than breaking anything.",
+    "status": "open",
+    "priority": 4,
+    "issue_type": "task",
+    "assignee": "Hugh",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-09T04:51:48Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-09T22:29:44Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-qhi",
+    "title": "requote_interval_s is a dead parameter and a spec inconsistency - record, do not implement",
+    "description": "DO NOT IMPLEMENT WITHOUT A DECISION. Implementing it would be a deviation, not\na fix.\n\n`requote_interval_s` (§16, \"5.0 s/side/market\", cites §6.6) occurs EXACTLY ONCE\nin the whole ~2300-line spec: its own §16 table row.\n- §6.6, the section it cites, defines the P0-P4 priority queue, the\n  anti-starvation promotion, and a GLOBAL write-rate bucket. It never mentions a\n  per-side minimum interval.\n- §6.5, the actual requote policy, bounds requoting with H-Q-6 (only requote\n  when the reference moves against us), H-Q-7 (250ms debounce on the new touch\n  HOLDING) and H-Q-8 (stranded brake). It never mentions it either.\n- Every other requote-adjacent §16 row traces to a numbered rule\n  (debounce_s -\u003e H-Q-7, stale_bid_ticks -\u003e H-Q-8) or to §6.6's own prose\n  (max_queue_age, write_rate, write_burst). This is the only row in the cluster\n  whose cited section does not define it.\n\nIN CODE: cfg/params.go:47 (declaration), :127 (default 5s), plus two config\ntests. `Params.Validate()` does not bounds-check it. cmd/harness's fileConfig\nhas no `requote_interval_s` key, so the operator cannot even set it. No runtime\npath reads it.\n\nITS ONLY LIVE ANCESTOR is the superseded Python prototype probebot.py:430,\nwhere the identically-named knob WAS a real per-side cooldown\n(`time.monotonic() - last_requote[side] \u003e= requote_interval_s`) against a\ndifferent, now-superseded spec (notes/phase2-spec.md).\n\nARGUMENT AGAINST IMPLEMENTING: a 5s per-side cooldown would delay H-Q-8's\nstranded-brake snap-back, which §6.5 says to perform \"regardless of which\ndirection it moved\". The spec's own stated rate-control mechanism is H-Q-7's\n250ms debounce, chosen with an explicit argument about order rate.\n\nWHAT DOES BOUND REQUOTE RATE TODAY: H-Q-7's 250ms condition-persistence\ndebounce (per side), and the global write bucket (write_rate 5/s, burst 10,\nshared across every market, side and write reason). Neither is a per-(market,\nside) minimum spacing. Note harness-spec.md is SHA-pinned, and\ncfg/params_test.go asserts the §16 table field-for-field, so the FIELD must\nstay whatever is decided about the behaviour.\n",
+    "status": "open",
+    "priority": 4,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-08T18:05:04Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-09T22:29:45Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-cb0",
+    "title": "RED-TEAM FIRST (do not implement): depth-depletion requote hypothesis",
+    "description": "STATUS: UNEXAMINED HYPOTHESIS. Not approved, not scheduled, not designed.\n\nDO NOT IMPLEMENT. DO NOT FLESH OUT. The next action on this bead is a RED TEAM\nwhose job is to KILL the idea, not to plan it. Only if it survives that does\nanyone discuss whether it is worth designing. Filed at the operator's request in\nexactly those terms.\n\n--- THE IDEA, VERBATIM (Hugh, 2026-08-06) ---\n\n(1) \"also can you make note of something I have been thinking of directionally,\nof course there is an order book and we are likely placing orders at the most\ncompetitive price, but may not be first in queue, in some instances it will be\nimpossible for us to anctipate being filled, but if we can detect orders in front\nof us being filled or momentum in orders being filled, we can cancel and move our\nresting orders, I do not know if this is already part of the plan, make some note\nof it to be investigated later after the current to do work is done\"\n\n(2) \"well if we do not know queue position but we do know the volume of orders at\nour price, we can set a threshold in which if we are not filled before, the\nthreshold being a portion-al decrease in the number of resting orders at our\nprice, and then a set wait time before requoting to see if market will move\"\n\n--- WHAT THE RED TEAM MUST TRY TO ESTABLISH ---\n\nEach of these is a way the idea DIES. The red team's success condition is proving\none of them, not surveying them.\n\nR1. The signal is not observable well enough to act on. Our own resting size must\n    be subtracted from the level (quote/external.go OverSubtracted documents that\n    our OWN fill leaves the book before the fill report arrives, so the model\n    claims size the book no longer shows). Delta loss and resync gaps compound\n    it. If depth-at-our-price is only approximately known, a proportional\n    threshold on it is noise.\n\nR2. The signal does not separate informed flow from ordinary churn. Depth at a\n    level falls constantly for benign reasons. Cancels and trades both reduce it\n    and mean opposite things. If the base rate of benign depletion swamps the\n    adverse case, the detector fires mostly on nothing.\n\nR3. The RESPONSE is net-negative under LIP scoring even if the signal is real.\n    Presence gaps are revenue (S4). harness-spec.md:478-492 already declines a\n    real scoring gain -- 50.0% -\u003e 66.7% presence by improving a tick -- BECAUSE\n    the adverse selection cost more. This proposal trades in the other direction:\n    it gives up presence to avoid adverse selection. The same arithmetic has to\n    be run, and it may come out the same way it did there.\n\nR4. It cannot be honestly validated. harness-spec.md:1950: \"Queue position is\n    explicitly unobservable and is never assumed.\" The V2 simulator therefore\n    ENUMERATES legal fill outcomes per print and asserts over the range rather\n    than producing a fill. A strategy whose whole value is about WHEN we fill\n    cannot be scored in a simulator that deliberately refuses to say. If it can\n    only be evaluated live, it cannot be evaluated cheaply.\n\nR5. It strains rules already argued and settled. H-Q-3 (never take, structurally\n    enforced), H-Q-9 (place-then-cancel ordering, adding side only), §6.6's\n    write_rate / write_burst budget and max_queue_age, and the debounce. More\n    requoting spends a rate budget that exists for a reason.\n\nR6. It is a strategy change dressed as a safety mechanism. Everything the harness\n    currently does on the quoting path is derived from a numbered rule with a\n    loss attached to it. This is derived from an intuition. That asymmetry is\n    itself an argument for leaving it out of the pilot entirely.\n\n--- WHAT IS ALREADY TRUE (facts, established 2026-08-06, not an endorsement) ---\n\n- Nothing in the trading path reads prints. wsx subscribes to the 'trade' channel\n  and frame.go inspectTrade CLASSIFIES ONLY; no consumer acts on a print.\n- quote.RequoteInput has no fill or trade input at all. Every requote trigger is\n  \"the touch moved\" or \"we are stranded\" (H-Q-8).\n- Depth at an arbitrary price IS available: core.Levels.Get(price),\n  core.Book.ApplyDelta, and Book.Checkpoint/StateBefore for history.\n- The awkward quantity is already computed for another rule: quote.ExternalBest\n  (H-Q-10) reads the best price bid by somebody OTHER than us, with our own\n  resting size subtracted.\n- core/rig.go:13-40 carries a load-bearing RETRACTION: trade_through is \"heavily\n  enriched for genuine fills but is not causally clean\", because maker-side\n  self-trade prevention and a cancel landing just before a sweep both produce the\n  same observation. An earlier Python version wrongly claimed it was proof.\n\nFraming (2) avoids that retraction -- it measures depletion of our own level from\ndeltas rather than inferring our fill from a print -- which is why it is worth\nred-teaming at all rather than dismissing.\n\nNOTHING BELOW HAS BEEN DECIDED: threshold fraction, wait duration, whether the\nresponse is cancel-and-move or hold, which side it applies to, or whether it\nbelongs in the pilot at all. Do not invent them.",
+    "status": "open",
+    "priority": 4,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-06T19:52:41Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-09T22:29:47Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 1
+  },
+  {
+    "id": "lip-0ns",
+    "title": "rest: Fills() walks all account history every call; backfill_h is client-side",
+    "description": "harness/rest/read.go Fills() does a COMPLETE cursor walk then filters by `since` client-side. That is correct per H-PAGE-1 clause 2 (a server-side early stop on timestamp would make the walk incomplete, and only a complete walk may replace state), and it is fine for the pilot: 15 fills on the account, one market, days. It does not scale — at a 5s poll over months the walk grows without bound. Options when it matters: (a) measure whether /portfolio/fills honours min_ts and whether a bounded read still counts as complete for its window, (b) keep a durable high-water mark in harness.db and walk only until the first already-seen fill_id, treating THAT as the completeness criterion. Neither is safe to assume; both need the V1.8a treatment (measure, record, then code).",
+    "status": "open",
+    "priority": 4,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-05T21:08:40Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-09T22:29:48Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-ld9",
+    "title": "Side is duplicated between harness/quote and harness/risk",
+    "description": "go/harness/quote/queue.go defines Side{SideYes,SideNo} and go/harness/risk/snapshot.go defines Side{Yes,No}. They cannot be shared as written: risk imports quote, so quote importing risk would be a cycle. num's doc comment records the same layering problem for Qty and solves it by putting the type in the leaf. Consider moving Side to num (or below both), and have risk and quote use the one type, so a caller cannot mix them up at the harness/rest boundary.",
+    "status": "open",
+    "priority": 4,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-05T18:23:52Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-09T22:29:49Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-7k2",
+    "title": "quote: cancel-group class when one (market,side) group mixes adding and reducing cancels",
+    "description": "§6.6/H-QUE-3 coalesces pending cancels per (market, side). go/harness/quote/queue.go takes the group's effective class as its most urgent member's. If a group ever contained BOTH an adding-side standalone cancel (P0) and a reducing-side cancel-confirm-place first leg (P1, H-QUE-2), the single DELETE would go out at P0 with the bucket bypass H-QUE-2 denies a reducing cancel. The spec does not address the case and it is unreachable from a coherent caller (a market side is either adding or reducing at one instant), so nothing was invented for it. Decide the rule and pin it, or state that it cannot occur.",
+    "status": "open",
+    "priority": 4,
+    "issue_type": "task",
+    "owner": "hugh@shiftiq.ai",
+    "created_at": "2026-08-05T18:23:50Z",
+    "created_by": "Hugh",
+    "updated_at": "2026-08-09T22:29:50Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "lip-7vq",
+    "title": "EPIC LOOP — the unattended two-agent orchestration harness itself",
+    "acceptance_criteria": "The loop runs unattended for a full night without: editing a frozen or read-only path, weakening a gate, editing harness-spec.md outside an audited spec-patch unit, or going silent. It must be stoppable by one file touch and must report its own death.",
+    "status": "open",
+    "priority": 4,
+    "issue_type": "task",
+    "created_at": "2026-08-05T07:08:30Z",
+    "updated_at": "2026-08-09T22:29:43Z",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  }
+]

@@ -8,7 +8,9 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
+	"lip/harness/cfg"
 	"lip/harness/wsx"
 )
 
@@ -64,12 +66,30 @@ func TestPortfolioTruthHasNoPublicBypass(t *testing.T) {
 	if _, ok := read.MethodByName("CompletedAt"); !ok {
 		t.Fatal("PortfolioRead has no CompletedAt accessor")
 	}
+	startedAt, ok := read.MethodByName("StartedAt")
+	if !ok {
+		t.Fatal("PortfolioRead has no StartedAt accessor")
+	}
+	wantStartedAt := reflect.TypeOf(func(wsx.PortfolioRead, wsx.Truth) wsx.Stamp { return wsx.Stamp{} })
+	if startedAt.Type != wantStartedAt {
+		t.Fatalf("PortfolioRead.StartedAt has type %s, want exact read-only diagnostic signature %s", startedAt.Type, wantStartedAt)
+	}
+
+	// StartedAt returns a Stamp value, so callers cannot mutate the private
+	// read by changing a returned diagnostic. Check the zero-value path too.
+	zeroRead := wsx.PortfolioRead{}
+	stamp := zeroRead.StartedAt(wsx.TruthFills)
+	stamp.WallMs = 1
+	stamp.Mono = 1
+	if got := zeroRead.StartedAt(wsx.TruthFills); got != (wsx.Stamp{}) {
+		t.Fatalf("mutating a returned StartedAt stamp changed PortfolioRead: %+v", got)
+	}
 
 	// A private field with an exported setter is the same hole with one more
-	// step in it, so the exported method set is pinned to the two read-only
-	// accessors. Both value and pointer receivers are checked: a mutator would
-	// naturally be written on the pointer.
-	allowed := map[string]bool{"Seq": true, "CompletedAt": true}
+	// step in it, so the exported method set is pinned to the read-only
+	// diagnostic accessors. Both value and pointer receivers are checked: a
+	// mutator would naturally be written on the pointer.
+	allowed := map[string]bool{"Seq": true, "CompletedAt": true, "StartedAt": true, "RateLimits": true}
 	for _, typ := range []reflect.Type{read, reflect.PointerTo(read)} {
 		for i := 0; i < typ.NumMethod(); i++ {
 			if name := typ.Method(i).Name; !allowed[name] {
@@ -101,6 +121,78 @@ func TestPortfolioTruthHasNoPublicBypass(t *testing.T) {
 		if tok.Field(i).IsExported() {
 			t.Fatalf("ReconcileToken exports %s, so a caller can forge one "+
 				"for the current generation", tok.Field(i).Name)
+		}
+	}
+}
+
+// TestCrossCheckHasNoPublicBypass is the structural half of F5's agree branch.
+//
+// The branch is new and it is the only thing in this package that can return a
+// market to QUOTING without a websocket snapshot: `NoteCrossCheck(tok,
+// CrossCheckAgree, ...)` resets the staleness clock and clears the hold that
+// stops placement. So the token is the whole of its safety, and everything that
+// makes a token forgeable is asserted absent from the exported surface rather
+// than merely unused today.
+//
+// The shapes that reach around it are the same two `TestPortfolioTruthHasNoPublicBypass`
+// names, one layer along:
+//
+//   - exported fields on `CrossCheckToken`, so a caller can build one for the
+//     current generation and declare a silent book verified;
+//   - an exported `Gate` method that clears the hold, resets the clock or marks
+//     a market checked WITHOUT a token -- a `SetActionable(true)` reachable from
+//     a REST response.
+//
+// The behavioural half is that a token nobody was issued is refused, which is
+// checked here from OUTSIDE the package, where a test cannot reach a private
+// field to make it true.
+func TestCrossCheckHasNoPublicBypass(t *testing.T) {
+	tok := reflect.TypeOf(wsx.CrossCheckToken{})
+	for i := 0; i < tok.NumField(); i++ {
+		if tok.Field(i).IsExported() {
+			t.Fatalf("CrossCheckToken exports %s, so a caller can forge one for "+
+				"the current generation and reset a wedged market's staleness "+
+				"clock without any read having happened", tok.Field(i).Name)
+		}
+	}
+	var zero wsx.CrossCheckToken
+	if zero.Valid() {
+		t.Fatal("the zero CrossCheckToken reports itself valid")
+	}
+
+	// The gate's only cross-check entry point is the one that takes a token.
+	// Anything shaped like "mark this market checked" or "clear the quiet hold"
+	// is the bypass, whatever it is called.
+	gate := reflect.TypeOf(&wsx.Gate{})
+	for i := 0; i < gate.NumMethod(); i++ {
+		name := strings.ToLower(gate.Method(i).Name)
+		for _, banned := range []string{
+			"setcrosscheck", "clearquiet", "markchecked", "setquiet",
+			"resetquiet", "notequiet",
+		} {
+			if strings.Contains(name, banned) {
+				t.Fatalf("*Gate exports %s: F5's agree branch must be reachable "+
+					"only through a token the gate itself issued",
+					gate.Method(i).Name)
+			}
+		}
+	}
+
+	// And the refusal is real, not merely undocumented. A forged token cannot
+	// be made current from out here, so an accepted one would be a gate that
+	// checks nothing.
+	g, err := wsx.NewGate([]string{"KXSEAL-26AUG08-T1"}, cfg.Default())
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := wsx.Stamp{WallMs: 1_700_000_000_000, Mono: time.Minute}
+	g.OnConnect(now)
+	for _, out := range []wsx.CrossCheckOutcome{
+		wsx.CrossCheckAgree, wsx.CrossCheckDisagree,
+		wsx.CrossCheckGranularity, wsx.CrossCheckUnavailable,
+	} {
+		if eff := g.NoteCrossCheck(zero, out, "forged", now); eff.Accepted {
+			t.Fatalf("the zero CrossCheckToken was accepted for outcome %v", out)
 		}
 	}
 }

@@ -1,0 +1,77 @@
+{
+  "connections": 2,
+  "disconnects": 1,
+  "events": [
+    {
+      "utc": "2026-09-26T23:22:34.119137Z",
+      "event": "connected",
+      "connection": 1
+    },
+    {
+      "utc": "2026-09-26T23:22:34.20117Z",
+      "event": "book_subscribed",
+      "connection": 1,
+      "sid": 1
+    },
+    {
+      "utc": "2026-09-26T23:22:34.201204Z",
+      "event": "snapshot",
+      "connection": 1,
+      "sid": 1
+    },
+    {
+      "utc": "2026-09-26T23:22:34.201231Z",
+      "event": "get_snapshot_wire",
+      "sid": 1
+    },
+    {
+      "utc": "2026-09-26T23:22:34.283651Z",
+      "event": "snapshot",
+      "connection": 1,
+      "sid": 1
+    },
+    {
+      "utc": "2026-09-26T23:22:34.283657Z",
+      "event": "forced_socket_close",
+      "connection": 1,
+      "sid": 1
+    },
+    {
+      "utc": "2026-09-26T23:22:34.372466Z",
+      "event": "disconnected",
+      "connection": 1
+    },
+    {
+      "utc": "2026-09-26T23:22:35.655101Z",
+      "event": "connected",
+      "connection": 2
+    },
+    {
+      "utc": "2026-09-26T23:22:35.739442Z",
+      "event": "book_subscribed",
+      "connection": 2,
+      "sid": 1
+    },
+    {
+      "utc": "2026-09-26T23:22:35.7395Z",
+      "event": "snapshot",
+      "connection": 2,
+      "sid": 1
+    },
+    {
+      "utc": "2026-09-26T23:22:35.739533Z",
+      "event": "get_snapshot_wire",
+      "sid": 1
+    },
+    {
+      "utc": "2026-09-26T23:22:35.828287Z",
+      "event": "snapshot",
+      "connection": 2,
+      "sid": 1
+    }
+  ],
+  "financial_requests": 0,
+  "requested_snapshots_received": 2,
+  "scope": "Production websocket supervisor/session data subscription and snapshot protocol only; not the full owner/portfolio process and not q01 qualification.",
+  "success": true
+}

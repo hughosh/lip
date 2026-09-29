@@ -186,6 +186,9 @@ type Order struct {
 	Fractional bool
 	Remaining  num.Qty
 	Status     string
+	// LastUpdate is the record's own `last_update_time`, verbatim. It is
+	// diagnostic only (the sweep trace, lip-kaf); nothing decides on it.
+	LastUpdate string
 	// Ours is true when the coid parses as one of ours (any run). H-ORD-5 step
 	// 5 turns a false here into `SEV2 FOREIGN_ORDER`; what that means depends on
 	// whether we are still in STARTING, which is the lifecycle's call, not this
@@ -283,6 +286,7 @@ func decodeOrder(raw json.RawMessage) (Order, []risk.Anomaly, error) {
 		o.Ticker = scalar(rec["market_ticker"])
 	}
 	o.Status = scalar(rec["status"])
+	o.LastUpdate = scalar(rec["last_update_time"])
 	if o.OrderID == "" {
 		return Order{}, nil, fmt.Errorf("no order_id")
 	}
@@ -696,11 +700,14 @@ type ProgramsResult struct {
 // universe does not produce a wrong number -- it produces "not listed", which
 // this harness treats as a refusal to start on a market that is in fact paying.
 //
-// `status=active` is the same filter `feed.Universe` sends. It is a server-side
-// filter on a field this walk never reads, so it cannot be re-derived here.
+// `status=active` is the same filter `feed.Universe` sends. `type=liquidity`
+// excludes active volume programs, which need not have a Target Size and would
+// otherwise fail the whole walk before we can find the selected LIP ticker.
+// Both are server-side filters on fields this walk never reads.
 func (c *Client) Programs(ctx context.Context) ProgramsResult {
 	filters := url.Values{}
 	filters.Set("status", "active")
+	filters.Set("type", "liquidity")
 
 	w := c.Walk(ctx, EpPrograms, filters)
 	if !w.Replaces() {
@@ -762,6 +769,9 @@ func (c *Client) Balance(ctx context.Context) (Balance, error) {
 		return Balance{}, err
 	}
 	if resp.Status != 200 {
+		if resp.Status == 429 {
+			return Balance{}, fmt.Errorf("balance: %w", rateLimitError(resp))
+		}
 		return Balance{}, fmt.Errorf("balance: HTTP %d: %s",
 			resp.Status, snippet(resp.Body))
 	}

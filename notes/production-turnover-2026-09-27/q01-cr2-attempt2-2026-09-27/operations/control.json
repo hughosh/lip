@@ -1,0 +1,10 @@
+{
+  "started_at": "2026-09-27T18:29:57.052300+00:00",
+  "stop_after_unix": 1790534697.052504,
+  "interval_seconds": 15,
+  "backup_configured": false,
+  "primary_route_config_location": "/Users/hugh/.kalshi/env:NTFY_TOPIC",
+  "operator": "Hugh; human receipt pending",
+  "user_choice": "Do not worry about a backup, go through ntfy",
+  "source_db": "/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/runtime/harness.db"
+}

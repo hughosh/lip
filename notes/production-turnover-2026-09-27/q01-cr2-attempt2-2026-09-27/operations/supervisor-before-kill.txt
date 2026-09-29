@@ -1,0 +1,74 @@
+gui/501/com.lip.ops.ntfy.drill.20260927 = {
+	active count = 1
+	path = /Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/operations/scheduler.plist
+	type = LaunchAgent
+	state = running
+
+	program = /Users/hugh/kek/.venv/bin/python
+	arguments = {
+		/Users/hugh/kek/.venv/bin/python
+		/Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/operations/scheduled_drill.py
+	}
+
+	working directory = /Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/operations
+
+	stdout path = /Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/operations/scheduler.out
+	stderr path = /Users/hugh/kek/lip/notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/operations/scheduler.err
+	inherited environment = {
+		SSH_AUTH_SOCK => /private/tmp/com.apple.launchd.2Q6t9qdajG/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		XPC_SERVICE_NAME => com.lip.ops.ntfy.drill.20260927
+	}
+
+	domain = gui/501 [100002]
+	asid = 100002
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 6
+	pid = 99524
+	immediate reason = interval
+	forks = 0
+	execs = 1
+	initialized = 1
+	trampolined = 1
+	started suspended = 0
+	proxy started suspended = 0
+	checked allocations = 0 (queried = 1)
+	checked allocations reason = no host
+	checked allocations flags = 0x0
+	last exit code = 0
+
+	resource coalition = {
+		ID = 238573
+		type = resource
+		state = active
+		active count = 1
+		name = com.lip.ops.ntfy.drill.20260927
+	}
+
+	jetsam coalition = {
+		ID = 238574
+		type = jetsam
+		state = active
+		active count = 1
+		name = com.lip.ops.ntfy.drill.20260927
+	}
+
+	spawn type = daemon (3)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	jetsam thread limit = 32
+	cpumon = default
+	run interval = 15 seconds
+
+	properties = runatload | inferred program
+}

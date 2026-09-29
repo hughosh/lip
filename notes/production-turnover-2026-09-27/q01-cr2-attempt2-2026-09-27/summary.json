@@ -1,0 +1,119 @@
+{
+  "at": "2026-09-27T18:50:03.042628+00:00",
+  "binary_sha256": "sha256:ecf16ea19c4f0e05dad8cce0c261d6e6f2204eeb8f9615913a79b54816b311c6",
+  "config_sha256": "sha256:c837f27045061a7d9ac908702f23ad037430518325851834fecd51ccba5a96de",
+  "local_q01_pass": false,
+  "failed_on_shutdown": true,
+  "assessment": {
+    "scope": "local_evidence_only",
+    "local_requirements_met": false,
+    "elapsed": 1230625803116,
+    "above_guard_non_get": 0,
+    "below_guard_non_get": 0,
+    "would_write_observations": 268243,
+    "historical_unclean_segments": 1,
+    "expected_monitor_slots": 1232,
+    "observed_monitor_slots": 1230,
+    "fresh_monitor_slots": 1228,
+    "monitor_fresh_slot_ratio": 0.9967532467532467,
+    "expected_portfolio_slots": 248,
+    "observed_portfolio_slots": 246,
+    "fresh_complete_portfolio_slots": 246,
+    "portfolio_fresh_complete_slot_ratio": 0.9919354838709677,
+    "protocol_deviations": [],
+    "external_outstanding": [
+      "real-account, real-feed, launchd, and caffeinate provenance",
+      "operator provenance and timestamps for forced qualification actions",
+      "alert-provider receipt and proof that a missed-heartbeat alarm fired"
+    ],
+    "failures": [
+      {
+        "code": "q01_unexpected_anomaly",
+        "category": "anomaly",
+        "name": "SEV1:ANOMALY_SUBMISSION_FAILED",
+        "detail": "q01 recorded forbidden anomaly \"SEV1:ANOMALY_SUBMISSION_FAILED\""
+      },
+      {
+        "code": "q01_unexpected_anomaly",
+        "category": "anomaly",
+        "name": "SEV1:STORE_UNHEALTHY",
+        "detail": "q01 recorded forbidden anomaly \"SEV1:STORE_UNHEALTHY\""
+      }
+    ]
+  },
+  "transport_GETs": 3802,
+  "transport_non_GETs": 0,
+  "above_below_equal": true,
+  "portfolio": {
+    "walks": 249,
+    "fresh": 249,
+    "stale": 0,
+    "complete": 249,
+    "incomplete": 0,
+    "fresh_complete": 249,
+    "last_walk_at": "2026-09-27T18:47:42.333558Z",
+    "last_fresh_at": "2026-09-27T18:47:42.333558Z",
+    "last_complete_at": "2026-09-27T18:47:42.333558Z"
+  },
+  "store_counts": {
+    "run": 2,
+    "owned_order": 0,
+    "our_fill": 0,
+    "state_event": 11,
+    "anomaly": 109,
+    "balance_poll": 246
+  },
+  "store_anomaly_counts": {
+    "BOOK_CROSSCHECK_AGREED": 34,
+    "BOOK_QUIET": 34,
+    "FOREIGN_FILL_INHERITED": 30,
+    "FUNDING_LIMITS": 2,
+    "SIGNAL_DRAIN": 1,
+    "STARTUP": 2,
+    "TURNOVER_MANAGED": 2,
+    "TURNOVER_SELECTION": 2,
+    "WRITE_NOT_BUILDABLE": 1,
+    "WS_DISCONNECT": 1
+  },
+  "journal_anomaly_counts": {
+    "FUNDING_LIMITS": 2,
+    "TURNOVER_MANAGED": 2,
+    "STARTUP": 2,
+    "FOREIGN_FILL_INHERITED": 30,
+    "TURNOVER_SELECTION": 2,
+    "BOOK_QUIET": 34,
+    "BOOK_CROSSCHECK_AGREED": 34,
+    "WS_DISCONNECT": 1,
+    "SIGNAL_DRAIN": 1,
+    "WRITE_NOT_BUILDABLE": 1
+  },
+  "qualification_anomaly_counts": {
+    "ANOMALY_SUBMISSION_FAILED": 1,
+    "STORE_UNHEALTHY": 1,
+    "BOOK_QUIET": 34,
+    "FOREIGN_FILL_INHERITED": 30,
+    "SIGNAL_DRAIN": 1,
+    "WRITE_NOT_BUILDABLE": 1,
+    "WS_DISCONNECT": 1,
+    "BOOK_CROSSCHECK_AGREED": 34,
+    "FUNDING_LIMITS": 2,
+    "STARTUP": 2,
+    "TURNOVER_MANAGED": 2,
+    "TURNOVER_SELECTION": 2
+  },
+  "account_final": {
+    "ended_at": "2026-09-27T18:48:40.318348Z",
+    "complete": true,
+    "flat": true,
+    "open_orders": 0,
+    "nonzero_positions": 0,
+    "fills": {
+      "outcome": "complete",
+      "pages": 1,
+      "count": 15
+    }
+  },
+  "financial_stage_observed": false,
+  "process_exit": 0,
+  "new_bug": "lip-3dw"
+}

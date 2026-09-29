@@ -82,9 +82,9 @@ func TestTransformAllNinetyNinePrices(t *testing.T) {
 			}
 			if backSide != side || backPrice != p {
 				t.Fatalf("%s at %dc round-tripped to %s at %dc: §7.5's startup "+
-					"adoption reads orders back off the exchange, and a "+
-					"reconciliation that mistook a NO bid at 42c for a YES bid "+
-					"at 58c would adopt the position with the wrong sign",
+					"adoption must interpret a NO bid at 42c as NO at 42c, not "+
+					"YES at 58c; this helper tests the inverse transform, while "+
+					"the exchange read path decodes its fields directly",
 					side, p, backSide, backPrice)
 			}
 		}
