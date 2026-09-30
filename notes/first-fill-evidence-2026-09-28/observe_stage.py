@@ -83,6 +83,7 @@ def main():
     ap.add_argument("--interval", type=float, default=10)
     ap.add_argument("--max-minutes", type=float, default=120)
     a = ap.parse_args()
+    a.stage = a.stage.resolve()  # store() builds a file: URI, which needs an absolute path
     db = a.stage / "runtime/harness.db"
     latch = a.stage / "runtime/harness.halt"
     log = a.stage / "evidence" / a.log
