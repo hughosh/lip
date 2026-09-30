@@ -4849,19 +4849,54 @@ MUTATIONS.extend([
      "TestSweepUnverifiedReadNeitherStartsNorEndsAnEpisode"),
 ])
 
-# lip-2w3: the F5 cross-check forgives exactly one adjacent floating-point step
-# below half a cent. A wider tolerance hides a real size disagreement.
+# lip-2w3, re-anchored by lip-2mz onto the grid comparison: a tolerance wider
+# than one 0.01-contract quantum hides a real size disagreement.
 MUTATIONS.extend([
     ("M-2W3-WIDE-TOLERANCE", "treat any size within two cents as the same book size",
      [("harness/rest/orderbook.go",
-       "\treturn a == b || (math.Nextafter(a, b) == b && math.Abs(a-b) < 0.005)\n",
-       "\treturn a == b || math.Abs(a-b) < 0.02\n")],
+       "\treturn okA && okB && qa == qb\n",
+       "\treturn okA && okB && qa-qb <= 2 && qb-qa <= 2\n")],
      "TestCompareBooksSizePrecisionAtDepth"),
     ("M-2W3-OWNED-UNDERSHOOT", "accept a book that shows up to two cents less than our own resting size",
      [("harness/rest/orderbook.go",
-       "if !validBookSize(have) || (have < own.Size.Float() && !sameBookSize(have, own.Size.Float())) {",
-       "if !validBookSize(have) || have < own.Size.Float()-0.02 {")],
+       "if q, ok := bookQty(have); !ok || q < own.Size {",
+       "if q, ok := bookQty(have); !ok || q < own.Size-2 {")],
      "TestCompareBooksOwnedSizePrecision"),
+])
+
+# lip-2mz: F5 compares book sizes, and totals the Target walk, on the
+# 0.01-contract grid, so float residue of any step count is the same book. Each
+# mutation brings back a float comparison production has refuted, or rounds
+# the residue off the grid point it belongs to.
+MUTATIONS.extend([
+    ("M-2MZ-STEP-TOLERANCE", "forgive only one adjacent floating-point step, as lip-2w3 did",
+     [("harness/rest/orderbook.go",
+       "\treturn okA && okB && qa == qb\n",
+       "\treturn okA && okB && qa == qb && (a == b || math.Nextafter(a, b) == b)\n")],
+     "TestCompareBooksObservedResidueAgrees"),
+    ("M-2MZ-TRUNCATE", "put book sizes on the grid by truncation instead of rounding",
+     [("harness/rest/orderbook.go",
+       "\treturn num.QtyFromFloat(size), true\n",
+       "\treturn num.Qty(size * num.QtyScale), true\n")],
+     "TestCompareBooksObservedResidueAgrees"),
+    ("M-2MZ-BOUND", "put sizes up to 1e15 contracts on the grid, past where doubles keep quanta apart",
+     [("harness/rest/orderbook.go",
+       "const maxBookSize = 1e13\n",
+       "const maxBookSize = 1e15\n")],
+     "TestCompareBooksSizePrecisionAtDepth"),
+    ("M-2MZ-FLOAT-WALK", "total the Target walk in float64 instead of on the grid",
+     [("harness/rest/orderbook.go",
+       "\tvar total num.Qty\n",
+       "\tvar total num.Qty\n\tfloatTotal := 0.0\n"),
+      ("harness/rest/orderbook.go",
+       "\t\tif total.Float() >= target {\n",
+       "\t\tfloatTotal += levels[i].Size\n\t\tif floatTotal >= target {\n")],
+     "TestCompareBooksTargetBoundaryResidue"),
+    ("M-2MZ-OWNED-FLOAT", "compare our own resting size against the book in float64",
+     [("harness/rest/orderbook.go",
+       "if q, ok := bookQty(have); !ok || q < own.Size {",
+       "if q, ok := bookQty(have); !ok || q < own.Size || have < own.Size.Float() {")],
+     "TestCompareBooksOwnedSizeResidue"),
 ])
 
 # Files OUTSIDE `go/` that the Go tests read, and which the mutation sandbox

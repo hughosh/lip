@@ -16,6 +16,8 @@
     "M5a": "Orders remain post-only on the actual wire body.",
     "M7": "A reduction cannot overshoot flat.",
     "M20": "A reported stop is durable and survives restart.",
-    "M-3AF-RESUME": "Restart cannot silently clear a latched stop."
+    "M-3AF-RESUME": "Restart cannot silently clear a latched stop.",
+    "M-2W3-WIDE-TOLERANCE": "A real 0.01-contract book-size difference is still an F5 disagreement.",
+    "M-2MZ-STEP-TOLERANCE": "Float residue of any step count is not an F5 disagreement."
   }
 }

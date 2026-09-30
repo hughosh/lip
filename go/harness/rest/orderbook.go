@@ -429,9 +429,11 @@ func compareSide(name string, target float64, s SideBooks) BookVerdict {
 				name, i+1, ws[i].Cents, ws[i].Size, rst[i].Size)}
 		}
 	}
-	// Adjacent floating-point sizes may compare equal while their naive sums
-	// cross the target at different depths. Keep that boundary conservative:
-	// agreement must not skip a level from either qualifying walk.
+	// Walks that matched on the grid at every common depth have the same
+	// running total at each one, so they reach the target at the same depth and
+	// this cannot fire while the walk and the comparison share the grid. It
+	// stays so that if they ever part, two lengths are still disagreement and
+	// never agreement: agreement must not skip a level from either walk.
 	if len(ws) != len(rst) {
 		return BookVerdict{Why: fmt.Sprintf("the %s side reaches Target Size %v "+
 			"over %d websocket level(s) and %d REST level(s)",
@@ -468,7 +470,7 @@ func compareSide(name string, target float64, s SideBooks) BookVerdict {
 					"on the %s side at %dc and the %s book has no level there at "+
 					"all", own.Size.Wire(), name, own.Cents, bk.what)}
 			}
-			if !validBookSize(have) || (have < own.Size.Float() && !sameBookSize(have, own.Size.Float())) {
+			if q, ok := bookQty(have); !ok || q < own.Size {
 				return BookVerdict{Why: fmt.Sprintf("we believe %s of ours rests "+
 					"on the %s side at %dc and the %s book shows only %v there",
 					own.Size.Wire(), name, own.Cents, bk.what, have)}
@@ -478,14 +480,44 @@ func compareSide(name string, target float64, s SideBooks) BookVerdict {
 	return BookVerdict{Agree: true}
 }
 
-// sameBookSize recognizes the single floating-point rounding step observed
-// when websocket deltas accumulate to a REST snapshot size. The absolute cap
-// keeps a cent-sized difference material even at very large magnitudes.
+// sameBookSize compares two book sizes on the exchange's 0.01-contract grid,
+// H-CO-4a's quantum.
+//
+// The websocket book adds every delta into a float64 level
+// (core.Book.ApplyDelta), so its sizes carry residue that grows with the
+// number of deltas a level has absorbed. lip-2w3 forgave one adjacent step and
+// production then raised four (lip-2mz, a29: 29.999999999999986 against 30).
+// No step count bounds that residue; the grid does. Wire sizes are two-decimal
+// fixed point (H-CO-2), so a real difference is at least one quantum, while
+// residue stays many orders of magnitude below half of one.
 func sameBookSize(a, b float64) bool {
-	if !validBookSize(a) || !validBookSize(b) {
-		return false
+	qa, okA := bookQty(a)
+	qb, okB := bookQty(b)
+	return okA && okB && qa == qb
+}
+
+// maxBookSize bounds the sizes bookQty puts on the grid. Below 2^44 contracts
+// a double's spacing is at most 2^-9 of a contract, so a two-decimal size lands
+// within about 0.16 of its own quantum after QtyFromFloat's multiply. From 2^45
+// adjacent quanta collide -- 35184372088832.02 and .03 become one Qty -- and two
+// books a quantum apart would compare as the same. The bound is also far inside
+// Qty's int64 range, and orders of magnitude above any resting level.
+const maxBookSize = 1e13
+
+// bookQty puts one book size on the grid, or reports that it is not a size the
+// grid can hold exactly: not finite, not positive, or not below maxBookSize.
+//
+// A size below half a quantum is ZERO quanta and still a level. On a
+// two-decimal wire the websocket book holds one only as residue that outlived
+// ApplyDelta's 1e-9 deletion at a price the exchange has emptied. Inside the
+// walk that is a real disagreement -- the live book has a level the exchange
+// does not -- and the comparison names it by its price, where refusing the size
+// would have reported a walk that "does not reach" the Target.
+func bookQty(size float64) (num.Qty, bool) {
+	if !validBookSize(size) || size >= maxBookSize {
+		return 0, false
 	}
-	return a == b || (math.Nextafter(a, b) == b && math.Abs(a-b) < 0.005)
+	return num.QtyFromFloat(size), true
 }
 
 func validBookSize(size float64) bool {
@@ -495,19 +527,27 @@ func validBookSize(size float64) bool {
 // targetWalk returns the levels through and INCLUDING the first one at which the
 // cumulative size reaches `target`, and whether it got there.
 //
-// The accumulation is NAIVE addition, matching `core.Book.Qualifies`
-// (rig.py:245 accumulates with `total += d[p]` and deliberately does NOT use
-// sum()'s compensation, port-spec P9/P24). Two walks over the same levels have
-// to agree about where the target falls, and a compensated total here would put
-// the boundary one ULP away from where the qualifying walk believes it is.
+// The running total is on the grid, like the level comparison (lip-2mz). A
+// float64 total can land just under the target where the grid total lands
+// exactly on it -- through residue in a websocket level, or through the naive
+// sum's own rounding (0.3 + 0.6 < 0.9) -- and two walks over the same resting
+// liquidity would then end at different depths, or one would never end.
+// `core.Book.Qualifies` still totals the live book naively (rig.py:245,
+// port-spec P9/P24), so on such a book it crosses the target one level deeper,
+// where any further level covers the shortfall, or not at all, which is its
+// gate's fail-closed answer. Neither is a disagreement between the books.
+//
+// `total.Float()` is exact while the total is below 2^53 quanta, some 9e13
+// contracts, which no Target approaches.
 func targetWalk(target float64, levels []BookLevel) ([]BookLevel, bool) {
-	total := 0.0
+	var total num.Qty
 	for i := range levels {
-		if !validBookSize(levels[i].Size) {
+		q, ok := bookQty(levels[i].Size)
+		if !ok || q > math.MaxInt64-total {
 			return levels[:i+1], false
 		}
-		total += levels[i].Size
-		if total >= target {
+		total += q
+		if total.Float() >= target {
 			return levels[:i+1], true
 		}
 	}

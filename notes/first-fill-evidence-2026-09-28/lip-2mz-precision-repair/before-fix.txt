@@ -1,0 +1,130 @@
+# lip-2mz regressions BEFORE the fix (2026-09-30T04:18:50Z)
+# Run in a copy of go/ whose harness/rest/orderbook.go is candidate-5's (manifest sha256 below) and whose tests are the final lip-2mz tests.
+# sha256 173b13d7b6a70b85d14ce1a525b49af7718177f8ab95718b6a890702515feea9  go/harness/rest/orderbook.go
+# sha256 2d306a1e88c1eda3a6eb286cba6d1cf410ee6220c465cf49e0f303a8795e6de0  go/harness/rest/orderbook_precision_test.go
+$ cd go && go test -count=1 -v -run '^TestCompareBooks' ./harness/rest/
+=== RUN   TestCompareBooksSizePrecisionAtDepth
+=== RUN   TestCompareBooksSizePrecisionAtDepth/observed_depth-two_roundoff
+=== RUN   TestCompareBooksSizePrecisionAtDepth/two_rounding_steps_are_the_same_book_size
+    orderbook_precision_test.go:53: CompareBooks agree=false why="the yes side disagrees at depth 2 of the Target Size walk: 23c is 456.0000000000001 on the websocket and 456 on REST. A price-only check would have called this agreement (HR-015) and kept quoting against depth that is not there"; want agree=true why containing ""
+=== RUN   TestCompareBooksSizePrecisionAtDepth/real_one-cent_size_difference
+=== RUN   TestCompareBooksSizePrecisionAtDepth/boundary_reached_exactly_despite_rounded_level
+=== RUN   TestCompareBooksSizePrecisionAtDepth/target_walk_does_not_round_an_undershoot_into_qualification
+=== RUN   TestCompareBooksSizePrecisionAtDepth/invalid_infinity_is_not_agreement
+=== RUN   TestCompareBooksSizePrecisionAtDepth/invalid_NaN_is_not_agreement
+=== RUN   TestCompareBooksSizePrecisionAtDepth/invalid_negative_size_is_not_agreement
+=== RUN   TestCompareBooksSizePrecisionAtDepth/sizes_beyond_the_grid's_range_are_not_agreement
+    orderbook_precision_test.go:53: CompareBooks agree=true why=""; want agree=false why containing "does not reach Target Size"
+=== RUN   TestCompareBooksSizePrecisionAtDepth/different_oversized_sizes_cannot_meet_on_the_grid
+    orderbook_precision_test.go:53: CompareBooks agree=false why="the yes side disagrees at depth 2 of the Target Size walk: 23c is 1e+300 on the websocket and 1e+299 on REST. A price-only check would have called this agreement (HR-015) and kept quoting against depth that is not there"; want agree=false why containing "does not reach Target Size"
+=== RUN   TestCompareBooksSizePrecisionAtDepth/a_quantum_apart_where_doubles_no_longer_hold_the_grid
+    orderbook_precision_test.go:53: CompareBooks agree=false why="the yes side disagrees at depth 2 of the Target Size walk: 23c is 3.518437208883202e+13 on the websocket and 3.518437208883203e+13 on REST. A price-only check would have called this agreement (HR-015) and kept quoting against depth that is not there"; want agree=false why containing "does not reach Target Size"
+=== RUN   TestCompareBooksSizePrecisionAtDepth/a_quantum_apart_just_below_maxBookSize
+=== RUN   TestCompareBooksSizePrecisionAtDepth/a_residue-only_websocket_level_is_named_by_its_price
+--- FAIL: TestCompareBooksSizePrecisionAtDepth (0.00s)
+    --- PASS: TestCompareBooksSizePrecisionAtDepth/observed_depth-two_roundoff (0.00s)
+    --- FAIL: TestCompareBooksSizePrecisionAtDepth/two_rounding_steps_are_the_same_book_size (0.00s)
+    --- PASS: TestCompareBooksSizePrecisionAtDepth/real_one-cent_size_difference (0.00s)
+    --- PASS: TestCompareBooksSizePrecisionAtDepth/boundary_reached_exactly_despite_rounded_level (0.00s)
+    --- PASS: TestCompareBooksSizePrecisionAtDepth/target_walk_does_not_round_an_undershoot_into_qualification (0.00s)
+    --- PASS: TestCompareBooksSizePrecisionAtDepth/invalid_infinity_is_not_agreement (0.00s)
+    --- PASS: TestCompareBooksSizePrecisionAtDepth/invalid_NaN_is_not_agreement (0.00s)
+    --- PASS: TestCompareBooksSizePrecisionAtDepth/invalid_negative_size_is_not_agreement (0.00s)
+    --- FAIL: TestCompareBooksSizePrecisionAtDepth/sizes_beyond_the_grid's_range_are_not_agreement (0.00s)
+    --- FAIL: TestCompareBooksSizePrecisionAtDepth/different_oversized_sizes_cannot_meet_on_the_grid (0.00s)
+    --- FAIL: TestCompareBooksSizePrecisionAtDepth/a_quantum_apart_where_doubles_no_longer_hold_the_grid (0.00s)
+    --- PASS: TestCompareBooksSizePrecisionAtDepth/a_quantum_apart_just_below_maxBookSize (0.00s)
+    --- PASS: TestCompareBooksSizePrecisionAtDepth/a_residue-only_websocket_level_is_named_by_its_price (0.00s)
+=== RUN   TestCompareBooksOwnedSizePrecision
+=== RUN   TestCompareBooksOwnedSizePrecision/one_representable_step_below_own_size
+=== RUN   TestCompareBooksOwnedSizePrecision/real_one-cent_undershoot
+--- PASS: TestCompareBooksOwnedSizePrecision (0.00s)
+    --- PASS: TestCompareBooksOwnedSizePrecision/one_representable_step_below_own_size (0.00s)
+    --- PASS: TestCompareBooksOwnedSizePrecision/real_one-cent_undershoot (0.00s)
+=== RUN   TestCompareBooksObservedResidueAgrees
+=== RUN   TestCompareBooksObservedResidueAgrees/a29:_YES_28c_at_depth_6_is_29.999999999999986_against_30
+    orderbook_precision_test.go:129: CompareBooks agree=false why="the yes side disagrees at depth 6 of the Target Size walk: 28c is 29.999999999999986 on the websocket and 30 on REST. A price-only check would have called this agreement (HR-015) and kept quoting against depth that is not there"; want agree=true why containing ""
+=== RUN   TestCompareBooksObservedResidueAgrees/a36:_NO_64c_at_depth_2_is_90.85000000000002_against_90.85
+    orderbook_precision_test.go:129: CompareBooks agree=false why="the no side disagrees at depth 2 of the Target Size walk: 64c is 90.85000000000002 on the websocket and 90.85 on REST. A price-only check would have called this agreement (HR-015) and kept quoting against depth that is not there"; want agree=true why containing ""
+=== RUN   TestCompareBooksObservedResidueAgrees/residue_far_beyond_any_observed_step_count
+    orderbook_precision_test.go:129: CompareBooks agree=false why="the yes side disagrees at depth 6 of the Target Size walk: 28c is 29.9999999 on the websocket and 30 on REST. A price-only check would have called this agreement (HR-015) and kept quoting against depth that is not there"; want agree=true why containing ""
+=== RUN   TestCompareBooksObservedResidueAgrees/a29's_level_one_quantum_short
+=== RUN   TestCompareBooksObservedResidueAgrees/a36's_level_one_quantum_long
+=== RUN   TestCompareBooksObservedResidueAgrees/nearer_the_next_quantum_is_the_next_quantum
+--- FAIL: TestCompareBooksObservedResidueAgrees (0.00s)
+    --- FAIL: TestCompareBooksObservedResidueAgrees/a29:_YES_28c_at_depth_6_is_29.999999999999986_against_30 (0.00s)
+    --- FAIL: TestCompareBooksObservedResidueAgrees/a36:_NO_64c_at_depth_2_is_90.85000000000002_against_90.85 (0.00s)
+    --- FAIL: TestCompareBooksObservedResidueAgrees/residue_far_beyond_any_observed_step_count (0.00s)
+    --- PASS: TestCompareBooksObservedResidueAgrees/a29's_level_one_quantum_short (0.00s)
+    --- PASS: TestCompareBooksObservedResidueAgrees/a36's_level_one_quantum_long (0.00s)
+    --- PASS: TestCompareBooksObservedResidueAgrees/nearer_the_next_quantum_is_the_next_quantum (0.00s)
+=== RUN   TestCompareBooksTargetBoundaryResidue
+=== RUN   TestCompareBooksTargetBoundaryResidue/residue_on_the_level_that_reaches_the_Target
+    orderbook_precision_test.go:169: CompareBooks agree=false why="the yes side disagrees at depth 2 of the Target Size walk: 49c is 29.999999999999986 on the websocket and 30 on REST. A price-only check would have called this agreement (HR-015) and kept quoting against depth that is not there"; want agree=true why containing ""
+=== RUN   TestCompareBooksTargetBoundaryResidue/residue_that_leaves_the_websocket's_float_total_short_of_the_Target
+    orderbook_precision_test.go:169: CompareBooks agree=false why="the yes side does not reach Target Size 100 on both books (websocket reached it: false over 2 level(s); REST reached it: true over 2 level(s)); H-FAIL-6 requires the full walk on both sides and a walk that ran out of depth has not compared the liquidity the reward is paid for"; want agree=true why containing ""
+=== RUN   TestCompareBooksTargetBoundaryResidue/a_quantum_short_of_the_Target_reaches_it_a_level_deeper
+=== RUN   TestCompareBooksTargetBoundaryResidue/a_quantum_short_of_the_Target_with_nothing_deeper
+--- FAIL: TestCompareBooksTargetBoundaryResidue (0.00s)
+    --- FAIL: TestCompareBooksTargetBoundaryResidue/residue_on_the_level_that_reaches_the_Target (0.00s)
+    --- FAIL: TestCompareBooksTargetBoundaryResidue/residue_that_leaves_the_websocket's_float_total_short_of_the_Target (0.00s)
+    --- PASS: TestCompareBooksTargetBoundaryResidue/a_quantum_short_of_the_Target_reaches_it_a_level_deeper (0.00s)
+    --- PASS: TestCompareBooksTargetBoundaryResidue/a_quantum_short_of_the_Target_with_nothing_deeper (0.00s)
+=== RUN   TestCompareBooksOwnedSizeResidue
+=== RUN   TestCompareBooksOwnedSizeResidue/a29's_residue_under_our_own_size_on_the_websocket
+    orderbook_precision_test.go:197: CompareBooks agree=false why="we believe 30.00 of ours rests on the yes side at 23c and the websocket book shows only 29.999999999999986 there"; want agree=true why containing ""
+=== RUN   TestCompareBooksOwnedSizeResidue/the_same_residue_on_both_books
+    orderbook_precision_test.go:197: CompareBooks agree=false why="we believe 30.00 of ours rests on the yes side at 23c and the websocket book shows only 29.999999999999986 there"; want agree=true why containing ""
+=== RUN   TestCompareBooksOwnedSizeResidue/the_websocket_shows_a_quantum_less_than_ours
+=== RUN   TestCompareBooksOwnedSizeResidue/REST_shows_a_quantum_less_than_ours
+--- FAIL: TestCompareBooksOwnedSizeResidue (0.00s)
+    --- FAIL: TestCompareBooksOwnedSizeResidue/a29's_residue_under_our_own_size_on_the_websocket (0.00s)
+    --- FAIL: TestCompareBooksOwnedSizeResidue/the_same_residue_on_both_books (0.00s)
+    --- PASS: TestCompareBooksOwnedSizeResidue/the_websocket_shows_a_quantum_less_than_ours (0.00s)
+    --- PASS: TestCompareBooksOwnedSizeResidue/REST_shows_a_quantum_less_than_ours (0.00s)
+=== RUN   TestCompareBooksWalksBothSidesToTargetSize
+=== RUN   TestCompareBooksWalksBothSidesToTargetSize/identical_books_through_target_agree
+=== RUN   TestCompareBooksWalksBothSidesToTargetSize/levels_strictly_beyond_BOTH_completed_walks_are_irrelevant
+=== RUN   TestCompareBooksWalksBothSidesToTargetSize/HR-015:_the_touch_price_agrees_and_the_size_does_not
+=== RUN   TestCompareBooksWalksBothSidesToTargetSize/a_DEEP_price_difference_inside_the_walk
+=== RUN   TestCompareBooksWalksBothSidesToTargetSize/a_DEEP_size_difference_inside_the_walk
+=== RUN   TestCompareBooksWalksBothSidesToTargetSize/the_OTHER_side_is_checked_too
+=== RUN   TestCompareBooksWalksBothSidesToTargetSize/REST_never_reaches_Target_Size
+=== RUN   TestCompareBooksWalksBothSidesToTargetSize/the_websocket_never_reaches_Target_Size
+=== RUN   TestCompareBooksWalksBothSidesToTargetSize/an_empty_REST_side
+=== RUN   TestCompareBooksWalksBothSidesToTargetSize/no_Target_Size_at_all
+=== RUN   TestCompareBooksWalksBothSidesToTargetSize/the_walk_includes_the_level_that_REACHES_the_target
+--- PASS: TestCompareBooksWalksBothSidesToTargetSize (0.00s)
+    --- PASS: TestCompareBooksWalksBothSidesToTargetSize/identical_books_through_target_agree (0.00s)
+    --- PASS: TestCompareBooksWalksBothSidesToTargetSize/levels_strictly_beyond_BOTH_completed_walks_are_irrelevant (0.00s)
+    --- PASS: TestCompareBooksWalksBothSidesToTargetSize/HR-015:_the_touch_price_agrees_and_the_size_does_not (0.00s)
+    --- PASS: TestCompareBooksWalksBothSidesToTargetSize/a_DEEP_price_difference_inside_the_walk (0.00s)
+    --- PASS: TestCompareBooksWalksBothSidesToTargetSize/a_DEEP_size_difference_inside_the_walk (0.00s)
+    --- PASS: TestCompareBooksWalksBothSidesToTargetSize/the_OTHER_side_is_checked_too (0.00s)
+    --- PASS: TestCompareBooksWalksBothSidesToTargetSize/REST_never_reaches_Target_Size (0.00s)
+    --- PASS: TestCompareBooksWalksBothSidesToTargetSize/the_websocket_never_reaches_Target_Size (0.00s)
+    --- PASS: TestCompareBooksWalksBothSidesToTargetSize/an_empty_REST_side (0.00s)
+    --- PASS: TestCompareBooksWalksBothSidesToTargetSize/no_Target_Size_at_all (0.00s)
+    --- PASS: TestCompareBooksWalksBothSidesToTargetSize/the_walk_includes_the_level_that_REACHES_the_target (0.00s)
+=== RUN   TestCompareBooksChecksOurOwnRestingSizeAtAnyDepth
+=== RUN   TestCompareBooksChecksOurOwnRestingSizeAtAnyDepth/our_size_is_there,_beyond_the_walk
+=== RUN   TestCompareBooksChecksOurOwnRestingSizeAtAnyDepth/our_size_is_there_and_the_level_has_more
+=== RUN   TestCompareBooksChecksOurOwnRestingSizeAtAnyDepth/our_size_is_inside_the_walk
+=== RUN   TestCompareBooksChecksOurOwnRestingSizeAtAnyDepth/the_level_shows_LESS_than_we_believe_is_ours
+=== RUN   TestCompareBooksChecksOurOwnRestingSizeAtAnyDepth/there_is_no_level_where_we_believe_we_rest
+=== RUN   TestCompareBooksChecksOurOwnRestingSizeAtAnyDepth/REST_does_not_show_it
+=== RUN   TestCompareBooksChecksOurOwnRestingSizeAtAnyDepth/the_websocket_does_not_show_it
+--- PASS: TestCompareBooksChecksOurOwnRestingSizeAtAnyDepth (0.00s)
+    --- PASS: TestCompareBooksChecksOurOwnRestingSizeAtAnyDepth/our_size_is_there,_beyond_the_walk (0.00s)
+    --- PASS: TestCompareBooksChecksOurOwnRestingSizeAtAnyDepth/our_size_is_there_and_the_level_has_more (0.00s)
+    --- PASS: TestCompareBooksChecksOurOwnRestingSizeAtAnyDepth/our_size_is_inside_the_walk (0.00s)
+    --- PASS: TestCompareBooksChecksOurOwnRestingSizeAtAnyDepth/the_level_shows_LESS_than_we_believe_is_ours (0.00s)
+    --- PASS: TestCompareBooksChecksOurOwnRestingSizeAtAnyDepth/there_is_no_level_where_we_believe_we_rest (0.00s)
+    --- PASS: TestCompareBooksChecksOurOwnRestingSizeAtAnyDepth/REST_does_not_show_it (0.00s)
+    --- PASS: TestCompareBooksChecksOurOwnRestingSizeAtAnyDepth/the_websocket_does_not_show_it (0.00s)
+=== RUN   TestCompareBooksAggregatesExpectedOwnedSize
+--- PASS: TestCompareBooksAggregatesExpectedOwnedSize (0.00s)
+FAIL
+FAIL	lip/harness/rest	0.437s
+FAIL
+exit 1

@@ -1,0 +1,18 @@
+ M go/harness/rest/orderbook.go
+ M go/harness/rest/orderbook_precision_test.go
+ M scripts/harness_negative_control.py
+ M scripts/safety_mutations.json
+?? notes/active-continuation-2026-09-26/candidate/harness
+?? notes/first-fill-evidence-2026-09-28/candidate-3/harness
+?? notes/first-fill-evidence-2026-09-28/candidate-4/harness
+?? notes/first-fill-evidence-2026-09-28/candidate-5/harness
+?? notes/first-fill-evidence-2026-09-28/candidate-6-prereview/
+?? notes/first-fill-evidence-2026-09-28/lip-2mz-precision-repair/
+?? notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/tools/
+?? notes/first-fill-evidence-2026-09-28/scope-candidate-5/incentives
+?? notes/live-continuation-evidence-2026-09-26/q01-v3/harness-candidate-v3
+?? notes/live-readiness-2026-09-26/harness-candidate-v2
+?? notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/tools/accountcheck
+?? notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/candidate/harness
+?? notes/production-turnover-2026-09-28/candidate-2/harness
+?? notes/production-turnover-2026-09-28/candidate/harness
