@@ -65,9 +65,9 @@ Hugh attended throughout. He approved the launch, both SIGTERMs, the restart and
 
 ## Findings
 - **F5 float residue persists on candidate-5.** This is a new bead; lip-2w3's fix is incomplete.
-  - At 21:08:27Z, BOOK_QUIET led to a REST cross-check, which raised `BOOK_CROSSCHECK_MISMATCH` (a29): YES depth 6, 28c is `29.999999999999986` on the websocket and `30` on REST. That is about 4 ULPs, the "two-step drift" lip-2w3 still rejects.
+  - At 21:08:27Z, BOOK_QUIET led to a REST cross-check, which raised `BOOK_CROSSCHECK_MISMATCH` (a29): YES depth 6, 28c is `29.999999999999986` on the websocket and `30` on REST. That is 4 ULPs (measured with `math.nextafter`).
   - The mismatch then raised sticky `QUOTING_STOPPED_UNTIL_RESTART` (a30).
-  - At 21:19:57Z a second mismatch (a36) showed NO 64c at `90.85000000000002` against `90.85`, which appears to be a single adjacent step.
+  - At 21:19:57Z a second mismatch (a36) showed NO 64c at `90.85000000000002` against `90.85`, which is 2 ULPs. `sameBookSize` (`go/harness/rest/orderbook.go:483`) accepts only a single step, so both mismatches come from the same path.
   - There was no exposure here, because the harness was already DRAINED and flat. On the pilot rung this would stop adding after the first quiet-book cross-check.
 - **Fill detection lag of 4.6 s on the first fill** (0.5 s on the second). The adding YES order stayed live through that window; it was on the reducing side, so no harm.
 
