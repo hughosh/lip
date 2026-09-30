@@ -75,3 +75,5 @@ Both manifests list 291 files and differ in exactly two, both from this triage: 
 - **Ghost levels.** A residue-only websocket level (below 0.005, surviving ApplyDelta's 1e-9 deletion) inside the walk is still a disagreement, and so still latches QUOTING_STOPPED_UNTIL_RESTART. It is a real phantom level in the live book, where it can be the touch. Producing one needs, by estimate, levels near 1e7 contracts or a residue random walk of about 1e8 deltas.
 
 Not covered: live behaviour. No stage has run candidate-6. Nothing here qualifies R2, CR-2, repeated cycles or profitability.
+
+**Later static re-pin:** `loop/gates-out/20260930T050529097382Z-d315a8bf`, PASS on fingerprint `6b81d84d…0909`. It was taken after AGENTS.md gained the note that `notes/*-evidence-*` directories are outside the fingerprint. The Go manifest is still `ee8f4ec1…0231`.

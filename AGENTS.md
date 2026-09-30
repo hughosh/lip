@@ -22,7 +22,9 @@ its next repair or to operate an account.
 - Keep scratch working files (task lists, notes to self) under `loop/run/`. It is
   gitignored and excluded from `scripts/run_gates.py` `source_fingerprint`; a new
   `.md`, `.go`, `.py` or `.json` file elsewhere changes the fingerprint and makes
-  every receipt pinned to it stale.
+  every receipt pinned to it stale. Directories under `notes/` whose name
+  contains `-evidence-` are excluded too, so candidate reviews and receipts
+  written there leave the pins valid.
 
 Read only the guidance relevant to the task:
 
