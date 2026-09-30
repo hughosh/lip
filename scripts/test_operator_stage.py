@@ -24,19 +24,21 @@ SPEC.loader.exec_module(stage)
 UTC = dt.timezone.utc
 NOW = dt.datetime(2026, 9, 27, 1, 0, 0, tzinfo=UTC)
 TICKER = "KXTEST-26SEP"
+# The freshly chosen market an R2 stage can run on, distinct from its first stage's.
+OTHER_TICKER = "KXOTHER-26OCT"
 
 
-def account_report():
+def account_report(ticker=TICKER):
     stamp = NOW.isoformat().replace("+00:00", "Z")
     paths = ["/portfolio/balance", "/portfolio/subaccounts/balances",
-             f"/markets/{TICKER}", "/portfolio/orders", "/portfolio/positions",
+             f"/markets/{ticker}", "/portfolio/orders", "/portfolio/positions",
              "/portfolio/fills"]
     return {
         "started_at": stamp, "ended_at": stamp,
         "requests": [{"at": stamp, "path": p, "status": 200} for p in paths],
         "aggregate_balance_status": {"outcome": "complete"},
         "subaccount_balances_status": {"outcome": "complete"},
-        "selected_ticker": TICKER,
+        "selected_ticker": ticker,
         "market_status": {"outcome": "complete"},
         "selected_balance_status": {"outcome": "complete"},
         "market_funding_status": {"outcome": "complete"},
@@ -52,32 +54,32 @@ def account_report():
     }
 
 
-def programs_report(selected=True):
+def programs_report(selected=True, ticker=TICKER):
     stamp = NOW.isoformat().replace("+00:00", "Z")
     out = {
         "complete": True, "pages": 1, "started_at_utc": stamp,
         "completed_at_utc": stamp,
-        "programs": [{"market_ticker": TICKER, "incentive_type": "liquidity",
+        "programs": [{"market_ticker": ticker, "incentive_type": "liquidity",
                       "start_date": "2026-09-26T00:00:00Z",
                       "end_date": "2026-09-28T00:00:00Z"}],
     }
     if selected:
         out["selected"] = {
-            "ticker": TICKER,
-            "market": {"ticker": TICKER, "status": "active"},
+            "ticker": ticker,
+            "market": {"ticker": ticker, "status": "active"},
             "event": {"event_ticker": "KXTEST"},
             "series": {"ticker": "KXTEST"},
         }
     return out
 
 
-def book_report():
+def book_report(ticker=TICKER):
     stamp = NOW.isoformat()
-    return {"ticker": TICKER, "read_only": True, "completed_at_utc": stamp, "calls": {
-        "market": {"path": f"/markets/{TICKER}", "at_utc": stamp, "status": 200, "body": {"market": {
-            "ticker": TICKER, "status": "active", "event_ticker": "KXTEST",
+    return {"ticker": ticker, "read_only": True, "completed_at_utc": stamp, "calls": {
+        "market": {"path": f"/markets/{ticker}", "at_utc": stamp, "status": 200, "body": {"market": {
+            "ticker": ticker, "status": "active", "event_ticker": "KXTEST",
             "price_level_structure": "linear_cent"}}},
-        "orderbook": {"path": f"/markets/{TICKER}/orderbook", "at_utc": stamp, "status": 200, "body": {"orderbook_fp": {
+        "orderbook": {"path": f"/markets/{ticker}/orderbook", "at_utc": stamp, "status": 200, "body": {"orderbook_fp": {
             "yes_dollars": [["0.43", "5"], ["0.44", "20"]],
             "no_dollars": [["0.53", "5"], ["0.54", "20"]]}}},
         "event": {"path": "/events/KXTEST", "at_utc": stamp, "status": 200,
@@ -95,7 +97,12 @@ PROSE_LEADS = ("Prepared ", "Candidate identity: ", "Operator-only commands,", "
 
 
 def legacy_operator_lines(args, config, *, exe, cfg, evidence, repo, ticker):
-    """The pre-lip-8q0 operator block: its print statements copied verbatim."""
+    """The pre-lip-8q0 first-stage operator block: its print statements copied verbatim.
+
+    R2 has no legacy block: its flow changed to a fresh store and a crash drill, and
+    r2_operator_commands spells that one out.
+    """
+    assert args.stage == "first", "R2 has no legacy operator block"
     quote = stage.quote
     out = []
     print = out.append
@@ -128,10 +135,6 @@ def legacy_operator_lines(args, config, *, exe, cfg, evidence, repo, ticker):
         print("  # Only after the attended retained-latch restart has exited cleanly:")
         print(f"  go run ./cmd/accountcheck -ticker {quote(ticker)} -fills -out {quote(evidence / 'account-after-restart.json')}")
         print("  # R2 remains gated on the candidate-bound first-stage evidence receipt and human latch adjudication.")
-    else:
-        print("  # Start only after a human adjudicates complete account truth and clears the existing latch; this helper never clears it.")
-        print("  # R2 operator attestation accepted; artifact contents and claimed events remain unverified by this helper.")
-        print("  # The pilot rung does not stop on first owned fill.")
     print("  # After verifying every stage process has exited and account truth is complete and flat:")
     print(f"  rm -f {quote(config['paths']['live_ok'])}  # only this stage's write sentinel; retain store, latch and evidence")
     return out
@@ -141,6 +144,50 @@ def legacy_commands(lines):
     """Old indented lines minus standalone comments and inline '  # ...' suffixes."""
     return [line[2:].split("  # ", 1)[0] for line in lines
             if line.startswith("  ") and not line[2:].startswith("#")]
+
+
+def r2_operator_commands(config, *, exe, cfg, evidence, repo, ticker):
+    """The R2 commands in paste order, spelled out apart from operator_stage.
+
+    Provision its own store, cycle, SIGKILL the harness, read the account with the prebuilt
+    tool, restart WITHOUT the resume flag, SIGTERM the restarted child, read the account
+    again and drop this stage's write sentinel.
+    """
+    quote = stage.quote
+    pid_file, restart_pid = quote(evidence / "harness.pid"), quote(evidence / "restart.pid")
+    live_ok = quote(config["paths"]["live_ok"])
+    accountcheck = quote(evidence.parent / "tools" / "accountcheck")
+    return [
+        f"{exe} -config {cfg} -provision",
+        f"install -m 600 /dev/null {live_ok}",
+        f"{exe} -config {cfg} -rung pilot -live > {quote(evidence / 'harness.log')} 2>&1 &",
+        f"echo $! > {pid_file}",
+        f"ps -p \"$(cat {pid_file})\" -o pid=,command=",
+        f"kill -KILL \"$(cat {pid_file})\"",
+        f"wait \"$(cat {pid_file})\"; echo $? > {quote(evidence / 'exit-status.txt')}",
+        f"cd {quote(repo / 'go')}",
+        f"{accountcheck} -ticker {quote(ticker)} -fills -out {quote(evidence / 'account-after-crash.json')}",
+        f"{exe} -config {cfg} -rung pilot -live > {quote(evidence / 'restart.log')} 2>&1 &",
+        f"echo $! > {restart_pid}",
+        f"ps -p \"$(cat {restart_pid})\" -o pid=,command=",
+        f"kill -TERM \"$(cat {restart_pid})\"",
+        f"wait \"$(cat {restart_pid})\"; echo $? > {quote(evidence / 'restart-exit-status.txt')}",
+        f"go run ./cmd/accountcheck -ticker {quote(ticker)} -fills -out {quote(evidence / 'account-after-restart.json')}",
+        f"rm -f {live_ok}",
+    ]
+
+
+def parse_phases(output):
+    """[(PHASE header, prose lines, command lines)] from the printed operator block."""
+    phases = []
+    for line in output.splitlines():
+        if line.startswith("PHASE "):
+            phases.append((line, [], []))
+        elif phases and line.startswith(stage.COMMAND_INDENT):
+            phases[-1][2].append(line[len(stage.COMMAND_INDENT):])
+        elif phases and line:
+            phases[-1][1].append(line)
+    return phases
 
 
 def build_prepare_fixture(base):
@@ -170,10 +217,20 @@ def build_prepare_fixture(base):
     commands = []
     cwds = []
     built = {}  # tool path -> cmd name, filled only by the fake `go build`
+    market = {"ticker": TICKER}  # the market args() selects and the fake program list serves
     # What the in-prepare snapshot writes; distinct from book.json (best yes bid 45c).
     snapshot_book = book_report()
     snapshot_book["note"] = "captured inside prepare"
     snapshot_book["calls"]["orderbook"]["body"]["orderbook_fp"]["yes_dollars"] = [["0.45", "30"]]
+
+    def use_ticker(ticker):
+        """Move to another market, as R2 is pointed at a freshly chosen one.
+
+        Later args() select it and book.json shows its book. The in-prepare snapshot
+        (with_book=False) stays on TICKER.
+        """
+        market["ticker"] = ticker
+        book.write_text(json.dumps(book_report(ticker)))
 
     def fake_runner(command, cwd, check, capture_output, text):
         commands.append(command)
@@ -189,20 +246,22 @@ def build_prepare_fixture(base):
                 json.dump(snapshot_book, stream)
             return subprocess.CompletedProcess(command, 0, "receipt written", "")
         tool = built.get(command[0])
+        asked = command[command.index("-ticker") + 1] if "-ticker" in command else None
         if tool == "incentives" and len(command) == 1:
-            return subprocess.CompletedProcess(command, 0, json.dumps(programs_report(False)), "")
+            return subprocess.CompletedProcess(
+                command, 0, json.dumps(programs_report(False, market["ticker"])), "")
         if tool == "incentives":
-            return subprocess.CompletedProcess(command, 0, json.dumps(programs_report()), "")
+            return subprocess.CompletedProcess(command, 0, json.dumps(programs_report(ticker=asked)), "")
         if tool == "accountcheck":
             output = Path(command[command.index("-out") + 1])
-            output.write_text(json.dumps(account_report()))
+            output.write_text(json.dumps(account_report(asked)))
             return subprocess.CompletedProcess(command, 0, "", "accountcheck report written")
         raise AssertionError(f"unexpected command: {command}")
 
     def args(stage_name, *extra, with_book=True):
         book_args = ["--book", str(book)] if with_book else []
         return stage.parser().parse_args([
-            "--stage", stage_name, "--ticker", TICKER, "--size", "2.5",
+            "--stage", stage_name, "--ticker", market["ticker"], "--size", "2.5",
             "--binary", str(binary), *book_args,
             "--candidate-receipt", str(build_receipt),
             "--evidence-root", str(evidence_root), "--repo", str(repo), *extra,
@@ -210,18 +269,96 @@ def build_prepare_fixture(base):
 
     return types.SimpleNamespace(repo=repo, binary=binary, source_hash=source_hash,
                                  commands=commands, cwds=cwds, runner=fake_runner, args=args,
-                                 book=book, snapshot_book=snapshot_book, built=built)
+                                 book=book, snapshot_book=snapshot_book, built=built,
+                                 build_receipt=build_receipt, use_ticker=use_ticker)
 
 
-def write_r2_receipt(fx, first_evidence):
-    """An R2 receipt bound to the first stage that prepare() just produced."""
-    directory = first_evidence.parent.parent / "r2-receipt"
+def write_candidate(fx, *, source=None, binary=None, predecessor=None):
+    """Move the fixture to another candidate and rewrite its build receipt.
+
+    ``source`` replaces go/main.go (a new Go source manifest), ``binary`` the binary bytes;
+    None leaves that half as it is. ``predecessor`` is the (source_manifest_sha256,
+    binary_sha256) pair the receipt records, or None for an older receipt without one.
+    Returns this candidate's own (source_manifest_sha256, binary_sha256) pair.
+    """
+    if source is not None:
+        (fx.repo / "go/main.go").write_text(source)
+    if binary is not None:
+        fx.binary.write_text(binary)
+    _, fx.source_hash, _, _ = stage.source_manifest(fx.repo)
+    pair = (fx.source_hash, stage.sha256(fx.binary))
+    receipt = {"source_manifest_sha256": pair[0], "binary_path": str(fx.binary.resolve()),
+               "binary_sha256": pair[1]}
+    if predecessor is not None:
+        receipt["predecessor"] = {"source_manifest_sha256": predecessor[0],
+                                  "binary_sha256": predecessor[1],
+                                  "build_identity": "fixture predecessor build-identity.json"}
+    fx.build_receipt.write_text(json.dumps(receipt))
+    return pair
+
+
+def tree_state(root):
+    """Every path under root mapped to its file hash (None for a directory)."""
+    return {str(path.relative_to(root)): stage.sha256(path) if path.is_file() else None
+            for path in sorted(root.rglob("*"))}
+
+
+def age_first_stage(first_evidence, **config_changes):
+    """Rewrite a prepared first stage's config as an older stage would have it, re-pinned.
+
+    Its identity.json hashes the new config, so the stage still binds and a receipt written
+    afterwards attests the aged stage.
+    """
+    config_path = first_evidence.parent / "config.json"
+    config = json.loads(config_path.read_text())
+    config.update(config_changes)
+    config_path.write_text(json.dumps(config, indent=2) + "\n")
+    identity_path = first_evidence / "identity.json"
+    identity = json.loads(identity_path.read_text())
+    identity["config_sha256"] = stage.sha256(config_path)
+    identity_path.write_text(json.dumps(identity, indent=2) + "\n")
+
+
+def write_prior_stage(directory, config_changes=None, identity_changes=None):
+    """A hand-written first stage with a dedicated runtime; returns its config path.
+
+    It ran candidate pair ("src-a", "bin-a") on TICKER from a binary path that is long gone.
+    The changes override config or identity fields, and the identity hashes the config as
+    written, so a change is the only thing that can make it refuse.
+    """
+    base = Path(directory).resolve() / "first-stage"
+    (base / "runtime").mkdir(parents=True)
+    (base / "evidence").mkdir()
+    config_path = base / "config.json"
+    config = {"ticker": TICKER, "rung": "sizing",
+              "paths": {key: str(base / "runtime" / name) for key, name in stage.RUNTIME_FILES.items()}}
+    config.update(config_changes or {})
+    config_path.write_text(json.dumps(config))
+    identity = {"stage": "first", "rung": "sizing", "ticker": TICKER,
+                "created_at_utc": NOW.isoformat(), "config_path": str(config_path),
+                "config_sha256": stage.sha256(config_path),
+                "source_manifest_sha256": "src-a", "binary_path": "/gone/harness-a",
+                "binary_sha256": "bin-a"}
+    identity.update(identity_changes or {})
+    (base / "evidence" / "identity.json").write_text(json.dumps(identity))
+    return config_path
+
+
+def write_r2_receipt(first_evidence, name="r2-receipt"):
+    """An R2 receipt bound to the first stage that prepare() just produced.
+
+    It attests that first stage, so its candidate block is that stage's own ticker, source
+    manifest and binary, whichever candidate the R2 stage later runs.
+    """
+    directory = first_evidence.parent.parent / name
     directory.mkdir()
     proof = directory / "proof.json"
     proof.write_text('{"observed":true}')
     identity_sha = stage.sha256(first_evidence / "identity.json")
-    receipt = {"candidate": {"ticker": TICKER, "source_manifest_sha256": fx.source_hash,
-                             "binary_sha256": stage.sha256(fx.binary),
+    first = json.loads((first_evidence / "identity.json").read_text())
+    receipt = {"candidate": {"ticker": first["ticker"],
+                             "source_manifest_sha256": first["source_manifest_sha256"],
+                             "binary_sha256": first["binary_sha256"],
                              "config_sha256": stage.sha256(first_evidence.parent / "config.json"),
                              "first_stage_identity_sha256": identity_sha},
                "acceptance": {field: {"operator_outcome": "observed", "operator": "fixture operator",
@@ -410,21 +547,123 @@ class OperatorStageTests(unittest.TestCase):
                         "source_manifest_sha256": "src", "binary_path": str(binary),
                         "binary_sha256": stage.sha256(binary)}
             (base / "evidence" / "identity.json").write_text(json.dumps(identity))
-            stage.load_prior_stage(config_path, TICKER, "src", binary, stage.sha256(binary))
+            candidate = ("src", stage.sha256(binary))
+            stage.load_prior_stage(config_path, candidate)
             for bad in (str(Path(directory) / "old.db"), "../../outside.db"):
                 config["paths"]["db"] = bad
                 config_path.write_text(json.dumps(config))
                 identity["config_sha256"] = stage.sha256(config_path)
                 (base / "evidence" / "identity.json").write_text(json.dumps(identity))
                 with self.assertRaisesRegex(ValueError, "db path"):
-                    stage.load_prior_stage(config_path, TICKER, "src", binary, stage.sha256(binary))
+                    stage.load_prior_stage(config_path, candidate)
             config["paths"]["db"] = str(base / "runtime" / "harness.db")
             config_path.write_text(json.dumps(config))
             identity["config_sha256"] = stage.sha256(config_path)
             (base / "evidence" / "identity.json").write_text(json.dumps(identity))
             (base / "runtime" / "harness.db").symlink_to(binary)
             with self.assertRaisesRegex(ValueError, "db path"):
-                stage.load_prior_stage(config_path, TICKER, "src", binary, stage.sha256(binary))
+                stage.load_prior_stage(config_path, candidate)
+
+    def test_prior_stage_binds_to_the_current_candidate_or_its_predecessor_as_a_pair(self):
+        predecessor, current = ("src-a", "bin-a"), ("src-b", "bin-b")
+        cases = [  # (prior manifest, prior binary, binding or None for a refusal)
+            ("src-b", "bin-b", "same_candidate"), ("src-a", "bin-a", "predecessor"),
+            ("src-b", "bin-a", None),  # current manifest with the predecessor binary
+            ("src-a", "bin-b", None),  # predecessor manifest with the current binary
+            ("src-b", "bin-x", None), ("src-x", "bin-b", None),
+            ("src-a", "bin-x", None), ("src-x", "bin-a", None), ("src-x", "bin-x", None)]
+        for source, binary, binding in cases:
+            with self.subTest(source=source, binary=binary), tempfile.TemporaryDirectory() as directory:
+                config_path = write_prior_stage(directory, identity_changes={
+                    "source_manifest_sha256": source, "binary_sha256": binary})
+                if binding is None:
+                    with self.assertRaisesRegex(
+                            ValueError, "neither the current candidate nor its recorded predecessor"):
+                        stage.load_prior_stage(config_path, current, predecessor)
+                else:
+                    _, identity = stage.load_prior_stage(config_path, current, predecessor)
+                    self.assertEqual(identity["binding"], binding)
+        # A receipt that records no predecessor leaves only the current candidate to bind.
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = write_prior_stage(directory)  # ran ("src-a", "bin-a")
+            with self.assertRaisesRegex(ValueError, "neither the current candidate"):
+                stage.load_prior_stage(config_path, current)
+            with self.assertRaisesRegex(ValueError, "neither the current candidate"):
+                stage.load_prior_stage(config_path, current, None)
+            self.assertEqual(stage.load_prior_stage(config_path, predecessor)[1]["binding"],
+                             "same_candidate")
+
+    def test_prior_stage_ticker_and_binary_path_are_free_but_must_be_consistent(self):
+        candidate = ("src-a", "bin-a")
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = write_prior_stage(directory, {"ticker": "KXOLD-26AUG"},
+                                            {"ticker": "KXOLD-26AUG"})
+            config, identity = stage.load_prior_stage(config_path, candidate)
+            self.assertEqual((config["ticker"], identity["ticker"], identity["binding"]),
+                             ("KXOLD-26AUG", "KXOLD-26AUG", "same_candidate"))
+            self.assertFalse(Path(identity["binary_path"]).exists())
+        for label, config_changes, identity_changes in [
+                ("identity and config name different markets", {"ticker": "KXOLD-26AUG"}, {}),
+                ("no ticker anywhere", {"ticker": None}, {"ticker": None}),
+                ("unusable ticker", {"ticker": "bad ticker"}, {"ticker": "bad ticker"})]:
+            with self.subTest(label), tempfile.TemporaryDirectory() as directory:
+                config_path = write_prior_stage(directory, config_changes, identity_changes)
+                with self.assertRaisesRegex(ValueError, "does not match first-stage candidate identity"):
+                    stage.load_prior_stage(config_path, candidate)
+
+    def test_prior_stage_must_still_be_a_sizing_first_stage_of_its_own_config(self):
+        candidate = ("src-a", "bin-a")
+        for label, config_changes, identity_changes in [
+                ("an r2 stage", {}, {"stage": "r2"}),
+                ("identity rung pilot", {}, {"rung": "pilot"}),
+                ("config rung pilot", {"rung": "pilot"}, {}),
+                ("config moved", {}, {"config_path": "/elsewhere/config.json"}),
+                ("config edited after its identity", {}, {"config_sha256": "0" * 64})]:
+            with self.subTest(label), tempfile.TemporaryDirectory() as directory:
+                config_path = write_prior_stage(directory, config_changes, identity_changes)
+                with self.assertRaisesRegex(ValueError, "does not match first-stage candidate identity"):
+                    stage.load_prior_stage(config_path, candidate)
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = write_prior_stage(directory, identity_changes={"created_at_utc": "yesterday"})
+            with self.assertRaisesRegex(ValueError, "creation timestamp"):
+                stage.load_prior_stage(config_path, candidate)
+
+    def test_receipt_predecessor_reads_the_recorded_pair_and_refuses_a_malformed_one(self):
+        pair = {"source_manifest_sha256": "s" * 64, "binary_sha256": "b" * 64}
+        self.assertIsNone(stage.receipt_predecessor({}))  # an older receipt
+        self.assertIsNone(stage.receipt_predecessor({"predecessor": None}))
+        recorded = {**pair, "build_identity": "/notes/candidate-5/build-identity.json"}
+        self.assertEqual(stage.receipt_predecessor({"predecessor": recorded}), ("s" * 64, "b" * 64))
+        for bad in ("candidate-5", [], {}, {"binary_sha256": "b" * 64},
+                    {"source_manifest_sha256": "s" * 64}, {**pair, "binary_sha256": ""},
+                    {**pair, "source_manifest_sha256": 7}):
+            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, "predecessor needs"):
+                stage.receipt_predecessor({"predecessor": bad})
+
+    def test_r2_receipt_candidate_block_must_match_the_first_stage_field_by_field(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "receipt.json"
+            proof = path.parent / "proof.json"
+            proof.write_text("fixture")
+            identity = {"created_at_utc": NOW.isoformat(), "identity_sha256": "first-id"}
+            entry = {"operator_outcome": "observed", "operator": "operator",
+                     "observation": "Inspected stage output and exchange response",
+                     "recorded_at_utc": NOW.isoformat(),
+                     "evidence": [{"path": "proof.json", "sha256": stage.sha256(proof),
+                                   "first_stage_identity_sha256": "first-id"}]}
+            candidate = {"ticker": TICKER, "source_manifest_sha256": "src", "binary_sha256": "bin",
+                         "config_sha256": "cfg", "first_stage_identity_sha256": "first-id"}
+            receipt = {"candidate": candidate,
+                       "acceptance": {field: dict(entry) for field in stage.R2_FIELDS}}
+            path.write_text(json.dumps(receipt))
+            stage.load_r2_receipt(path, TICKER, "src", "bin", "cfg", identity, NOW)
+            for field in candidate:
+                with self.subTest(field):
+                    receipt["candidate"] = {**candidate, field: "other"}
+                    path.write_text(json.dumps(receipt))
+                    with self.assertRaisesRegex(ValueError,
+                                                "not bound to the first-stage candidate identity"):
+                        stage.load_r2_receipt(path, TICKER, "src", "bin", "cfg", identity, NOW)
 
     def test_exit_arithmetic_walks_current_depth_and_rounds_fees(self):
         book = book_report()
@@ -479,11 +718,12 @@ class OperatorStageTests(unittest.TestCase):
 
     def assert_paste_safe_phases(self, args, output, evidence, fx):
         config = json.loads((evidence.parent / "config.json").read_text())
-        legacy = legacy_operator_lines(
-            args, config, exe=stage.quote(fx.binary.resolve()),
-            cfg=stage.quote(evidence.parent / "config.json"), evidence=evidence,
-            repo=fx.repo.resolve(), ticker=TICKER)
-        expected = legacy_commands(legacy)
+        shared = dict(exe=stage.quote(fx.binary.resolve()), cfg=stage.quote(evidence.parent / "config.json"),
+                      evidence=evidence, repo=fx.repo.resolve(), ticker=args.ticker)
+        if args.stage == "first":
+            expected = legacy_commands(legacy_operator_lines(args, config, **shared))
+        else:
+            expected = r2_operator_commands(config, **shared)
         self.assertTrue(expected[-1].startswith("rm -f "))
         commands, prose = [], []
         for line in output.splitlines():
@@ -511,7 +751,7 @@ class OperatorStageTests(unittest.TestCase):
                 phases.append([])
             elif line.startswith(stage.COMMAND_INDENT):
                 phases[-1].append(line.strip())
-        self.assertEqual(len(phases), 10 if args.stage == "first" else 5)
+        self.assertEqual(len(phases), 10)
         for phase in phases:
             self.assertFalse(any(c.startswith("ps ") for c in phase)
                              and any(c.startswith("kill ") for c in phase), phase)
@@ -532,12 +772,260 @@ class OperatorStageTests(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 first_evidence = stage.prepare(fx.args("first"), runner=fx.runner, clock=lambda: NOW)
             args = fx.args("r2", "--prior-config", str(first_evidence.parent / "config.json"),
-                           "--r2-receipt", str(write_r2_receipt(fx, first_evidence)))
+                           "--r2-receipt", str(write_r2_receipt(first_evidence)))
             with contextlib.redirect_stdout(io.StringIO()) as output:
                 evidence = stage.prepare(args, runner=fx.runner, clock=lambda: NOW)
             self.assertEqual(json.loads((evidence.parent / "config.json").read_text())["rung"], "pilot")
             self.assertTrue(all("-live" not in command for command in fx.commands))
             self.assert_paste_safe_phases(args, output.getvalue(), evidence, fx)
+
+    def prepare_first(self, fx):
+        with contextlib.redirect_stdout(io.StringIO()):
+            return stage.prepare(fx.args("first"), runner=fx.runner, clock=lambda: NOW)
+
+    def prepare_r2(self, fx, first_evidence, receipt=None, root=None):
+        """Prepare an R2 stage on first_evidence; a distinct root lets one test try several."""
+        args = fx.args("r2", "--prior-config", str(first_evidence.parent / "config.json"),
+                       "--r2-receipt", str(receipt or write_r2_receipt(first_evidence)))
+        if root is not None:
+            args.evidence_root = str(root)
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            evidence = stage.prepare(args, runner=fx.runner, clock=lambda: NOW)
+        return evidence, output.getvalue()
+
+    def assert_fresh_store(self, evidence, first_evidence, ticker):
+        """The R2 config is its first stage's with only store paths, rung, heartbeat, market and S changed."""
+        config = json.loads((evidence.parent / "config.json").read_text())
+        prior = json.loads((first_evidence.parent / "config.json").read_text())
+        runtime = evidence.parent / "runtime"
+        self.assertNotEqual(runtime, first_evidence.parent / "runtime")
+        for key, filename in stage.RUNTIME_FILES.items():
+            self.assertEqual(config["paths"][key], str(runtime / filename), key)
+            self.assertNotEqual(config["paths"][key], prior["paths"][key], key)
+        self.assertEqual({k: v for k, v in config["paths"].items() if k not in stage.RUNTIME_FILES},
+                         {k: v for k, v in prior["paths"].items() if k not in stage.RUNTIME_FILES})
+        self.assertEqual((config["rung"], config["heartbeat_s"], config["ticker"], config["s"]),
+                         ("pilot", 3600, ticker, 2.5))
+        changed = {"paths", "rung", "heartbeat_s", "ticker", "s"}
+        self.assertEqual({k: v for k, v in config.items() if k not in changed},
+                         {k: v for k, v in prior.items() if k not in changed})
+        self.assertEqual(list(runtime.iterdir()), [])  # the helper provisions nothing
+
+    def test_r2_same_candidate_first_stage_binds_with_a_fresh_store_on_any_market(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            fx = build_prepare_fixture(base)
+            first_evidence = self.prepare_first(fx)
+            first = json.loads((first_evidence / "identity.json").read_text())
+            prior_tree = tree_state(first_evidence.parent)
+            receipt = write_r2_receipt(first_evidence)
+            for number, ticker in enumerate((TICKER, OTHER_TICKER)):
+                with self.subTest(ticker=ticker):
+                    fx.use_ticker(ticker)
+                    evidence, output = self.prepare_r2(fx, first_evidence, receipt,
+                                                       root=base / f"r2-{number}")
+                    identity = json.loads((evidence / "identity.json").read_text())
+                    self.assertEqual(identity["ticker"], ticker)
+                    self.assertEqual(identity["first_stage_binding"], "same_candidate")
+                    self.assertEqual(identity["first_stage_ticker"], TICKER)
+                    self.assertEqual(identity["first_stage_binary_sha256"], first["binary_sha256"])
+                    self.assertEqual(identity["first_stage_source_manifest_sha256"],
+                                     first["source_manifest_sha256"])
+                    self.assert_fresh_store(evidence, first_evidence, ticker)
+                    self.assertNotIn(str(first_evidence.parent), output)
+            self.assertEqual(tree_state(first_evidence.parent), prior_tree)
+
+    def test_r2_accepts_a_first_stage_of_the_recorded_predecessor_on_a_fresh_store_and_market(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fx = build_prepare_fixture(Path(directory))
+            first_evidence = self.prepare_first(fx)
+            # An older first stage: the template's 30 s heartbeat, another S and its own
+            # tuning, which the R2 config keeps except for heartbeat and S.
+            age_first_stage(first_evidence, heartbeat_s=30, s=7, inv_soft=4)
+            first_dir = first_evidence.parent
+            first = json.loads((first_evidence / "identity.json").read_text())
+            first_pair = (first["source_manifest_sha256"], first["binary_sha256"])
+            prior_tree = tree_state(first_dir)
+            # The next candidate: another Go source manifest and other binary bytes, its
+            # receipt naming the candidate the first stage ran as predecessor.
+            current_pair = write_candidate(fx, source="package main\n// next candidate\n",
+                                           binary="next candidate binary", predecessor=first_pair)
+            self.assertNotEqual(current_pair[0], first_pair[0])
+            self.assertNotEqual(current_pair[1], first_pair[1])
+            fx.use_ticker(OTHER_TICKER)
+            evidence, output = self.prepare_r2(fx, first_evidence)
+            identity = json.loads((evidence / "identity.json").read_text())
+            self.assertTrue(evidence.parent.name.startswith(f"r2-{OTHER_TICKER}-"))
+            self.assertEqual((identity["stage"], identity["rung"], identity["ticker"]),
+                             ("r2", "pilot", OTHER_TICKER))
+            self.assertEqual((identity["source_manifest_sha256"], identity["binary_sha256"]), current_pair)
+            self.assertEqual(identity["first_stage_binding"], "predecessor")
+            self.assertEqual(identity["first_stage_config"], str(first_dir / "config.json"))
+            self.assertEqual(identity["first_stage_ticker"], TICKER)
+            self.assertEqual(identity["first_stage_source_manifest_sha256"], first_pair[0])
+            self.assertEqual(identity["first_stage_binary_sha256"], first_pair[1])
+            self.assertEqual(identity["first_stage_identity_sha256"],
+                             stage.sha256(first_evidence / "identity.json"))
+            self.assertIs(identity["r2_attestation"]["artifact_content_verified"], False)
+            self.assert_fresh_store(evidence, first_evidence, OTHER_TICKER)
+            aged = json.loads((first_dir / "config.json").read_text())
+            config = json.loads((evidence.parent / "config.json").read_text())
+            self.assertEqual((aged["heartbeat_s"], aged["s"], aged["inv_soft"]), (30, 7, 4))
+            self.assertEqual((config["heartbeat_s"], config["s"], config["inv_soft"]), (3600, 2.5, 4))
+            self.assertNotIn(str(first_dir), output)
+            # Nothing was created in or changed under the prior stage directory.
+            self.assertEqual(tree_state(first_dir), prior_tree)
+
+    def test_r2_refuses_a_first_stage_outside_the_candidate_and_its_recorded_predecessor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            fx = build_prepare_fixture(base)
+            first_evidence = self.prepare_first(fx)
+            first_pair = (fx.source_hash, stage.sha256(fx.binary))
+            write_candidate(fx, source="package main\n// next candidate\n",
+                            binary="next candidate binary")
+            fx.use_ticker(OTHER_TICKER)
+            receipt = write_r2_receipt(first_evidence)
+            cases = [("no predecessor recorded", None),
+                     ("a predecessor that is not the first stage", ("f" * 64, "e" * 64)),
+                     ("the first stage manifest with another binary", (first_pair[0], "e" * 64)),
+                     ("the first stage binary with another manifest", ("f" * 64, first_pair[1]))]
+            for number, (label, predecessor) in enumerate(cases):
+                with self.subTest(label):
+                    write_candidate(fx, predecessor=predecessor)
+                    with self.assertRaisesRegex(
+                            ValueError, "neither the current candidate nor its recorded predecessor"):
+                        self.prepare_r2(fx, first_evidence, receipt, root=base / f"refused-{number}")
+            # Only the recorded predecessor differs from the control that binds.
+            write_candidate(fx, predecessor=first_pair)
+            evidence, _ = self.prepare_r2(fx, first_evidence, receipt, root=base / "accepted")
+            self.assertEqual(json.loads((evidence / "identity.json").read_text())["first_stage_binding"],
+                             "predecessor")
+
+    def test_r2_refuses_a_mixed_pair_of_predecessor_and_current_halves(self):
+        new_source, new_binary = "package main\n// new manifest\n", "new binary"
+        scenarios = [("predecessor binary with the current manifest", {"source": new_source},
+                      {"binary": new_binary}),
+                     ("predecessor manifest with the current binary", {"binary": new_binary},
+                      {"source": new_source})]
+        for label, first_change, current_change in scenarios:
+            with self.subTest(label), tempfile.TemporaryDirectory() as directory:
+                fx = build_prepare_fixture(Path(directory))
+                origin = (fx.source_hash, stage.sha256(fx.binary))  # recorded as the predecessor
+                write_candidate(fx, **first_change)  # the first stage runs half of the change
+                first_evidence = self.prepare_first(fx)
+                current_pair = write_candidate(fx, predecessor=origin, **current_change)
+                first = json.loads((first_evidence / "identity.json").read_text())
+                first_pair = (first["source_manifest_sha256"], first["binary_sha256"])
+                self.assertNotIn(first_pair, (origin, current_pair))
+                self.assertIn(first_pair[0], (origin[0], current_pair[0]))
+                self.assertIn(first_pair[1], (origin[1], current_pair[1]))
+                with self.assertRaisesRegex(
+                        ValueError, "neither the current candidate nor its recorded predecessor"):
+                    self.prepare_r2(fx, first_evidence)
+
+    def test_r2_receipt_naming_the_current_candidate_is_refused_for_a_predecessor_stage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            fx = build_prepare_fixture(base)
+            first_evidence = self.prepare_first(fx)
+            first_pair = (fx.source_hash, stage.sha256(fx.binary))
+            current_pair = write_candidate(fx, source="package main\n// next candidate\n",
+                                           binary="next candidate binary", predecessor=first_pair)
+            fx.use_ticker(OTHER_TICKER)
+            cases = {"the whole current candidate": {"ticker": OTHER_TICKER,
+                                                     "source_manifest_sha256": current_pair[0],
+                                                     "binary_sha256": current_pair[1]},
+                     "only the current source manifest": {"source_manifest_sha256": current_pair[0]},
+                     "only the current binary": {"binary_sha256": current_pair[1]},
+                     "only the new market": {"ticker": OTHER_TICKER}}
+            for number, (label, changes) in enumerate(cases.items()):
+                with self.subTest(label):
+                    receipt = write_r2_receipt(first_evidence, name=f"receipt-{number}")
+                    body = json.loads(receipt.read_text())
+                    body["candidate"].update(changes)
+                    receipt.write_text(json.dumps(body))
+                    with self.assertRaisesRegex(
+                            ValueError, "not bound to the first-stage candidate identity"):
+                        self.prepare_r2(fx, first_evidence, receipt, root=base / f"refused-{number}")
+
+    def test_malformed_receipt_predecessor_refuses_r2_but_not_the_first_stage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            fx = build_prepare_fixture(base)
+            first_evidence = self.prepare_first(fx)
+            body = json.loads(fx.build_receipt.read_text())
+            body["predecessor"] = {"binary_sha256": "b" * 64}
+            fx.build_receipt.write_text(json.dumps(body))
+            with self.assertRaisesRegex(ValueError, "predecessor needs"):
+                self.prepare_r2(fx, first_evidence, root=base / "refused")
+            args = fx.args("first")
+            args.evidence_root = str(base / "first-again")
+            with contextlib.redirect_stdout(io.StringIO()):
+                stage.prepare(args, runner=fx.runner, clock=lambda: NOW)
+
+    def test_prepare_r2_phases_drill_a_sigkill_crash_then_restart_without_resume(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fx = build_prepare_fixture(Path(directory))
+            first_evidence = self.prepare_first(fx)
+            evidence, output = self.prepare_r2(fx, first_evidence)
+            phases = parse_phases(output)
+            self.assertEqual([len(commands) for _, _, commands in phases],
+                             [1, 3, 1, 2, 2, 2, 1, 2, 1, 1])
+            prose = [" ".join(lines) for _, lines, _ in phases]
+            cmds = [commands for _, _, commands in phases]
+            stage_dir = evidence.parent
+            # Provision the stage's own store, then arm and start on the pilot rung.
+            self.assertTrue(cmds[0][0].endswith(f" -config {stage.quote(stage_dir / 'config.json')} -provision"))
+            self.assertEqual(cmds[1][0], f"install -m 600 /dev/null {stage.quote(stage_dir / 'runtime' / 'live_ok')}")
+            self.assertIn(" -rung pilot -live > ", cmds[1][1])
+            self.assertTrue(cmds[1][1].endswith(f"{stage.quote(evidence / 'harness.log')} 2>&1 &"))
+            self.assertIn("operator attestation", prose[1])
+            self.assertIn("file hashes", prose[1])
+            # Cycle first: three round trips, and a global stop means skipping the drill.
+            self.assertEqual(len(cmds[2]), 1)
+            self.assertTrue(cmds[2][0].startswith("ps -p "))
+            self.assertIn("harness.pid", cmds[2][0])
+            self.assertIn("at least three round trips, each an owned fill reduced back to flat", prose[2])
+            self.assertIn("pilot rung does not stop on first owned fill", prose[2])
+            self.assertIn("global stop latched during the cycles, skip the crash drill", prose[2])
+            # The crash itself: SIGKILL, waited in the same shell, with the market quoting flat.
+            self.assertTrue(cmds[3][0].startswith("kill -KILL "))
+            self.assertIn("harness.pid", cmds[3][0])
+            self.assertTrue(cmds[3][1].startswith("wait "))
+            self.assertTrue(cmds[3][1].endswith(f"> {stage.quote(evidence / 'exit-status.txt')}"))
+            self.assertIn("quoting flat with its adding orders resting", prose[3])
+            # The account read before the restart uses the prebuilt tool, not go run.
+            self.assertEqual(cmds[4][0], f"cd {stage.quote(fx.repo.resolve() / 'go')}")
+            self.assertTrue(cmds[4][1].startswith(f"{stage.quote(stage_dir / 'tools' / 'accountcheck')} "))
+            self.assertTrue(cmds[4][1].endswith(f"-out {stage.quote(evidence / 'account-after-crash.json')}"))
+            self.assertIn("resting orders the restart must adopt", prose[4])
+            self.assertIn("cancel them by hand and follow the runbook", prose[4])
+            # A SIGKILL writes no latch, so the restart carries no resume flag anywhere.
+            self.assertIn(" -rung pilot -live > ", cmds[5][0])
+            self.assertTrue(cmds[5][0].endswith(f"{stage.quote(evidence / 'restart.log')} 2>&1 &"))
+            self.assertEqual(cmds[5][1], f"echo $! > {stage.quote(evidence / 'restart.pid')}")
+            self.assertIn("no latch file exists", prose[5])
+            self.assertNotIn("-resume", output)
+            # Observe recovery-only adoption to DRAINED before signaling the restarted child.
+            self.assertIn("restart.pid", cmds[6][0])
+            for expected in ("adoption of the resting orders", "FUNDING_LIMITS with recovery_only true",
+                             "funding_recovery latch", "WINDING_DOWN", "adding orders cancelled",
+                             "inventory reduced to flat", "DRAINED with no new adds"):
+                self.assertIn(expected, prose[6])
+            self.assertTrue(cmds[7][0].startswith("kill -TERM "))
+            self.assertIn("restart.pid", cmds[7][0])
+            self.assertTrue(cmds[7][1].startswith("wait "))
+            self.assertTrue(cmds[7][1].endswith(f"> {stage.quote(evidence / 'restart-exit-status.txt')}"))
+            self.assertTrue(cmds[8][0].startswith("go run ./cmd/accountcheck "))
+            self.assertTrue(cmds[8][0].endswith(f"-out {stage.quote(evidence / 'account-after-restart.json')}"))
+            self.assertEqual(cmds[9], [f"rm -f {stage.quote(stage_dir / 'runtime' / 'live_ok')}"])
+            # One SIGKILL for the harness, one SIGTERM for the restart, in that order, and the
+            # only go run comes after the restart.
+            flat = [command for commands in cmds for command in commands]
+            self.assertEqual([c.split(" ", 2)[1] for c in flat if c.startswith("kill ")], ["-KILL", "-TERM"])
+            self.assertEqual([number for number, commands in enumerate(cmds)
+                              if any(c.startswith("go run ") for c in commands)], [8])
 
     # lip-e2t: compile time and the book capture must not straddle the freshness window.
     BUILDS = ["build ./cmd/incentives", "build ./cmd/accountcheck"]

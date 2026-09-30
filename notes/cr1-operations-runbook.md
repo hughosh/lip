@@ -5,9 +5,15 @@ reviewed binary, config, rung and account approved for the current trial. Keep
 the account dedicated: before every start, obtain a **complete account-wide**
 read-only orders, positions and fills view from the exchange, save its timestamp
 and raw response, and resolve any foreign or unknown activity. An unavailable or
-incomplete view is not a clean account. Record the selected market and verify it
+incomplete view is not a clean account. This is the **independent read-only
+route** used throughout: from `go/`, run
+`go run ./cmd/accountcheck -ticker "$TICKER" -fills -out <file>`. A clean start
+needs `account_scope_complete` and `flat` both true. Record the selected market and verify it
 is the single market in the config. Record the approved commit and binary SHA-256;
-the binary does not self-attest its commit under this module layout.
+the binary does not self-attest its commit under this module layout. Attended
+stages prepare and launch through `scripts/operator_stage.py` and the current
+operator handoff rather than the launchd job below; every check here still
+applies.
 
 Set these shell variables to the *reviewed* paths; the examples are the canary
 layout, not a default or an instruction to arm it:
@@ -16,6 +22,7 @@ layout, not a default or an instruction to arm it:
 CFG=/Users/hugh/.lip/canary/config.json
 BIN=/Users/hugh/.lip/bin/harness
 PLIST="$HOME/Library/LaunchAgents/com.lip.harness.plist"
+TICKER=$(jq -er '.ticker' "$CFG")
 DB=$(jq -er '.paths.db' "$CFG")
 JOURNAL=$(jq -er '.paths.anomaly_log' "$CFG")
 LATCH=$(jq -er '.paths.latch' "$CFG")
@@ -27,8 +34,10 @@ git -C /Users/hugh/kek/lip rev-parse HEAD
 
 For a normal start, confirm the recorded hashes and rung against the approved
 candidate, no other harness instance, no halt/stop sentinel, the account-wide
-read-only view above, and both alert destinations and the external dead-man
-monitor tested. Confirm the approved config has the expected account key path;
+read-only view above, and that the configured alert route (primary-only ntfy)
+and the external dead-man monitor are in place. For an attended start, their
+delivery and receipt are recorded when they occur and are not a gate (see
+**Alert route** at the end). Confirm the approved config has the expected account key path;
 do not print secret contents. Measure both available space and growth from the
 previous observation:
 
@@ -89,16 +98,35 @@ must establish complete exchange truth, settle every anomaly and separately
 authorize clearing the latch under §10.4. An unreadable latch also means
 latched, not clear.
 
+**Restart after a crash.** A SIGKILL, panic or power loss writes no latch. The
+next start therefore needs no `-resume`, and launchd KeepAlive makes it
+without asking. With `capital_source` `selected_shard_balance`, any order or
+commitment inherited from the dead process makes that start recovery-only:
+- FUNDING_LIMITS reports `recovery_only=true`;
+- placement refuses every non-reducing order;
+- the owner requests the durable `funding_recovery` stop
+  (`go/cmd/harness/funding_cap.go:104-106`, `funding_runtime.go:70,104-106`).
+
+The process adopts its owned orders, cancels the adds, reduces any inventory
+to flat and idles `DRAINED`. It never resumes adding: quoting again needs the
+§10.4 clearance above. Before a manual restart, take the independent read-only
+view. If the start refuses, cancel the resting orders and close any position
+by hand.
+
 If the store is missing, zero-length, corrupt or unreadable, or its journal
 cannot reconcile, **do not provision a replacement or infer flatness**. Preserve
 the files and errors (`ls -l "$DB" "$DB"-wal "$DB"-shm "$JOURNAL" "$LATCH"`;
-`sqlite3 -readonly "$DB" 'PRAGMA quick_check;'` after stopping). Prevent any
-new writer, obtain complete exchange orders/positions/fills views with an
-independent read-only route, and continue attended risk reduction through the
-approved recovery procedure. A store that cannot classify ownership cannot
+`sqlite3 -readonly "$DB" 'PRAGMA quick_check;'` after stopping). Record the
+file facts with the read-only preflight
+`/Users/hugh/kek/.venv/bin/python scripts/ops_recovery.py --db "$DB" --journal "$JOURNAL" --latch "$LATCH"`,
+which never opens SQLite or declares flatness. Prevent any new writer and take
+the independent read-only route above. Then reduce by hand: cancel every
+resting order on the account and close any position on the exchange, as in
+**Stuck reducer and operator manual close** below. A store that cannot classify ownership cannot
 license new adds. Restoration must recover the real ownership ledger, then
 reconcile exchange truth before a restart. Escalate immediately if any order or
 inventory may remain unmanaged. Never create an empty store over this state.
+This path has not been drilled with real exposure (bead lip-8hn.4).
 
 For low disk headroom, capture `df -k` and `du -k` as above, stop new starts,
 and observe the running harness's `DISK_HEADROOM` SEV1 and durable latch. Its
@@ -161,8 +189,8 @@ rm -- "$(jq -er '.paths.live_ok' "$CFG")"
 ```
 
 For every SEV1, record in the stage evidence its anomaly id (the `jq` line lists
-`sev` 2, which is SEV1), the ntfy delivery time and the time it was actually
-seen on the phone; the worked example did not record receipt. The periodic
+`sev` 2, which is SEV1), the ntfy delivery time and, when possible, the time it
+was actually seen on the phone; the worked example did not record receipt. The periodic
 heartbeat is not an alarm: seeing 30-second `WINDING_DOWN` heartbeats is not
 SEV1 receipt (bead lip-1gb). Worked example, 2026-09-29:
 `notes/first-fill-evidence-2026-09-28/operator-stages/first-KXAAAGASW-26OCT05-4.4200-20260929T172207.089474Z/`.
@@ -188,14 +216,26 @@ bootout and a later operator-controlled bootstrap are required to adopt it.
 Every SEV1 is immediate operator action; every SEV2 is reviewed and assigned a
 disposition the same day. In the incident record, retain class, timestamp,
 market, journal row, exchange truth, operator, action and closure evidence.
-The external alert route must page a primary operator and, if a SEV1 remains
-unacknowledged after **5 minutes**, page a named backup. A missed hourly
-heartbeat/dead-man alarm must page immediately and also reach the backup if
-unacknowledged after **5 minutes**. Acknowledgement means a human has assumed
-the incident, not that the risk is resolved. Until both routes, timeouts,
-contacts and acknowledgement receipts are configured and an end-to-end drill
-is saved, CR1 external escalation is **unverified and blocks promotion**.
-The drill must suppress a check-in and send a test SEV1, show both primary and
-backup alarm delivery without an acknowledgement, then show a human ack and
-save provider timestamps/receipts. Do not treat a local fake alert test as that
-external drill.
+
+**Alert route.**
+- **Configuration.** ntfy pages the primary operator only, with no backup
+  (Hugh, 2026-09-27/28; the topic is `NTFY_TOPIC` in `~/.kalshi/env`, never
+  printed). The dead-man monitor is healthchecks.io: 1 h period, 20 min grace,
+  email.
+- **Acknowledgement** means a human has assumed the incident, not that the
+  risk is resolved.
+- **Attended stage.** The operator watching the stage is the acknowledgement
+  path. Record receipt as above whenever possible (bead lip-6b1). Missing
+  receipt evidence does not fail the stage (Hugh, 2026-09-30: "not mission
+  critical").
+- **Unattended operation stays blocked** (bead lip-8hn.4) until two things
+  hold:
+  - an installed path makes a SEV1 or missed heartbeat that stays
+    unacknowledged for **5 minutes** reach someone who can act;
+  - an end-to-end drill is saved: suppress a check-in and send a test SEV1,
+    show delivery and what happens when nobody acknowledges, then a human
+    acknowledgement, all with provider timestamps.
+- **Watchdog.** `scripts/ops_watchdog.py` is the operator-run escalation
+  adapter for that path. Nothing installs or runs it today.
+- **Existing drill.** The 2026-09-27 machine drill is transport evidence only.
+  Do not treat a local fake alert test as the end-to-end drill.

@@ -258,6 +258,13 @@ BOOK="$PREFLIGHT/${TICKER}-$(date -u +%Y%m%dT%H%M%SZ)-r2-market-book-series.json
   --book "$BOOK" --prior-config "$FIRST_CONFIG" --r2-receipt "$R2_RECEIPT"
 ```
 
+> **Superseded 2026-09-30.** `--stage r2` now provisions a fresh store on a
+> freshly chosen market. It binds to a first stage run on the current candidate
+> or on the predecessor its build receipt records. Alarm receipt no longer
+> gates attended stages (runbook, "Alert route"). See
+> [operator-handoff-candidate-6.md](../first-fill-evidence-2026-09-28/operator-handoff-candidate-6.md).
+> The paragraphs below are the 2026-09-26 design.
+
 R2 derives `rung=pilot` while keeping the first-stage DB, latch, lock, and
 sentinel paths. Receipt acceptance gates command printing, not independent
 proof of its claimed events; inspect the underlying records. If a latch

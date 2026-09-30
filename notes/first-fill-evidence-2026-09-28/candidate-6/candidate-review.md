@@ -77,3 +77,11 @@ Both manifests list 291 files and differ in exactly two, both from this triage: 
 Not covered: live behaviour. No stage has run candidate-6. Nothing here qualifies R2, CR-2, repeated cycles or profitability.
 
 **Later static re-pin:** `loop/gates-out/20260930T050529097382Z-d315a8bf`, PASS on fingerprint `6b81d84d…0909`. It was taken after AGENTS.md gained the note that `notes/*-evidence-*` directories are outside the fingerprint. The Go manifest is still `ee8f4ec1…0231`.
+
+**Operator tooling after the review (2026-09-30).** These changes make no Go change and do not alter candidate-6.
+- `scripts/operator_stage.py --stage r2` now provisions a fresh store on a freshly chosen market.
+  - It binds to a first stage run on this candidate, or on its recorded predecessor (candidate-5, via `build-identity.json`).
+  - It ends with a SIGKILL crash-restart; see [../operator-handoff-candidate-6.md](../operator-handoff-candidate-6.md).
+  - `scripts/test_operator_stage.py`: 34 tests pass.
+- The Go manifest, recomputed after the edits, is still `ee8f4ec1…0231`, and the binary hash still matches.
+- The static gate passed on fingerprint `baf8419e…5ad4` (`loop/gates-out/20260930T184645357000Z-699e3069`) after the tooling and runbook edits. It passed again on `2a88fa21…4fe5` (`loop/gates-out/20260930T195250755706Z-cf7d39e6`) after a note in `notes/verification-workflow.md`. That second fingerprint is now the current pin. The candidate-gate and mutation receipts above still describe this Go source.

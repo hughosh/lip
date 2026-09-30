@@ -125,7 +125,11 @@ A gate receipt's `source_sha256_*` is the repository fingerprint
 (`run_gates.source_fingerprint`). A mutation receipt's `source_sha256_*` hashes
 only the sandbox inputs (the `go/` tree plus the runner scripts), so the two never
 match; compare each with itself before and after. The candidate's Go source
-identity is `operator_stage.source_manifest(...)[1]`.
+identity is `operator_stage.source_manifest(...)[1]`. It covers every non-ignored
+`.go` file under `go/`, including `_test.go`, so a test-only edit also changes it.
+`operator_stage.py` then refuses the current candidate's build receipt even
+though the binary is unchanged. Batch test-only Go changes with the next
+candidate.
 
 Receipts and full logs have unique paths under `loop/gates-out` by default.
 They identify inputs, command, tool, scope, time and outcome. Preserve failures.

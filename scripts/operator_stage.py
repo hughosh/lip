@@ -320,7 +320,7 @@ def exit_arithmetic(book: dict[str, Any], size: float) -> dict[str, Any]:
 
 
 def validate_build_receipt(path: Path, source_hash: str, binary: Path,
-                           binary_hash: str) -> None:
+                           binary_hash: str) -> dict[str, Any]:
     try:
         receipt = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -329,11 +329,38 @@ def validate_build_receipt(path: Path, source_hash: str, binary: Path,
             or Path(receipt.get("binary_path", "")).resolve() != binary
             or receipt.get("binary_sha256") != binary_hash):
         raise ValueError("candidate build receipt does not match current source and binary")
+    return receipt
 
 
-def load_prior_stage(prior_config: Path, ticker: str, source_hash: str,
-                     binary: Path, binary_hash: str) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Bind R2 to one first-stage identity and its dedicated, non-symlink runtime."""
+def receipt_predecessor(receipt: dict[str, Any]) -> tuple[str, str] | None:
+    """The predecessor a candidate receipt records, as (source_manifest_sha256, binary_sha256).
+
+    Older receipts record none. One that is recorded but malformed is refused with its own
+    message rather than treated as absent.
+    """
+    predecessor = receipt.get("predecessor")
+    if predecessor is None:
+        return None
+    pair = ((predecessor.get("source_manifest_sha256"), predecessor.get("binary_sha256"))
+            if isinstance(predecessor, dict) else (None, None))
+    if not all(isinstance(value, str) and value for value in pair):
+        raise ValueError("candidate build receipt predecessor needs "
+                         "source_manifest_sha256 and binary_sha256")
+    return pair
+
+
+def load_prior_stage(prior_config: Path, candidate: tuple[str, str],
+                     predecessor: tuple[str, str] | None = None
+                     ) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Bind R2 to one first-stage identity and its dedicated, non-symlink runtime.
+
+    ``candidate`` and ``predecessor`` are (source_manifest_sha256, binary_sha256) pairs: the
+    current candidate and the one its build receipt records as its predecessor, if any. The
+    first stage must have run exactly one of them, both fields together, so a mixed pair is
+    refused. R2 provisions its own store on its own market, so the first stage's ticker and
+    binary path are not constrained. The returned identity gains ``identity_sha256`` and
+    ``binding`` (``same_candidate`` or ``predecessor``).
+    """
     prior_path = prior_config.absolute()
     stage_dir = prior_path.parent
     if (prior_path.name != "config.json" or stage_dir.resolve() != stage_dir
@@ -352,15 +379,22 @@ def load_prior_stage(prior_config: Path, ticker: str, source_hash: str,
     if not isinstance(config, dict) or not isinstance(identity, dict):
         raise ValueError("first-stage config and identity must be objects")
     config_hash = sha256(prior_path)
+    prior_ticker = config.get("ticker")
     if (identity.get("stage") != "first" or identity.get("rung") != "sizing"
-            or identity.get("ticker") != ticker or config.get("ticker") != ticker
+            or not isinstance(prior_ticker, str) or not TICKER_RE.fullmatch(prior_ticker)
+            or identity.get("ticker") != prior_ticker
             or config.get("rung") != "sizing"
             or identity.get("config_path") != str(prior_path)
-            or identity.get("config_sha256") != config_hash
-            or identity.get("source_manifest_sha256") != source_hash
-            or identity.get("binary_path") != str(binary)
-            or identity.get("binary_sha256") != binary_hash):
+            or identity.get("config_sha256") != config_hash):
         raise ValueError("prior config does not match first-stage candidate identity")
+    prior_pair = (identity.get("source_manifest_sha256"), identity.get("binary_sha256"))
+    if prior_pair == candidate:
+        binding = "same_candidate"
+    elif predecessor is not None and prior_pair == predecessor:
+        binding = "predecessor"
+    else:
+        raise ValueError("first stage ran neither the current candidate nor its recorded "
+                         "predecessor (source manifest and binary must match together)")
     try:
         parse_time(identity["created_at_utc"])
     except (KeyError, TypeError, ValueError) as exc:
@@ -376,13 +410,19 @@ def load_prior_stage(prior_config: Path, ticker: str, source_hash: str,
                 or target.is_symlink() or target.parent.resolve() != runtime.resolve()):
             raise ValueError(f"prior config {key} path is not the first-stage runtime path")
     identity["identity_sha256"] = sha256(identity_path)
+    identity["binding"] = binding
     return config, identity
 
 
-def load_r2_receipt(path: Path, ticker: str, source_hash: str, binary_hash: str,
-                    prior_config_hash: str, first_identity: dict[str, Any],
-                    now: dt.datetime) -> dict[str, Any]:
-    """Check operator attestation shape and file identity, not event truth in files."""
+def load_r2_receipt(path: Path, first_ticker: str, first_source_hash: str,
+                    first_binary_hash: str, first_config_hash: str,
+                    first_identity: dict[str, Any], now: dt.datetime) -> dict[str, Any]:
+    """Check operator attestation shape and file identity, not event truth in files.
+
+    The receipt attests the first stage, so its candidate block must name that stage
+    (ticker, source manifest, binary, config and identity.json hashes), never the R2 stage
+    being prepared.
+    """
     try:
         receipt = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -390,10 +430,10 @@ def load_r2_receipt(path: Path, ticker: str, source_hash: str, binary_hash: str,
     if not isinstance(receipt, dict):
         raise ValueError("R2 operator evidence receipt must be an object")
     identity = receipt.get("candidate", {})
-    if (not isinstance(identity, dict) or identity.get("ticker") != ticker
-            or identity.get("source_manifest_sha256") != source_hash
-            or identity.get("binary_sha256") != binary_hash
-            or identity.get("config_sha256") != prior_config_hash
+    if (not isinstance(identity, dict) or identity.get("ticker") != first_ticker
+            or identity.get("source_manifest_sha256") != first_source_hash
+            or identity.get("binary_sha256") != first_binary_hash
+            or identity.get("config_sha256") != first_config_hash
             or identity.get("first_stage_identity_sha256") != first_identity["identity_sha256"]):
         raise ValueError("R2 receipt is not bound to the first-stage candidate identity")
     first_created = parse_time(first_identity["created_at_utc"])
@@ -496,25 +536,32 @@ def prepare(args: argparse.Namespace, *, runner: Callable[..., Any] = subprocess
 
     source_rows, source_hash, head, git_status = source_manifest(repo)
     binary_hash = sha256(binary)
-    validate_build_receipt(Path(args.candidate_receipt).resolve(), source_hash, binary, binary_hash)
+    build_receipt = validate_build_receipt(Path(args.candidate_receipt).resolve(), source_hash,
+                                           binary, binary_hash)
     prior_identity = None
     r2_receipt = None
 
     if args.stage == "first":
         config = json.loads(TEMPLATE.read_text(encoding="utf-8"))
         config["rung"] = "sizing"
-        config["heartbeat_s"] = FIRST_STAGE_HEARTBEAT_S
-        config["paths"] = dict(config["paths"])
-        for key, filename in RUNTIME_FILES.items():
-            config["paths"][key] = str(runtime / filename)
     else:
+        # R2 provisions its own store on a freshly chosen market: the config is a copy of the
+        # first stage's, moved to this stage's runtime (below) with its own rung, heartbeat,
+        # ticker and S. That first stage ran this candidate or, one hop back, the predecessor
+        # the candidate receipt records, and the operator receipt attests that first stage,
+        # not this candidate.
         prior_path = Path(args.prior_config).absolute()
-        config, prior_identity = load_prior_stage(prior_path, ticker, source_hash,
-                                                   binary, binary_hash)
-        config["paths"] = dict(config["paths"])
-        r2_receipt = load_r2_receipt(Path(args.r2_receipt).absolute(), ticker,
-                                     source_hash, binary_hash, sha256(prior_path),
+        config, prior_identity = load_prior_stage(
+            prior_path, (source_hash, binary_hash), receipt_predecessor(build_receipt))
+        config["rung"] = "pilot"
+        r2_receipt = load_r2_receipt(Path(args.r2_receipt).absolute(), prior_identity["ticker"],
+                                     prior_identity["source_manifest_sha256"],
+                                     prior_identity["binary_sha256"], sha256(prior_path),
                                      prior_identity, clock().astimezone(dt.timezone.utc))
+    config["heartbeat_s"] = FIRST_STAGE_HEARTBEAT_S
+    config["paths"] = dict(config["paths"])
+    for key, filename in RUNTIME_FILES.items():
+        config["paths"][key] = str(runtime / filename)
     default_key = Path.home() / ".kalshi/kalshi.pem"
     default_env = Path.home() / ".kalshi/env"
     if (Path(config["paths"]["key"]).expanduser().resolve() != default_key.resolve()
@@ -522,8 +569,6 @@ def prepare(args: argparse.Namespace, *, runner: Callable[..., Any] = subprocess
         raise ValueError("accountcheck uses ~/.kalshi credentials; config must identify the same credentials")
     config["ticker"] = ticker
     config["s"] = size
-    if args.stage == "r2":
-        config["rung"] = "pilot"
 
     # lip-e2t: compile is not a read. Build every preflight tool before the first
     # timed read so compile time never sits inside the max-age freshness window.
@@ -625,6 +670,11 @@ def prepare(args: argparse.Namespace, *, runner: Callable[..., Any] = subprocess
     }
     if args.stage == "r2":
         identity["first_stage_identity_sha256"] = prior_identity["identity_sha256"]
+        identity["first_stage_config"] = str(prior_path)
+        identity["first_stage_binding"] = prior_identity["binding"]
+        identity["first_stage_ticker"] = prior_identity["ticker"]
+        identity["first_stage_binary_sha256"] = prior_identity["binary_sha256"]
+        identity["first_stage_source_manifest_sha256"] = prior_identity["source_manifest_sha256"]
         identity["r2_attestation"] = {"receipt": str(Path(args.r2_receipt).absolute()),
                                       "artifact_content_verified": False,
                                       "artifact_content_note": r2_receipt["artifact_content_note"]}
@@ -661,30 +711,24 @@ COMMAND_INDENT = "    "
 def operator_phases(stage_name: str, *, exe: str, cfg: str, rung: str, live_ok: str,
                     evidence: Path, repo: Path, ticker: str) -> list[tuple[str, list[str], list[str]]]:
     """Return (title, prose checks, commands); a phase never spans a human checkpoint."""
-    first = stage_name == "first"
+    if stage_name == "r2":
+        return r2_operator_phases(exe=exe, cfg=cfg, rung=rung, live_ok=live_ok,
+                                  evidence=evidence, repo=repo, ticker=ticker)
     pid_file = quote(evidence / "harness.pid")
     log_file = quote(evidence / "harness.log")
+    restart_pid = quote(evidence / "restart.pid")
     phases: list[tuple[str, list[str], list[str]]] = []
-    if first:
-        phases.append(("provision this stage store.", [], [f"{exe} -config {cfg} -provision"]))
-    arm_checks = []
-    if not first:
-        arm_checks += [
-            "CHECK: start only after a human adjudicates complete account truth and clears the existing latch. This helper never clears it.",
-            "NOTE: R2 operator attestation accepted. Artifact contents and claimed events remain unverified by this helper.",
-        ]
-    arm_checks.append("CHECK: arm only after reviewing current account, book, fees, limits and candidate identity.")
-    phases.append(("arm and start the harness.", arm_checks, [
+    phases.append(("provision this stage store.", [], [f"{exe} -config {cfg} -provision"]))
+    phases.append(("arm and start the harness.", [
+        "CHECK: arm only after reviewing current account, book, fees, limits and candidate identity.",
+    ], [
         f"install -m 600 /dev/null {live_ok}",
         f"{exe} -config {cfg} -rung {rung} -live > {log_file} 2>&1 &",
         f"echo $! > {pid_file}",
     ]))
-    if first:
-        observe = ["CHECK: remain present. Observe fills and the durable first-fill stop before planned shutdown."]
-    else:
-        observe = ["CHECK: remain present and observe fills before planned shutdown.",
-                   "NOTE: the pilot rung does not stop on first owned fill."]
-    phases.append(("show the harness process before signaling it.", observe, [
+    phases.append(("show the harness process before signaling it.", [
+        "CHECK: remain present. Observe fills and the durable first-fill stop before planned shutdown.",
+    ], [
         f"ps -p \"$(cat {pid_file})\" -o pid=,command=",
     ]))
     phases.append(("stop the harness and wait for it in the SAME operator shell that started it.", [
@@ -700,31 +744,29 @@ def operator_phases(stage_name: str, *, exe: str, cfg: str, rung: str, live_ok: 
         f"cd {quote(repo / 'go')}",
         f"go run ./cmd/accountcheck -ticker {quote(ticker)} -fills -out {quote(evidence / 'account-after-drain.json')}",
     ]))
-    if first:
-        restart_pid = quote(evidence / "restart.pid")
-        phases.append(("attended retained-latch restart.", [
-            "CHECK: the drain exit status and the account report after drain have been read.",
-        ], [
-            f"{exe} -config {cfg} -rung sizing -resume 'first-owned-fill stop validation' -live > {quote(evidence / 'restart.log')} 2>&1 &",
-            f"echo $! > {restart_pid}",
-        ]))
-        phases.append(("show the restarted child before signaling it.", [
-            "CHECK: observe retained-latch WINDING_DOWN/adoption and no new adds. A latched process can idle DRAINED until signaled.",
-        ], [
-            f"ps -p \"$(cat {restart_pid})\" -o pid=,command=",
-        ]))
-        phases.append(("stop the restarted child and wait for it in the SAME operator shell.", [
-            "CHECK: the ps output shows the restarted child. Verify identity before signaling.",
-        ], [
-            f"kill -TERM \"$(cat {restart_pid})\"",
-            f"wait \"$(cat {restart_pid})\"; echo $? > {quote(evidence / 'restart-exit-status.txt')}",
-        ]))
-        phases.append(("record account truth after the restart, still in the go directory.", [
-            "CHECK: only after the attended retained-latch restart has exited cleanly.",
-            "NOTE: R2 remains gated on the candidate-bound first-stage evidence receipt and human latch adjudication.",
-        ], [
-            f"go run ./cmd/accountcheck -ticker {quote(ticker)} -fills -out {quote(evidence / 'account-after-restart.json')}",
-        ]))
+    phases.append(("attended retained-latch restart.", [
+        "CHECK: the drain exit status and the account report after drain have been read.",
+    ], [
+        f"{exe} -config {cfg} -rung sizing -resume 'first-owned-fill stop validation' -live > {quote(evidence / 'restart.log')} 2>&1 &",
+        f"echo $! > {restart_pid}",
+    ]))
+    phases.append(("show the restarted child before signaling it.", [
+        "CHECK: observe retained-latch WINDING_DOWN/adoption and no new adds. A latched process can idle DRAINED until signaled.",
+    ], [
+        f"ps -p \"$(cat {restart_pid})\" -o pid=,command=",
+    ]))
+    phases.append(("stop the restarted child and wait for it in the SAME operator shell.", [
+        "CHECK: the ps output shows the restarted child. Verify identity before signaling.",
+    ], [
+        f"kill -TERM \"$(cat {restart_pid})\"",
+        f"wait \"$(cat {restart_pid})\"; echo $? > {quote(evidence / 'restart-exit-status.txt')}",
+    ]))
+    phases.append(("record account truth after the restart, still in the go directory.", [
+        "CHECK: only after the attended retained-latch restart has exited cleanly.",
+        "NOTE: R2 remains gated on the candidate-bound first-stage evidence receipt and human latch adjudication.",
+    ], [
+        f"go run ./cmd/accountcheck -ticker {quote(ticker)} -fills -out {quote(evidence / 'account-after-restart.json')}",
+    ]))
     phases.append(("remove the write sentinel of this stage.", [
         "CHECK: only after verifying every stage process has exited and account truth is complete and flat.",
         "NOTE: this removes only the write sentinel of this stage. Retain the store, latch and evidence.",
@@ -732,6 +774,77 @@ def operator_phases(stage_name: str, *, exe: str, cfg: str, rung: str, live_ok: 
         f"rm -f {live_ok}",
     ]))
     return phases
+
+
+def r2_operator_phases(*, exe: str, cfg: str, rung: str, live_ok: str, evidence: Path,
+                       repo: Path, ticker: str) -> list[tuple[str, list[str], list[str]]]:
+    """R2 provisions its own store, cycles, then drills a SIGKILL crash and a fresh restart.
+
+    A SIGKILL writes no latch, so the restart deliberately omits the resume flag and the
+    harness must adopt its own resting orders through recovery only.
+    """
+    pid_file = quote(evidence / "harness.pid")
+    restart_pid = quote(evidence / "restart.pid")
+    # The prebuilt tool keeps the window short in which the orders rest unmanaged.
+    accountcheck = quote(evidence.parent / "tools" / "accountcheck")
+    return [
+        ("provision this stage store.", [], [f"{exe} -config {cfg} -provision"]),
+        ("arm and start the harness.", [
+            "NOTE: the first-stage receipt is an operator attestation. This helper checked its file hashes but not the events it claims.",
+            "CHECK: arm only after reviewing current account, book, fees, limits and candidate identity.",
+        ], [
+            f"install -m 600 /dev/null {live_ok}",
+            f"{exe} -config {cfg} -rung {rung} -live > {quote(evidence / 'harness.log')} 2>&1 &",
+            f"echo $! > {pid_file}",
+        ]),
+        ("show the harness process before the crash drill.", [
+            "CHECK: remain present and observe at least three round trips, each an owned fill reduced back to flat.",
+            "NOTE: the pilot rung does not stop on first owned fill.",
+            "NOTE: if any global stop latched during the cycles, skip the crash drill and follow the operator handoff instead.",
+        ], [
+            f"ps -p \"$(cat {pid_file})\" -o pid=,command=",
+        ]),
+        ("crash the harness with SIGKILL and wait for it in the SAME operator shell that started it.", [
+            "CHECK: the ps output shows the operator-verified harness child and the market is quoting flat with its adding orders resting.",
+        ], [
+            f"kill -KILL \"$(cat {pid_file})\"",
+            f"wait \"$(cat {pid_file})\"; echo $? > {quote(evidence / 'exit-status.txt')}",
+        ]),
+        ("record account truth after the crash, before the restart.", [
+            "NOTE: the account is expected to show the resting orders the restart must adopt. If the restart refuses, cancel them by hand and follow the runbook.",
+        ], [
+            f"cd {quote(repo / 'go')}",
+            f"{accountcheck} -ticker {quote(ticker)} -fills -out {quote(evidence / 'account-after-crash.json')}",
+        ]),
+        ("restart the harness without resume, since a SIGKILL writes no latch.", [
+            "CHECK: no latch file exists and the account read above has been saved.",
+        ], [
+            f"{exe} -config {cfg} -rung {rung} -live > {quote(evidence / 'restart.log')} 2>&1 &",
+            f"echo $! > {restart_pid}",
+        ]),
+        ("show the restarted child before signaling it.", [
+            "CHECK: observe adoption of the resting orders, FUNDING_LIMITS with recovery_only true, a funding_recovery latch and WINDING_DOWN, the adding orders cancelled, any inventory reduced to flat, then DRAINED with no new adds.",
+        ], [
+            f"ps -p \"$(cat {restart_pid})\" -o pid=,command=",
+        ]),
+        ("stop the restarted child and wait for it in the SAME operator shell.", [
+            "CHECK: the ps output shows the restarted child. Verify identity before signaling.",
+        ], [
+            f"kill -TERM \"$(cat {restart_pid})\"",
+            f"wait \"$(cat {restart_pid})\"; echo $? > {quote(evidence / 'restart-exit-status.txt')}",
+        ]),
+        ("record account truth after the restart, still in the go directory.", [
+            "CHECK: only after the restarted child has exited.",
+        ], [
+            f"go run ./cmd/accountcheck -ticker {quote(ticker)} -fills -out {quote(evidence / 'account-after-restart.json')}",
+        ]),
+        ("remove the write sentinel of this stage.", [
+            "CHECK: only after verifying every stage process has exited and account truth is complete and flat.",
+            "NOTE: this removes only the write sentinel of this stage. Retain the store, latch and evidence.",
+        ], [
+            f"rm -f {live_ok}",
+        ]),
+    ]
 
 
 def print_operator_phases(stage_name: str, phases: list[tuple[str, list[str], list[str]]],
@@ -760,8 +873,10 @@ def parser() -> argparse.ArgumentParser:
                    "it after building the preflight tools")
     p.add_argument("--evidence-root", default=str(ROOT / "notes/active-continuation-2026-09-26/operator-stages"))
     p.add_argument("--max-age-seconds", type=int, default=60)
-    p.add_argument("--prior-config", help="completed first-stage config; required for R2")
-    p.add_argument("--r2-receipt", help="candidate-bound first-stage evidence receipt; required for R2")
+    p.add_argument("--prior-config", help="completed first-stage config, run on this candidate or "
+                   "its recorded predecessor; required for R2, which provisions its own store")
+    p.add_argument("--r2-receipt", help="operator evidence receipt bound to that first stage; "
+                   "required for R2")
     p.add_argument("--repo", default=str(ROOT), help=argparse.SUPPRESS)
     return p
 
