@@ -1,0 +1,5 @@
+2026-09-30T20:55:52Z launched pid 48693 (harness -config <stage>/config.json -rung pilot -live) after Hugh's explicit launch yes (AskUserQuestion 'Launch on EFRE'); prep slack 52.7s
+2026-09-30T22:55:26.127Z SIGKILL pid 48693 started Wed Sep 30 13:55:52 2026 (crash drill, Hugh's yes); gate: market QUOTING, q 0, idle 547952 ms, adds {"yes": {"price_cents": 45, "count_q": 1200, "order_id": "01a0f47f-4a90-7425-83fc-3b99caa2473d", "role": "adding"}, "no": {"price_cents": 54, "count_q": 1200, "order_id": "01a0f47f-4a90-7168-a34a-60f0d9199ea6", "role": "adding"}}
+2026-09-30T22:56:39.569Z restart pid 56068 started Wed Sep 30 15:56:37 2026 without -resume (crash drill, Hugh's yes)
+2026-09-30T22:58:47.464Z SIGTERM restart pid 56068 started Wed Sep 30 15:56:37 2026 (Hugh's yes)
+2026-09-30T22:59:23.140Z removed /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXDANCINGWITHTHESTARS-26DEC31-EFRE-20260930T205542.400043Z/runtime/live_ok after complete flat account-after-restart (Hugh's yes)

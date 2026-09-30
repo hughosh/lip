@@ -1,0 +1,8 @@
+{
+  "cash_usd": "98.5479",
+  "reserve_usd": "24.636975",
+  "deployable_usd": "73.910925",
+  "worst_entry_usd": "11.880",
+  "round_trip_bound_usd": "12.0",
+  "note": "H-CAP-8 admission bound; moved exit prices and fees can exceed it. Startup checks cash again."
+}

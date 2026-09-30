@@ -1,0 +1,23 @@
+{
+  "ticker": "KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+  "rung": "pilot",
+  "capital_source": "selected_shard_balance",
+  "s": 12.0,
+  "s_max": 48,
+  "inv_soft": 3,
+  "inv_hard": 7,
+  "inv_kill": 18,
+  "pnl_kill": -15,
+  "n_markets": 1,
+  "heartbeat_s": 3600,
+  "paths": {
+    "db": "/Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXDANCINGWITHTHESTARS-26DEC31-EFRE-20260930T205542.400043Z/runtime/harness.db",
+    "anomaly_log": "/Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXDANCINGWITHTHESTARS-26DEC31-EFRE-20260930T205542.400043Z/runtime/anomaly.jsonl",
+    "latch": "/Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXDANCINGWITHTHESTARS-26DEC31-EFRE-20260930T205542.400043Z/runtime/harness.halt",
+    "lock": "/Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXDANCINGWITHTHESTARS-26DEC31-EFRE-20260930T205542.400043Z/runtime/harness.lock",
+    "key": "/Users/hugh/.kalshi/kalshi.pem",
+    "env": "/Users/hugh/.kalshi/env",
+    "live_ok": "/Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXDANCINGWITHTHESTARS-26DEC31-EFRE-20260930T205542.400043Z/runtime/live_ok",
+    "stop": "/Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXDANCINGWITHTHESTARS-26DEC31-EFRE-20260930T205542.400043Z/runtime/harness.stop"
+  }
+}

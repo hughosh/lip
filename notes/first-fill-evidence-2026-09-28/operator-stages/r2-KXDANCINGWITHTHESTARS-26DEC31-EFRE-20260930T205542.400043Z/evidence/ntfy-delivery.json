@@ -1,0 +1,274 @@
+[
+  {
+    "id": "NemXtJj5bcms",
+    "time": 1790801756,
+    "delivered_utc": "2026-09-30T20:55:56Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXEPLRELEGATION-27-MCI",
+    "message": "fill 07235506-1a69-9eae-17dd-c4129d0f0ac6 on order 01a0eef3-c808-7514-a313-f5e767b58996 carries no coid of ours and was already on the account at startup; it does not enter our_fill and does not trigger F14, and the positions walk has already accounted for its effect. An account we are adopting is allowed to have been traded before we arrived, so this is reported and not latched\n\nfirst seen: 2026-09-30T20:55:56Z\nanomaly: 20260930T20555550EEA-a1\n\n3 further occurrence(s) of FOREIGN_FILL_INHERITED on KXEPLRELEGATION-27-MCI between 2026-09-30T20:55:56Z and 2026-09-30T20:55:56Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "o1jxmxNTUDwM",
+    "time": 1790801756,
+    "delivered_utc": "2026-09-30T20:55:56Z",
+    "priority": 3,
+    "title": "lip STARTING | store healthy",
+    "message": "global: STARTING\ncapital: $98.55\nintegrated: unknown\nuptime: 1s\nsource: unknown\nundelivered: 0\nstore: healthy\nmarkets: none"
+  },
+  {
+    "id": "JgcHEYLM3ky0",
+    "time": 1790801757,
+    "delivered_utc": "2026-09-30T20:55:57Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+    "message": "fill 1582884a-1f64-7c20-fab4-b40468ad5df6 on order 0f0a2cee-ab64-4c1f-9814-50e5fb4f22a3 was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish\n\nfirst seen: 2026-09-30T20:55:57Z\nanomaly: 20260930T20555550EEA-a12\n\n2 further occurrence(s) of FOREIGN_FILL_INHERITED on KXGENERICBALLOTVOTEHUB-26JUL31-T5.7 between 2026-09-30T20:55:57Z and 2026-09-30T20:55:57Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "VVIoYgn3FDFJ",
+    "time": 1790801757,
+    "delivered_utc": "2026-09-30T20:55:57Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXAAAGASW-26OCT05-4.4200",
+    "message": "fill 0723573e-e589-a158-f331-5f44a8010c85 on order 01a0ee44-7920-77d4-92d2-bae201f4f7c8 was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish\n\nfirst seen: 2026-09-30T20:55:57Z\nanomaly: 20260930T20555550EEA-a10"
+  },
+  {
+    "id": "wOgGyKw0qL2a",
+    "time": 1790801890,
+    "delivered_utc": "2026-09-30T20:58:10Z",
+    "priority": 3,
+    "title": "SEV2 BOOK_QUIET KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "no book frame for 1m0.010839696s while the socket is healthy, past quiet_s 1m0s; F5's REST cross-check is requested and no placement decision is taken from this market until it answers. Agreement resets the staleness clock and the market keeps quoting; disagreement replaces the book, quarantines it and sends the market to REDUCING\n\nfirst seen: 2026-09-30T20:58:09Z\nanomaly: 20260930T20555550EEA-a24"
+  },
+  {
+    "id": "M4QgTnJfAHvx",
+    "time": 1790802473,
+    "delivered_utc": "2026-09-30T21:07:53Z",
+    "priority": 3,
+    "title": "SEV2 PNL_MARK_UNAVAILABLE KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "H-HALT-5 cannot be evaluated while KXDANCINGWITHTHESTARS-26DEC31-EFRE: the last accepted book frame is 30.003s old, past pnl_mark_max_age_s 30s. STALE, not absent -- a price exists and is too old to value inventory against. The trigger is treated as NOT FIRED, and never as fired-or-safe, so the harness keeps running with the loss floor unenforced until this clears\n\nfirst seen: 2026-09-30T21:07:52Z\nanomaly: 20260930T20555550EEA-a28"
+  },
+  {
+    "id": "14OS5v42PxJQ",
+    "time": 1790802657,
+    "delivered_utc": "2026-09-30T21:10:57Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+    "message": "fill 11040975-6912-5717-d8c1-0f71defe7d78 on order 48fb1c82-91f0-4731-971c-9babc0c303b7 was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish\n\nfirst seen: 2026-09-30T20:55:57Z\nanomaly: 20260930T20555550EEA-a15\n\n8 further occurrence(s) of FOREIGN_FILL_INHERITED on KXGENERICBALLOTVOTEHUB-26JUL31-T5.7 between 2026-09-30T20:55:57Z and 2026-09-30T20:55:57Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "FRdsQApXhgR3",
+    "time": 1790802657,
+    "delivered_utc": "2026-09-30T21:10:57Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXAAAGASW-26OCT05-4.4200",
+    "message": "fill 072356e8-c159-ab69-e864-a19875f8ee85 on order 01a0ee31-0c78-7333-9ea8-59fdcdd38b71 was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish\n\nfirst seen: 2026-09-30T20:55:57Z\nanomaly: 20260930T20555550EEA-a11"
+  },
+  {
+    "id": "e0XX5uzluUDM",
+    "time": 1790802657,
+    "delivered_utc": "2026-09-30T21:10:57Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXEPLRELEGATION-27-MCI",
+    "message": "fill 07235506-1a69-9eae-17dd-c4129d0f0ac6 on order 01a0eef3-c808-7514-a313-f5e767b58996 was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish\n\nfirst seen: 2026-09-30T20:55:57Z\nanomaly: 20260930T20555550EEA-a8\n\n1 further occurrence(s) of FOREIGN_FILL_INHERITED on KXEPLRELEGATION-27-MCI between 2026-09-30T20:55:57Z and 2026-09-30T20:55:57Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "sBvJTIKj9VkN",
+    "time": 1790802790,
+    "delivered_utc": "2026-09-30T21:13:10Z",
+    "priority": 3,
+    "title": "SEV2 BOOK_QUIET KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "no book frame for 1m0.006570165s while the socket is healthy, past quiet_s 1m0s; F5's REST cross-check is requested and no placement decision is taken from this market until it answers. Agreement resets the staleness clock and the market keeps quoting; disagreement replaces the book, quarantines it and sends the market to REDUCING\n\nfirst seen: 2026-09-30T20:59:10Z\nanomaly: 20260930T20555550EEA-a26\n\n1 further occurrence(s) of BOOK_QUIET on KXDANCINGWITHTHESTARS-26DEC31-EFRE between 2026-09-30T20:59:10Z and 2026-09-30T21:08:22Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "uXq7T8wbdXmh",
+    "time": 1790803373,
+    "delivered_utc": "2026-09-30T21:22:53Z",
+    "priority": 3,
+    "title": "SEV2 PNL_MARK_UNAVAILABLE KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "H-HALT-5 cannot be evaluated while KXDANCINGWITHTHESTARS-26DEC31-EFRE: the last accepted book frame is 30.047s old, past pnl_mark_max_age_s 30s. STALE, not absent -- a price exists and is too old to value inventory against. The trigger is treated as NOT FIRED, and never as fired-or-safe, so the harness keeps running with the loss floor unenforced until this clears\n\nfirst seen: 2026-09-30T21:09:44Z\nanomaly: 20260930T20555550EEA-a31\n\n8 further occurrence(s) of PNL_MARK_UNAVAILABLE on KXDANCINGWITHTHESTARS-26DEC31-EFRE between 2026-09-30T21:09:44Z and 2026-09-30T21:22:44Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "GigDbMSFhmEw",
+    "time": 1790803539,
+    "delivered_utc": "2026-09-30T21:25:39Z",
+    "priority": 3,
+    "title": "SEV2 CANCEL_UNVERIFIED KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "the cancel of 1 order(s) on KXDANCINGWITHTHESTARS-26DEC31-EFRE/yes did not come back verified absent (complete); H-FAIL-3 keeps every one of them in the risk model and in every aggregate cap until the exchange confirms it gone, and §6.5 re-decides the side on the next tick\n\nfirst seen: 2026-09-30T21:25:39Z\nanomaly: 20260930T20555550EEA-a50"
+  },
+  {
+    "id": "8WL8JJffLwzV",
+    "time": 1790803690,
+    "delivered_utc": "2026-09-30T21:28:10Z",
+    "priority": 3,
+    "title": "SEV2 BOOK_QUIET KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "no book frame for 1m0.036145754s while the socket is healthy, past quiet_s 1m0s; F5's REST cross-check is requested and no placement decision is taken from this market until it answers. Agreement resets the staleness clock and the market keeps quoting; disagreement replaces the book, quarantines it and sends the market to REDUCING\n\nfirst seen: 2026-09-30T21:16:39Z\nanomaly: 20260930T20555550EEA-a35\n\n5 further occurrence(s) of BOOK_QUIET on KXDANCINGWITHTHESTARS-26DEC31-EFRE between 2026-09-30T21:16:39Z and 2026-09-30T21:27:50Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "JYlxSY0oHjs8",
+    "time": 1790804232,
+    "delivered_utc": "2026-09-30T21:37:12Z",
+    "priority": 3,
+    "title": "SEV2 INVENTORY_STUCK KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "position -12.00 has remained beyond inv_hard for 30m0.009601253s, longer than stuck_s 30m0s; the market is already REDUCING\n\nfirst seen: 2026-09-30T21:37:12Z\nanomaly: 20260930T20555550EEA-a77"
+  },
+  {
+    "id": "BtT73V5BupOu",
+    "time": 1790804272,
+    "delivered_utc": "2026-09-30T21:37:52Z",
+    "priority": 3,
+    "title": "SEV2 PNL_MARK_UNAVAILABLE KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "H-HALT-5 cannot be evaluated while KXDANCINGWITHTHESTARS-26DEC31-EFRE: the last accepted book frame is 30.024s old, past pnl_mark_max_age_s 30s. STALE, not absent -- a price exists and is too old to value inventory against. The trigger is treated as NOT FIRED, and never as fired-or-safe, so the harness keeps running with the loss floor unenforced until this clears\n\nfirst seen: 2026-09-30T21:24:17Z\nanomaly: 20260930T20555550EEA-a46\n\n3 further occurrence(s) of PNL_MARK_UNAVAILABLE on KXDANCINGWITHTHESTARS-26DEC31-EFRE between 2026-09-30T21:24:17Z and 2026-09-30T21:37:33Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "XhyCfs6c5ahB",
+    "time": 1790804439,
+    "delivered_utc": "2026-09-30T21:40:39Z",
+    "priority": 3,
+    "title": "SEV2 CANCEL_UNVERIFIED KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "the cancel of 2 order(s) on KXDANCINGWITHTHESTARS-26DEC31-EFRE/yes did not come back verified absent (complete); H-FAIL-3 keeps every one of them in the risk model and in every aggregate cap until the exchange confirms it gone, and §6.5 re-decides the side on the next tick\n\nfirst seen: 2026-09-30T21:25:44Z\nanomaly: 20260930T20555550EEA-a52\n\n1 further occurrence(s) of CANCEL_UNVERIFIED on KXDANCINGWITHTHESTARS-26DEC31-EFRE between 2026-09-30T21:25:44Z and 2026-09-30T21:25:49Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "ukkHExLgJcFh",
+    "time": 1790804590,
+    "delivered_utc": "2026-09-30T21:43:10Z",
+    "priority": 3,
+    "title": "SEV2 BOOK_QUIET KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "no book frame for 1m0.006140597s while the socket is healthy, past quiet_s 1m0s; F5's REST cross-check is requested and no placement decision is taken from this market until it answers. Agreement resets the staleness clock and the market keeps quoting; disagreement replaces the book, quarantines it and sends the market to REDUCING\n\nfirst seen: 2026-09-30T21:28:50Z\nanomaly: 20260930T20555550EEA-a60\n\n9 further occurrence(s) of BOOK_QUIET on KXDANCINGWITHTHESTARS-26DEC31-EFRE between 2026-09-30T21:28:50Z and 2026-09-30T21:43:00Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "kG3azNYxUIVK",
+    "time": 1790805173,
+    "delivered_utc": "2026-09-30T21:52:53Z",
+    "priority": 3,
+    "title": "SEV2 PNL_MARK_UNAVAILABLE KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "H-HALT-5 cannot be evaluated while KXDANCINGWITHTHESTARS-26DEC31-EFRE: the last accepted book frame is 30.01s old, past pnl_mark_max_age_s 30s. STALE, not absent -- a price exists and is too old to value inventory against. The trigger is treated as NOT FIRED, and never as fired-or-safe, so the harness keeps running with the loss floor unenforced until this clears\n\nfirst seen: 2026-09-30T21:39:15Z\nanomaly: 20260930T20555550EEA-a81\n\n10 further occurrence(s) of PNL_MARK_UNAVAILABLE on KXDANCINGWITHTHESTARS-26DEC31-EFRE between 2026-09-30T21:39:15Z and 2026-09-30T21:51:58Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "H7rVCEYtByQe",
+    "time": 1790805356,
+    "delivered_utc": "2026-09-30T21:55:56Z",
+    "priority": 3,
+    "title": "lip RUNNING | store healthy",
+    "message": "You received a file: attachment.txt"
+  },
+  {
+    "id": "5fEc6cZjOLgS",
+    "time": 1790805490,
+    "delivered_utc": "2026-09-30T21:58:10Z",
+    "priority": 3,
+    "title": "SEV2 BOOK_QUIET KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "no book frame for 1m0.040486056s while the socket is healthy, past quiet_s 1m0s; F5's REST cross-check is requested and no placement decision is taken from this market until it answers. Agreement resets the staleness clock and the market keeps quoting; disagreement replaces the book, quarantines it and sends the market to REDUCING\n\nfirst seen: 2026-09-30T21:45:09Z\nanomaly: 20260930T20555550EEA-a90\n\n9 further occurrence(s) of BOOK_QUIET on KXDANCINGWITHTHESTARS-26DEC31-EFRE between 2026-09-30T21:45:09Z and 2026-09-30T21:57:05Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "nraZ7iVTYCLd",
+    "time": 1790806073,
+    "delivered_utc": "2026-09-30T22:07:53Z",
+    "priority": 3,
+    "title": "SEV2 PNL_MARK_UNAVAILABLE KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "H-HALT-5 cannot be evaluated while KXDANCINGWITHTHESTARS-26DEC31-EFRE: the last accepted book frame is 30.006s old, past pnl_mark_max_age_s 30s. STALE, not absent -- a price exists and is too old to value inventory against. The trigger is treated as NOT FIRED, and never as fired-or-safe, so the harness keeps running with the loss floor unenforced until this clears\n\nfirst seen: 2026-09-30T21:55:35Z\nanomaly: 20260930T20555550EEA-a110\n\n7 further occurrence(s) of PNL_MARK_UNAVAILABLE on KXDANCINGWITHTHESTARS-26DEC31-EFRE between 2026-09-30T21:55:35Z and 2026-09-30T22:03:53Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "0sHlCUK54ztm",
+    "time": 1790806390,
+    "delivered_utc": "2026-09-30T22:13:10Z",
+    "priority": 3,
+    "title": "SEV2 BOOK_QUIET KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "no book frame for 1m0.001019115s while the socket is healthy, past quiet_s 1m0s; F5's REST cross-check is requested and no placement decision is taken from this market until it answers. Agreement resets the staleness clock and the market keeps quoting; disagreement replaces the book, quarantines it and sends the market to REDUCING\n\nfirst seen: 2026-09-30T21:58:34Z\nanomaly: 20260930T20555550EEA-a116\n\n10 further occurrence(s) of BOOK_QUIET on KXDANCINGWITHTHESTARS-26DEC31-EFRE between 2026-09-30T21:58:34Z and 2026-09-30T22:12:14Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "azM66fE8HjDH",
+    "time": 1790806973,
+    "delivered_utc": "2026-09-30T22:22:53Z",
+    "priority": 3,
+    "title": "SEV2 PNL_MARK_UNAVAILABLE KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "H-HALT-5 cannot be evaluated while KXDANCINGWITHTHESTARS-26DEC31-EFRE: the last accepted book frame is 30.01s old, past pnl_mark_max_age_s 30s. STALE, not absent -- a price exists and is too old to value inventory against. The trigger is treated as NOT FIRED, and never as fired-or-safe, so the harness keeps running with the loss floor unenforced until this clears\n\nfirst seen: 2026-09-30T22:08:41Z\nanomaly: 20260930T20555550EEA-a136\n\n7 further occurrence(s) of PNL_MARK_UNAVAILABLE on KXDANCINGWITHTHESTARS-26DEC31-EFRE between 2026-09-30T22:08:41Z and 2026-09-30T22:22:25Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "nSU21zj5QajR",
+    "time": 1790807290,
+    "delivered_utc": "2026-09-30T22:28:10Z",
+    "priority": 3,
+    "title": "SEV2 BOOK_QUIET KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "no book frame for 1m0.013385835s while the socket is healthy, past quiet_s 1m0s; F5's REST cross-check is requested and no placement decision is taken from this market until it answers. Agreement resets the staleness clock and the market keeps quoting; disagreement replaces the book, quarantines it and sends the market to REDUCING\n\nfirst seen: 2026-09-30T22:17:07Z\nanomaly: 20260930T20555550EEA-a150\n\n7 further occurrence(s) of BOOK_QUIET on KXDANCINGWITHTHESTARS-26DEC31-EFRE between 2026-09-30T22:17:07Z and 2026-09-30T22:27:36Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "rTIkUNvT35Kz",
+    "time": 1790807873,
+    "delivered_utc": "2026-09-30T22:37:53Z",
+    "priority": 3,
+    "title": "SEV2 PNL_MARK_UNAVAILABLE KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "H-HALT-5 cannot be evaluated while KXDANCINGWITHTHESTARS-26DEC31-EFRE: the last accepted book frame is 30.002s old, past pnl_mark_max_age_s 30s. STALE, not absent -- a price exists and is too old to value inventory against. The trigger is treated as NOT FIRED, and never as fired-or-safe, so the harness keeps running with the loss floor unenforced until this clears\n\nfirst seen: 2026-09-30T22:25:05Z\nanomaly: 20260930T20555550EEA-a162\n\n4 further occurrence(s) of PNL_MARK_UNAVAILABLE on KXDANCINGWITHTHESTARS-26DEC31-EFRE between 2026-09-30T22:25:05Z and 2026-09-30T22:36:02Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "TqE75AChTokH",
+    "time": 1790808190,
+    "delivered_utc": "2026-09-30T22:43:10Z",
+    "priority": 3,
+    "title": "SEV2 BOOK_QUIET KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "no book frame for 1m0.047455135s while the socket is healthy, past quiet_s 1m0s; F5's REST cross-check is requested and no placement decision is taken from this market until it answers. Agreement resets the staleness clock and the market keeps quoting; disagreement replaces the book, quarantines it and sends the market to REDUCING\n\nfirst seen: 2026-09-30T22:28:36Z\nanomaly: 20260930T20555550EEA-a169\n\n10 further occurrence(s) of BOOK_QUIET on KXDANCINGWITHTHESTARS-26DEC31-EFRE between 2026-09-30T22:28:36Z and 2026-09-30T22:42:46Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "3sdMzrI3YJdG",
+    "time": 1790808773,
+    "delivered_utc": "2026-09-30T22:52:53Z",
+    "priority": 3,
+    "title": "SEV2 PNL_MARK_UNAVAILABLE KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "H-HALT-5 cannot be evaluated while KXDANCINGWITHTHESTARS-26DEC31-EFRE: the last accepted book frame is 30.004s old, past pnl_mark_max_age_s 30s. STALE, not absent -- a price exists and is too old to value inventory against. The trigger is treated as NOT FIRED, and never as fired-or-safe, so the harness keeps running with the loss floor unenforced until this clears\n\nfirst seen: 2026-09-30T22:41:18Z\nanomaly: 20260930T20555550EEA-a193\n\n1 further occurrence(s) of PNL_MARK_UNAVAILABLE on KXDANCINGWITHTHESTARS-26DEC31-EFRE between 2026-09-30T22:41:18Z and 2026-09-30T22:42:16Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "DmPdZ1sXmzjr",
+    "time": 1790808999,
+    "delivered_utc": "2026-09-30T22:56:39Z",
+    "priority": 3,
+    "title": "lip STARTING | store healthy",
+    "message": "You received a file: attachment.txt"
+  },
+  {
+    "id": "ZeJf8Tha9cmL",
+    "time": 1790808999,
+    "delivered_utc": "2026-09-30T22:56:39Z",
+    "priority": 3,
+    "title": "SEV2 BOOK_QUIET KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "no book frame for 1m0.010173747s while the socket is healthy, past quiet_s 1m0s; F5's REST cross-check is requested and no placement decision is taken from this market until it answers. Agreement resets the staleness clock and the market keeps quoting; disagreement replaces the book, quarantines it and sends the market to REDUCING\n\nfirst seen: 2026-09-30T22:43:46Z\nanomaly: 20260930T20555550EEA-a197\n\n9 further occurrence(s) of BOOK_QUIET on KXDANCINGWITHTHESTARS-26DEC31-EFRE between 2026-09-30T22:43:46Z and 2026-09-30T22:54:59Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "txEH8bgsFm4m",
+    "time": 1790809000,
+    "delivered_utc": "2026-09-30T22:56:40Z",
+    "priority": 3,
+    "title": "SEV2 CANCEL_UNVERIFIED KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+    "message": "the cancel of 1 order(s) on KXDANCINGWITHTHESTARS-26DEC31-EFRE/yes did not come back verified absent (complete); H-FAIL-3 keeps every one of them in the risk model and in every aggregate cap until the exchange confirms it gone, and §6.5 re-decides the side on the next tick\n\nfirst seen: 2026-09-30T22:56:40Z\nanomaly: 20260930T225639R03F0-a5"
+  },
+  {
+    "id": "Op3Uzh2F0bxj",
+    "time": 1790809001,
+    "delivered_utc": "2026-09-30T22:56:41Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+    "message": "fill 1582884a-1f64-7c20-fab4-b40468ad5df6 on order 0f0a2cee-ab64-4c1f-9814-50e5fb4f22a3 was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish\n\nfirst seen: 2026-09-30T22:56:40Z\nanomaly: 20260930T225639R03F0-a10"
+  },
+  {
+    "id": "QAhdaV6XVeBp",
+    "time": 1790809001,
+    "delivered_utc": "2026-09-30T22:56:41Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXAAAGASW-26OCT05-4.4200",
+    "message": "fill 0723573e-e589-a158-f331-5f44a8010c85 on order 01a0ee44-7920-77d4-92d2-bae201f4f7c8 was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish\n\nfirst seen: 2026-09-30T22:56:40Z\nanomaly: 20260930T225639R03F0-a8\n\n1 further occurrence(s) of FOREIGN_FILL_INHERITED on KXAAAGASW-26OCT05-4.4200 between 2026-09-30T22:56:40Z and 2026-09-30T22:56:40Z were rate limited by §13.2 and are delivered by this one push."
+  },
+  {
+    "id": "lwa76faVergz",
+    "time": 1790809001,
+    "delivered_utc": "2026-09-30T22:56:41Z",
+    "priority": 3,
+    "title": "SEV2 FOREIGN_FILL_INHERITED KXEPLRELEGATION-27-MCI",
+    "message": "fill 07235506-1a69-9eae-17dd-c4129d0f0ac6 on order 01a0eef3-c808-7514-a313-f5e767b58996 was already on the account when this process started and is not in the ownership ledger; this harness did not place it, and the positions walk has already accounted for it. It is reported rather than halted on because H-ORD-9 is the claim that someone is trading this account NOW, which a fill that predates us cannot establish\n\nfirst seen: 2026-09-30T22:56:40Z\nanomaly: 20260930T225639R03F0-a6"
+  },
+  {
+    "id": "tz8Y0GrJqJes",
+    "time": 1790809127,
+    "delivered_utc": "2026-09-30T22:58:47Z",
+    "priority": 3,
+    "title": "SEV2 SIGNAL_DRAIN account",
+    "message": "sigterm received after 2m8.478836018s of uptime with inventory=false and live orders=false; the process does NOT exit. It stops adding, keeps the reducing quote alive, keeps monitoring, and exits only once every market is flat and no order of ours rests (H-HALT-3). Durable stop committed: true\n\nfirst seen: 2026-09-30T22:58:47Z\nanomaly: 20260930T225639R03F0-a24"
+  }
+]

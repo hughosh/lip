@@ -1,0 +1,189 @@
+{
+ "observed_at_utc": "2026-09-30T20:53:09.535748+00:00",
+ "rows": [
+  {
+   "ticker": "KXGOOGSHARE-26OCT05-20.5",
+   "trades": 51,
+   "window_h": 45.25,
+   "yes_bid": {
+    "trades_per_h": 0.6,
+    "contracts_per_h": 177.0,
+    "ge12_per_h": 0.4,
+    "median_size": 200.0,
+    "last3h_trades": 0,
+    "last3h_contracts": 0,
+    "last_hit_min_ago": 263.1
+   },
+   "no_bid": {
+    "trades_per_h": 0.53,
+    "contracts_per_h": 91.5,
+    "ge12_per_h": 0.22,
+    "median_size": 7.0,
+    "last3h_trades": 0,
+    "last3h_contracts": 0,
+    "last_hit_min_ago": 278.6
+   }
+  },
+  {
+   "ticker": "KXDEEPSHARE-26OCT05-22.0",
+   "trades": 96,
+   "window_h": 44.92,
+   "yes_bid": {
+    "trades_per_h": 1.36,
+    "contracts_per_h": 175.3,
+    "ge12_per_h": 0.58,
+    "median_size": 6.0,
+    "last3h_trades": 7,
+    "last3h_contracts": 1414.0,
+    "last_hit_min_ago": 177.1
+   },
+   "no_bid": {
+    "trades_per_h": 0.78,
+    "contracts_per_h": 127.0,
+    "ge12_per_h": 0.29,
+    "median_size": 5.0,
+    "last3h_trades": 0,
+    "last3h_contracts": 0,
+    "last_hit_min_ago": 491.7
+   }
+  },
+  {
+   "ticker": "KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+   "trades": 1000,
+   "window_h": 68.31,
+   "yes_bid": {
+    "trades_per_h": 4.42,
+    "contracts_per_h": 228.1,
+    "ge12_per_h": 2.23,
+    "median_size": 12.015,
+    "last3h_trades": 15,
+    "last3h_contracts": 1384.79,
+    "last_hit_min_ago": 7.6
+   },
+   "no_bid": {
+    "trades_per_h": 10.22,
+    "contracts_per_h": 467.8,
+    "ge12_per_h": 4.63,
+    "median_size": 10.69,
+    "last3h_trades": 28,
+    "last3h_contracts": 398.69,
+    "last_hit_min_ago": 5.4
+   }
+  },
+  {
+   "ticker": "KXRT-VER-40",
+   "trades": 108,
+   "window_h": 24.74,
+   "yes_bid": {
+    "trades_per_h": 1.86,
+    "contracts_per_h": 108.8,
+    "ge12_per_h": 0.93,
+    "median_size": 11.21,
+    "last3h_trades": 8,
+    "last3h_contracts": 379.19,
+    "last_hit_min_ago": 17.6
+   },
+   "no_bid": {
+    "trades_per_h": 2.51,
+    "contracts_per_h": 179.2,
+    "ge12_per_h": 1.33,
+    "median_size": 12.67,
+    "last3h_trades": 14,
+    "last3h_contracts": 439.56,
+    "last_hit_min_ago": 2.3
+   }
+  },
+  {
+   "ticker": "KXAAAGASW-26OCT05-4.4200",
+   "trades": 318,
+   "window_h": 53.7,
+   "yes_bid": {
+    "trades_per_h": 2.36,
+    "contracts_per_h": 167.8,
+    "ge12_per_h": 0.93,
+    "median_size": 5.0,
+    "last3h_trades": 30,
+    "last3h_contracts": 339.78,
+    "last_hit_min_ago": 5.2
+   },
+   "no_bid": {
+    "trades_per_h": 3.56,
+    "contracts_per_h": 133.4,
+    "ge12_per_h": 1.45,
+    "median_size": 7.06,
+    "last3h_trades": 25,
+    "last3h_contracts": 1276.41,
+    "last_hit_min_ago": 13.2
+   }
+  },
+  {
+   "ticker": "KXAAAGASW-26OCT05-4.3800",
+   "trades": 402,
+   "window_h": 54.2,
+   "yes_bid": {
+    "trades_per_h": 2.91,
+    "contracts_per_h": 116.5,
+    "ge12_per_h": 1.22,
+    "median_size": 6.5,
+    "last3h_trades": 14,
+    "last3h_contracts": 203.98,
+    "last_hit_min_ago": 0.3
+   },
+   "no_bid": {
+    "trades_per_h": 4.5,
+    "contracts_per_h": 134.0,
+    "ge12_per_h": 1.75,
+    "median_size": 7.015000000000001,
+    "last3h_trades": 27,
+    "last3h_contracts": 589.66,
+    "last_hit_min_ago": 1.3
+   }
+  },
+  {
+   "ticker": "KXDIESELMON-26OCT31-T6.20",
+   "trades": 36,
+   "window_h": 51.68,
+   "yes_bid": {
+    "trades_per_h": 0.39,
+    "contracts_per_h": 47.4,
+    "ge12_per_h": 0.15,
+    "median_size": 7.6850000000000005,
+    "last3h_trades": 0,
+    "last3h_contracts": 0,
+    "last_hit_min_ago": 302.7
+   },
+   "no_bid": {
+    "trades_per_h": 0.31,
+    "contracts_per_h": 58.5,
+    "ge12_per_h": 0.31,
+    "median_size": 161.0,
+    "last3h_trades": 1,
+    "last3h_contracts": 15.0,
+    "last_hit_min_ago": 175.9
+   }
+  },
+  {
+   "ticker": "KXRT-DIG-50",
+   "trades": 1000,
+   "window_h": 43.13,
+   "yes_bid": {
+    "trades_per_h": 9.46,
+    "contracts_per_h": 537.1,
+    "ge12_per_h": 3.85,
+    "median_size": 9.504999999999999,
+    "last3h_trades": 36,
+    "last3h_contracts": 1300.62,
+    "last_hit_min_ago": 0.3
+   },
+   "no_bid": {
+    "trades_per_h": 13.73,
+    "contracts_per_h": 786.7,
+    "ge12_per_h": 5.96,
+    "median_size": 10.0,
+    "last3h_trades": 44,
+    "last3h_contracts": 4541.39,
+    "last_hit_min_ago": 5.3
+   }
+  }
+ ]
+}

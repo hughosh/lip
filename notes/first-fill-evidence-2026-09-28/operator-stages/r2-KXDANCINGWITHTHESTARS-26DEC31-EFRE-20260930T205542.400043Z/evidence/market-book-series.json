@@ -1,0 +1,1282 @@
+{
+  "ticker": "KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+  "read_only": true,
+  "calls": {
+    "market": {
+      "path": "/markets/KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+      "at_utc": "2026-09-30T20:55:44.810325+00:00",
+      "status": 200,
+      "latency_ms": 312.258,
+      "body": {
+        "market": {
+          "can_close_early": true,
+          "close_time": "2027-01-07T15:00:00Z",
+          "created_time": "2026-09-02T16:04:08.750767Z",
+          "custom_strike": {
+            "Actor": "cd070939-aa10-47ee-8a3b-33d268dc5be0",
+            "Participant": "Ezra Frech"
+          },
+          "early_close_condition": "This market will close and expire early when the winner is announced.",
+          "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+          "exchange_index": 0,
+          "expected_expiration_time": "2026-12-31T15:00:00Z",
+          "expiration_time": "2027-01-07T15:00:00Z",
+          "expiration_value": "",
+          "last_price_dollars": "0.4500",
+          "latest_expiration_time": "2027-01-07T15:00:00Z",
+          "liquidity_dollars": "0.0000",
+          "market_type": "binary",
+          "no_ask_dollars": "0.5600",
+          "no_bid_dollars": "0.5500",
+          "no_sub_title": "Ezra Frech",
+          "notional_value_dollars": "1.0000",
+          "occurrence_datetime": "2026-12-31T15:00:00Z",
+          "open_interest_fp": "275782.97",
+          "open_time": "2026-09-02T16:08:00Z",
+          "previous_price_dollars": "0.4500",
+          "previous_yes_ask_dollars": "0.4500",
+          "previous_yes_bid_dollars": "0.4400",
+          "price_level_structure": "linear_cent",
+          "price_ranges": [
+            {
+              "end": "1.0000",
+              "start": "0.0000",
+              "step": "0.0100"
+            }
+          ],
+          "result": "",
+          "rules_primary": "If Ezra Frech is officially declared the winner of Dancing with the Stars Season 35, then the market resolves to Yes.",
+          "rules_secondary": "How this is resolved\nThe winner must be officially announced in the finale or via official channels immediately following.\nMultiple joint winners each resolve to Yes with split payouts ($1 divided by number of winners).\nIf no winner is declared, all markets resolve to No. \nDisqualifications or withdrawals before the finale resolve to No.\nLater title stripping doesn't affect resolution - the original finale announcement governs.\n\nPayout criteria\nWinners who decline the award still count unless acceptance was a condition of victory.\nFor couples/teams competitions, being part of the winning unit counts.\n\nDoesn't count for payout: Fan favorite or other secondary awards don't count as winning.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+          "settlement_timer_seconds": 1800,
+          "status": "active",
+          "strike_type": "custom",
+          "ticker": "KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+          "title": "Will Ezra Frech win Dancing with the Stars Season 35?",
+          "updated_time": "2026-09-24T00:04:23.330356Z",
+          "volume_24h_fp": "33286.64",
+          "volume_fp": "370796.22",
+          "yes_ask_dollars": "0.4500",
+          "yes_ask_size_fp": "901.70",
+          "yes_bid_dollars": "0.4400",
+          "yes_bid_size_fp": "14.95",
+          "yes_sub_title": "Ezra Frech"
+        }
+      }
+    },
+    "orderbook": {
+      "path": "/markets/KXDANCINGWITHTHESTARS-26DEC31-EFRE/orderbook",
+      "at_utc": "2026-09-30T20:55:45.122700+00:00",
+      "status": 200,
+      "latency_ms": 266.282,
+      "body": {
+        "orderbook_fp": {
+          "no_dollars": [
+            [
+              "0.0100",
+              "3863.91"
+            ],
+            [
+              "0.0200",
+              "612.79"
+            ],
+            [
+              "0.0300",
+              "302.17"
+            ],
+            [
+              "0.0400",
+              "596.79"
+            ],
+            [
+              "0.0500",
+              "116.88"
+            ],
+            [
+              "0.0600",
+              "962.65"
+            ],
+            [
+              "0.0700",
+              "90.92"
+            ],
+            [
+              "0.0800",
+              "267.80"
+            ],
+            [
+              "0.0900",
+              "55.90"
+            ],
+            [
+              "0.1000",
+              "140.93"
+            ],
+            [
+              "0.1100",
+              "84.75"
+            ],
+            [
+              "0.1200",
+              "260.08"
+            ],
+            [
+              "0.1300",
+              "127.04"
+            ],
+            [
+              "0.1400",
+              "359.65"
+            ],
+            [
+              "0.1500",
+              "58.52"
+            ],
+            [
+              "0.1600",
+              "39.06"
+            ],
+            [
+              "0.1700",
+              "83.28"
+            ],
+            [
+              "0.1800",
+              "153.59"
+            ],
+            [
+              "0.1900",
+              "160.20"
+            ],
+            [
+              "0.2000",
+              "437.75"
+            ],
+            [
+              "0.2100",
+              "398.29"
+            ],
+            [
+              "0.2200",
+              "10.97"
+            ],
+            [
+              "0.2300",
+              "60.04"
+            ],
+            [
+              "0.2400",
+              "301.35"
+            ],
+            [
+              "0.2500",
+              "4105.52"
+            ],
+            [
+              "0.2600",
+              "181.22"
+            ],
+            [
+              "0.2700",
+              "155.00"
+            ],
+            [
+              "0.2800",
+              "12.43"
+            ],
+            [
+              "0.2900",
+              "26.49"
+            ],
+            [
+              "0.3000",
+              "152.03"
+            ],
+            [
+              "0.3100",
+              "88.04"
+            ],
+            [
+              "0.3200",
+              "175.87"
+            ],
+            [
+              "0.3300",
+              "17.28"
+            ],
+            [
+              "0.3400",
+              "5.17"
+            ],
+            [
+              "0.3800",
+              "49.18"
+            ],
+            [
+              "0.3900",
+              "0.57"
+            ],
+            [
+              "0.4000",
+              "1000.00"
+            ],
+            [
+              "0.4100",
+              "2000.00"
+            ],
+            [
+              "0.4200",
+              "1000.00"
+            ],
+            [
+              "0.4600",
+              "5.13"
+            ],
+            [
+              "0.5100",
+              "3148.77"
+            ],
+            [
+              "0.5200",
+              "150.00"
+            ],
+            [
+              "0.5300",
+              "250.00"
+            ],
+            [
+              "0.5400",
+              "947.02"
+            ],
+            [
+              "0.5500",
+              "901.70"
+            ]
+          ],
+          "yes_dollars": [
+            [
+              "0.0100",
+              "1272.00"
+            ],
+            [
+              "0.0200",
+              "162.00"
+            ],
+            [
+              "0.0300",
+              "160.00"
+            ],
+            [
+              "0.0400",
+              "586.00"
+            ],
+            [
+              "0.0500",
+              "159.00"
+            ],
+            [
+              "0.0800",
+              "23.00"
+            ],
+            [
+              "0.1000",
+              "210.00"
+            ],
+            [
+              "0.1100",
+              "9.13"
+            ],
+            [
+              "0.1500",
+              "5.00"
+            ],
+            [
+              "0.1700",
+              "2707.00"
+            ],
+            [
+              "0.1800",
+              "5.00"
+            ],
+            [
+              "0.1900",
+              "1.00"
+            ],
+            [
+              "0.2300",
+              "1979.27"
+            ],
+            [
+              "0.2400",
+              "86.00"
+            ],
+            [
+              "0.3400",
+              "5.00"
+            ],
+            [
+              "0.3900",
+              "100.00"
+            ],
+            [
+              "0.4000",
+              "50.00"
+            ],
+            [
+              "0.4200",
+              "67.00"
+            ],
+            [
+              "0.4300",
+              "1054.02"
+            ],
+            [
+              "0.4400",
+              "14.95"
+            ]
+          ]
+        }
+      }
+    },
+    "event": {
+      "path": "/events/KXDANCINGWITHTHESTARS-26DEC31",
+      "at_utc": "2026-09-30T20:55:45.389057+00:00",
+      "status": 200,
+      "latency_ms": 360.251,
+      "body": {
+        "event": {
+          "category": "Entertainment",
+          "collateral_return_type": "MECNET",
+          "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+          "exchange_index": 0,
+          "last_updated_ts": "0001-01-01T00:00:00Z",
+          "mutually_exclusive": true,
+          "product_metadata": {
+            "competition_scope": "Winner"
+          },
+          "series_ticker": "KXDANCINGWITHTHESTARS",
+          "settlement_sources": [
+            {
+              "name": "ABC",
+              "url": "https://abc.com/"
+            },
+            {
+              "name": "Disney+",
+              "url": "https://www.disneyplus.com/"
+            }
+          ],
+          "strike_period": "",
+          "sub_title": "Dancing with the Stars Season 35",
+          "title": "Dancing with the Stars Season 35 \u00b7 Winner"
+        },
+        "markets": [
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-02T16:04:08.750767Z",
+            "custom_strike": {
+              "Actor": "7807bbd5-206a-437a-80cd-cb9305744570",
+              "Participant": "Julia Stiles"
+            },
+            "early_close_condition": "This market will close and expire early when the winner is announced.",
+            "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9900",
+            "no_sub_title": "Julia Stiles",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "130834.35",
+            "open_time": "2026-09-02T16:08:00Z",
+            "previous_price_dollars": "0.0200",
+            "previous_yes_ask_dollars": "0.0200",
+            "previous_yes_bid_dollars": "0.0100",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Julia Stiles is officially declared the winner of Dancing with the Stars Season 35, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nThe winner must be officially announced in the finale or via official channels immediately following.\nMultiple joint winners each resolve to Yes with split payouts ($1 divided by number of winners).\nIf no winner is declared, all markets resolve to No. \nDisqualifications or withdrawals before the finale resolve to No.\nLater title stripping doesn't affect resolution - the original finale announcement governs.\n\nPayout criteria\nWinners who decline the award still count unless acceptance was a condition of victory.\nFor couples/teams competitions, being part of the winning unit counts.\n\nDoesn't count for payout: Fan favorite or other secondary awards don't count as winning.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "ticker": "KXDANCINGWITHTHESTARS-26DEC31-JSTIL",
+            "title": "Will Julia Stiles win Dancing with the Stars Season 35?",
+            "updated_time": "2026-09-24T00:04:23.330356Z",
+            "volume_24h_fp": "10226.46",
+            "volume_fp": "194206.27",
+            "yes_ask_dollars": "0.0100",
+            "yes_ask_size_fp": "18307.76",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Julia Stiles"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-02T16:04:08.750767Z",
+            "custom_strike": {
+              "Actor": "66970b4b-516c-4b94-a075-48bb86f26e1e",
+              "Participant": "Jenna Dewan"
+            },
+            "early_close_condition": "This market will close and expire early when the winner is announced.",
+            "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.1000",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9000",
+            "no_bid_dollars": "0.8900",
+            "no_sub_title": "Jenna Dewan",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "97927.02",
+            "open_time": "2026-09-02T16:08:00Z",
+            "previous_price_dollars": "0.1000",
+            "previous_yes_ask_dollars": "0.1100",
+            "previous_yes_bid_dollars": "0.1000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Jenna Dewan is officially declared the winner of Dancing with the Stars Season 35, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nThe winner must be officially announced in the finale or via official channels immediately following.\nMultiple joint winners each resolve to Yes with split payouts ($1 divided by number of winners).\nIf no winner is declared, all markets resolve to No. \nDisqualifications or withdrawals before the finale resolve to No.\nLater title stripping doesn't affect resolution - the original finale announcement governs.\n\nPayout criteria\nWinners who decline the award still count unless acceptance was a condition of victory.\nFor couples/teams competitions, being part of the winning unit counts.\n\nDoesn't count for payout: Fan favorite or other secondary awards don't count as winning.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "ticker": "KXDANCINGWITHTHESTARS-26DEC31-JDEW",
+            "title": "Will Jenna Dewan win Dancing with the Stars Season 35?",
+            "updated_time": "2026-09-24T00:04:23.330356Z",
+            "volume_24h_fp": "5295.92",
+            "volume_fp": "170059.81",
+            "yes_ask_dollars": "0.1100",
+            "yes_ask_size_fp": "5611.87",
+            "yes_bid_dollars": "0.1000",
+            "yes_bid_size_fp": "3133.45",
+            "yes_sub_title": "Jenna Dewan"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-02T16:04:08.750767Z",
+            "custom_strike": {
+              "Actor": "c947cd4c-fbc8-471d-898d-48b83f0bcfb1",
+              "Participant": "Tatyana Ali"
+            },
+            "early_close_condition": "This market will close and expire early when the winner is announced.",
+            "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9900",
+            "no_sub_title": "Tatyana Ali",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "40767.40",
+            "open_time": "2026-09-02T16:08:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "0.0100",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Tatyana Ali is officially declared the winner of Dancing with the Stars Season 35, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nThe winner must be officially announced in the finale or via official channels immediately following.\nMultiple joint winners each resolve to Yes with split payouts ($1 divided by number of winners).\nIf no winner is declared, all markets resolve to No. \nDisqualifications or withdrawals before the finale resolve to No.\nLater title stripping doesn't affect resolution - the original finale announcement governs.\n\nPayout criteria\nWinners who decline the award still count unless acceptance was a condition of victory.\nFor couples/teams competitions, being part of the winning unit counts.\n\nDoesn't count for payout: Fan favorite or other secondary awards don't count as winning.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "ticker": "KXDANCINGWITHTHESTARS-26DEC31-TAT",
+            "title": "Will Tatyana Ali win Dancing with the Stars Season 35?",
+            "updated_time": "2026-09-24T00:04:23.330356Z",
+            "volume_24h_fp": "7576.91",
+            "volume_fp": "51424.47",
+            "yes_ask_dollars": "0.0100",
+            "yes_ask_size_fp": "69565.28",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Tatyana Ali"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2026-09-30T14:26:43Z",
+            "created_time": "2026-09-02T16:04:08.750767Z",
+            "custom_strike": {
+              "Actor": "0580e289-5473-42a9-b164-094d098230b1",
+              "Participant": "Taylor Hanson"
+            },
+            "early_close_condition": "This market will close and expire early when the winner is announced.",
+            "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "No",
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.0000",
+            "no_sub_title": "Taylor Hanson",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-09-30T14:20:00Z",
+            "open_interest_fp": "110146.81",
+            "open_time": "2026-09-02T16:08:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "0.0100",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "no",
+            "rules_primary": "If Taylor Hanson is officially declared the winner of Dancing with the Stars Season 35, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nThe winner must be officially announced in the finale or via official channels immediately following.\nMultiple joint winners each resolve to Yes with split payouts ($1 divided by number of winners).\nIf no winner is declared, all markets resolve to No. \nDisqualifications or withdrawals before the finale resolve to No.\nLater title stripping doesn't affect resolution - the original finale announcement governs.\n\nPayout criteria\nWinners who decline the award still count unless acceptance was a condition of victory.\nFor couples/teams competitions, being part of the winning unit counts.\n\nDoesn't count for payout: Fan favorite or other secondary awards don't count as winning.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "settlement_ts": "2026-09-30T14:56:46.450018Z",
+            "settlement_value_dollars": "0.0000",
+            "status": "finalized",
+            "strike_type": "custom",
+            "ticker": "KXDANCINGWITHTHESTARS-26DEC31-THAN",
+            "title": "Will Taylor Hanson win Dancing with the Stars Season 35?",
+            "updated_time": "2026-09-30T14:56:46.946167Z",
+            "volume_24h_fp": "7725.51",
+            "volume_fp": "199768.59",
+            "yes_ask_dollars": "1.0000",
+            "yes_ask_size_fp": "0.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Taylor Hanson"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-02T16:04:08.750767Z",
+            "custom_strike": {
+              "Actor": "cd070939-aa10-47ee-8a3b-33d268dc5be0",
+              "Participant": "Ezra Frech"
+            },
+            "early_close_condition": "This market will close and expire early when the winner is announced.",
+            "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.4500",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.5600",
+            "no_bid_dollars": "0.5500",
+            "no_sub_title": "Ezra Frech",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "275782.97",
+            "open_time": "2026-09-02T16:08:00Z",
+            "previous_price_dollars": "0.4500",
+            "previous_yes_ask_dollars": "0.4500",
+            "previous_yes_bid_dollars": "0.4400",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Ezra Frech is officially declared the winner of Dancing with the Stars Season 35, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nThe winner must be officially announced in the finale or via official channels immediately following.\nMultiple joint winners each resolve to Yes with split payouts ($1 divided by number of winners).\nIf no winner is declared, all markets resolve to No. \nDisqualifications or withdrawals before the finale resolve to No.\nLater title stripping doesn't affect resolution - the original finale announcement governs.\n\nPayout criteria\nWinners who decline the award still count unless acceptance was a condition of victory.\nFor couples/teams competitions, being part of the winning unit counts.\n\nDoesn't count for payout: Fan favorite or other secondary awards don't count as winning.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "ticker": "KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+            "title": "Will Ezra Frech win Dancing with the Stars Season 35?",
+            "updated_time": "2026-09-24T00:04:23.330356Z",
+            "volume_24h_fp": "33286.64",
+            "volume_fp": "370796.22",
+            "yes_ask_dollars": "0.4500",
+            "yes_ask_size_fp": "901.70",
+            "yes_bid_dollars": "0.4400",
+            "yes_bid_size_fp": "14.95",
+            "yes_sub_title": "Ezra Frech"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-02T16:04:08.750767Z",
+            "custom_strike": {
+              "Actor": "aa9b93aa-ddff-430c-be5b-a78e4253840e",
+              "Participant": "Amber Glenn"
+            },
+            "early_close_condition": "This market will close and expire early when the winner is announced.",
+            "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.1200",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.8800",
+            "no_bid_dollars": "0.8700",
+            "no_sub_title": "Amber Glenn",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "167877.23",
+            "open_time": "2026-09-02T16:08:00Z",
+            "previous_price_dollars": "0.1000",
+            "previous_yes_ask_dollars": "0.1000",
+            "previous_yes_bid_dollars": "0.0900",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Amber Glenn is officially declared the winner of Dancing with the Stars Season 35, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nThe winner must be officially announced in the finale or via official channels immediately following.\nMultiple joint winners each resolve to Yes with split payouts ($1 divided by number of winners).\nIf no winner is declared, all markets resolve to No. \nDisqualifications or withdrawals before the finale resolve to No.\nLater title stripping doesn't affect resolution - the original finale announcement governs.\n\nPayout criteria\nWinners who decline the award still count unless acceptance was a condition of victory.\nFor couples/teams competitions, being part of the winning unit counts.\n\nDoesn't count for payout: Fan favorite or other secondary awards don't count as winning.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "ticker": "KXDANCINGWITHTHESTARS-26DEC31-AGLE",
+            "title": "Will Amber Glenn win Dancing with the Stars Season 35?",
+            "updated_time": "2026-09-24T00:04:23.330356Z",
+            "volume_24h_fp": "26320.42",
+            "volume_fp": "222139.09",
+            "yes_ask_dollars": "0.1300",
+            "yes_ask_size_fp": "2607.49",
+            "yes_bid_dollars": "0.1200",
+            "yes_bid_size_fp": "3.14",
+            "yes_sub_title": "Amber Glenn"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-02T16:04:08.750767Z",
+            "custom_strike": {
+              "Actor": "57ffe648-dea6-4652-bc73-0441acd3a731",
+              "Participant": "Connor Wood"
+            },
+            "early_close_condition": "This market will close and expire early when the winner is announced.",
+            "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0200",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9800",
+            "no_bid_dollars": "0.9700",
+            "no_sub_title": "Connor Wood",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "200828.49",
+            "open_time": "2026-09-02T16:08:00Z",
+            "previous_price_dollars": "0.0300",
+            "previous_yes_ask_dollars": "0.0300",
+            "previous_yes_bid_dollars": "0.0200",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Connor Wood is officially declared the winner of Dancing with the Stars Season 35, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nThe winner must be officially announced in the finale or via official channels immediately following.\nMultiple joint winners each resolve to Yes with split payouts ($1 divided by number of winners).\nIf no winner is declared, all markets resolve to No. \nDisqualifications or withdrawals before the finale resolve to No.\nLater title stripping doesn't affect resolution - the original finale announcement governs.\n\nPayout criteria\nWinners who decline the award still count unless acceptance was a condition of victory.\nFor couples/teams competitions, being part of the winning unit counts.\n\nDoesn't count for payout: Fan favorite or other secondary awards don't count as winning.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "ticker": "KXDANCINGWITHTHESTARS-26DEC31-CWOO",
+            "title": "Will Connor Wood win Dancing with the Stars Season 35?",
+            "updated_time": "2026-09-24T00:04:23.330356Z",
+            "volume_24h_fp": "11450.61",
+            "volume_fp": "276836.93",
+            "yes_ask_dollars": "0.0300",
+            "yes_ask_size_fp": "9621.40",
+            "yes_bid_dollars": "0.0200",
+            "yes_bid_size_fp": "6167.96",
+            "yes_sub_title": "Connor Wood"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2026-09-25T15:23:20Z",
+            "created_time": "2026-09-02T16:04:08.750767Z",
+            "custom_strike": {
+              "Actor": "587bc430-59c2-490f-a49d-7dfe6ac46545",
+              "Participant": "Sarah Jane Nader"
+            },
+            "early_close_condition": "This market will close and expire early when the winner is announced.",
+            "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "No",
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.0000",
+            "no_sub_title": "Sarah Jane Nader",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "28253.03",
+            "open_time": "2026-09-02T16:08:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "1.0000",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "no",
+            "rules_primary": "If Sarah Jane Nader is officially declared the winner of Dancing with the Stars Season 35, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nThe winner must be officially announced in the finale or via official channels immediately following.\nMultiple joint winners each resolve to Yes with split payouts ($1 divided by number of winners).\nIf no winner is declared, all markets resolve to No. \nDisqualifications or withdrawals before the finale resolve to No.\nLater title stripping doesn't affect resolution - the original finale announcement governs.\n\nPayout criteria\nWinners who decline the award still count unless acceptance was a condition of victory.\nFor couples/teams competitions, being part of the winning unit counts.\n\nDoesn't count for payout: Fan favorite or other secondary awards don't count as winning.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "settlement_ts": "2026-09-25T15:53:28.09592Z",
+            "settlement_value_dollars": "0.0000",
+            "status": "finalized",
+            "strike_type": "custom",
+            "ticker": "KXDANCINGWITHTHESTARS-26DEC31-SJAN",
+            "title": "Will Sarah Jane Nader win Dancing with the Stars Season 35?",
+            "updated_time": "2026-09-25T15:53:28.302899Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "47600.51",
+            "yes_ask_dollars": "1.0000",
+            "yes_ask_size_fp": "0.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Sarah Jane Nader"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-02T16:04:08.750767Z",
+            "custom_strike": {
+              "Actor": "c144c05c-a588-4ccb-8ccd-3543445d4563",
+              "Participant": "Tyler Cameron"
+            },
+            "early_close_condition": "This market will close and expire early when the winner is announced.",
+            "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9900",
+            "no_sub_title": "Tyler Cameron",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "113106.57",
+            "open_time": "2026-09-02T16:08:00Z",
+            "previous_price_dollars": "0.0200",
+            "previous_yes_ask_dollars": "0.0200",
+            "previous_yes_bid_dollars": "0.0100",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Tyler Cameron is officially declared the winner of Dancing with the Stars Season 35, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nThe winner must be officially announced in the finale or via official channels immediately following.\nMultiple joint winners each resolve to Yes with split payouts ($1 divided by number of winners).\nIf no winner is declared, all markets resolve to No. \nDisqualifications or withdrawals before the finale resolve to No.\nLater title stripping doesn't affect resolution - the original finale announcement governs.\n\nPayout criteria\nWinners who decline the award still count unless acceptance was a condition of victory.\nFor couples/teams competitions, being part of the winning unit counts.\n\nDoesn't count for payout: Fan favorite or other secondary awards don't count as winning.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "ticker": "KXDANCINGWITHTHESTARS-26DEC31-TCAM",
+            "title": "Will Tyler Cameron win Dancing with the Stars Season 35?",
+            "updated_time": "2026-09-24T00:04:23.330356Z",
+            "volume_24h_fp": "9529.64",
+            "volume_fp": "169988.25",
+            "yes_ask_dollars": "0.0100",
+            "yes_ask_size_fp": "23352.22",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Tyler Cameron"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2026-09-25T15:23:40Z",
+            "created_time": "2026-09-02T16:04:08.750767Z",
+            "custom_strike": {
+              "Actor": "cccea994-a363-46d1-b7e3-d095eb73942f",
+              "Participant": "Giada DeLaurentiis"
+            },
+            "early_close_condition": "This market will close and expire early when the winner is announced.",
+            "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "No",
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.0000",
+            "no_sub_title": "Giada De Laurentiis",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "30755.55",
+            "open_time": "2026-09-02T16:08:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "1.0000",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "no",
+            "rules_primary": "If Giada De Laurentiis is officially declared the winner of Dancing with the Stars Season 35, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nThe winner must be officially announced in the finale or via official channels immediately following.\nMultiple joint winners each resolve to Yes with split payouts ($1 divided by number of winners).\nIf no winner is declared, all markets resolve to No. \nDisqualifications or withdrawals before the finale resolve to No.\nLater title stripping doesn't affect resolution - the original finale announcement governs.\n\nPayout criteria\nWinners who decline the award still count unless acceptance was a condition of victory.\nFor couples/teams competitions, being part of the winning unit counts.\n\nDoesn't count for payout: Fan favorite or other secondary awards don't count as winning.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "settlement_ts": "2026-09-25T15:53:48.10041Z",
+            "settlement_value_dollars": "0.0000",
+            "status": "finalized",
+            "strike_type": "custom",
+            "ticker": "KXDANCINGWITHTHESTARS-26DEC31-GDEL",
+            "title": "Will Giada De Laurentiis win Dancing with the Stars Season 35?",
+            "updated_time": "2026-09-25T15:53:48.302523Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "38773.05",
+            "yes_ask_dollars": "1.0000",
+            "yes_ask_size_fp": "0.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Giada De Laurentiis"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-02T16:04:08.750767Z",
+            "custom_strike": {
+              "Actor": "6df2aafb-2d95-4210-9d92-9096611ff1ad",
+              "Participant": "Harry Shum Jr."
+            },
+            "early_close_condition": "This market will close and expire early when the winner is announced.",
+            "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.1200",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.8900",
+            "no_bid_dollars": "0.8800",
+            "no_sub_title": "Harry Shum Jr.",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "175720.27",
+            "open_time": "2026-09-02T16:08:00Z",
+            "previous_price_dollars": "0.1200",
+            "previous_yes_ask_dollars": "0.1200",
+            "previous_yes_bid_dollars": "0.1100",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Harry Shum Jr. is officially declared the winner of Dancing with the Stars Season 35, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nThe winner must be officially announced in the finale or via official channels immediately following.\nMultiple joint winners each resolve to Yes with split payouts ($1 divided by number of winners).\nIf no winner is declared, all markets resolve to No. \nDisqualifications or withdrawals before the finale resolve to No.\nLater title stripping doesn't affect resolution - the original finale announcement governs.\n\nPayout criteria\nWinners who decline the award still count unless acceptance was a condition of victory.\nFor couples/teams competitions, being part of the winning unit counts.\n\nDoesn't count for payout: Fan favorite or other secondary awards don't count as winning.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "ticker": "KXDANCINGWITHTHESTARS-26DEC31-HSHU",
+            "title": "Will Harry Shum Jr. win Dancing with the Stars Season 35?",
+            "updated_time": "2026-09-24T00:04:23.330356Z",
+            "volume_24h_fp": "22879.43",
+            "volume_fp": "255203.35",
+            "yes_ask_dollars": "0.1200",
+            "yes_ask_size_fp": "11162.12",
+            "yes_bid_dollars": "0.1100",
+            "yes_bid_size_fp": "1024.88",
+            "yes_sub_title": "Harry Shum Jr."
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2026-09-25T15:23:03Z",
+            "created_time": "2026-09-02T16:04:08.750767Z",
+            "custom_strike": {
+              "Actor": "03aa2f22-8a8b-4a1b-b227-d0dbb8fcba98",
+              "Participant": "Conner Leavitt"
+            },
+            "early_close_condition": "This market will close and expire early when the winner is announced.",
+            "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "No",
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.0000",
+            "no_sub_title": "Conner Leavitt",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "38670.03",
+            "open_time": "2026-09-02T16:08:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "1.0000",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "no",
+            "rules_primary": "If Conner Leavitt is officially declared the winner of Dancing with the Stars Season 35, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nThe winner must be officially announced in the finale or via official channels immediately following.\nMultiple joint winners each resolve to Yes with split payouts ($1 divided by number of winners).\nIf no winner is declared, all markets resolve to No. \nDisqualifications or withdrawals before the finale resolve to No.\nLater title stripping doesn't affect resolution - the original finale announcement governs.\n\nPayout criteria\nWinners who decline the award still count unless acceptance was a condition of victory.\nFor couples/teams competitions, being part of the winning unit counts.\n\nDoesn't count for payout: Fan favorite or other secondary awards don't count as winning.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "settlement_ts": "2026-09-25T15:53:08.100479Z",
+            "settlement_value_dollars": "0.0000",
+            "status": "finalized",
+            "strike_type": "custom",
+            "ticker": "KXDANCINGWITHTHESTARS-26DEC31-CLEV",
+            "title": "Will Conner Leavitt win Dancing with the Stars Season 35?",
+            "updated_time": "2026-09-25T15:53:08.303243Z",
+            "volume_24h_fp": "0.00",
+            "volume_fp": "53890.94",
+            "yes_ask_dollars": "1.0000",
+            "yes_ask_size_fp": "0.00",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Conner Leavitt"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-02T16:04:08.750767Z",
+            "custom_strike": {
+              "Actor": "9a3ca817-1882-44a6-b5ad-56a72ff84df7",
+              "Participant": "Guillermo Rodriguez"
+            },
+            "early_close_condition": "This market will close and expire early when the winner is announced.",
+            "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0300",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9800",
+            "no_bid_dollars": "0.9700",
+            "no_sub_title": "Guillermo Rodriguez",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "210065.36",
+            "open_time": "2026-09-02T16:08:00Z",
+            "previous_price_dollars": "0.0300",
+            "previous_yes_ask_dollars": "0.0300",
+            "previous_yes_bid_dollars": "0.0200",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Guillermo Rodriguez is officially declared the winner of Dancing with the Stars Season 35, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nThe winner must be officially announced in the finale or via official channels immediately following.\nMultiple joint winners each resolve to Yes with split payouts ($1 divided by number of winners).\nIf no winner is declared, all markets resolve to No. \nDisqualifications or withdrawals before the finale resolve to No.\nLater title stripping doesn't affect resolution - the original finale announcement governs.\n\nPayout criteria\nWinners who decline the award still count unless acceptance was a condition of victory.\nFor couples/teams competitions, being part of the winning unit counts.\n\nDoesn't count for payout: Fan favorite or other secondary awards don't count as winning.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "ticker": "KXDANCINGWITHTHESTARS-26DEC31-GROD",
+            "title": "Will Guillermo Rodriguez win Dancing with the Stars Season 35?",
+            "updated_time": "2026-09-24T00:04:23.330356Z",
+            "volume_24h_fp": "14505.48",
+            "volume_fp": "258057.70",
+            "yes_ask_dollars": "0.0300",
+            "yes_ask_size_fp": "17079.85",
+            "yes_bid_dollars": "0.0200",
+            "yes_bid_size_fp": "54450.75",
+            "yes_sub_title": "Guillermo Rodriguez"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-02T16:04:08.750767Z",
+            "custom_strike": {
+              "Actor": "ec2f1865-c479-4685-bb5e-6cbe89b7e871",
+              "Participant": "Maura Higgins"
+            },
+            "early_close_condition": "This market will close and expire early when the winner is announced.",
+            "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.1200",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.8800",
+            "no_bid_dollars": "0.8700",
+            "no_sub_title": "Maura Higgins",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "171506.96",
+            "open_time": "2026-09-02T16:08:00Z",
+            "previous_price_dollars": "0.1400",
+            "previous_yes_ask_dollars": "0.1400",
+            "previous_yes_bid_dollars": "0.1300",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Maura Higgins is officially declared the winner of Dancing with the Stars Season 35, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nThe winner must be officially announced in the finale or via official channels immediately following.\nMultiple joint winners each resolve to Yes with split payouts ($1 divided by number of winners).\nIf no winner is declared, all markets resolve to No. \nDisqualifications or withdrawals before the finale resolve to No.\nLater title stripping doesn't affect resolution - the original finale announcement governs.\n\nPayout criteria\nWinners who decline the award still count unless acceptance was a condition of victory.\nFor couples/teams competitions, being part of the winning unit counts.\n\nDoesn't count for payout: Fan favorite or other secondary awards don't count as winning.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "ticker": "KXDANCINGWITHTHESTARS-26DEC31-MHIG",
+            "title": "Will Maura Higgins win Dancing with the Stars Season 35?",
+            "updated_time": "2026-09-24T00:04:23.330356Z",
+            "volume_24h_fp": "19232.70",
+            "volume_fp": "412033.74",
+            "yes_ask_dollars": "0.1300",
+            "yes_ask_size_fp": "2641.67",
+            "yes_bid_dollars": "0.1200",
+            "yes_bid_size_fp": "2127.20",
+            "yes_sub_title": "Maura Higgins"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-02T16:04:08.750767Z",
+            "custom_strike": {
+              "Actor": "8843e454-08db-48ea-bbcc-8bde5e8929d9",
+              "Participant": "Ciara Miller"
+            },
+            "early_close_condition": "This market will close and expire early when the winner is announced.",
+            "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0100",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "1.0000",
+            "no_bid_dollars": "0.9900",
+            "no_sub_title": "Ciara Miller",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "102716.86",
+            "open_time": "2026-09-02T16:08:00Z",
+            "previous_price_dollars": "0.0100",
+            "previous_yes_ask_dollars": "0.0100",
+            "previous_yes_bid_dollars": "0.0000",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Ciara Miller is officially declared the winner of Dancing with the Stars Season 35, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nThe winner must be officially announced in the finale or via official channels immediately following.\nMultiple joint winners each resolve to Yes with split payouts ($1 divided by number of winners).\nIf no winner is declared, all markets resolve to No. \nDisqualifications or withdrawals before the finale resolve to No.\nLater title stripping doesn't affect resolution - the original finale announcement governs.\n\nPayout criteria\nWinners who decline the award still count unless acceptance was a condition of victory.\nFor couples/teams competitions, being part of the winning unit counts.\n\nDoesn't count for payout: Fan favorite or other secondary awards don't count as winning.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "ticker": "KXDANCINGWITHTHESTARS-26DEC31-CMIL",
+            "title": "Will Ciara Miller win Dancing with the Stars Season 35?",
+            "updated_time": "2026-09-24T00:04:23.330356Z",
+            "volume_24h_fp": "3859.91",
+            "volume_fp": "127834.41",
+            "yes_ask_dollars": "0.0100",
+            "yes_ask_size_fp": "33198.84",
+            "yes_bid_dollars": "0.0000",
+            "yes_bid_size_fp": "0.00",
+            "yes_sub_title": "Ciara Miller"
+          },
+          {
+            "can_close_early": true,
+            "close_time": "2027-01-07T15:00:00Z",
+            "created_time": "2026-09-02T16:04:08.750767Z",
+            "custom_strike": {
+              "Actor": "39fc8c3d-0651-4b88-8f77-6b11b448e5a0",
+              "Participant": "Jackson Olson"
+            },
+            "early_close_condition": "This market will close and expire early when the winner is announced.",
+            "event_ticker": "KXDANCINGWITHTHESTARS-26DEC31",
+            "exchange_index": 0,
+            "expected_expiration_time": "2026-12-31T15:00:00Z",
+            "expiration_time": "2027-01-07T15:00:00Z",
+            "expiration_value": "",
+            "last_price_dollars": "0.0200",
+            "latest_expiration_time": "2027-01-07T15:00:00Z",
+            "liquidity_dollars": "0.0000",
+            "market_type": "binary",
+            "no_ask_dollars": "0.9900",
+            "no_bid_dollars": "0.9800",
+            "no_sub_title": "Jackson Olson",
+            "notional_value_dollars": "1.0000",
+            "occurrence_datetime": "2026-12-31T15:00:00Z",
+            "open_interest_fp": "129664.68",
+            "open_time": "2026-09-02T16:08:00Z",
+            "previous_price_dollars": "0.0400",
+            "previous_yes_ask_dollars": "0.0400",
+            "previous_yes_bid_dollars": "0.0300",
+            "price_level_structure": "linear_cent",
+            "price_ranges": [
+              {
+                "end": "1.0000",
+                "start": "0.0000",
+                "step": "0.0100"
+              }
+            ],
+            "result": "",
+            "rules_primary": "If Jackson Olson is officially declared the winner of Dancing with the Stars Season 35, then the market resolves to Yes.",
+            "rules_secondary": "How this is resolved\nThe winner must be officially announced in the finale or via official channels immediately following.\nMultiple joint winners each resolve to Yes with split payouts ($1 divided by number of winners).\nIf no winner is declared, all markets resolve to No. \nDisqualifications or withdrawals before the finale resolve to No.\nLater title stripping doesn't affect resolution - the original finale announcement governs.\n\nPayout criteria\nWinners who decline the award still count unless acceptance was a condition of victory.\nFor couples/teams competitions, being part of the winning unit counts.\n\nDoesn't count for payout: Fan favorite or other secondary awards don't count as winning.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Dancing with the Stars. All trademarks, logos, and brand names are the property of their respective owners.",
+            "settlement_timer_seconds": 1800,
+            "status": "active",
+            "strike_type": "custom",
+            "ticker": "KXDANCINGWITHTHESTARS-26DEC31-JOLS",
+            "title": "Will Jackson Olson win Dancing with the Stars Season 35?",
+            "updated_time": "2026-09-24T00:04:23.330356Z",
+            "volume_24h_fp": "5380.42",
+            "volume_fp": "174164.93",
+            "yes_ask_dollars": "0.0200",
+            "yes_ask_size_fp": "11973.35",
+            "yes_bid_dollars": "0.0100",
+            "yes_bid_size_fp": "7167.20",
+            "yes_sub_title": "Jackson Olson"
+          }
+        ]
+      }
+    },
+    "series": {
+      "path": "/series/KXDANCINGWITHTHESTARS",
+      "at_utc": "2026-09-30T20:55:45.752360+00:00",
+      "status": 200,
+      "latency_ms": 269.117,
+      "body": {
+        "series": {
+          "additional_prohibitions": [
+            "Persons who are employed by any of the Source Agencies are not permitted to trade on the Contract.",
+            "Persons who hold any material, non-public information on the Underlying are not permitted to trade on the Contract."
+          ],
+          "categories": [
+            "Entertainment"
+          ],
+          "category": "Entertainment",
+          "contract_terms_url": "https://assets.kalshi.com/contract_terms/COMPETITIONREALITYWIN.pdf",
+          "contract_url": "https://assets.kalshi.com/regulatory/product-certifications/COMPETITIONREALITYWIN.pdf",
+          "exchange_index": 0,
+          "fee_multiplier": 1,
+          "fee_type": "quadratic",
+          "frequency": "one_off",
+          "last_updated_ts": "2026-09-23T21:54:48.489698Z",
+          "product_metadata": {
+            "scope": "Winner"
+          },
+          "settlement_sources": [
+            {
+              "name": "\ue907the official broadcaster or streaming platform of <competition> (e",
+              "url": "https://kalshi.com/"
+            },
+            {
+              "name": "The Source Agencies are",
+              "url": "https://kalshi.com/"
+            },
+            {
+              "name": "in hierarchical order",
+              "url": "https://kalshi.com/"
+            }
+          ],
+          "tags": [
+            "Television",
+            "Dancing with the Stars"
+          ],
+          "ticker": "KXDANCINGWITHTHESTARS",
+          "title": "Who will win dancing with the stars?"
+        }
+      }
+    }
+  },
+  "completed_at_utc": "2026-09-30T20:55:46.021545+00:00",
+  "note": "Sequential snapshots, not executable quotes or actual fees. Re-read immediately before arming."
+}
