@@ -1,0 +1,153 @@
+{
+  "candidate": {
+    "ticker": "KXEPLRELEGATION-27-MCI",
+    "source_manifest_sha256": "90114bfef8baa72ccd43d9ed8691de5a5594be5e0830ec553f415b5139ed39c5",
+    "binary_sha256": "516778b685e7a9d55981d94b62388c1e558430810909adc22306d115327f17c0",
+    "config_sha256": "251151dda886f414673f186896dd5235f21022c3b67de493781c2fa2692b2d55",
+    "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+  },
+  "acceptance": {
+    "orders": {
+      "operator": "Hugh",
+      "operator_outcome": "passed",
+      "observation": "Post-only adds YES 12 @ 33c (01a0eef3-a4e0-7c89-9951-8c62edc2e9ea), NO 12 @ 65c (01a0eef3-a4e0-7071-b6bc-a761a3865547) and, after a reprice, YES 12 @ 34c (01a0eef3-c808-7514-a313-f5e767b58996). The reprice cancel of ...e9ea returned DELETE 200, stayed listed for 1.5 s (SEV3 SWEEP_PENDING a25, SEV2 CANCEL_UNVERIFIED a26), then swept clean; no SEV1.",
+      "recorded_at_utc": "2026-09-30T20:50:13.078522+00:00",
+      "evidence": [
+        {
+          "path": "stage-report.md",
+          "sha256": "07fbf061efe162906cf876d9821a723f254865421d28511a4ab9300d6f2b6dfd",
+          "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+        },
+        {
+          "path": "observer.jsonl",
+          "sha256": "9004a72a66cbc359a27627d281364537d3a850719fa4731b7f3811dc3ddd9f8a",
+          "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+        }
+      ]
+    },
+    "fills": {
+      "operator": "Hugh",
+      "operator_outcome": "passed",
+      "observation": "Two owned fills, each attributed by order_id: NO 12 @ 65c (trade 07235516-1181-98b3-3f83-d07dc114950f, order ...5547, exchange 21:01:59.623Z, book_side ask) and YES 12 @ 34c (trade 07235506-1a69-9eae-17dd-c4129d0f0ac6, order ...8996, exchange 21:06:23.663Z).",
+      "recorded_at_utc": "2026-09-30T20:50:13.078522+00:00",
+      "evidence": [
+        {
+          "path": "account-after-drain.json",
+          "sha256": "b384bfd955072ac8e828615d7fb6fcf34649ad23226c6b0fa49abbdc4be286c2",
+          "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+        },
+        {
+          "path": "stage-report.md",
+          "sha256": "07fbf061efe162906cf876d9821a723f254865421d28511a4ab9300d6f2b6dfd",
+          "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+        }
+      ]
+    },
+    "fees": {
+      "operator": "Hugh",
+      "operator_outcome": "passed",
+      "observation": "Both fills maker: is_taker=false, fee 0.000000. Selected-shard funding went from 98.4279 (preflight) to 98.5479 after exit: net +0.1200.",
+      "recorded_at_utc": "2026-09-30T20:50:13.078522+00:00",
+      "evidence": [
+        {
+          "path": "account-preflight.json",
+          "sha256": "6fe5b8c6cd45fcc547ca39776b2a83bf590d138c246b6eba66fc28910c6170dd",
+          "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+        },
+        {
+          "path": "account-after-drain.json",
+          "sha256": "b384bfd955072ac8e828615d7fb6fcf34649ad23226c6b0fa49abbdc4be286c2",
+          "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+        }
+      ]
+    },
+    "reduction": {
+      "operator": "Hugh",
+      "operator_outcome": "passed",
+      "observation": "The first fill latched canary_owned_fill (RUNNING->WINDING_DOWN, QUOTING->REDUCING at 21:02:04Z). The resting YES 12 @ 34c became the |q|-capped reducer and filled 4.4 min later, with no operator action. REDUCING->IDLE and WINDING_DOWN->DRAINED at 21:06:24Z; the confirm sweep was clean.",
+      "recorded_at_utc": "2026-09-30T20:50:13.078522+00:00",
+      "evidence": [
+        {
+          "path": "stage-report.md",
+          "sha256": "07fbf061efe162906cf876d9821a723f254865421d28511a4ab9300d6f2b6dfd",
+          "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+        },
+        {
+          "path": "latch-before-restart.json",
+          "sha256": "2ca4ca67ca6111e06c64934f0a0671eef7f05b67088b46e77dd4aac86df7597d",
+          "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+        },
+        {
+          "path": "observer.jsonl",
+          "sha256": "9004a72a66cbc359a27627d281364537d3a850719fa4731b7f3811dc3ddd9f8a",
+          "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+        }
+      ]
+    },
+    "clean_exit": {
+      "operator": "Hugh",
+      "operator_outcome": "passed",
+      "observation": "SIGTERM at 21:20:49Z after checking argv and start time; exit status 0. The account-wide read at 21:21:00Z was complete and flat, with zero resting orders and no nonzero position.",
+      "recorded_at_utc": "2026-09-30T20:50:13.078522+00:00",
+      "evidence": [
+        {
+          "path": "exit-status.txt",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+        },
+        {
+          "path": "account-after-drain.json",
+          "sha256": "b384bfd955072ac8e828615d7fb6fcf34649ad23226c6b0fa49abbdc4be286c2",
+          "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+        },
+        {
+          "path": "control.log",
+          "sha256": "95d04951e5f5df8364c887a46c54d5cc53f866e7b31ef3cea00fe55558bc48b8",
+          "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+        }
+      ]
+    },
+    "restart": {
+      "operator": "Hugh",
+      "operator_outcome": "passed",
+      "observation": "Retained-latch restart with -resume: STARTING->WINDING_DOWN (halt_latch)->DRAINED, no order adopted or placed, no SEV1; SIGTERM at 21:23:40Z, exit 0. The account-wide read at 21:23:45Z was complete and flat; live_ok removed at 21:25:03Z; latch, store and journal retained.",
+      "recorded_at_utc": "2026-09-30T20:50:13.078522+00:00",
+      "evidence": [
+        {
+          "path": "restart-exit-status.txt",
+          "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+          "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+        },
+        {
+          "path": "account-after-restart.json",
+          "sha256": "b0eeec4188a5cf4e26ea10b5c14f26fccbf4d21d1f23b671174024987279bb4e",
+          "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+        },
+        {
+          "path": "restart.log",
+          "sha256": "e42a7c32c835d82304beb1ccf70b85e5b541a271625c8ac46fbbf395689407d4",
+          "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+        },
+        {
+          "path": "control.log",
+          "sha256": "95d04951e5f5df8364c887a46c54d5cc53f866e7b31ef3cea00fe55558bc48b8",
+          "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+        }
+      ]
+    },
+    "alarm": {
+      "operator": "Hugh",
+      "operator_outcome": "observed",
+      "observation": "No SEV1 in either run. 20 ntfy pushes (2 STARTING, 18 SEV2) with server delivery times; run-1 SEV2 pushes were queued and flushed at restart (undelivered: 10). No phone receipt time recorded. Alarm receipt is not a gate for attended stages (Hugh, 2026-09-30).",
+      "recorded_at_utc": "2026-09-30T20:50:13.078522+00:00",
+      "evidence": [
+        {
+          "path": "ntfy-delivery.json",
+          "sha256": "dc8d0911ee91a1591b03b151c1e564f839e6a56a50f49f38949bd1e0a1bf1ae8",
+          "first_stage_identity_sha256": "bcdaa58f98fd5e4af579bf145ae1d312b668f166fd838392bd6b3d374f46b87a"
+        }
+      ]
+    }
+  },
+  "note": "Operator attestation of the 2026-09-29 candidate-5 MCI first stage, used to bind the candidate-6 R2 stage through candidate-6's recorded predecessor. Drafted by the assistant from evidence/stage-report.md; attested by Hugh in chat."
+}
