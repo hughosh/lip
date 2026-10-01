@@ -47,6 +47,11 @@ its next repair or to operate an account.
   restart it sized to the drain and watch the store and the process directly
   (fill, state_event and SEV1 counts, sweep-trace count, `ps -p`); record any
   observer gap in `control.log` with the store facts that bracket it.
+- `bd close` of a dependency does not change a dependent whose status is stored
+  as `blocked`; set it with `bd update <id> --status open`. Every close or
+  status change appends a line to the tracked `.beads/interactions.jsonl`
+  (comments do not), so bead edits dirty the tree; that file has only ever been
+  committed inside larger commits, so let it ride with the next one.
 
 Read only the guidance relevant to the task:
 
