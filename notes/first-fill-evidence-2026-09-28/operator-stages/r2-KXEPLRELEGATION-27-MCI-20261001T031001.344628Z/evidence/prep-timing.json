@@ -1,0 +1,53 @@
+{
+  "book_source": "prepare snapshot",
+  "book_completed_at_utc": "2026-10-01T03:10:04.828483+00:00",
+  "max_age_seconds": 60,
+  "oldest_observation_at_utc": "2026-10-01T03:10:03.602846+00:00",
+  "launch_deadline_utc": "2026-10-01T03:11:03.602846+00:00",
+  "events": [
+    {
+      "event": "tool_build_start",
+      "at_utc": "2026-10-01T03:10:01.589945+00:00"
+    },
+    {
+      "event": "tool_build_end",
+      "at_utc": "2026-10-01T03:10:03.497875+00:00"
+    },
+    {
+      "event": "book_capture_start",
+      "at_utc": "2026-10-01T03:10:03.535982+00:00"
+    },
+    {
+      "event": "book_capture_end",
+      "at_utc": "2026-10-01T03:10:04.844383+00:00"
+    },
+    {
+      "event": "programs_read_start",
+      "at_utc": "2026-10-01T03:10:04.845113+00:00"
+    },
+    {
+      "event": "programs_read_end",
+      "at_utc": "2026-10-01T03:10:06.700489+00:00"
+    },
+    {
+      "event": "candidate_read_start",
+      "at_utc": "2026-10-01T03:10:06.700514+00:00"
+    },
+    {
+      "event": "candidate_read_end",
+      "at_utc": "2026-10-01T03:10:08.349727+00:00"
+    },
+    {
+      "event": "account_read_start",
+      "at_utc": "2026-10-01T03:10:08.353875+00:00"
+    },
+    {
+      "event": "account_read_end",
+      "at_utc": "2026-10-01T03:10:11.125725+00:00"
+    },
+    {
+      "event": "prepare_end",
+      "at_utc": "2026-10-01T03:10:11.266105+00:00"
+    }
+  ]
+}

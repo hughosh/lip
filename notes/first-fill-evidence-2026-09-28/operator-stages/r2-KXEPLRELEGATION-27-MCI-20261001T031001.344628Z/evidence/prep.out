@@ -1,0 +1,53 @@
+Prepared r2 evidence: /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/evidence
+Candidate identity: /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/evidence/identity.json
+Operator-only commands, not executed by this helper.
+RULE: paste one phase at a time, only its indented command lines, and finish its CHECK lines first.
+
+PHASE 1 of 10: provision this stage store.
+    /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/candidate-7/harness -config /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/config.json -provision
+
+PHASE 2 of 10: arm and start the harness.
+NOTE: the first-stage receipt is an operator attestation. This helper checked its file hashes but not the events it claims.
+CHECK: arm only after reviewing current account, book, fees, limits and candidate identity.
+    install -m 600 /dev/null /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/runtime/live_ok
+    /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/candidate-7/harness -config /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/config.json -rung pilot -live > /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/evidence/harness.log 2>&1 &
+    echo $! > /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/evidence/harness.pid
+
+PHASE 3 of 10: show the harness process before the crash drill.
+CHECK: remain present and observe at least three round trips, each an owned fill reduced back to flat.
+NOTE: the pilot rung does not stop on first owned fill.
+NOTE: if any global stop latched during the cycles, skip the crash drill and follow the operator handoff instead.
+    ps -p "$(cat /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/evidence/harness.pid)" -o pid=,command=
+
+PHASE 4 of 10: crash the harness with SIGKILL and wait for it in the SAME operator shell that started it.
+CHECK: the ps output shows the operator-verified harness child and the market is quoting flat with its adding orders resting.
+    kill -KILL "$(cat /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/evidence/harness.pid)"
+    wait "$(cat /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/evidence/harness.pid)"; echo $? > /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/evidence/exit-status.txt
+
+PHASE 5 of 10: record account truth after the crash, before the restart.
+NOTE: the account is expected to show the resting orders the restart must adopt. If the restart refuses, cancel them by hand and follow the runbook.
+    cd /Users/hugh/kek/lip/go
+    /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/tools/accountcheck -ticker KXEPLRELEGATION-27-MCI -fills -out /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/evidence/account-after-crash.json
+
+PHASE 6 of 10: restart the harness without resume, since a SIGKILL writes no latch.
+CHECK: no latch file exists and the account read above has been saved.
+    /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/candidate-7/harness -config /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/config.json -rung pilot -live > /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/evidence/restart.log 2>&1 &
+    echo $! > /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/evidence/restart.pid
+
+PHASE 7 of 10: show the restarted child before signaling it.
+CHECK: observe adoption of the resting orders, FUNDING_LIMITS with recovery_only true, a funding_recovery latch and WINDING_DOWN, the adding orders cancelled, any inventory reduced to flat, then DRAINED with no new adds.
+    ps -p "$(cat /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/evidence/restart.pid)" -o pid=,command=
+
+PHASE 8 of 10: stop the restarted child and wait for it in the SAME operator shell.
+CHECK: the ps output shows the restarted child. Verify identity before signaling.
+    kill -TERM "$(cat /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/evidence/restart.pid)"
+    wait "$(cat /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/evidence/restart.pid)"; echo $? > /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/evidence/restart-exit-status.txt
+
+PHASE 9 of 10: record account truth after the restart, still in the go directory.
+CHECK: only after the restarted child has exited.
+    go run ./cmd/accountcheck -ticker KXEPLRELEGATION-27-MCI -fills -out /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/evidence/account-after-restart.json
+
+PHASE 10 of 10: remove the write sentinel of this stage.
+CHECK: only after verifying every stage process has exited and account truth is complete and flat.
+NOTE: this removes only the write sentinel of this stage. Retain the store, latch and evidence.
+    rm -f /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/runtime/live_ok

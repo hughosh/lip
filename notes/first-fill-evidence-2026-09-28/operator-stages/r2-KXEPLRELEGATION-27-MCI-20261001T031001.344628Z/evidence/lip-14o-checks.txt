@@ -1,0 +1,116 @@
+===== checks.sh after reduction-1 spot-check (reduction-1.json: one open YES order, funding 90.3879) at 2026-10-01T03:32:51Z (store uri: mode=ro)
+q (count_q units, 100 = 1 contract): -1200
+--- fills:
+03:30:55.372|no|6800|1200|0|0|01a0f570
+--- state events:
+03:10:14.379|global|STARTING>RUNNING|reconciled
+03:10:14.703|market|IDLE>QUOTING|selected
+03:30:55.372|market|QUOTING>REDUCING|inv_hard
+--- anomalies CANCEL_UNVERIFIED / SWEEP_PENDING / SWEEP_INCOMPLETE:
+03:30:55.893|SWEEP_PENDING|0|cancel sweep still finds 1 of our orders resting after 2 rounds; they are live and fillable and the sweep is N
+03:30:55.894|CANCEL_UNVERIFIED|1|the cancel of 1 order(s) on KXEPLRELEGATION-27-MCI/no did not come back verified absent (complete); H-FAIL-3 k
+--- SEV1 anomalies (sev=2):
+--- sweep traces (2):
+{"started":"03:30:55.372","ended":"03:30:55.893","verdict":"incomplete","requested":["01a0f570"],"still":["01a0f570"],"page":"pending","deletes":[{"id":"01a0f570","status":404},{"id":"01a0f570","status":404}]}
+{"started":"03:30:55.894","ended":"03:30:56.112","verdict":"clean","requested":["01a0f570"],"still":[],"page":null,"deletes":[{"id":"01a0f570","status":404}]}
+--- (a) episodes:
+01a0f570-f1d8-7a08-901a-41219019b3ed cleared after 219 ms
+--- (b) DELETE 200 -> next bound yes order:
+--- (b) DELETE 200 -> next bound no order:
+--- owned_order:
+rowid|side|role|price_cents|count_q|oid|bound|abandoned
+1|yes|adding|30|1200|01a0f570|03:10:15|
+2|no|adding|68|1200|01a0f570|03:10:15|
+--- phantoms.py:
+{ "swept_ids": 1, "phantom_candidates": {}}
+===== checks.sh at the 2 h cap 05:10Z, before any drill at 2026-10-01T05:10:36Z (store uri: mode=ro)
+q (count_q units, 100 = 1 contract): -883
+--- fills:
+03:30:55.372|no|6800|1200|0|0|01a0f570
+03:52:16.864|yes|3000|317|0|0|01a0f570
+--- state events:
+03:10:14.379|global|STARTING>RUNNING|reconciled
+03:10:14.703|market|IDLE>QUOTING|selected
+03:30:55.372|market|QUOTING>REDUCING|inv_hard
+--- anomalies CANCEL_UNVERIFIED / SWEEP_PENDING / SWEEP_INCOMPLETE:
+03:30:55.893|SWEEP_PENDING|0|cancel sweep still finds 1 of our orders resting after 2 rounds; they are live and fillable and the sweep is N
+03:30:55.894|CANCEL_UNVERIFIED|1|the cancel of 1 order(s) on KXEPLRELEGATION-27-MCI/no did not come back verified absent (complete); H-FAIL-3 k
+--- SEV1 anomalies (sev=2):
+--- sweep traces (2):
+{"started":"03:30:55.372","ended":"03:30:55.893","verdict":"incomplete","requested":["01a0f570"],"still":["01a0f570"],"page":"pending","deletes":[{"id":"01a0f570","status":404},{"id":"01a0f570","status":404}]}
+{"started":"03:30:55.894","ended":"03:30:56.112","verdict":"clean","requested":["01a0f570"],"still":[],"page":null,"deletes":[{"id":"01a0f570","status":404}]}
+--- (a) episodes:
+01a0f570-f1d8-7a08-901a-41219019b3ed cleared after 219 ms
+--- (b) DELETE 200 -> next bound yes order:
+--- (b) DELETE 200 -> next bound no order:
+--- owned_order:
+rowid|side|role|price_cents|count_q|oid|bound|abandoned
+1|yes|adding|30|1200|01a0f570|03:10:15|
+2|no|adding|68|1200|01a0f570|03:10:15|
+--- phantoms.py:
+{ "swept_ids": 1, "phantom_candidates": {}}
+===== checks.sh after SIGTERM at 05:58:17Z (drill C), spot-check after-sigterm.json: one open YES order 8.83, funding 92.6069 at 2026-10-01T05:59:37Z (store uri: mode=ro)
+q (count_q units, 100 = 1 contract): -883
+--- fills:
+03:30:55.372|no|6800|1200|0|0|01a0f570
+03:52:16.864|yes|3000|317|0|0|01a0f570
+--- state events:
+03:10:14.379|global|STARTING>RUNNING|reconciled
+03:10:14.703|market|IDLE>QUOTING|selected
+03:30:55.372|market|QUOTING>REDUCING|inv_hard
+05:58:17.056|global|RUNNING>WINDING_DOWN|global_stop
+--- anomalies CANCEL_UNVERIFIED / SWEEP_PENDING / SWEEP_INCOMPLETE:
+03:30:55.893|SWEEP_PENDING|0|cancel sweep still finds 1 of our orders resting after 2 rounds; they are live and fillable and the sweep is N
+03:30:55.894|CANCEL_UNVERIFIED|1|the cancel of 1 order(s) on KXEPLRELEGATION-27-MCI/no did not come back verified absent (complete); H-FAIL-3 k
+--- SEV1 anomalies (sev=2):
+--- (d) SIGNAL_DRAIN / DRAIN_TIMEOUT:
+05:58:17.056|SIGNAL_DRAIN|1|sigterm received after 2h48m3.361719604s of uptime with inventory=true and live orders=true; the process does 
+--- latch: {"version":1,"trigger":"sigterm","ts_ms":1790834297034,"market":""}
+--- exit statuses: harness=none restart=none
+--- sweep traces (2):
+{"started":"03:30:55.372","ended":"03:30:55.893","verdict":"incomplete","requested":["01a0f570"],"still":["01a0f570"],"page":"pending","deletes":[{"id":"01a0f570","status":404},{"id":"01a0f570","status":404}]}
+{"started":"03:30:55.894","ended":"03:30:56.112","verdict":"clean","requested":["01a0f570"],"still":[],"page":null,"deletes":[{"id":"01a0f570","status":404}]}
+--- (a) episodes:
+01a0f570-f1d8-7a08-901a-41219019b3ed cleared after 219 ms
+--- (b) DELETE 200 -> next bound yes order:
+--- (b) DELETE 200 -> next bound no order:
+--- owned_order:
+rowid|side|role|price_cents|count_q|oid|bound|abandoned
+1|yes|adding|30|1200|01a0f570|03:10:15|
+2|no|adding|68|1200|01a0f570|03:10:15|
+--- phantoms.py:
+{ "swept_ids": 1, "phantom_candidates": {}}
+===== checks.sh after the self-exit at 10:49:34Z (drill C complete) at 2026-10-01T10:50:05Z (store uri: mode=ro)
+q (count_q units, 100 = 1 contract): 0
+--- fills:
+03:30:55.372|no|6800|1200|0|0|01a0f570
+03:52:16.864|yes|3000|317|0|0|01a0f570
+10:49:34.845|yes|3000|883|0|0|01a0f570
+--- state events:
+03:10:14.379|global|STARTING>RUNNING|reconciled
+03:10:14.703|market|IDLE>QUOTING|selected
+03:30:55.372|market|QUOTING>REDUCING|inv_hard
+05:58:17.056|global|RUNNING>WINDING_DOWN|global_stop
+10:49:34.846|global|WINDING_DOWN>DRAINED|drained
+10:49:34.847|market|REDUCING>IDLE|global_stop
+--- anomalies CANCEL_UNVERIFIED / SWEEP_PENDING / SWEEP_INCOMPLETE:
+03:30:55.893|SWEEP_PENDING|0|cancel sweep still finds 1 of our orders resting after 2 rounds; they are live and fillable and the sweep is N
+03:30:55.894|CANCEL_UNVERIFIED|1|the cancel of 1 order(s) on KXEPLRELEGATION-27-MCI/no did not come back verified absent (complete); H-FAIL-3 k
+--- SEV1 anomalies (sev=2):
+--- (d) SIGNAL_DRAIN / DRAIN_TIMEOUT:
+05:58:17.056|SIGNAL_DRAIN|1|sigterm received after 2h48m3.361719604s of uptime with inventory=true and live orders=true; the process does 
+--- latch: {"version":1,"trigger":"sigterm","ts_ms":1790834297034,"market":""}
+--- exit statuses: harness=0 restart=none
+--- sweep traces (2):
+{"started":"03:30:55.372","ended":"03:30:55.893","verdict":"incomplete","requested":["01a0f570"],"still":["01a0f570"],"page":"pending","deletes":[{"id":"01a0f570","status":404},{"id":"01a0f570","status":404}]}
+{"started":"03:30:55.894","ended":"03:30:56.112","verdict":"clean","requested":["01a0f570"],"still":[],"page":null,"deletes":[{"id":"01a0f570","status":404}]}
+--- (a) episodes:
+01a0f570-f1d8-7a08-901a-41219019b3ed cleared after 219 ms
+--- (b) DELETE 200 -> next bound yes order:
+--- (b) DELETE 200 -> next bound no order:
+--- owned_order:
+rowid|side|role|price_cents|count_q|oid|bound|abandoned
+1|yes|adding|30|1200|01a0f570|03:10:15|
+2|no|adding|68|1200|01a0f570|03:10:15|
+--- phantoms.py:
+{ "swept_ids": 1, "phantom_candidates": {}}

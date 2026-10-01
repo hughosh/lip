@@ -27,12 +27,12 @@ from pathlib import Path
 
 REPO = Path("/Users/hugh/kek/lip")
 # set once launch.sh prints the stage directory (its STAGE= line); placeholder until then
-STAGE = REPO / "notes/first-fill-evidence-2026-09-28/operator-stages/r2-SET_ME"
+STAGE = REPO / "notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z"
 EVID, RUNTIME = STAGE / "evidence", STAGE / "runtime"
 DB, LATCH, LIVE_OK = RUNTIME / "harness.db", RUNTIME / "harness.halt", RUNTIME / "live_ok"
 EXE = REPO / "notes/first-fill-evidence-2026-09-28/candidate-7/harness"
 CFG = STAGE / "config.json"
-TICKER = "SET_ME"  # Hugh chooses the market (the same ticker passed to launch.sh)
+TICKER = "KXEPLRELEGATION-27-MCI"  # Hugh's choice (AskUserQuestion, 2026-10-01 ~03:06Z); the same ticker passed to launch.sh
 PY = "/Users/hugh/kek/.venv/bin/python"
 SCR = Path("/Users/hugh/kek/lip/loop/run/r2-candidate-7-scratch")
 EXPECT_CMD = f"{EXE} -config {CFG} -rung pilot -live"

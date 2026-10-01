@@ -1,0 +1,765 @@
+{
+  "started_at": "2026-10-01T10:50:00.540688Z",
+  "ended_at": "2026-10-01T10:50:02.715891Z",
+  "requests": [
+    {
+      "at": "2026-10-01T10:50:00.540867Z",
+      "path": "/portfolio/balance",
+      "status": 200,
+      "duration_ms": 225.132382,
+      "response_bytes": 271
+    },
+    {
+      "at": "2026-10-01T10:50:00.76744Z",
+      "path": "/portfolio/subaccounts/balances",
+      "status": 200,
+      "duration_ms": 94.523645,
+      "response_bytes": 112
+    },
+    {
+      "at": "2026-10-01T10:50:00.862018Z",
+      "path": "/markets/KXEPLRELEGATION-27-MCI",
+      "status": 200,
+      "duration_ms": 96.386778,
+      "response_bytes": 1795
+    },
+    {
+      "at": "2026-10-01T10:50:00.958503Z",
+      "path": "/markets/KXEPLRELEGATION-27-MCI",
+      "status": 200,
+      "duration_ms": 98.317514,
+      "response_bytes": 1795
+    },
+    {
+      "at": "2026-10-01T10:50:01.056903Z",
+      "path": "/portfolio/balance",
+      "query": {
+        "exchange_index": "0",
+        "subaccount": "0"
+      },
+      "status": 200,
+      "duration_ms": 100.382495,
+      "response_bytes": 271
+    },
+    {
+      "at": "2026-10-01T10:50:01.157371Z",
+      "path": "/portfolio/balance",
+      "query": {
+        "exchange_index": "0",
+        "subaccount": "0"
+      },
+      "status": 200,
+      "duration_ms": 99.507774,
+      "response_bytes": 271
+    },
+    {
+      "at": "2026-10-01T10:50:01.256936Z",
+      "path": "/portfolio/orders",
+      "query": {
+        "status": "resting"
+      },
+      "status": 200,
+      "duration_ms": 96.026679,
+      "response_bytes": 25
+    },
+    {
+      "at": "2026-10-01T10:50:01.353006Z",
+      "path": "/portfolio/positions",
+      "query": {
+        "subaccount": "0"
+      },
+      "status": 200,
+      "duration_ms": 101.930367,
+      "response_bytes": 1942
+    },
+    {
+      "at": "2026-10-01T10:50:01.455084Z",
+      "path": "/portfolio/orders",
+      "query": {
+        "status": "resting"
+      },
+      "status": 200,
+      "duration_ms": 93.884347,
+      "response_bytes": 25
+    },
+    {
+      "at": "2026-10-01T10:50:01.548998Z",
+      "path": "/portfolio/positions",
+      "status": 200,
+      "duration_ms": 112.233666,
+      "response_bytes": 1942
+    },
+    {
+      "at": "2026-10-01T10:50:01.661346Z",
+      "path": "/portfolio/fills",
+      "status": 200,
+      "duration_ms": 99.222005,
+      "response_bytes": 12137
+    },
+    {
+      "at": "2026-10-01T10:50:01.761443Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1785211010"
+      },
+      "status": 200,
+      "duration_ms": 111.83728,
+      "response_bytes": 12137
+    },
+    {
+      "at": "2026-10-01T10:50:01.874099Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1785211011"
+      },
+      "status": 200,
+      "duration_ms": 106.221507,
+      "response_bytes": 12137
+    },
+    {
+      "at": "2026-10-01T10:50:01.981129Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1785211012"
+      },
+      "status": 200,
+      "duration_ms": 108.318209,
+      "response_bytes": 11601
+    },
+    {
+      "at": "2026-10-01T10:50:02.090262Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1788031391"
+      },
+      "status": 200,
+      "duration_ms": 102.598754,
+      "response_bytes": 5727
+    },
+    {
+      "at": "2026-10-01T10:50:02.193251Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1788031392"
+      },
+      "status": 200,
+      "duration_ms": 107.246093,
+      "response_bytes": 5727
+    },
+    {
+      "at": "2026-10-01T10:50:02.300976Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1788031393"
+      },
+      "status": 200,
+      "duration_ms": 105.581226,
+      "response_bytes": 5727
+    },
+    {
+      "at": "2026-10-01T10:50:02.406981Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1790851772"
+      },
+      "status": 200,
+      "duration_ms": 111.547224,
+      "response_bytes": 532
+    },
+    {
+      "at": "2026-10-01T10:50:02.518622Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1790851773"
+      },
+      "status": 200,
+      "duration_ms": 99.457574,
+      "response_bytes": 532
+    },
+    {
+      "at": "2026-10-01T10:50:02.618176Z",
+      "path": "/portfolio/fills",
+      "query": {
+        "min_ts": "1790851774"
+      },
+      "status": 200,
+      "duration_ms": 97.68503,
+      "response_bytes": 24
+    }
+  ],
+  "aggregate_balance_status": {
+    "outcome": "complete",
+    "count": 1
+  },
+  "aggregate_balance": "9878",
+  "subaccount_balances_status": {
+    "outcome": "complete",
+    "count": 1
+  },
+  "subaccount_balances": [
+    {
+      "subaccount": 0,
+      "exchange_index": 0,
+      "balance": "98.7879",
+      "updated_ts": "1790851773"
+    }
+  ],
+  "selected_ticker": "KXEPLRELEGATION-27-MCI",
+  "market_status": {
+    "outcome": "complete",
+    "count": 1
+  },
+  "exchange_index": 0,
+  "selected_balance_status": {
+    "outcome": "complete",
+    "count": 1
+  },
+  "selected_balance": "9878",
+  "market_funding_status": {
+    "outcome": "complete",
+    "count": 1
+  },
+  "market_funding_available_micro": "98787900",
+  "market_funding_observed_at": "2026-10-01T10:50:01.1573Z",
+  "market_funding_updated_ts": 1790851801,
+  "fills_status": {
+    "outcome": "complete",
+    "pages": 1,
+    "count": 23
+  },
+  "fills": [
+    {
+      "fill_id": "07232925-38f9-b3b2-255b-2bf1730c39a5",
+      "trade_id": "07232925-38f9-b3b2-255b-2bf1730c39a5",
+      "order_id": "01a0f570-f1d8-79ac-ac6b-552963bb65ed",
+      "side": "yes",
+      "action": "buy",
+      "book_side": "bid",
+      "outcome_side": "yes",
+      "ticker": "KXEPLRELEGATION-27-MCI",
+      "created_time": "2026-10-01T10:49:33.513684Z",
+      "ts": 1790851773,
+      "count": "8.83",
+      "yes_price_dollars": "0.3000",
+      "no_price_dollars": "0.7000",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "0723232d-9659-b806-0937-bbe98c136339",
+      "trade_id": "0723232d-9659-b806-0937-bbe98c136339",
+      "order_id": "01a0f570-f1d8-79ac-ac6b-552963bb65ed",
+      "side": "yes",
+      "action": "buy",
+      "book_side": "bid",
+      "outcome_side": "yes",
+      "ticker": "KXEPLRELEGATION-27-MCI",
+      "created_time": "2026-10-01T03:52:12.798409Z",
+      "ts": 1790826732,
+      "count": "3.17",
+      "yes_price_dollars": "0.3000",
+      "no_price_dollars": "0.7000",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "0723237f-9719-ad46-cf60-a22b10c5da55",
+      "trade_id": "0723237f-9719-ad46-cf60-a22b10c5da55",
+      "order_id": "01a0f570-f1d8-7a08-901a-41219019b3ed",
+      "side": "no",
+      "action": "sell",
+      "book_side": "ask",
+      "outcome_side": "no",
+      "ticker": "KXEPLRELEGATION-27-MCI",
+      "created_time": "2026-10-01T03:30:54.681404Z",
+      "ts": 1790825454,
+      "count": "12.00",
+      "yes_price_dollars": "0.3200",
+      "no_price_dollars": "0.6800",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "072325b4-6ac9-b132-b3ca-6f2f50364dc0",
+      "trade_id": "072325b4-6ac9-b132-b3ca-6f2f50364dc0",
+      "order_id": "01a0f448-a648-7ab8-87ab-d5708c171300",
+      "side": "yes",
+      "action": "buy",
+      "book_side": "bid",
+      "outcome_side": "yes",
+      "ticker": "KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+      "created_time": "2026-09-30T22:46:12.918403Z",
+      "ts": 1790808372,
+      "count": "6.59",
+      "yes_price_dollars": "0.4500",
+      "no_price_dollars": "0.5500",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "07232599-bf49-b256-ff02-68e86623dd98",
+      "trade_id": "07232599-bf49-b256-ff02-68e86623dd98",
+      "order_id": "01a0f448-a648-7ab8-87ab-d5708c171300",
+      "side": "yes",
+      "action": "buy",
+      "book_side": "bid",
+      "outcome_side": "yes",
+      "ticker": "KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+      "created_time": "2026-09-30T22:34:16.778434Z",
+      "ts": 1790807656,
+      "count": "1.76",
+      "yes_price_dollars": "0.4500",
+      "no_price_dollars": "0.5500",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "07232509-3ce9-80d2-f9b1-f348baf2b5e4",
+      "trade_id": "07232509-3ce9-80d2-f9b1-f348baf2b5e4",
+      "order_id": "01a0f448-a648-7ab8-87ab-d5708c171300",
+      "side": "yes",
+      "action": "buy",
+      "book_side": "bid",
+      "outcome_side": "yes",
+      "ticker": "KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+      "created_time": "2026-09-30T21:55:05.374332Z",
+      "ts": 1790805305,
+      "count": "3.65",
+      "yes_price_dollars": "0.4500",
+      "no_price_dollars": "0.5500",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "07232488-6389-80cc-b0ec-9ba4d2e922dc",
+      "trade_id": "07232488-6389-80cc-b0ec-9ba4d2e922dc",
+      "order_id": "01a0f41a-4348-7d66-81ca-0907c4dd65c4",
+      "side": "no",
+      "action": "sell",
+      "book_side": "ask",
+      "outcome_side": "no",
+      "ticker": "KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+      "created_time": "2026-09-30T21:07:10.391332Z",
+      "ts": 1790802430,
+      "count": "12.00",
+      "yes_price_dollars": "0.4500",
+      "no_price_dollars": "0.5500",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "07235506-1a69-9eae-17dd-c4129d0f0ac6",
+      "trade_id": "07235506-1a69-9eae-17dd-c4129d0f0ac6",
+      "order_id": "01a0eef3-c808-7514-a313-f5e767b58996",
+      "side": "yes",
+      "action": "buy",
+      "book_side": "bid",
+      "outcome_side": "yes",
+      "ticker": "KXEPLRELEGATION-27-MCI",
+      "created_time": "2026-09-29T21:06:23.662803Z",
+      "ts": 1790715983,
+      "count": "12.00",
+      "yes_price_dollars": "0.3400",
+      "no_price_dollars": "0.6600",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "07235516-1181-98b3-3f83-d07dc114950f",
+      "trade_id": "07235516-1181-98b3-3f83-d07dc114950f",
+      "order_id": "01a0eef3-a4e0-7071-b6bc-a761a3865547",
+      "side": "no",
+      "action": "sell",
+      "book_side": "ask",
+      "outcome_side": "no",
+      "ticker": "KXEPLRELEGATION-27-MCI",
+      "created_time": "2026-09-29T21:01:59.62299Z",
+      "ts": 1790715719,
+      "count": "12.00",
+      "yes_price_dollars": "0.3500",
+      "no_price_dollars": "0.6500",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "0723573e-e589-a158-f331-5f44a8010c85",
+      "trade_id": "0723573e-e589-a158-f331-5f44a8010c85",
+      "order_id": "01a0ee44-7920-77d4-92d2-bae201f4f7c8",
+      "side": "yes",
+      "action": "sell",
+      "book_side": "bid",
+      "outcome_side": "yes",
+      "ticker": "KXAAAGASW-26OCT05-4.4200",
+      "created_time": "2026-09-29T17:44:20.250464Z",
+      "ts": 1790703860,
+      "count": "12.00",
+      "yes_price_dollars": "0.0400",
+      "no_price_dollars": "0.9600",
+      "fee_cost": "0.032300",
+      "is_taker": true
+    },
+    {
+      "fill_id": "072356e8-c159-ab69-e864-a19875f8ee85",
+      "trade_id": "072356e8-c159-ab69-e864-a19875f8ee85",
+      "order_id": "01a0ee31-0c78-7333-9ea8-59fdcdd38b71",
+      "side": "no",
+      "action": "sell",
+      "book_side": "ask",
+      "outcome_side": "no",
+      "ticker": "KXAAAGASW-26OCT05-4.4200",
+      "created_time": "2026-09-29T17:29:01.461504Z",
+      "ts": 1790702941,
+      "count": "12.00",
+      "yes_price_dollars": "0.0300",
+      "no_price_dollars": "0.9700",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "1582884a-1f64-7c20-fab4-b40468ad5df6",
+      "trade_id": "1582884a-1f64-7c20-fab4-b40468ad5df6",
+      "order_id": "0f0a2cee-ab64-4c1f-9814-50e5fb4f22a3",
+      "side": "no",
+      "action": "sell",
+      "book_side": "ask",
+      "outcome_side": "no",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:24:41.461055Z",
+      "ts": 1785284681,
+      "count": "1.00",
+      "yes_price_dollars": "0.4300",
+      "no_price_dollars": "0.5700",
+      "fee_cost": "0.017200",
+      "is_taker": true
+    },
+    {
+      "fill_id": "937bcde3-4a7c-51e8-c775-dee94d2c6391",
+      "trade_id": "937bcde3-4a7c-51e8-c775-dee94d2c6391",
+      "order_id": "48fb1c82-91f0-4731-971c-9babc0c303b7",
+      "side": "no",
+      "action": "sell",
+      "book_side": "ask",
+      "outcome_side": "no",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:24:27.300361Z",
+      "ts": 1785284667,
+      "count": "23.00",
+      "yes_price_dollars": "0.4400",
+      "no_price_dollars": "0.5600",
+      "fee_cost": "0.396800",
+      "is_taker": true
+    },
+    {
+      "fill_id": "4b0f371c-c24c-5286-ccf8-6d0e6939df1d",
+      "trade_id": "4b0f371c-c24c-5286-ccf8-6d0e6939df1d",
+      "order_id": "48fb1c82-91f0-4731-971c-9babc0c303b7",
+      "side": "no",
+      "action": "sell",
+      "book_side": "ask",
+      "outcome_side": "no",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:24:27.300361Z",
+      "ts": 1785284667,
+      "count": "25.00",
+      "yes_price_dollars": "0.4400",
+      "no_price_dollars": "0.5600",
+      "fee_cost": "0.431200",
+      "is_taker": true
+    },
+    {
+      "fill_id": "11040975-6912-5717-d8c1-0f71defe7d78",
+      "trade_id": "11040975-6912-5717-d8c1-0f71defe7d78",
+      "order_id": "48fb1c82-91f0-4731-971c-9babc0c303b7",
+      "side": "no",
+      "action": "sell",
+      "book_side": "ask",
+      "outcome_side": "no",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:24:27.300361Z",
+      "ts": 1785284667,
+      "count": "1.00",
+      "yes_price_dollars": "0.4400",
+      "no_price_dollars": "0.5600",
+      "fee_cost": "0.017300",
+      "is_taker": true
+    },
+    {
+      "fill_id": "44a8554f-f708-4a5e-f0b5-248d7d8c97bb",
+      "trade_id": "44a8554f-f708-4a5e-f0b5-248d7d8c97bb",
+      "order_id": "1069cb11-62fd-4a98-9964-762b2070a39f",
+      "side": "yes",
+      "action": "buy",
+      "book_side": "bid",
+      "outcome_side": "yes",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:21:43.520705Z",
+      "ts": 1785284503,
+      "count": "50.00",
+      "yes_price_dollars": "0.4900",
+      "no_price_dollars": "0.5100",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "b93cb31d-825b-4d90-ea56-33d315ec1ad8",
+      "trade_id": "b93cb31d-825b-4d90-ea56-33d315ec1ad8",
+      "order_id": "869962c8-5f5a-4275-95a5-81dd15e969e6",
+      "side": "no",
+      "action": "sell",
+      "book_side": "ask",
+      "outcome_side": "no",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:00:48.580328Z",
+      "ts": 1785283248,
+      "count": "25.00",
+      "yes_price_dollars": "0.4900",
+      "no_price_dollars": "0.5100",
+      "fee_cost": "0.437400",
+      "is_taker": true
+    },
+    {
+      "fill_id": "80ab9782-28b7-4f61-f3b0-0499141d63b0",
+      "trade_id": "80ab9782-28b7-4f61-f3b0-0499141d63b0",
+      "order_id": "869962c8-5f5a-4275-95a5-81dd15e969e6",
+      "side": "no",
+      "action": "sell",
+      "book_side": "ask",
+      "outcome_side": "no",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:00:48.580328Z",
+      "ts": 1785283248,
+      "count": "3.00",
+      "yes_price_dollars": "0.4900",
+      "no_price_dollars": "0.5100",
+      "fee_cost": "0.052500",
+      "is_taker": true
+    },
+    {
+      "fill_id": "3045dfce-6fc9-41d6-c942-0d7820732386",
+      "trade_id": "3045dfce-6fc9-41d6-c942-0d7820732386",
+      "order_id": "869962c8-5f5a-4275-95a5-81dd15e969e6",
+      "side": "no",
+      "action": "sell",
+      "book_side": "ask",
+      "outcome_side": "no",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:00:48.580328Z",
+      "ts": 1785283248,
+      "count": "25.00",
+      "yes_price_dollars": "0.4900",
+      "no_price_dollars": "0.5100",
+      "fee_cost": "0.437400",
+      "is_taker": true
+    },
+    {
+      "fill_id": "146ba78b-57bb-4255-e97d-d0bbb8ec22e6",
+      "trade_id": "146ba78b-57bb-4255-e97d-d0bbb8ec22e6",
+      "order_id": "869962c8-5f5a-4275-95a5-81dd15e969e6",
+      "side": "no",
+      "action": "sell",
+      "book_side": "ask",
+      "outcome_side": "no",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-29T00:00:48.580328Z",
+      "ts": 1785283248,
+      "count": "8.00",
+      "yes_price_dollars": "0.4900",
+      "no_price_dollars": "0.5100",
+      "fee_cost": "0.140000",
+      "is_taker": true
+    },
+    {
+      "fill_id": "bb3177d2-a321-46f6-06e8-857bbaa2977b",
+      "trade_id": "bb3177d2-a321-46f6-06e8-857bbaa2977b",
+      "order_id": "7eb91978-dafc-4b18-a5c3-2cbab2a67493",
+      "side": "yes",
+      "action": "buy",
+      "book_side": "bid",
+      "outcome_side": "yes",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-28T17:52:07.44662Z",
+      "ts": 1785261127,
+      "count": "11.00",
+      "yes_price_dollars": "0.5700",
+      "no_price_dollars": "0.4300",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "df852ff4-63c7-6dd3-566b-e463aaa45720",
+      "trade_id": "df852ff4-63c7-6dd3-566b-e463aaa45720",
+      "order_id": "19c01d12-1e4e-4d09-ab29-14ed96fd2cec",
+      "side": "yes",
+      "action": "buy",
+      "book_side": "bid",
+      "outcome_side": "yes",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-28T13:05:14.89601Z",
+      "ts": 1785243914,
+      "count": "39.00",
+      "yes_price_dollars": "0.5700",
+      "no_price_dollars": "0.4300",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    },
+    {
+      "fill_id": "e53b4e27-f8d3-7543-767e-24d2b0d81f90",
+      "trade_id": "e53b4e27-f8d3-7543-767e-24d2b0d81f90",
+      "order_id": "19c01d12-1e4e-4d09-ab29-14ed96fd2cec",
+      "side": "yes",
+      "action": "buy",
+      "book_side": "bid",
+      "outcome_side": "yes",
+      "ticker": "KXGENERICBALLOTVOTEHUB-26JUL31-T5.7",
+      "created_time": "2026-07-28T03:56:51.077011Z",
+      "ts": 1785211011,
+      "count": "11.00",
+      "yes_price_dollars": "0.5700",
+      "no_price_dollars": "0.4300",
+      "fee_cost": "0.000000",
+      "is_taker": false
+    }
+  ],
+  "min_ts_probes": [
+    {
+      "min_ts": 1785211010,
+      "status": {
+        "outcome": "complete",
+        "pages": 1,
+        "count": 23
+      },
+      "returned": 23,
+      "expected_inclusive": 23,
+      "expected_exclusive": 23,
+      "matches_inclusive": true,
+      "matches_exclusive": true
+    },
+    {
+      "min_ts": 1785211011,
+      "status": {
+        "outcome": "complete",
+        "pages": 1,
+        "count": 23
+      },
+      "returned": 23,
+      "expected_inclusive": 23,
+      "expected_exclusive": 22,
+      "matches_inclusive": true,
+      "matches_exclusive": false
+    },
+    {
+      "min_ts": 1785211012,
+      "status": {
+        "outcome": "complete",
+        "pages": 1,
+        "count": 22
+      },
+      "returned": 22,
+      "expected_inclusive": 22,
+      "expected_exclusive": 22,
+      "matches_inclusive": true,
+      "matches_exclusive": true
+    },
+    {
+      "min_ts": 1788031391,
+      "status": {
+        "outcome": "complete",
+        "pages": 1,
+        "count": 11
+      },
+      "returned": 11,
+      "expected_inclusive": 11,
+      "expected_exclusive": 11,
+      "matches_inclusive": true,
+      "matches_exclusive": true
+    },
+    {
+      "min_ts": 1788031392,
+      "status": {
+        "outcome": "complete",
+        "pages": 1,
+        "count": 11
+      },
+      "returned": 11,
+      "expected_inclusive": 11,
+      "expected_exclusive": 11,
+      "matches_inclusive": true,
+      "matches_exclusive": true
+    },
+    {
+      "min_ts": 1788031393,
+      "status": {
+        "outcome": "complete",
+        "pages": 1,
+        "count": 11
+      },
+      "returned": 11,
+      "expected_inclusive": 11,
+      "expected_exclusive": 11,
+      "matches_inclusive": true,
+      "matches_exclusive": true
+    },
+    {
+      "min_ts": 1790851772,
+      "status": {
+        "outcome": "complete",
+        "pages": 1,
+        "count": 1
+      },
+      "returned": 1,
+      "expected_inclusive": 1,
+      "expected_exclusive": 1,
+      "matches_inclusive": true,
+      "matches_exclusive": true
+    },
+    {
+      "min_ts": 1790851773,
+      "status": {
+        "outcome": "complete",
+        "pages": 1,
+        "count": 1
+      },
+      "returned": 1,
+      "expected_inclusive": 1,
+      "expected_exclusive": 0,
+      "matches_inclusive": true,
+      "matches_exclusive": false
+    },
+    {
+      "min_ts": 1790851774,
+      "status": {
+        "outcome": "complete",
+        "pages": 1
+      },
+      "returned": 0,
+      "expected_inclusive": 0,
+      "expected_exclusive": 0,
+      "matches_inclusive": true,
+      "matches_exclusive": true
+    }
+  ],
+  "resting_orders_status": {
+    "outcome": "complete",
+    "pages": 1
+  },
+  "positions_by_subaccount": {
+    "0": {
+      "outcome": "complete",
+      "pages": 1,
+      "count": 8
+    }
+  },
+  "account_scope_complete": true,
+  "flat": true,
+  "production_decoder": {
+    "orders": {
+      "outcome": "complete",
+      "pages": 1
+    },
+    "primary_positions": {
+      "outcome": "complete",
+      "pages": 1,
+      "count": 4
+    }
+  }
+}

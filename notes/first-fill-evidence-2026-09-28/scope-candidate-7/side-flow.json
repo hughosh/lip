@@ -1,0 +1,695 @@
+{
+ "observed_at_utc": "2026-10-01T03:01:43.835819+00:00",
+ "rows": [
+  {
+   "ticker": "KXGOOGSHARE-26OCT05-20.1",
+   "trades": 60,
+   "window_h": 51.32,
+   "yes_bid": {
+    "trades_per_h": 0.6,
+    "contracts_per_h": 120.2,
+    "ge12_per_h": 0.31,
+    "median_size": 73.0,
+    "last3h_trades": 0,
+    "last3h_contracts": 0,
+    "last_hit_min_ago": 242.3
+   },
+   "no_bid": {
+    "trades_per_h": 0.57,
+    "contracts_per_h": 101.9,
+    "ge12_per_h": 0.23,
+    "median_size": 5.0,
+    "last3h_trades": 1,
+    "last3h_contracts": 2.92,
+    "last_hit_min_ago": 92.0
+   }
+  },
+  {
+   "ticker": "KXRT-VER-40",
+   "trades": 178,
+   "window_h": 30.88,
+   "yes_bid": {
+    "trades_per_h": 2.27,
+    "contracts_per_h": 117.3,
+    "ge12_per_h": 1.04,
+    "median_size": 8.06,
+    "last3h_trades": 15,
+    "last3h_contracts": 855.35,
+    "last_hit_min_ago": 10.8
+   },
+   "no_bid": {
+    "trades_per_h": 3.5,
+    "contracts_per_h": 174.4,
+    "ge12_per_h": 1.62,
+    "median_size": 9.79,
+    "last3h_trades": 32,
+    "last3h_contracts": 601.8000000000001,
+    "last_hit_min_ago": 0.3
+   }
+  },
+  {
+   "ticker": "KXGEMINI-GEM4-26OCT16",
+   "trades": 238,
+   "window_h": 176.35,
+   "yes_bid": {
+    "trades_per_h": 0.51,
+    "contracts_per_h": 30.5,
+    "ge12_per_h": 0.27,
+    "median_size": 17.0,
+    "last3h_trades": 0,
+    "last3h_contracts": 0,
+    "last_hit_min_ago": 208.6
+   },
+   "no_bid": {
+    "trades_per_h": 0.84,
+    "contracts_per_h": 44.7,
+    "ge12_per_h": 0.49,
+    "median_size": 20.83,
+    "last3h_trades": 3,
+    "last3h_contracts": 123.43,
+    "last_hit_min_ago": 149.7
+   }
+  },
+  {
+   "ticker": "KXRAIN-26OCT01-NOLA",
+   "trades": 586,
+   "window_h": 17.36,
+   "yes_bid": {
+    "trades_per_h": 12.44,
+    "contracts_per_h": 152.7,
+    "ge12_per_h": 2.65,
+    "median_size": 5.0,
+    "last3h_trades": 70,
+    "last3h_contracts": 773.96,
+    "last_hit_min_ago": 2.5
+   },
+   "no_bid": {
+    "trades_per_h": 21.31,
+    "contracts_per_h": 253.6,
+    "ge12_per_h": 5.24,
+    "median_size": 4.0,
+    "last3h_trades": 144,
+    "last3h_contracts": 1876.17,
+    "last_hit_min_ago": 8.3
+   }
+  },
+  {
+   "ticker": "KXAAAGASW-26OCT05-4.3800",
+   "trades": 496,
+   "window_h": 60.35,
+   "yes_bid": {
+    "trades_per_h": 3.3,
+    "contracts_per_h": 140.4,
+    "ge12_per_h": 1.34,
+    "median_size": 6.0,
+    "last3h_trades": 15,
+    "last3h_contracts": 1234.85,
+    "last_hit_min_ago": 2.4
+   },
+   "no_bid": {
+    "trades_per_h": 4.92,
+    "contracts_per_h": 129.8,
+    "ge12_per_h": 1.74,
+    "median_size": 6.0,
+    "last3h_trades": 16,
+    "last3h_contracts": 86.11,
+    "last_hit_min_ago": 2.3
+   }
+  },
+  {
+   "ticker": "KXEPLRELEGATION-27-MCI",
+   "trades": 1000,
+   "window_h": 32.75,
+   "yes_bid": {
+    "trades_per_h": 13.22,
+    "contracts_per_h": 380.2,
+    "ge12_per_h": 6.63,
+    "median_size": 12.0,
+    "last3h_trades": 11,
+    "last3h_contracts": 212.15,
+    "last_hit_min_ago": 46.3
+   },
+   "no_bid": {
+    "trades_per_h": 17.32,
+    "contracts_per_h": 580.7,
+    "ge12_per_h": 8.58,
+    "median_size": 11.52,
+    "last3h_trades": 23,
+    "last3h_contracts": 649.48,
+    "last_hit_min_ago": 23.6
+   }
+  },
+  {
+   "ticker": "KXTRUMPMENTIONB-26OCT01-BILL",
+   "trades": 98,
+   "window_h": 33.18,
+   "yes_bid": {
+    "trades_per_h": 1.42,
+    "contracts_per_h": 149.2,
+    "ge12_per_h": 1.05,
+    "median_size": 50.0,
+    "last3h_trades": 40,
+    "last3h_contracts": 4193.85,
+    "last_hit_min_ago": 6.8
+   },
+   "no_bid": {
+    "trades_per_h": 1.54,
+    "contracts_per_h": 73.5,
+    "ge12_per_h": 1.02,
+    "median_size": 23.11,
+    "last3h_trades": 11,
+    "last3h_contracts": 150.77,
+    "last_hit_min_ago": 43.5
+   }
+  },
+  {
+   "ticker": "KXOPENSHARE-26OCT05-17.6",
+   "trades": 115,
+   "window_h": 51.32,
+   "yes_bid": {
+    "trades_per_h": 0.94,
+    "contracts_per_h": 225.8,
+    "ge12_per_h": 0.57,
+    "median_size": 108.31,
+    "last3h_trades": 1,
+    "last3h_contracts": 2.09,
+    "last_hit_min_ago": 179.5
+   },
+   "no_bid": {
+    "trades_per_h": 1.31,
+    "contracts_per_h": 327.5,
+    "ge12_per_h": 0.92,
+    "median_size": 140.0,
+    "last3h_trades": 11,
+    "last3h_contracts": 2666.79,
+    "last_hit_min_ago": 70.4
+   }
+  },
+  {
+   "ticker": "KXOAIPERSONALAGENT-27JAN01-26NOV01",
+   "trades": 263,
+   "window_h": 155.09,
+   "yes_bid": {
+    "trades_per_h": 0.88,
+    "contracts_per_h": 47.8,
+    "ge12_per_h": 0.4,
+    "median_size": 10.0,
+    "last3h_trades": 5,
+    "last3h_contracts": 42.66,
+    "last_hit_min_ago": 115.5
+   },
+   "no_bid": {
+    "trades_per_h": 0.81,
+    "contracts_per_h": 55.0,
+    "ge12_per_h": 0.36,
+    "median_size": 9.085,
+    "last3h_trades": 8,
+    "last3h_contracts": 54.32,
+    "last_hit_min_ago": 10.0
+   }
+  },
+  {
+   "ticker": "KXTRUMPMENTIONB-26OCT01-NOTA",
+   "trades": 136,
+   "window_h": 33.16,
+   "yes_bid": {
+    "trades_per_h": 1.72,
+    "contracts_per_h": 115.9,
+    "ge12_per_h": 0.87,
+    "median_size": 16.0,
+    "last3h_trades": 53,
+    "last3h_contracts": 3821.71,
+    "last_hit_min_ago": 22.9
+   },
+   "no_bid": {
+    "trades_per_h": 2.38,
+    "contracts_per_h": 97.2,
+    "ge12_per_h": 1.36,
+    "median_size": 18.0,
+    "last3h_trades": 48,
+    "last3h_contracts": 1725.23,
+    "last_hit_min_ago": 0.0
+   }
+  },
+  {
+   "ticker": "KXCPICORE-26SEP-T0.1",
+   "trades": 1000,
+   "window_h": 9.82,
+   "yes_bid": {
+    "trades_per_h": 1.32,
+    "contracts_per_h": 108.8,
+    "ge12_per_h": 0.82,
+    "median_size": 20.0,
+    "last3h_trades": 0,
+    "last3h_contracts": 0,
+    "last_hit_min_ago": 223.3
+   },
+   "no_bid": {
+    "trades_per_h": 100.55,
+    "contracts_per_h": 430.1,
+    "ge12_per_h": 2.24,
+    "median_size": 0.3,
+    "last3h_trades": 5,
+    "last3h_contracts": 127.39,
+    "last_hit_min_ago": 81.8
+   }
+  },
+  {
+   "ticker": "KXOPENSHARE-26OCT05-18.5",
+   "trades": 69,
+   "window_h": 51.34,
+   "yes_bid": {
+    "trades_per_h": 0.62,
+    "contracts_per_h": 206.0,
+    "ge12_per_h": 0.51,
+    "median_size": 500.0,
+    "last3h_trades": 1,
+    "last3h_contracts": 107.0,
+    "last_hit_min_ago": 177.1
+   },
+   "no_bid": {
+    "trades_per_h": 0.72,
+    "contracts_per_h": 189.4,
+    "ge12_per_h": 0.53,
+    "median_size": 100.0,
+    "last3h_trades": 0,
+    "last3h_contracts": 0,
+    "last_hit_min_ago": 249.6
+   }
+  },
+  {
+   "ticker": "KXRT-DIG-52",
+   "trades": 415,
+   "window_h": 32.85,
+   "yes_bid": {
+    "trades_per_h": 5.72,
+    "contracts_per_h": 183.5,
+    "ge12_per_h": 1.7,
+    "median_size": 5.0,
+    "last3h_trades": 6,
+    "last3h_contracts": 41.730000000000004,
+    "last_hit_min_ago": 11.4
+   },
+   "no_bid": {
+    "trades_per_h": 6.91,
+    "contracts_per_h": 335.8,
+    "ge12_per_h": 3.29,
+    "median_size": 10.0,
+    "last3h_trades": 35,
+    "last3h_contracts": 1557.1,
+    "last_hit_min_ago": 12.9
+   }
+  },
+  {
+   "ticker": "KXGOOGSHARE-26OCT05-19.9",
+   "trades": 92,
+   "window_h": 49.83,
+   "yes_bid": {
+    "trades_per_h": 0.94,
+    "contracts_per_h": 194.3,
+    "ge12_per_h": 0.6,
+    "median_size": 85.0,
+    "last3h_trades": 0,
+    "last3h_contracts": 0,
+    "last_hit_min_ago": 217.9
+   },
+   "no_bid": {
+    "trades_per_h": 0.9,
+    "contracts_per_h": 146.9,
+    "ge12_per_h": 0.46,
+    "median_size": 12.94,
+    "last3h_trades": 2,
+    "last3h_contracts": 114.45,
+    "last_hit_min_ago": 102.5
+   }
+  },
+  {
+   "ticker": "KXDEEPSHARE-26OCT05-22.0",
+   "trades": 114,
+   "window_h": 51.06,
+   "yes_bid": {
+    "trades_per_h": 1.29,
+    "contracts_per_h": 176.3,
+    "ge12_per_h": 0.57,
+    "median_size": 7.0,
+    "last3h_trades": 0,
+    "last3h_contracts": 0,
+    "last_hit_min_ago": 223.2
+   },
+   "no_bid": {
+    "trades_per_h": 0.94,
+    "contracts_per_h": 133.6,
+    "ge12_per_h": 0.35,
+    "median_size": 5.0,
+    "last3h_trades": 7,
+    "last3h_contracts": 1083.29,
+    "last_hit_min_ago": 31.7
+   }
+  },
+  {
+   "ticker": "KXGOOGSHARE-26OCT05-19.3",
+   "trades": 50,
+   "window_h": 37.09,
+   "yes_bid": {
+    "trades_per_h": 0.57,
+    "contracts_per_h": 120.0,
+    "ge12_per_h": 0.3,
+    "median_size": 12.97,
+    "last3h_trades": 0,
+    "last3h_contracts": 0,
+    "last_hit_min_ago": 240.7
+   },
+   "no_bid": {
+    "trades_per_h": 0.78,
+    "contracts_per_h": 122.8,
+    "ge12_per_h": 0.4,
+    "median_size": 12.97,
+    "last3h_trades": 2,
+    "last3h_contracts": 5.37,
+    "last_hit_min_ago": 126.3
+   }
+  },
+  {
+   "ticker": "KXOPENSHARE-26OCT05-18.1",
+   "trades": 58,
+   "window_h": 48.62,
+   "yes_bid": {
+    "trades_per_h": 0.58,
+    "contracts_per_h": 121.6,
+    "ge12_per_h": 0.41,
+    "median_size": 103.0,
+    "last3h_trades": 2,
+    "last3h_contracts": 18.0,
+    "last_hit_min_ago": 167.2
+   },
+   "no_bid": {
+    "trades_per_h": 0.62,
+    "contracts_per_h": 165.4,
+    "ge12_per_h": 0.47,
+    "median_size": 317.5,
+    "last3h_trades": 1,
+    "last3h_contracts": 135.0,
+    "last_hit_min_ago": 154.8
+   }
+  },
+  {
+   "ticker": "KXRT-DIG-48",
+   "trades": 453,
+   "window_h": 32.89,
+   "yes_bid": {
+    "trades_per_h": 4.23,
+    "contracts_per_h": 204.8,
+    "ge12_per_h": 1.85,
+    "median_size": 9.0,
+    "last3h_trades": 5,
+    "last3h_contracts": 828.24,
+    "last_hit_min_ago": 103.9
+   },
+   "no_bid": {
+    "trades_per_h": 9.55,
+    "contracts_per_h": 580.6,
+    "ge12_per_h": 4.1,
+    "median_size": 7.345000000000001,
+    "last3h_trades": 16,
+    "last3h_contracts": 76.0,
+    "last_hit_min_ago": 47.8
+   }
+  },
+  {
+   "ticker": "KXOAIPERSONALAGENT-27JAN01-26DEC01",
+   "trades": 258,
+   "window_h": 168.98,
+   "yes_bid": {
+    "trades_per_h": 0.63,
+    "contracts_per_h": 13.0,
+    "ge12_per_h": 0.21,
+    "median_size": 8.0,
+    "last3h_trades": 4,
+    "last3h_contracts": 13.0,
+    "last_hit_min_ago": 15.9
+   },
+   "no_bid": {
+    "trades_per_h": 0.89,
+    "contracts_per_h": 64.2,
+    "ge12_per_h": 0.39,
+    "median_size": 10.0,
+    "last3h_trades": 6,
+    "last3h_contracts": 58.93,
+    "last_hit_min_ago": 16.3
+   }
+  },
+  {
+   "ticker": "KXDANCINGWITHTHESTARS-26DEC31-EFRE",
+   "trades": 1000,
+   "window_h": 70.43,
+   "yes_bid": {
+    "trades_per_h": 4.2,
+    "contracts_per_h": 214.5,
+    "ge12_per_h": 2.04,
+    "median_size": 11.04,
+    "last3h_trades": 13,
+    "last3h_contracts": 153.35,
+    "last_hit_min_ago": 6.3
+   },
+   "no_bid": {
+    "trades_per_h": 10.0,
+    "contracts_per_h": 456.5,
+    "ge12_per_h": 4.56,
+    "median_size": 10.69,
+    "last3h_trades": 30,
+    "last3h_contracts": 700.5600000000001,
+    "last_hit_min_ago": 5.9
+   }
+  },
+  {
+   "ticker": "KXRT-DIG-50",
+   "trades": 1000,
+   "window_h": 39.42,
+   "yes_bid": {
+    "trades_per_h": 10.4,
+    "contracts_per_h": 551.1,
+    "ge12_per_h": 4.24,
+    "median_size": 9.835,
+    "last3h_trades": 6,
+    "last3h_contracts": 93.8,
+    "last_hit_min_ago": 39.0
+   },
+   "no_bid": {
+    "trades_per_h": 14.97,
+    "contracts_per_h": 839.7,
+    "ge12_per_h": 6.14,
+    "median_size": 10.0,
+    "last3h_trades": 32,
+    "last3h_contracts": 1878.02,
+    "last_hit_min_ago": 5.9
+   }
+  },
+  {
+   "ticker": "KXGEMINI-NEXTPRO-26NOV01",
+   "trades": 364,
+   "window_h": 812.73,
+   "yes_bid": {
+    "trades_per_h": 0.19,
+    "contracts_per_h": 8.0,
+    "ge12_per_h": 0.09,
+    "median_size": 10.0,
+    "last3h_trades": 17,
+    "last3h_contracts": 315.0,
+    "last_hit_min_ago": 60.5
+   },
+   "no_bid": {
+    "trades_per_h": 0.25,
+    "contracts_per_h": 9.4,
+    "ge12_per_h": 0.13,
+    "median_size": 14.254999999999999,
+    "last3h_trades": 1,
+    "last3h_contracts": 35.0,
+    "last_hit_min_ago": 154.7
+   }
+  },
+  {
+   "ticker": "KXANTHSHARE-26OCT05-2.7",
+   "trades": 48,
+   "window_h": 48.72,
+   "yes_bid": {
+    "trades_per_h": 0.66,
+    "contracts_per_h": 120.5,
+    "ge12_per_h": 0.41,
+    "median_size": 48.5,
+    "last3h_trades": 1,
+    "last3h_contracts": 152.0,
+    "last_hit_min_ago": 155.2
+   },
+   "no_bid": {
+    "trades_per_h": 0.33,
+    "contracts_per_h": 76.1,
+    "ge12_per_h": 0.18,
+    "median_size": 98.0,
+    "last3h_trades": 0,
+    "last3h_contracts": 0,
+    "last_hit_min_ago": 905.3
+   }
+  },
+  {
+   "ticker": "KXRT-VER-45",
+   "trades": 559,
+   "window_h": 1012.73,
+   "yes_bid": {
+    "trades_per_h": 0.25,
+    "contracts_per_h": 18.5,
+    "ge12_per_h": 0.11,
+    "median_size": 6.29,
+    "last3h_trades": 20,
+    "last3h_contracts": 561.23,
+    "last_hit_min_ago": -0.1
+   },
+   "no_bid": {
+    "trades_per_h": 0.3,
+    "contracts_per_h": 12.5,
+    "ge12_per_h": 0.14,
+    "median_size": 10.0,
+    "last3h_trades": 32,
+    "last3h_contracts": 1640.65,
+    "last_hit_min_ago": 15.2
+   }
+  },
+  {
+   "ticker": "KXARENASCORE-GEMI35P-1515",
+   "trades": 69,
+   "window_h": 1518.47,
+   "yes_bid": {
+    "trades_per_h": 0.02,
+    "contracts_per_h": 1.3,
+    "ge12_per_h": 0.01,
+    "median_size": 15.0,
+    "last3h_trades": 18,
+    "last3h_contracts": 1366.26,
+    "last_hit_min_ago": 43.2
+   },
+   "no_bid": {
+    "trades_per_h": 0.02,
+    "contracts_per_h": 4.4,
+    "ge12_per_h": 0.02,
+    "median_size": 26.475,
+    "last3h_trades": 2,
+    "last3h_contracts": 18.0,
+    "last_hit_min_ago": 176.3
+   }
+  },
+  {
+   "ticker": "KXDIESELMON-26OCT31-T6.50",
+   "trades": 63,
+   "window_h": 37.94,
+   "yes_bid": {
+    "trades_per_h": 0.87,
+    "contracts_per_h": 98.3,
+    "ge12_per_h": 0.61,
+    "median_size": 20.0,
+    "last3h_trades": 0,
+    "last3h_contracts": 0,
+    "last_hit_min_ago": 260.9
+   },
+   "no_bid": {
+    "trades_per_h": 0.79,
+    "contracts_per_h": 68.2,
+    "ge12_per_h": 0.55,
+    "median_size": 24.880000000000003,
+    "last3h_trades": 2,
+    "last3h_contracts": 26.910000000000004,
+    "last_hit_min_ago": 164.6
+   }
+  },
+  {
+   "ticker": "KXARENASCORE-GEMI35P-1510",
+   "trades": 52,
+   "window_h": 1518.46,
+   "yes_bid": {
+    "trades_per_h": 0.02,
+    "contracts_per_h": 1.9,
+    "ge12_per_h": 0.01,
+    "median_size": 15.0,
+    "last3h_trades": 11,
+    "last3h_contracts": 2403.0,
+    "last_hit_min_ago": 143.9
+   },
+   "no_bid": {
+    "trades_per_h": 0.02,
+    "contracts_per_h": 3.7,
+    "ge12_per_h": 0.01,
+    "median_size": 33.0,
+    "last3h_trades": 7,
+    "last3h_contracts": 131.25,
+    "last_hit_min_ago": 123.5
+   }
+  },
+  {
+   "ticker": "KXHORMUZMAX-26OCT04-SEP30",
+   "trades": 44,
+   "window_h": 128.29,
+   "yes_bid": {
+    "trades_per_h": 0.07,
+    "contracts_per_h": 6.8,
+    "ge12_per_h": 0.05,
+    "median_size": 112.0,
+    "last3h_trades": 0,
+    "last3h_contracts": 0,
+    "last_hit_min_ago": 802.6
+   },
+   "no_bid": {
+    "trades_per_h": 0.27,
+    "contracts_per_h": 37.2,
+    "ge12_per_h": 0.18,
+    "median_size": 60.98,
+    "last3h_trades": 0,
+    "last3h_contracts": 0,
+    "last_hit_min_ago": 204.8
+   }
+  },
+  {
+   "ticker": "KXPAGAS-27FEB26-T7.675792",
+   "trades": 66,
+   "window_h": 1038.76,
+   "yes_bid": {
+    "trades_per_h": 0.03,
+    "contracts_per_h": 8.8,
+    "ge12_per_h": 0.02,
+    "median_size": 200.0,
+    "last3h_trades": 1,
+    "last3h_contracts": 1200.0,
+    "last_hit_min_ago": 43.4
+   },
+   "no_bid": {
+    "trades_per_h": 0.04,
+    "contracts_per_h": 7.2,
+    "ge12_per_h": 0.03,
+    "median_size": 150.0,
+    "last3h_trades": 13,
+    "last3h_contracts": 2700.02,
+    "last_hit_min_ago": 31.8
+   }
+  },
+  {
+   "ticker": "KXMLBSEASONGAMES-27-2425",
+   "trades": 159,
+   "window_h": 823.29,
+   "yes_bid": {
+    "trades_per_h": 0.12,
+    "contracts_per_h": 94.8,
+    "ge12_per_h": 0.1,
+    "median_size": 100.0,
+    "last3h_trades": 0,
+    "last3h_contracts": 0,
+    "last_hit_min_ago": 537.5
+   },
+   "no_bid": {
+    "trades_per_h": 0.07,
+    "contracts_per_h": 20.6,
+    "ge12_per_h": 0.05,
+    "median_size": 58.0,
+    "last3h_trades": 2,
+    "last3h_contracts": 11.99,
+    "last_hit_min_ago": 127.3
+   }
+  }
+ ]
+}

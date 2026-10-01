@@ -1,0 +1,6 @@
+prep_start=2026-10-01T03:10:01Z
+launch_deadline_utc 2026-10-01T03:11:03.602846+00:00 slack 52.3s
+STAGE=/Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z
+LAUNCHED_AT=2026-10-01T03:10:11Z
+PID=83084
+83084 Wed Sep 30 20:10:11 2026     /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/candidate-7/harness -config /Users/hugh/kek/lip/notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXEPLRELEGATION-27-MCI-20261001T031001.344628Z/config.json -rung pilot -live
