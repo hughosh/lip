@@ -53,6 +53,16 @@ its next repair or to operate an account.
   account's own `fee_cost` (taker `0.07·C·P·(1−P)` rounded up to the centi-cent,
   maker $0 on `quadratic` series). Economics under the July 30, 2026 LIP terms:
   `notes/lip-yca-review-evidence-2026-10-01/review.md`.
+- Reusing the client outside LIP (the tennis maker scalp): the evaluation, the measured
+  latency path and the option set are in
+  `notes/client-portability-evidence-2026-10-01/review.md` (bead lip-p3v); a read-only
+  probe that drives the production transport from a separate Go module is in its `probe/`.
+  Facts from it that bind any Kalshi work here: the iMac wall clock read ~39 ms behind
+  NTP and the exchange on 2026-10-01 (`sntp time.apple.com`), so every exchange-ts-vs-local
+  latency figure measured on it is low by that (review §4.6); tennis events are created on
+  exchange shard 3 with collateral pre-allocated per shard, and omitting `exchange_index`
+  auto-routes at a latency cost (§7.6); the websocket `fill`/`user_orders` channels carry no
+  `seq`, so they complement REST truth rather than replace it (§7.3).
 - `bd close` of a dependency does not change a dependent whose status is stored
   as `blocked`; set it with `bd update <id> --status open`. Every close or
   status change appends a line to the tracked `.beads/interactions.jsonl`
