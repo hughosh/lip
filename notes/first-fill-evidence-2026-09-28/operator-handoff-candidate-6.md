@@ -126,3 +126,38 @@ The drill, one yes per step:
 - **Latch:** clearing this stage's latch for any later run is a separate §10.4 decision.
 
 Nothing here grants unattended operation, CR-2, or any assistant authority to trade.
+
+## As executed on 2026-09-30, and the pattern to reuse
+
+The result is in `operator-stages/r2-KXDANCINGWITHTHESTARS-26DEC31-EFRE-20260930T205542.400043Z/evidence/stage-report.md`:
+- 1 round trip;
+- the full crash-restart sequence;
+- 70 of 70 F5 cross-checks agreed;
+- a new defect, the phantom reducer (lip-14o, which blocks lip-8hn.2).
+
+**Helpers, as executed.** They are in [stage-helpers-candidate-6/](stage-helpers-candidate-6/). Their stage path, ticker and scratch-directory constants are specific to this stage, so edit them before reuse.
+- `launch.sh <ticker>` runs the §2 chain: preparation, the 5 s deadline guard, provision, arm, then the wrapper launch. Slack was 52.7 s.
+- `start_watchers.py` starts two read-only background processes:
+  - the observer, detached and bound to one PID;
+  - the ntfy stream. The topic reaches curl on stdin, never in argv or output.
+- `drill.py` has one subcommand per drill step:
+  - `gate` and `status` are read-only store checks.
+  - `crash` waits for an 8 s quiet window, checks argv and start time, sends SIGKILL, then runs the prebuilt accountcheck at once.
+  - `restart`, `term`, `read` and `rmlive` cover the remaining steps.
+  - `gate-reducing` and `crash-reducing` are a mid-reduction variant. It was prepared but not used.
+- `phantoms.py` lists order ids whose last sweep was unverified. Run it before any SIGTERM, because with lip-14o a phantom blocks the drain.
+
+**Approvals.** An AskUserQuestion option that names the live step ("Yes, SIGKILL now") served as Hugh's yes for that step.
+
+**Watching.**
+- The Monitor tool expires after 30 min and kills its command. So run the observer detached, and `tail -F` its notices file under a Monitor that you re-arm at the current line count.
+- Filter out `PNL_MARK_UNAVAILABLE`: a quiet book raised 48 of them in 2 h.
+- The observer does not announce new orders. A second Monitor polling `owned_order` by rowid every 3 s is what showed the reducer had vanished.
+
+**Reads during a stage.**
+- accountcheck reports `account_scope_complete=false` with an empty `nonzero_positions` while any position is held (`go/cmd/accountcheck/main.go:242-252`). Only a flat read can be complete.
+- `sqlite3 "file:<db>?immutable=1"` ignores the WAL; here run 2 lived only in the WAL. While `-wal` and `-shm` exist, use `?mode=ro` instead.
+
+**Drill timing.** §3 forbids starting the drill during a reduction, but §4 says to drill at the cap if orders are resting. Here the market was back to flat 9 min before the cap, so the drill ran under §3's conditions.
+
+**Market choice.** Rank by taker trades per hour on each side (`scope-candidate-6/side_flow.py`), not only by the join-the-touch wait. A tiny touch queue makes a thin market look fast.
