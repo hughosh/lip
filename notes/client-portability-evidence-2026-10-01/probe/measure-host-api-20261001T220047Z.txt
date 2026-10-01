@@ -1,0 +1,26 @@
+started 2026-10-01T22:00:48Z go=go1.27.1 host=https://api.elections.kalshi.com
+guard: POST refused before transmission: write refused before transmission: POST /portfolio/events/orders (this process was not started with -live); this process is READ-ONLY and nothing was sent to the exchange
+sign RSA-PSS: p50=1.04ms p90=1.06ms max=1.21ms (n=200)
+cold connection GET /exchange/status: p50=38ms max=158ms (n=3)
+warm REST                   first      min      p50      p90      max  status/bytes
+exchange_status                34       31       36      101      102  map[200:15]/667 
+balance                       100       95      105      211      213  map[200:15]/271 
+orders_resting_1page          107       93       98      104      107  map[200:15]/25 
+positions_1page                97       91      102      171      212  map[200:15]/1942 
+fills_1page                   100      101      106      126      222  map[200:15]/12137 
+orderbook                     103       93       97      108      203  map[200:15]/1620 
+market                        101       95      100      107      114  map[200:15]/2343 
+typed Balance                             151ms  <nil>
+typed Orderbook                            96ms  read
+typed Orders(resting, all tickers)        111ms  complete
+typed Positions                            97ms  complete
+typed Fills(24h, complete walk)           104ms  complete
+concurrent orderbook x6 round 1: wall=120ms each p50=110 max=119 statuses=[200 200 200 200 200 200]
+concurrent orderbook x6 round 2: wall=117ms each p50=116 max=117 statuses=[200 200 200 200 200 200]
+ws: connect=0ms first_snapshot=+0ms first_delta=+0ms connects=0 disconnects=0 causes=[]
+ws frames: map[]  deltas_by_ticker=map[]  trades_on_subscribed=map[]  distinct_trade_tickers=0  trade_rate=0.0/s
+ws inter-frame gap (all): p50=0ms p90=0ms max=0ms n=0; subscribed deltas: p50=0ms p90=0ms max=0ms n=0
+ws exchange-ts -> local: trade[] p50=0ms p90=0ms max=0ms n=0; delta[] p50=0ms p90=0ms n=0
+ws top traded tickers: []
+sample trade frame: 
+sample delta frame: 

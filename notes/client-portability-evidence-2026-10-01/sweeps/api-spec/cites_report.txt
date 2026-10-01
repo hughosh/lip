@@ -1,0 +1,259 @@
+L8 §0 harness/rest/client.go:155 | EpPositions = Endpoint{
+L8 §0 harness/rest/client.go:155 | EpPositions = Endpoint{
+L20 §0 openapi.yaml:6-14 |   ...  - url: https://demo-api.kalshi.co/trade-api/v2
+L47 §2 cmd/harness/runtime.go:66 | const restTimeout = 10 * time.Second
+L47 §2 cmd/harness/runtime.go:354 | var doer rest.Doer = rest.NewHTTPDoerWithTransport(signer, restTimeout, nt.rest)
+L51 §2 harness/rest/write.go:154 | func (c *Client) Create(ctx context.Context, body CreateOrder, p cfg.Params) CreateResult {
+L51 §2 harness/rest/write.go:196-200 | resp, err := c.Doer.Do(ctx, Request{  ...  })
+L51 §2 harness/rest/wire.go:143-161 | type createOrderWire struct {  ...  }
+L51 §2 harness/rest/write.go:254 | case resp.Status == 200 || resp.Status == 201:
+L51 §2 harness/rest/write.go:436-511 | func parseAck(body []byte, coid string, requested num.Qty) (ack, error) {  ...  }
+L51 §2 harness/rest/write.go:515-525 | func errorCode(body []byte) string {  ...  }
+L51 §2 harness/rest/write.go:190-194 | max := p.RetrySameCoidMax  ...  for res.Attempts < max {
+L51 §2 harness/cfg/params.go:157 | RetrySameCoidMax: 3,
+L51 §2 harness/rest/write.go:301-325 | case resp.Status == http.StatusTooManyRequests:  ...  return res
+L51 §2 cmd/harness/dispatch.go:144 | const permitWait = restTimeout
+L51 §2 cmd/harness/dispatch.go:236 | writeCtx, stop := context.WithTimeout(ctx, permitWait+time.Duration(r.cfg.Params.RetrySameCoidM
+L52 §2 harness/rest/cancel.go:106 | func (c *Client) Cancel(ctx context.Context, orderID string) CancelResult {
+L52 §2 harness/rest/cancel.go:122 | func (c *Client) cancelForMarket(ctx context.Context, ticker, orderID string) CancelResult {
+L52 §2 harness/rest/cancel.go:130 | func (c *Client) cancel(ctx context.Context, ticker, orderID string) CancelResult {
+L52 §2 harness/rest/cancel.go:136-143 | req := Request{  ...  resp, err := c.Doer.Do(ctx, req)
+L52 §2 harness/rest/cancel.go:140-142 | if ticker != "" {  ...  }
+L52 §2 harness/rest/cancel.go:164-185 | case resp.Status >= 200 && resp.Status < 300:  ...  return res
+L52 §2 harness/rest/cancel.go:187-191 | case resp.Status == 404:  ...  return res
+L52 §2 harness/rest/cancel.go:193-196 | case resp.Status == http.StatusTooManyRequests:  ...  return res
+L52 §2 harness/rest/cancel.go:198-204 | case resp.Status >= 400 && resp.Status < 500:  ...  return res
+L52 §2 harness/rest/cancel.go:100-105 | // It makes exactly one attempt. Cancels are retriable — H-ORD-4a states that as  ...  // would be retrying against our own belief.
+L52 §2 harness/rest/cancel.go:220 | const sweepRetries = 1
+L52 §2 harness/rest/cancel.go:370-438 | for round := 0; round <= sweepRetries; round++ {  ...  }
+L53 §2 harness/rest/read.go:237 | func (c *Client) Orders(ctx context.Context, ticker, status string) OrdersResult {
+L53 §2 harness/rest/client.go:170-176 | EpOrders = Endpoint{  ...  }
+L53 §2 harness/rest/client.go:219-248 | const (  ...  }
+L53 §2 harness/rest/read.go:276-337 | func decodeOrder(raw json.RawMessage) (Order, []risk.Anomaly, error) {  ...  }
+L53 §2 harness/rest/read.go:256-269 | for i, raw := range recs {  ...  }
+L53 §2 harness/rest/page.go:102-103 | // It never returns a partial answer. Every failure path preserves the caller's  ...  // prior state by returning something that reports Replaces() == false.
+L54 §2 harness/rest/cancel.go:302 | func (c *Client) confirmRetired(ctx context.Context, ticker, orderID string) Confirmation {
+L54 §2 harness/rest/cancel.go:304-305 | resp, err := c.Doer.Do(ctx, Request{Method: "GET",  ...  Path: EpOrders.Path + "/" + orderID})
+L54 §2 harness/rest/cancel.go:315-339 | var body struct {  ...  }
+L55 §2 harness/rest/read.go:544 | func (c *Client) Fills(ctx context.Context, ticker string, since time.Time) FillsResult {
+L55 §2 harness/rest/client.go:177-183 | EpFills = Endpoint{  ...  }
+L55 §2 harness/rest/read.go:537-543 | // Fills reads our fills as a complete cursor walk, then filters client-side to  ...  // `since` disables the filter.
+L55 §2 harness/rest/read.go:567-570 | if !since.IsZero() && f.TsMillis != 0 &&  ...  }
+L55 §2 harness/rest/read.go:576-647 | func decodeFill(raw json.RawMessage) (Fill, error) {  ...  }
+L55 §2 harness/rest/read.go:106-148 | func ParseFee6(s string) (num.Money, error) {  ...  }
+L55 §2 harness/rest/read.go:652-668 | func parseTsMillis(s string) int64 {  ...  }
+L55 §2 harness/wsx/portfolio.go:166 | read.fills = p.src.Fills(ctx, "", time.Time{})
+L56 §2 harness/rest/read.go:436 | func (c *Client) Positions(ctx context.Context) PositionsResult {
+L56 §2 harness/rest/account_positions.go:85-153 | func (c *Client) AccountPositions(ctx context.Context) PositionsResult {  ...  }
+L56 §2 harness/rest/client.go:155-169 | EpPositions = Endpoint{  ...  }
+L56 §2 harness/rest/account_positions.go:175 | q.Set("subaccount", strconv.Itoa(d.number))
+L56 §2 harness/rest/read.go:430-435 | // Positions seeds q for every market with a non-zero position, INCLUDING  ...  // answering the question this endpoint is asked.
+L56 §2 harness/rest/read.go:441-473 | recs := w.Records("market_positions")  ...  }
+L56 §2 harness/rest/account_positions.go:118-139 | for _, raw := range result.Records("event_positions") {  ...  }
+L57 §2 harness/rest/read.go:766 | func (c *Client) Balance(ctx context.Context) (Balance, error) {
+L57 §2 harness/rest/read.go:767 | resp, err := c.Doer.Do(ctx, Request{Method: "GET", Path: "/portfolio/balance"})
+L57 §2 harness/rest/funding.go:31 | func (c *Client) MarketFunding(ctx context.Context, ticker string) (Funding, error) {
+L57 §2 harness/rest/funding.go:58-61 | q := url.Values{}  ...  resp, err := c.Doer.Do(ctx, Request{Method: "GET", Path: "/portfolio/balance", Query: q})
+L57 §2 harness/rest/read.go:782-799 | v, ok := rec["balance"]  ...  return Balance{Cents: *cents}, nil
+L57 §2 harness/rest/funding.go:74-119 | cents, err := fundingNonnegativeInt(b, "balance")  ...  }
+L58 §2 harness/rest/account_positions.go:18 | func (c *Client) SubaccountNumbers(ctx context.Context) ([]int, error) {
+L58 §2 harness/rest/account_positions.go:19 | resp, err := c.Doer.Do(ctx, Request{Method: "GET", Path: subaccountBalancesPath})
+L58 §2 harness/rest/account_positions.go:13 | const subaccountBalancesPath = "/portfolio/subaccounts/balances"
+L58 §2 harness/rest/account_positions.go:34-36 | if _, paginated := envelope["cursor"]; paginated {  ...  }
+L58 §2 harness/rest/account_positions.go:37-73 | raw, ok := envelope["subaccount_balances"]  ...  }
+L59 §2 harness/rest/schedule.go:187 | func (c *Client) Schedule(ctx context.Context, ticker string) ScheduleResult {
+L59 §2 harness/rest/schedule.go:196 | resp, err := c.Doer.Do(ctx, Request{Method: "GET", Path: "/markets/" + ticker})
+L59 §2 harness/rest/funding.go:35 | market, err := c.Doer.Do(ctx, Request{Method: "GET", Path: "/markets/" + ticker})
+L59 §2 harness/rest/schedule.go:232-260 | func validateTicker(ticker string) error {  ...  }
+L59 §2 harness/rest/schedule.go:277-368 | func decodeSchedule(ticker string, body []byte) ScheduleResult {  ...  }
+L59 §2 harness/rest/funding.go:42-57 | m, err := fundingObject(market.Body)  ...  }
+L59 §2 harness/rest/schedule.go:405-457 | func deriveTradingClosed(ticker, status, result string) (bool, []risk.Anomaly, error) {  ...  }
+L59 §2 harness/cfg/params.go:138 | SchedulePoll:     30 * time.Second,
+L60 §2 harness/rest/orderbook.go:146 | func (c *Client) Orderbook(ctx context.Context, ticker string) OrderbookResult {
+L60 §2 harness/rest/orderbook.go:153-155 | resp, err := c.Doer.Do(ctx, Request{  ...  })
+L60 §2 harness/rest/orderbook.go:172-228 | rawBook, ok := body["orderbook_fp"]  ...  }
+L60 §2 harness/rest/orderbook.go:244-312 | func parseRESTLevels(ticker, field string, wire [][2]string) ([]BookLevel,  ...  }
+L60 §2 harness/rest/orderbook.go:216-226 | if anom != nil {  ...  }
+L61 §2 harness/rest/read.go:707 | func (c *Client) Programs(ctx context.Context) ProgramsResult {
+L61 §2 harness/rest/client.go:185-196 | EpPrograms = Endpoint{  ...  }
+L61 §2 feed/universe.go:55-134 | func Universe(ctx context.Context) (map[string]float64, []string, error) {  ...  }
+L61 §2 harness/rest/read.go:709-710 | filters.Set("status", "active")  ...  filters.Set("type", "liquidity")
+L61 §2 feed/universe.go:56 | return universeFrom(ctx, RestHost+"/trade-api/v2/incentive_programs?status=active&limit=200")
+L61 §2 feed/universe.go:44-47 | // `limit=200` is carried across from the Python verbatim, and there is no  ...  // truncate at the same place, which is what the differential comparison needs.
+L61 §2 harness/rest/read.go:716-751 | recs := w.Records("incentive_programs")  ...  }
+L61 §2 feed/universe.go:93-98 | var body struct {  ...  }
+L61 §2 feed/universe.go:16-35 | const restTimeout = 20 * time.Second  ...  }
+L61 §2 feed/universe.go:68-78 | dialer := &net.Dialer{Timeout: restTimeout}  ...  }}
+L65 §2.1 harness/rest/client.go:67-69 | type Doer interface {  ...  }
+L65 §2.1 harness/rest/client.go:35-69 | type Response struct {  ...  }
+L65 §2.1 harness/rest/client.go:86-108 | type NotSent struct{ Err error }  ...  }
+L66 §2.1 harness/rest/client.go:329-386 | func (d *HTTPDoer) Do(ctx context.Context, req Request) (Response, error) {  ...  }
+L66 §2.1 feed/auth.go:164-179 | func (s *Signer) Headers(nowMs int64, method, path string) (map[string]string, error) {  ...  }
+L67 §2.1 harness/rest/client.go:257-262 | // HTTPDoer is the production Doer: net/http plus feed.Signer.  ...  // resolvable `UNKNOWN` into a duplicate order.
+L67 §2.1 harness/rest/client.go:315-317 | CheckRedirect: func(*http.Request, []*http.Request) error {  ...  },
+L68 §2.1 harness/rest/throttle.go:16-62 | type RateLimitError struct {  ...  }
+L68 §2.1 harness/rest/throttle.go:13-15 | // does not establish that a create was absent or a cancel took effect. A  ...  // own bounded exponential backoff. No REST method sleeps on this error.
+L69 §2.1 harness/rest/guard.go:73-167 | // WriteGuard wraps a Doer and refuses every non-GET request unless both keys  ...  }
+L70 §2.1 harness/rest/coid.go:22-65 | const CoidPrefix = "lipH"  ...  }
+L70 §2.1 harness/rest/coid.go:110-141 | func ParseCoid(coid string) (ParsedCoid, bool) {  ...  }
+L70 §2.1 harness/rest/wire.go:207-236 | if o.clientOrderID == "" {  ...  }
+L72 §2.2 harness/rest/page.go:104-213 | func (c *Client) Walk(ctx context.Context, ep Endpoint, filters url.Values) Walk {  ...  }
+L74 §2.2 harness/rest/page.go:17-18 | // This is the only way this package reads a list. There is no single-page read  ...  // anywhere, and no `limit` large enough to count as one.
+L74 §2.2 harness/rest/client.go:124-151 | type Endpoint struct {  ...  }
+L75 §2.2 harness/rest/client.go:200-206 | func (e Endpoint) ValidateLimit(limit int) error {  ...  }
+L75 §2.2 harness/rest/client.go:430-451 | func pageQuery(ep Endpoint, filters url.Values, cursor string) (url.Values, error) {  ...  }
+L75 §2.2 harness/rest/page.go:173-210 | id, err := firstIdentity(ep, pg)  ...  seen[cursorKey(next)] = true
+L75 §2.2 harness/rest/page.go:217-228 | func rewound(ep Endpoint, pages int, why string) Walk {  ...  }
+L75 §2.2 harness/rest/page.go:244-337 | func decodePage(ep Endpoint, body []byte) (page, error) {  ...  }
+L75 §2.2 harness/rest/page.go:117-136 | if pages >= ep.MaxPages {  ...  }
+L76 §2.2 harness/rest/page.go:29-93 | type WalkOutcome uint8  ...  func (w Walk) Records(key string) []json.RawMessage { return w.Items[key] }
+L87 §3.1 feed/auth.go:32 | WSURL    = "wss://external-api-ws.kalshi.com/trade-api/ws/v2"
+L87 §3.1 harness/wsx/transport.go:245-248 | const (  ...  )
+L87 §3.1 harness/wsx/supervisor.go:86 | url:      WSURL,
+L87 §3.1 harness/wsx/supervisor.go:310 | sock, err := s.dialer.Dial(dialCtx, s.url, h)
+L88 §3.1 harness/wsx/supervisor.go:291-313 | func (s *Supervisor) dial(ctx context.Context) (Socket, uint64, error) {  ...  }
+L88 §3.1 feed/auth.go:164-183 | func (s *Signer) Headers(nowMs int64, method, path string) (map[string]string, error) {  ...  }
+L88 §3.1 harness/wsx/transport.go:147-169 | func (d liveDialer) Dial(ctx context.Context, url string, h http.Header) (Socket, error) {  ...  }
+L89 §3.1 harness/wsx/wire.go:17-45 | const (  ...  }
+L89 §3.1 harness/wsx/wire.go:78-97 | func ValidateTickers(tickers []string) error {  ...  }
+L89 §3.1 harness/wsx/supervisor.go:315-336 | delta, err := subscribeDelta(tickers)  ...  }
+L90 §3.1 harness/wsx/frame.go:98-148 | func InspectFrame(frame []byte) FrameInfo {  ...  }
+L90 §3.1 harness/wsx/wire.go:109-129 | type envelope struct {  ...  }
+L91 §3.1 core/rig.go:226-256 | type envelope struct {  ...  }
+L91 §3.1 core/rig.go:259-302 | func (r *Rig) Handle(frame []byte) error {  ...  }
+L92 §3.1 harness/wsx/frame.go:126-132 | case "error":  ...  }
+L93 §3.1 harness/wsx/supervisor.go:329-336 | if err := sock.Write(ctx, delta); err != nil {  ...  }
+L96 §3.1 harness/wsx/wire.go:47-64 | // resnapshotRequest asks the exchange to re-send a book snapshot on exactly  ...  }
+L96 §3.1 harness/wsx/session.go:271-292 | case c, ok := <-cmds:  ...  }
+L96 §3.1 harness/wsx/supervisor.go:94-129 | func (s *Supervisor) AddMarkets(tickers []string) error {  ...  }
+L96 §3.1 harness/wsx/session.go:268-269 | case <-s.universeChanged:  ...  return errUniverseChanged
+L97 §3.1 harness/wsx/session.go:121-136 | //   - pong_timeout_s -- the answer did not come. This catches a peer that is  ...  // that reconnects where Python hangs produces rows Python never wrote. A
+L97 §3.1 harness/wsx/session.go:162-164 | pingTimer := s.clk.NewTimer(s.p.WSPingInterval)  ...  readTimer := s.clk.NewTimer(s.p.ReadDeadline)
+L97 §3.1 harness/wsx/session.go:236-266 | case <-pingTimer.C():  ...  "inside the library's read loop", s.p.ReadDeadline)
+L97 §3.1 harness/cfg/params.go:149-151 | WSPingInterval:   10 * time.Second,  ...  ReadDeadline:     60 * time.Second,
+L97 §3.1 harness/cfg/params.go:285-292 | if !(p.PongTimeout > 0 && p.PongTimeout < p.WSPingInterval) {  ...  "detector it backs up", p.ReadDeadline, p.WSPingInterval)
+L97 §3.1 harness/wsx/transport.go:36-37 | // Ping is separate from Write because a ping is a control frame: it does not  ...  // queue behind application data and its answer is handled inside the library's
+L98 §3.1 harness/wsx/supervisor.go:20-33 | var backoffLadder = [...]time.Duration{  ...  }
+L98 §3.1 harness/wsx/supervisor.go:35-42 | // Supervisor owns the socket's whole lifetime: dial, subscribe, run, fail,  ...  // -- which is the failure the whole package is arranged to prevent.
+L98 §3.1 harness/wsx/supervisor.go:161-239 | func (s *Supervisor) Run(ctx context.Context, cmds <-chan Command,  ...  }
+L98 §3.1 harness/wsx/supervisor.go:247-284 | func (s *Supervisor) wait(ctx context.Context, d time.Duration, revision uint64,  ...  }
+L98 §3.1 harness/wsx/transport.go:205-240 | // HandshakeError is a handshake the server ANSWERED and that then failed:  ...  }
+L99 §3.1 harness/wsx/supervisor.go:291-338 | func (s *Supervisor) dial(ctx context.Context) (Socket, uint64, error) {  ...  }
+L99 §3.1 harness/wsx/gate.go:343-386 | func (g *Gate) OnConnect(now Stamp) ConnectEffects {  ...  }
+L99 §3.1 harness/wsx/gate.go:421-480 | // ApplyDisconnect is H-FAIL-5: a disconnect makes the book non-actionable,  ...  }
+L100 §3.1 harness/wsx/wire.go:112 | Seq  *int64          `json:"seq"`
+L100 §3.1 core/rig.go:265-289 | // Sequence is subscription-wide, not per market: a gap means SOME market  ...  }
+L100 §3.1 core/rig.go:175-186 | func (r *Rig) ResetOnReconnect() {  ...  }
+L100 §3.1 cmd/harness/run.go:1324-1330 | if o.r.book.NeedsResnapshot {  ...  }
+L100 §3.1 harness/wsx/gate.go:711-739 | // NoteSeqGap records `core.Rig`'s subscription-wide sequence gap.  ...  }
+L101 §3.1 harness/wsx/transport.go:116-130 | // Three settings are load-bearing and none of them is a default:  ...  func NewLiveDialer() Dialer { return liveDialer{} }
+L101 §3.1 harness/wsx/transport.go:159 | CompressionMode: websocket.CompressionContextTakeover,
+L101 §3.1 harness/wsx/transport.go:167 | ws.SetReadLimit(1 << 20)
+L105 §3.2 feed/feed.go:23-38 | func subscribeDelta(tickers []string) ([]byte, error) {  ...  }
+L105 §3.2 feed/feed.go:115-182 | func Dial(ctx context.Context, s *Signer, nowMs int64, tickers []string) (*Conn, error) {  ...  }
+L106 §3.2 feed/feed.go:103-114 | // Dial opens the socket, performs the signed handshake and sends both  ...  // nowMs is the caller's clock, so the signer stays clock-free.
+L106 §3.2 feed/feed.go:54-71 | // HandshakeError is a handshake the server ANSWERED and that then failed  ...  func (e *HandshakeError) Unwrap() error { return e.Err }
+L106 §3.2 feed/feed.go:142-156 | if err != nil {  ...  }
+L107 §3.2 feed/feed.go:40-52 | func resnapshotRequest(sids []int64, tickers []string) ([]byte, error) {  ...  }
+L107 §3.2 feed/feed.go:188-196 | // Resnapshot asks the exchange to re-send a snapshot for every market on every  ...  }
+L108 §3.2 feed/feed.go:218-248 | // Pump reads frames onto `out` until the socket fails, then reports why.  ...  }
+L113 §4 openapi.yaml:8473 | CreateOrderV2Request:
+L113 §4 harness/rest/wire.go:143-161 | type createOrderWire struct {  ...  }
+L113 §4 harness/rest/wire.go:109-116 | type CreateOrder struct {  ...  }
+L113 §4 harness/rest/wire.go:244-259 | func (o CreateOrder) wire() (createOrderWire, error) {  ...  }
+L113 §4 harness/rest/wire.go:267-305 | func validateWire(w createOrderWire, o CreateOrder) error {  ...  }
+L113 §4 harness/rest/write.go:170-186 | if err := body.validate(); err != nil {  ...  if err != nil {
+L117 §4 harness/rest/wire.go:196-198 | if o.ticker == "" {  ...  }
+L118 §4 harness/rest/wire.go:44-53 | func ToWire(side quote.Side, priceCents int) (BookSide, int, error) {  ...  }
+L118 §4 harness/rest/wire.go:251 | Side:                ws,
+L119 §4 harness/rest/wire.go:146-147 | // Count is the contract count as a two-decimal fixed-point string.  ...  Count string `json:"count"`
+L119 §4 harness/rest/wire.go:252 | Count:               o.count.Wire(),
+L119 §4 harness/rest/wire.go:239 | return num.ValidateCount(o.count, o.derivedFrom)
+L119 §4 harness/num/qty.go:133 | func (q Qty) Wire() string { return fmt.Sprintf("%.2f", q.Float()) }
+L119 §4 harness/num/qty.go:162-171 | func ValidateCount(count, derivedFrom Qty) error {  ...  }
+L120 §4 harness/rest/wire.go:44-53 | func ToWire(side quote.Side, priceCents int) (BookSide, int, error) {  ...  }
+L120 §4 harness/rest/wire.go:315-317 | func PriceWire(yesCents int) string {  ...  }
+L120 §4 harness/quote/cross.go:13-14 | MinPrice = 1  ...  MaxPrice = 99
+L120 §4 harness/quote/cross.go:34 | func ValidPrice(p int) bool { return p >= MinPrice && p <= MaxPrice }
+L121 §4 harness/rest/wire.go:164 | timeInForce         = "good_till_canceled"
+L121 §4 harness/rest/wire.go:254 | TimeInForce:         timeInForce,
+L121 §4 harness/rest/wire.go:279-281 | if w.TimeInForce != timeInForce {  ...  }
+L122 §4 harness/rest/wire.go:256 | PostOnly:            true,
+L122 §4 harness/rest/wire.go:268-272 | if !w.PostOnly {  ...  }
+L123 §4 harness/rest/wire.go:165 | selfTradePrevention = "taker_at_cross"
+L123 §4 harness/rest/wire.go:255 | SelfTradePrevention: selfTradePrevention,
+L123 §4 harness/rest/wire.go:273-278 | if w.SelfTradePrevention != selfTradePrevention {  ...  }
+L124 §4 harness/rest/wire.go:207-236 | if o.clientOrderID == "" {  ...  }
+L124 §4 harness/rest/coid.go:52-65 | func Coid(runID string, marketIdx int, side quote.Side, seq uint64) (string, error) {  ...  }
+L124 §4 harness/rest/coid.go:110-141 | func ParseCoid(coid string) (ParsedCoid, bool) {  ...  }
+L127 §4 openapi.yaml:8174 | CreateOrderRequest:
+L127 §4 openapi.yaml:8245-8254 | buy_max_cost:  ...  description: "Deprecated: Use reduce_only instead. Only accepts value of 0."
+L132 §4 harness/rest/cancel.go:106-211 | func (c *Client) Cancel(ctx context.Context, orderID string) CancelResult {  ...  }
+L138 §4 harness/rest/cancel.go:302-341 | func (c *Client) confirmRetired(ctx context.Context, ticker, orderID string) Confirmation {  ...  }
+L139 §4 harness/rest/read.go:237-274 | func (c *Client) Orders(ctx context.Context, ticker, status string) OrdersResult {  ...  }
+L142 §4 harness/rest/write.go:27-124 | // CreateOutcome is the definite classification of one create.  ...  }
+L142 §4 harness/rest/write.go:254-333 | case resp.Status == 200 || resp.Status == 201:  ...  }
+L158 §5.1 harness/cfg/params.go:133-134 | WriteRate:       5,  ...  WriteBurst:      10,
+L179 §5.1 openapi.yaml:8668 | AmendOrderV2Request:
+L212 §5.2 harness/wsx/wire.go:8-16 | // The three command ids. They are fixed, not sequential, because the exchange  ...  // row and would silently stop the capture being a whole-exchange capture.
+L214 §5.2 harness/wsx/portfolio.go:166 | read.fills = p.src.Fills(ctx, "", time.Time{})
+L214 §5.2 harness/cfg/params.go:136 | PositionPoll:     5 * time.Second,
+L231 §6 feed/auth.go:31 | RestHost = "https://api.elections.kalshi.com"
+L231 §6 harness/rest/client.go:255 | const APIPrefix = "/trade-api/v2"
+L231 §6 harness/rest/client.go:320 | Host:   feed.RestHost,
+L231 §6 feed/universe.go:56 | return universeFrom(ctx, RestHost+"/trade-api/v2/incentive_programs?status=active&limit=200")
+L231 §6 cmd/incentives/main.go:25 | const apiBase = "https://external-api.kalshi.com/trade-api/v2"
+L232 §6 feed/auth.go:32-33 | WSURL    = "wss://external-api-ws.kalshi.com/trade-api/ws/v2"  ...  WSPath   = "/trade-api/ws/v2"
+L233 §6 openapi.yaml:12-14 | - url: https://external-api.demo.kalshi.co/trade-api/v2  ...  - url: https://demo-api.kalshi.co/trade-api/v2
+L233 §6 harness/rest/client.go:263-270 | type HTTPDoer struct {  ...  }
+L233 §6 harness/rest/client.go:320 | Host:   feed.RestHost,
+L233 §6 harness/wsx/supervisor.go:86 | url:      WSURL,
+L234 §6 feed/auth.go:12-13 | //	~/.kalshi/kalshi.pem  RSA private key (mode 600)  ...  //	~/.kalshi/env         KALSHI_API_KEY_ID=...
+L234 §6 feed/auth.go:43-74 | func NewSigner() (*Signer, error) {  ...  }
+L234 §6 cmd/harness/config.go:140 | // Key and Env are the credentials `feed.NewSignerFrom` reads. Named
+L234 §6 cmd/harness/config.go:467-469 | {"lock", pc.Lock, "the single-instance lock"},  ...  {"env", pc.Env, "the file holding KALSHI_API_KEY_ID"},
+L234 §6 cmd/harness/runtime.go:290 | signer, err := feed.NewSignerFrom(c.Paths.Key, c.Paths.Env)
+L235 §6 harness/rest/client.go:276-323 | func NewHTTPDoer(signer *feed.Signer, timeout time.Duration) *HTTPDoer {  ...  }
+L235 §6 cmd/harness/runtime.go:53-66 | // restTimeout bounds one REST request.  ...  const restTimeout = 10 * time.Second
+L235 §6 cmd/harness/runtime.go:354 | var doer rest.Doer = rest.NewHTTPDoerWithTransport(signer, restTimeout, nt.rest)
+L235 §6 cmd/accountcheck/main.go:532 | r := run(ctx, rest.NewHTTPDoer(signer, 15*time.Second), *ticker, *fills)
+L235 §6 feed/universe.go:16-35 | const restTimeout = 20 * time.Second  ...  }
+L236 §6 harness/rest/client.go:280-295 | // NewHTTPDoerWithTransport is the production constructor (F6).  ...  }
+L236 §6 harness/wsx/transport.go:132-145 | // NewLiveDialerWithTransport is the production constructor (F6).  ...  }
+L236 §6 cmd/harness/runtime.go:223-232 | func f6Transport(cd *netx.CachedDialer) *http.Transport {  ...  }
+L236 §6 cmd/harness/runtime.go:396 | Dialer:  wsx.NewLiveDialerWithTransport(nt.ws),
+L237 §6 harness/wsx/supervisor.go:307 | dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+L237 §6 harness/wsx/supervisor.go:20-33 | var backoffLadder = [...]time.Duration{  ...  }
+L237 §6 harness/cfg/params.go:149-153 | WSPingInterval:   10 * time.Second,  ...  DisconnectReduce: 60 * time.Second,
+L238 §6 harness/cfg/params.go:53-54 | WriteRate       float64       // write_rate          §6.6, writes/s global  ...  WriteBurst      int           // write_burst         §6.6
+L238 §6 harness/cfg/params.go:133-134 | WriteRate:       5,  ...  WriteBurst:      10,
+L242 §7 harness/rest/write.go:515-525 | func errorCode(body []byte) string {  ...  }
+L242 §7 harness-spec.md:269 | 409     → {"error":{"code":"order_already_exists","message":"order already exists"}}
+L242 §7 harness-spec.md:792 | > create #2 → 409  {"error":{"code":"order_already_exists",
+L242 §7 harness/rest/write_test.go:39 | `{"error":{"code":"order_already_exists","message":"order already exists"}}`)
+L242 §7 openapi.yaml:4948 | ErrorResponse:
+L242 §7 harness/rest/write.go:282 | case resp.Status == 409 && errorCode(resp.Body) == errAlreadyExists:
+L242 §7 harness/rest/write.go:291-299 | case resp.Status == 409:  ...  continue
+L243 §7 asyncapi.yaml:2419-2430 | use_yes_price:  ...  the legacy no-leg pricing. Integrations relying on the legacy behavior should migrate before
+L243 §7 harness/wsx/wire.go:31-37 | return json.Marshal(map[string]any{  ...  })
+L243 §7 core/rig.go:361 | book.ApplyDelta(*m.Side, price, delta)
+L244 §7 harness/wsx/frame.go:164-168 | if bad, anom := checkCent(m.MarketTicker, side.name, lv[0]); bad {  ...  return info
+L244 §7 harness/wsx/frame.go:189-193 | if bad, anom := checkCent(m.MarketTicker, "price_dollars", *m.PriceDollars); bad {  ...  }
+L244 §7 harness/wsx/gate.go:566-577 | if info.Granularity {  ...  }
+L244 §7 harness/rest/orderbook.go:216-226 | if anom != nil {  ...  }
+L245 §7 harness/rest/schedule.go:405-457 | func deriveTradingClosed(ticker, status, result string) (bool, []risk.Anomaly, error) {  ...  }
+L246 §7 harness/rest/read.go:537-574 | // Fills reads our fills as a complete cursor walk, then filters client-side to  ...  }
+L246 §7 harness/wsx/portfolio.go:166 | read.fills = p.src.Fills(ctx, "", time.Time{})
+L247 §7 harness/rest/account_positions.go:82-153 | // AccountPositions reads all enumerated subaccounts across every exchange  ...  }
+L249 §7 harness-redteam.md:493 | create #1 `200`, create #2 **`409 order_already_exists`**, exactly one resting
+L249 §7 harness/rest/write.go:254 | case resp.Status == 200 || resp.Status == 201:
+L249 §7 harness/rest/write.go:271-281 | case resp.Status >= 200 && resp.Status < 300:  ...  
+L250 §7 openapi.yaml:6454 | Deprecated. Use `outcome_side` (or `book_side`) instead. See [Order direction](/getting_started
+L250 §7 openapi.yaml:6461 | Deprecated. Use `outcome_side` (or `book_side`) instead. See [Order direction](/getting_started
+L250 §7 openapi.yaml:6809 | Deprecated. Use `taker_outcome_side` (or `taker_book_side`) instead. See [Order direction](/get
+L250 §7 harness/rest/read.go:339-366 | // readSide normalises an order record onto a book side.  ...  }
+L250 §7 core/rig.go:255 | TakerSide       string  `json:"taker_side"`
+L251 §7 harness/rest/read.go:286 | o.Ticker = scalar(rec["market_ticker"])
+L251 §7 harness/rest/read.go:323-325 | rem := scalar(rec["remaining_count_fp"])  ...  rem = scalar(rec["remaining_count"])
+L251 §7 harness/rest/read.go:456-458 | val := scalar(rec["position_fp"])  ...  val = scalar(rec["position"])
+L251 §7 harness/rest/read.go:630-633 | cnt := scalar(rec["count_fp"])  ...  }

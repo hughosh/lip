@@ -1,0 +1,32 @@
+started 2026-10-01T21:45:42Z go=go1.27.1 host=https://api.elections.kalshi.com
+guard: POST refused before transmission: write refused before transmission: POST /portfolio/events/orders (this process was not started with -live); this process is READ-ONLY and nothing was sent to the exchange
+sign RSA-PSS: p50=1.05ms p90=1.08ms max=1.38ms (n=200)
+cold connection GET /exchange/status: p50=35ms max=151ms (n=3)
+warm REST                   first      min      p50      p90      max  status/bytes
+exchange_status                32       27       39      110      202  map[200:15]/667 
+balance                       101       96      107      151      229  map[200:15]/271 
+orders_resting_1page          102       89       97      110      147  map[200:15]/25 
+positions_1page               105       92      101      108      110  map[200:15]/1942 
+fills_1page                   100       95      104      111      120  map[200:15]/12137 
+orderbook                      91       89       97      101      124  map[200:15]/1401 
+market                        102       92      101      108      111  map[200:15]/2384 
+typed Balance                             100ms  <nil>
+typed Orderbook                            91ms  read
+typed Orders(resting, all tickers)         90ms  complete
+typed Positions                            95ms  complete
+typed Fills(24h, complete walk)           105ms  complete
+concurrent orderbook x6 round 1: wall=110ms each p50=107 max=110 statuses=[200 200 200 200 200 200]
+concurrent orderbook x6 round 2: wall=108ms each p50=103 max=107 statuses=[200 200 200 200 200 200]
+ws: connect=305ms first_snapshot=+68ms first_delta=+918ms connects=1 disconnects=0 causes=[]
+ws frames: map[orderbook_delta:103 orderbook_snapshot:10 other:2 trade:18892]  deltas_by_ticker=map[KXATPMATCH-26OCT01FILTIA-FIL:10 KXATPMATCH-26OCT01FILTIA-TIA:9 KXATPMATCH-26OCT01MUNFAR-FAR:23 KXATPMATCH-26OCT01YUNDJO-DJO:4 KXATPMATCH-26OCT01YUNDJO-YUN:5 KXATPMATCH-26SEP29MEDCAR-MED:21 KXWTAMATCH-26OCT01POTKRA-KRA:12 KXWTAMATCH-26OCT01POTKRA-POT:13 KXWTAMATCH-26OCT01PREPAR-PAR:3 KXWTAMATCH-26OCT01YASCHW-YAS:3]  trades_on_subscribed=map[KXATPMATCH-26OCT01FILTIA-TIA:2 KXATPMATCH-26OCT01MUNFAR-FAR:2 KXWTAMATCH-26OCT01POTKRA-KRA:1 KXWTAMATCH-26OCT01POTKRA-POT:1]  distinct_trade_tickers=3315  trade_rate=158.0/s
+ws inter-frame gap (all): p50=0ms p90=21ms max=160ms n=19006; subscribed deltas: p50=29ms p90=4219ms max=13257ms n=102
+ws exchange-ts -> local: trade[ts_ms] p50=10ms p90=16ms max=83ms n=18892; delta[ts_ms] p50=8ms p90=12ms n=103
+ws top traded tickers: [KXBTC15M-26OCT011800-00:6377 KXWTI15M-26OCT011800-00:589 KXETH15M-26OCT011800-00:544 KXBTCD-26OCT0118-T84499.99:511 KXATPCHALLENGERMATCH-26OCT01JUSSAK-SAK:436 KXXRP15M-26OCT011800-00:303 KXATPCHALLENGERMATCH-26OCT01JUSSAK-JUS:277 KXSOL15M-26OCT011800-00:268 KXBTCD-26OCT0118-T84599.99:232 KXBTCD-26OCT0118-T84399.99:226]
+sample trade frame: {"type":"trade","sid":2,"seq":1,"msg":{"trade_id":"07231cd5-dd09-9f31-1864-65a91cd4d24c","market_ticker":"KXBTC15M-26OCT011800-00","yes_price_dollars":"0.6000","no_price_dollars":"0.4000","count_fp":"9.40","taker_side":"yes","taker_outcome_side":"yes","taker_book_side":"bid","is_block_trade":false,"ts":1790891182,"ts_ms":1790891182092},"sending_ts_ms":1790891182095}
+
+sample delta frame: {"type":"orderbook_delta","sid":1,"seq":11,"msg":{"market_ticker":"KXWTAMATCH-26OCT01YASCHW-YAS","market_id":"01e1c7a1-3234-4396-bb7d-0ca1bbe82dc4","price_dollars":"0.5800","delta_fp":"-14.00","side":"no","ts":"2026-10-01T21:46:22.911Z","ts_ms":1790891182911},"sending_ts_ms":1790891182915}
+
+other frame: {"type":"subscribed","id":1,"msg":{"channel":"orderbook_delta","sid":1},"sending_ts_ms":1790891182065}
+
+other frame: {"type":"subscribed","id":2,"msg":{"channel":"trade","sid":2},"sending_ts_ms":1790891182074}
+

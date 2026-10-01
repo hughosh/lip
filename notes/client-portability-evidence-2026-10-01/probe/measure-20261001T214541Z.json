@@ -1,0 +1,330 @@
+{
+  "started_utc": "2026-10-01T21:45:42Z",
+  "go_version": "go1.27.1",
+  "rest_host": "https://api.elections.kalshi.com",
+  "rsa_pss_sign_ms": {
+    "n": 200,
+    "min_ms": 1.035298,
+    "p50_ms": 1.046588,
+    "p90_ms": 1.077301,
+    "max_ms": 1.380518
+  },
+  "cold_connection_get_exchange_status_ms": {
+    "n": 3,
+    "min_ms": 32.740774,
+    "p50_ms": 35.364107,
+    "p90_ms": 150.929812,
+    "max_ms": 150.929812
+  },
+  "rest": [
+    {
+      "name": "exchange_status",
+      "path": "/exchange/status",
+      "first_ms": 32.441093,
+      "warm": {
+        "n": 14,
+        "min_ms": 27.248708,
+        "p50_ms": 38.951783,
+        "p90_ms": 109.956912,
+        "max_ms": 201.53332
+      },
+      "statuses": {
+        "200": 15
+      },
+      "last_body_bytes": 667
+    },
+    {
+      "name": "balance",
+      "path": "/portfolio/balance",
+      "first_ms": 101.420847,
+      "warm": {
+        "n": 14,
+        "min_ms": 96.026645,
+        "p50_ms": 106.670439,
+        "p90_ms": 151.066572,
+        "max_ms": 229.370703
+      },
+      "statuses": {
+        "200": 15
+      },
+      "last_body_bytes": 271
+    },
+    {
+      "name": "orders_resting_1page",
+      "path": "/portfolio/orders",
+      "query": "limit=1000\u0026status=resting",
+      "first_ms": 101.870499,
+      "warm": {
+        "n": 14,
+        "min_ms": 89.122411,
+        "p50_ms": 97.014282,
+        "p90_ms": 109.989087,
+        "max_ms": 147.102148
+      },
+      "statuses": {
+        "200": 15
+      },
+      "last_body_bytes": 25
+    },
+    {
+      "name": "positions_1page",
+      "path": "/portfolio/positions",
+      "query": "limit=200",
+      "first_ms": 105.106448,
+      "warm": {
+        "n": 14,
+        "min_ms": 92.270301,
+        "p50_ms": 100.712402,
+        "p90_ms": 107.613834,
+        "max_ms": 110.356415
+      },
+      "statuses": {
+        "200": 15
+      },
+      "last_body_bytes": 1942
+    },
+    {
+      "name": "fills_1page",
+      "path": "/portfolio/fills",
+      "query": "limit=1000",
+      "first_ms": 99.922657,
+      "warm": {
+        "n": 14,
+        "min_ms": 94.938005,
+        "p50_ms": 103.529465,
+        "p90_ms": 110.793534,
+        "max_ms": 120.429851
+      },
+      "statuses": {
+        "200": 15
+      },
+      "last_body_bytes": 12137
+    },
+    {
+      "name": "orderbook",
+      "path": "/markets/KXATPMATCH-26SEP29MEDCAR-MED/orderbook",
+      "first_ms": 90.539254,
+      "warm": {
+        "n": 14,
+        "min_ms": 89.48929,
+        "p50_ms": 96.598688,
+        "p90_ms": 100.791765,
+        "max_ms": 124.422645
+      },
+      "statuses": {
+        "200": 15
+      },
+      "last_body_bytes": 1401
+    },
+    {
+      "name": "market",
+      "path": "/markets/KXATPMATCH-26SEP29MEDCAR-MED",
+      "first_ms": 101.503555,
+      "warm": {
+        "n": 14,
+        "min_ms": 92.134958,
+        "p50_ms": 100.778769,
+        "p90_ms": 108.128087,
+        "max_ms": 111.019806
+      },
+      "statuses": {
+        "200": 15
+      },
+      "last_body_bytes": 2384
+    }
+  ],
+  "typed_client_path": [
+    {
+      "name": "Balance",
+      "ms": 100.319939,
+      "outcome": "\u003cnil\u003e"
+    },
+    {
+      "name": "Orderbook",
+      "ms": 90.864919,
+      "outcome": "read"
+    },
+    {
+      "name": "Orders(resting, all tickers)",
+      "ms": 89.909854,
+      "outcome": "complete"
+    },
+    {
+      "name": "Positions",
+      "ms": 95.29234,
+      "outcome": "complete"
+    },
+    {
+      "name": "Fills(24h, complete walk)",
+      "ms": 105.394748,
+      "outcome": "complete"
+    }
+  ],
+  "concurrent_orderbook_gets": [
+    {
+      "round": 1,
+      "wall_ms": 109.969366,
+      "each": {
+        "n": 6,
+        "min_ms": 105.486904,
+        "p50_ms": 107.344463,
+        "p90_ms": 109.866504,
+        "max_ms": 109.866504
+      },
+      "statuses": [
+        200,
+        200,
+        200,
+        200,
+        200,
+        200
+      ],
+      "tickers": [
+        "KXATPMATCH-26SEP29MEDCAR-MED",
+        "KXATPMATCH-26OCT01YUNDJO-YUN",
+        "KXATPMATCH-26OCT01YUNDJO-DJO",
+        "KXATPMATCH-26OCT01MUNFAR-FAR",
+        "KXATPMATCH-26OCT01FILTIA-FIL",
+        "KXATPMATCH-26OCT01FILTIA-TIA"
+      ],
+      "individual_ms": [
+        107.344463,
+        107.414607,
+        105.486904,
+        107.334489,
+        109.866504,
+        105.565114
+      ]
+    },
+    {
+      "round": 2,
+      "wall_ms": 107.523166,
+      "each": {
+        "n": 6,
+        "min_ms": 98.470039,
+        "p50_ms": 102.669801,
+        "p90_ms": 107.445598,
+        "max_ms": 107.445598
+      },
+      "statuses": [
+        200,
+        200,
+        200,
+        200,
+        200,
+        200
+      ],
+      "tickers": [
+        "KXATPMATCH-26SEP29MEDCAR-MED",
+        "KXATPMATCH-26OCT01YUNDJO-YUN",
+        "KXATPMATCH-26OCT01YUNDJO-DJO",
+        "KXATPMATCH-26OCT01MUNFAR-FAR",
+        "KXATPMATCH-26OCT01FILTIA-FIL",
+        "KXATPMATCH-26OCT01FILTIA-TIA"
+      ],
+      "individual_ms": [
+        107.371579,
+        107.445598,
+        102.669801,
+        101.99109,
+        101.985302,
+        98.470039
+      ]
+    }
+  ],
+  "websocket": {
+    "tickers": [
+      "KXATPMATCH-26SEP29MEDCAR-MED",
+      "KXATPMATCH-26OCT01YUNDJO-YUN",
+      "KXATPMATCH-26OCT01YUNDJO-DJO",
+      "KXATPMATCH-26OCT01MUNFAR-FAR",
+      "KXATPMATCH-26OCT01FILTIA-FIL",
+      "KXATPMATCH-26OCT01FILTIA-TIA",
+      "KXWTAMATCH-26OCT01PREPAR-PAR",
+      "KXWTAMATCH-26OCT01YASCHW-YAS",
+      "KXWTAMATCH-26OCT01POTKRA-KRA",
+      "KXWTAMATCH-26OCT01POTKRA-POT"
+    ],
+    "duration_s": 120,
+    "first_connect_ms": 304.771004,
+    "first_snapshot_after_connect_ms": 68.385023,
+    "first_delta_after_connect_ms": 917.8047,
+    "connects": 1,
+    "disconnects": 0,
+    "frames_by_kind": {
+      "orderbook_delta": 103,
+      "orderbook_snapshot": 10,
+      "other": 2,
+      "trade": 18892
+    },
+    "deltas_by_ticker": {
+      "KXATPMATCH-26OCT01FILTIA-FIL": 10,
+      "KXATPMATCH-26OCT01FILTIA-TIA": 9,
+      "KXATPMATCH-26OCT01MUNFAR-FAR": 23,
+      "KXATPMATCH-26OCT01YUNDJO-DJO": 4,
+      "KXATPMATCH-26OCT01YUNDJO-YUN": 5,
+      "KXATPMATCH-26SEP29MEDCAR-MED": 21,
+      "KXWTAMATCH-26OCT01POTKRA-KRA": 12,
+      "KXWTAMATCH-26OCT01POTKRA-POT": 13,
+      "KXWTAMATCH-26OCT01PREPAR-PAR": 3,
+      "KXWTAMATCH-26OCT01YASCHW-YAS": 3
+    },
+    "trades_by_subscribed_ticker": {
+      "KXATPMATCH-26OCT01FILTIA-TIA": 2,
+      "KXATPMATCH-26OCT01MUNFAR-FAR": 2,
+      "KXWTAMATCH-26OCT01POTKRA-KRA": 1,
+      "KXWTAMATCH-26OCT01POTKRA-POT": 1
+    },
+    "distinct_trade_tickers_seen": 3315,
+    "top_trade_tickers": [
+      "KXBTC15M-26OCT011800-00:6377",
+      "KXWTI15M-26OCT011800-00:589",
+      "KXETH15M-26OCT011800-00:544",
+      "KXBTCD-26OCT0118-T84499.99:511",
+      "KXATPCHALLENGERMATCH-26OCT01JUSSAK-SAK:436",
+      "KXXRP15M-26OCT011800-00:303",
+      "KXATPCHALLENGERMATCH-26OCT01JUSSAK-JUS:277",
+      "KXSOL15M-26OCT011800-00:268",
+      "KXBTCD-26OCT0118-T84599.99:232",
+      "KXBTCD-26OCT0118-T84399.99:226"
+    ],
+    "inter_frame_gap_ms_all": {
+      "n": 19006,
+      "min_ms": 0.003654,
+      "p50_ms": 0.030064,
+      "p90_ms": 20.551518,
+      "max_ms": 160.028141
+    },
+    "inter_frame_gap_ms_subscribed_deltas": {
+      "n": 102,
+      "min_ms": 0.003829,
+      "p50_ms": 29.330332,
+      "p90_ms": 4218.651531,
+      "max_ms": 13257.357741
+    },
+    "trade_exchange_ts_to_local_ms": {
+      "n": 18892,
+      "min_ms": 1,
+      "p50_ms": 10,
+      "p90_ms": 16,
+      "max_ms": 83
+    },
+    "delta_exchange_ts_to_local_ms": {
+      "n": 103,
+      "min_ms": 3,
+      "p50_ms": 8,
+      "p90_ms": 12,
+      "max_ms": 15
+    },
+    "trade_lag_field": "ts_ms",
+    "delta_lag_field": "ts_ms",
+    "sample_trade_frame": "{\"type\":\"trade\",\"sid\":2,\"seq\":1,\"msg\":{\"trade_id\":\"07231cd5-dd09-9f31-1864-65a91cd4d24c\",\"market_ticker\":\"KXBTC15M-26OCT011800-00\",\"yes_price_dollars\":\"0.6000\",\"no_price_dollars\":\"0.4000\",\"count_fp\":\"9.40\",\"taker_side\":\"yes\",\"taker_outcome_side\":\"yes\",\"taker_book_side\":\"bid\",\"is_block_trade\":false,\"ts\":1790891182,\"ts_ms\":1790891182092},\"sending_ts_ms\":1790891182095}\n",
+    "sample_delta_frame": "{\"type\":\"orderbook_delta\",\"sid\":1,\"seq\":11,\"msg\":{\"market_ticker\":\"KXWTAMATCH-26OCT01YASCHW-YAS\",\"market_id\":\"01e1c7a1-3234-4396-bb7d-0ca1bbe82dc4\",\"price_dollars\":\"0.5800\",\"delta_fp\":\"-14.00\",\"side\":\"no\",\"ts\":\"2026-10-01T21:46:22.911Z\",\"ts_ms\":1790891182911},\"sending_ts_ms\":1790891182915}\n",
+    "sample_other_frames": [
+      "{\"type\":\"subscribed\",\"id\":1,\"msg\":{\"channel\":\"orderbook_delta\",\"sid\":1},\"sending_ts_ms\":1790891182065}\n",
+      "{\"type\":\"subscribed\",\"id\":2,\"msg\":{\"channel\":\"trade\",\"sid\":2},\"sending_ts_ms\":1790891182074}\n"
+    ],
+    "exchange_wide_trade_frames_per_s": 157.99105413698575
+  },
+  "write_guard_check": "POST refused before transmission: write refused before transmission: POST /portfolio/events/orders (this process was not started with -live); this process is READ-ONLY and nothing was sent to the exchange"
+}

@@ -1,0 +1,284 @@
+{
+  "started_utc": "2026-10-01T22:01:28Z",
+  "go_version": "go1.27.1",
+  "rest_host": "https://external-api.kalshi.com",
+  "rsa_pss_sign_ms": {
+    "n": 200,
+    "min_ms": 1.010655,
+    "p50_ms": 1.03591,
+    "p90_ms": 1.053661,
+    "max_ms": 1.184958
+  },
+  "cold_connection_get_exchange_status_ms": {
+    "n": 3,
+    "min_ms": 85.412055,
+    "p50_ms": 92.802641,
+    "p90_ms": 337.112409,
+    "max_ms": 337.112409
+  },
+  "rest": [
+    {
+      "name": "exchange_status",
+      "path": "/exchange/status",
+      "first_ms": 99.734421,
+      "warm": {
+        "n": 14,
+        "min_ms": 84.253714,
+        "p50_ms": 88.36516,
+        "p90_ms": 95.643924,
+        "max_ms": 96.228253
+      },
+      "statuses": {
+        "200": 15
+      },
+      "last_body_bytes": 667
+    },
+    {
+      "name": "balance",
+      "path": "/portfolio/balance",
+      "first_ms": 86.234404,
+      "warm": {
+        "n": 14,
+        "min_ms": 82.536919,
+        "p50_ms": 92.146554,
+        "p90_ms": 96.774501,
+        "max_ms": 101.200634
+      },
+      "statuses": {
+        "200": 15
+      },
+      "last_body_bytes": 271
+    },
+    {
+      "name": "orders_resting_1page",
+      "path": "/portfolio/orders",
+      "query": "limit=1000\u0026status=resting",
+      "first_ms": 86.356603,
+      "warm": {
+        "n": 14,
+        "min_ms": 77.552809,
+        "p50_ms": 85.201054,
+        "p90_ms": 91.449724,
+        "max_ms": 97.020411
+      },
+      "statuses": {
+        "200": 15
+      },
+      "last_body_bytes": 25
+    },
+    {
+      "name": "positions_1page",
+      "path": "/portfolio/positions",
+      "query": "limit=200",
+      "first_ms": 90.525403,
+      "warm": {
+        "n": 14,
+        "min_ms": 85.386578,
+        "p50_ms": 94.504188,
+        "p90_ms": 159.910431,
+        "max_ms": 640.145724
+      },
+      "statuses": {
+        "200": 15
+      },
+      "last_body_bytes": 1942
+    },
+    {
+      "name": "fills_1page",
+      "path": "/portfolio/fills",
+      "query": "limit=1000",
+      "first_ms": 174.740353,
+      "warm": {
+        "n": 14,
+        "min_ms": 88.239793,
+        "p50_ms": 92.218111,
+        "p90_ms": 166.497001,
+        "max_ms": 176.351406
+      },
+      "statuses": {
+        "200": 15
+      },
+      "last_body_bytes": 12137
+    },
+    {
+      "name": "orderbook",
+      "path": "/markets/KXATPMATCH-26OCT01MUNFAR-FAR/orderbook",
+      "first_ms": 86.062993,
+      "warm": {
+        "n": 14,
+        "min_ms": 82.213121,
+        "p50_ms": 90.200711,
+        "p90_ms": 134.364117,
+        "max_ms": 151.110908
+      },
+      "statuses": {
+        "200": 15
+      },
+      "last_body_bytes": 1620
+    },
+    {
+      "name": "market",
+      "path": "/markets/KXATPMATCH-26OCT01MUNFAR-FAR",
+      "first_ms": 91.743555,
+      "warm": {
+        "n": 14,
+        "min_ms": 80.867859,
+        "p50_ms": 93.936133,
+        "p90_ms": 147.281046,
+        "max_ms": 172.122522
+      },
+      "statuses": {
+        "200": 15
+      },
+      "last_body_bytes": 2343
+    }
+  ],
+  "typed_client_path": [
+    {
+      "name": "Balance",
+      "ms": 91.51165,
+      "outcome": "\u003cnil\u003e"
+    },
+    {
+      "name": "Orderbook",
+      "ms": 87.201819,
+      "outcome": "read"
+    },
+    {
+      "name": "Orders(resting, all tickers)",
+      "ms": 87.523434,
+      "outcome": "complete"
+    },
+    {
+      "name": "Positions",
+      "ms": 94.51277,
+      "outcome": "complete"
+    },
+    {
+      "name": "Fills(24h, complete walk)",
+      "ms": 107.631265,
+      "outcome": "complete"
+    }
+  ],
+  "concurrent_orderbook_gets": [
+    {
+      "round": 1,
+      "wall_ms": 165.957466,
+      "each": {
+        "n": 6,
+        "min_ms": 90.570175,
+        "p50_ms": 165.277822,
+        "p90_ms": 165.716669,
+        "max_ms": 165.716669
+      },
+      "statuses": [
+        200,
+        200,
+        200,
+        200,
+        200,
+        200
+      ],
+      "tickers": [
+        "KXATPMATCH-26OCT01MUNFAR-FAR",
+        "KXATPMATCH-26SEP29MEDCAR-MED",
+        "KXWTAMATCH-26OCT01POTKRA-KRA",
+        "KXWTAMATCH-26OCT01POTKRA-POT",
+        "KXATPMATCH-26OCT01FILTIA-FIL",
+        "KXATPMATCH-26OCT01FILTIA-TIA"
+      ],
+      "individual_ms": [
+        165.397864,
+        165.716669,
+        91.606906,
+        90.704678,
+        165.277822,
+        90.570175
+      ]
+    },
+    {
+      "round": 2,
+      "wall_ms": 162.825255,
+      "each": {
+        "n": 6,
+        "min_ms": 80.98402,
+        "p50_ms": 157.431248,
+        "p90_ms": 161.176281,
+        "max_ms": 161.176281
+      },
+      "statuses": [
+        200,
+        200,
+        200,
+        200,
+        200,
+        200
+      ],
+      "tickers": [
+        "KXATPMATCH-26OCT01MUNFAR-FAR",
+        "KXATPMATCH-26SEP29MEDCAR-MED",
+        "KXWTAMATCH-26OCT01POTKRA-KRA",
+        "KXWTAMATCH-26OCT01POTKRA-POT",
+        "KXATPMATCH-26OCT01FILTIA-FIL",
+        "KXATPMATCH-26OCT01FILTIA-TIA"
+      ],
+      "individual_ms": [
+        80.98402,
+        86.39953,
+        86.389067,
+        157.431248,
+        161.159767,
+        161.176281
+      ]
+    }
+  ],
+  "websocket": {
+    "tickers": null,
+    "duration_s": 0,
+    "first_connect_ms": 0,
+    "first_snapshot_after_connect_ms": 0,
+    "first_delta_after_connect_ms": 0,
+    "connects": 0,
+    "disconnects": 0,
+    "frames_by_kind": null,
+    "deltas_by_ticker": null,
+    "trades_by_subscribed_ticker": null,
+    "distinct_trade_tickers_seen": 0,
+    "top_trade_tickers": null,
+    "inter_frame_gap_ms_all": {
+      "n": 0,
+      "min_ms": 0,
+      "p50_ms": 0,
+      "p90_ms": 0,
+      "max_ms": 0
+    },
+    "inter_frame_gap_ms_subscribed_deltas": {
+      "n": 0,
+      "min_ms": 0,
+      "p50_ms": 0,
+      "p90_ms": 0,
+      "max_ms": 0
+    },
+    "trade_exchange_ts_to_local_ms": {
+      "n": 0,
+      "min_ms": 0,
+      "p50_ms": 0,
+      "p90_ms": 0,
+      "max_ms": 0
+    },
+    "delta_exchange_ts_to_local_ms": {
+      "n": 0,
+      "min_ms": 0,
+      "p50_ms": 0,
+      "p90_ms": 0,
+      "max_ms": 0
+    },
+    "trade_lag_field": "",
+    "delta_lag_field": "",
+    "sample_trade_frame": "",
+    "sample_delta_frame": "",
+    "sample_other_frames": null,
+    "exchange_wide_trade_frames_per_s": 0
+  },
+  "write_guard_check": "POST refused before transmission: write refused before transmission: POST /portfolio/events/orders (this process was not started with -live); this process is READ-ONLY and nothing was sent to the exchange"
+}
