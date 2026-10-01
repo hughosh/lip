@@ -47,6 +47,12 @@ its next repair or to operate an account.
   restart it sized to the drain and watch the store and the process directly
   (fill, state_event and SEV1 counts, sweep-trace count, `ps -p`); record any
   observer gap in `control.log` with the store facts that bracket it.
+- Kalshi exposes no rewards, payout or ledger endpoint: a LIP credit is visible only
+  as a `/portfolio/balance` delta and in the browser Rewards popover. The fee page
+  and fee PDF at kalshi.com answer 429 to curl and WebFetch; verify fees on the
+  account's own `fee_cost` (taker `0.07·C·P·(1−P)` rounded up to the centi-cent,
+  maker $0 on `quadratic` series). Economics under the July 30, 2026 LIP terms:
+  `notes/lip-yca-review-evidence-2026-10-01/review.md`.
 - `bd close` of a dependency does not change a dependent whose status is stored
   as `blocked`; set it with `bd update <id> --status open`. Every close or
   status change appends a line to the tracked `.beads/interactions.jsonl`
