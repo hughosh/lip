@@ -35,6 +35,18 @@ its next repair or to operate an account.
   poller a reconcile token (or advance its 1 h timer); only an `Absent` sweep
   offers one on its own. Observe anomalies there with `takeRaised()`, not the
   store: no submitter goroutine runs. See `cmd/harness/phantom_reducer_test.go`.
+- Kalshi closes trading every Thursday 03:00–05:00 ET (07:00–09:00Z; `GET
+  /exchange/schedule` `standard_hours`, `GET /exchange/status`
+  `trading_active=false`). Nothing fills, and the harness's F1 read-deadline
+  backstop (`wsx/session.go`, reset only by a data frame) reconnects the
+  frame-silent socket every 61 s for the whole window, writing about two SEV2
+  rows a minute (lip-6dn). Do not launch a stage whose cycles or drain can run
+  into it; if one does, the churn is expected and the resting order survives.
+- `observe_stage.py` stops at `--max-minutes` (150 from `start_watchers.py`),
+  and a `tail -F` of its notices then reads as quiet. For a planned drain,
+  restart it sized to the drain and watch the store and the process directly
+  (fill, state_event and SEV1 counts, sweep-trace count, `ps -p`); record any
+  observer gap in `control.log` with the store facts that bracket it.
 
 Read only the guidance relevant to the task:
 
