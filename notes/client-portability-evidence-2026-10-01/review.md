@@ -886,3 +886,57 @@ GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off GOFLAGS=-mod=mod go build -o /tmp/meas
 The module's `replace lip => /Users/hugh/kek/lip/go` pins it to this tree. It needs
 `~/.kalshi/kalshi.pem` and `~/.kalshi/env`. It cannot write: the guard is constructed with a
 zero `WriteArm` and the program aborts if a POST is not refused before transmission.
+
+---
+
+## 14. Postscript (2026-10-01, after Hugh's clarification): the generic reading
+
+Hugh is **not** porting the tennis strategy. The question was: what is salvageable if the
+decision-maker is something else entirely — TypeSafe's Jev (a hosted "System One" model:
+send typed state and typed questions, get a structured decision, median 178 ms per request
+in `jev-ultrafast`'s measurements) or another fast decision model — trading other Kalshi
+markets, or any other strategy. §6 was the handoff's weighting assumption and should be read
+as one worked example, not the target. The generic answer, from the same evidence:
+
+**Salvageable as-is (import or copy, no surgery):** the signer (`feed/auth.go`, RSA-PSS with
+the salt Kalshi accepts); the HTTP-level `Doer` with its REJECTED/UNKNOWN split, `NotSent`,
+redirect refusal and injected clock; the `Endpoint` table and `Walk` with the rewind guard;
+the pinned status strings; `RateLimitError`; the two-key `WriteGuard`; `ParsePrice4`/
+`ParseFee6`/`CentsExact`; the typed readers for balance (incl. shard-aware `MarketFunding`),
+positions, resting orders, fills, one market and one orderbook; the create/cancel protocol
+(same-coid retry, 409 as positive identification, verified cancel); the supervised websocket
+(`Dialer`/`Socket`/`Clock` seams, F1 ladder, backoff, resnapshot, `InspectFrame`) with
+`core.Rig` as the book. Roughly 2,900 near-leaf lines plus the frozen decoder (§2.2).
+
+**Salvageable with light surgery:** `cfg.Params` → an 8-field transport struct;
+`risk.Anomaly` → its own leaf package; the `lipH-` coid → a namespace parameter; `trade`
+filter and `add_markets`/`delete_markets` → parameters; `exchange_index` on writes.
+
+**Not salvageable (LIP policy wearing transport clothes):** `wsx/gate.go` and
+`wsx/portfolio.go` (freshness tokens, F5 quarantine, PnL-mark ages), `CancelAndSweep`'s
+`unconfirmed` state, the `MarketInput` projection in `read.go`, the order-wire validators
+that refuse anything but post-only GTC `taker_at_cross` at whole cents, and all of
+`cmd/harness`. The harness's owner-loop shape (one goroutine, pure decision over owned state
+after every event and every 250 ms) is the right shape for a model-in-the-loop and is
+reusable as a pattern, not as code.
+
+**Missing for any generic consumer (§7.7):** discovery (`/markets`, `/series`, `/events`,
+`market_lifecycle_v2`), a demo/paper mode, the private `fill`/`user_orders` channels,
+amend/batch/cancel-all, taker/IOC/FOK and sub-cent price grids, settlements, tier-aware
+rate limiting, Ed25519 keys, any REST request timing.
+
+**How a Jev-style loop would sit on it:** observation = the typed reads plus the live book
+(both already typed and validated); question = "which of these N candidate actions" over a
+table the strategy builds (place/cancel/wait × market × side × price); execution = `Create`
+/ `Cancel` under the guard. Budget per step today: ~50 ms book freshness + ~180 ms decision +
+~100 ms write ≈ 0.35 s, with position truth still lagging 0–5 s behind until the `fill`
+channel exists (§4.4). Jev is an HTTP API, so the natural host is a Go process that imports
+`rest`/`wsx` directly (the probe is the skeleton) and calls the model over HTTP; a Python
+loop would need a Go sidecar or a port of the contract knowledge, and gains nothing for it.
+`jev-ultrafast` itself is a browser harness and contributes nothing to trading beyond the
+loop pattern.
+
+**So, in one line:** the exchange contract and the write protocol are worth keeping for any
+strategy; the decision and freshness layers are LIP-only; and before any non-LIP strategy
+can run, discovery, a paper mode and an order-policy seam have to be added — the same list
+whatever the strategy is. Bead lip-p3v now records that list without a consumer attached.
