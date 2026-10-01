@@ -25,6 +25,16 @@ its next repair or to operate an account.
   every receipt pinned to it stale. Directories under `notes/` whose name
   contains `-evidence-` are excluded too, so candidate reviews and receipts
   written there leave the pins valid.
+- Do not edit anything under `go/` while `scripts/harness_negative_control.py`
+  is running: it hashes the Go tree before and after, and a change marks the
+  whole run `SOURCE_DRIFT` (the receipt is then history, not evidence). Its
+  `--only` runs print "partial run" and write `mutations.partial.md`; that is
+  the subset marker, not a failure. Run it with nothing else compiling Go, or
+  timing-sensitive catchers go inconclusive.
+- An owner-level test that drives real `wsx` poller cycles must hand the fresh
+  poller a reconcile token (or advance its 1 h timer); only an `Absent` sweep
+  offers one on its own. Observe anomalies there with `takeRaised()`, not the
+  store: no submitter goroutine runs. See `cmd/harness/phantom_reducer_test.go`.
 
 Read only the guidance relevant to the task:
 
