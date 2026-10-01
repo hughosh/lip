@@ -1,0 +1,21 @@
+=== AFTER-FIX VARIANT ===
+UTC Date: Thu Oct  1 01:16:08 UTC 2026
+Source: working tree (HEAD f6d5fdf + modifications)
+SHA256 run.go: 06e6462ef784b6a486a571e483d9e7d793a03557440d4a292df443c35e7831d3
+SHA256 turnover_runtime.go: 6a79791195ca9e653d5b1c375c8d8218a9846e7f4673510dcfb9a7781d9b7095
+SHA256 phantom_reducer_test.go: 9168013264eaa74fe899d44ef45cd6c9f48d806fdff3e38f77f4ea7dd838ca43
+Go version: go version go1.27.1 darwin/amd64
+Command: go test ./cmd/harness -run 'TestUnverifiedReducerRequoteIsResweptAndTheReducerReturns|TestPlannedDrainCompletesThroughAPhantomReducer|TestUnverifiedCancelFromAnIncompleteReadIsDischargedByItsOwnRead|TestAVerifyingReadThatNamedNothingDoesNotCancelTheExitOnAFlicker|TestACancelledUnknownCreateIsRetiredByTheCoidAReadListed' -count=1 -v 2>&1 | grep -v sweep-trace
+=== TEST OUTPUT ===
+=== RUN   TestUnverifiedReducerRequoteIsResweptAndTheReducerReturns
+--- PASS: TestUnverifiedReducerRequoteIsResweptAndTheReducerReturns (0.07s)
+=== RUN   TestPlannedDrainCompletesThroughAPhantomReducer
+--- PASS: TestPlannedDrainCompletesThroughAPhantomReducer (0.10s)
+=== RUN   TestUnverifiedCancelFromAnIncompleteReadIsDischargedByItsOwnRead
+--- PASS: TestUnverifiedCancelFromAnIncompleteReadIsDischargedByItsOwnRead (0.07s)
+=== RUN   TestAVerifyingReadThatNamedNothingDoesNotCancelTheExitOnAFlicker
+--- PASS: TestAVerifyingReadThatNamedNothingDoesNotCancelTheExitOnAFlicker (0.05s)
+=== RUN   TestACancelledUnknownCreateIsRetiredByTheCoidAReadListed
+--- PASS: TestACancelledUnknownCreateIsRetiredByTheCoidAReadListed (0.07s)
+PASS
+ok  	lip/cmd/harness	0.820s

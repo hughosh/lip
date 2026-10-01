@@ -593,6 +593,76 @@ class OperatorStageTests(unittest.TestCase):
             self.assertEqual(stage.load_prior_stage(config_path, predecessor)[1]["binding"],
                              "same_candidate")
 
+    def test_prior_stage_binds_through_the_recorded_predecessor_chain(self):
+        # lip-14o: candidate-7's first stage was run by candidate-5, two receipts back.
+        current = ("src-c", "bin-c")
+        chain = [("src-b", "bin-b"), ("src-a", "bin-a")]  # nearest first
+        cases = [  # (prior manifest, prior binary, binding or None for a refusal, depth)
+            ("src-c", "bin-c", "same_candidate", 0), ("src-b", "bin-b", "predecessor", 1),
+            ("src-a", "bin-a", "predecessor", 2),
+            ("src-a", "bin-b", None, None), ("src-b", "bin-a", None, None),  # mixed pairs
+            ("src-x", "bin-x", None, None)]
+        for source, binary, binding, depth in cases:
+            with self.subTest(source=source, binary=binary), tempfile.TemporaryDirectory() as directory:
+                config_path = write_prior_stage(directory, identity_changes={
+                    "source_manifest_sha256": source, "binary_sha256": binary})
+                if binding is None:
+                    with self.assertRaisesRegex(
+                            ValueError, "neither the current candidate nor its recorded predecessor"):
+                        stage.load_prior_stage(config_path, current, chain)
+                else:
+                    _, identity = stage.load_prior_stage(config_path, current, chain)
+                    self.assertEqual((identity["binding"], identity["predecessor_depth"]),
+                                     (binding, depth))
+        # The one-pair form still binds at depth 1 and records it.
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = write_prior_stage(directory)  # ran ("src-a", "bin-a")
+            _, identity = stage.load_prior_stage(config_path, current, ("src-a", "bin-a"))
+            self.assertEqual((identity["binding"], identity["predecessor_depth"]), ("predecessor", 1))
+
+    def test_receipt_predecessors_walks_only_attested_receipts(self):
+        def receipt(pair, predecessor=None, build_identity=None):
+            body = {"source_manifest_sha256": pair[0], "binary_sha256": pair[1]}
+            if predecessor is not None:
+                body["predecessor"] = {"source_manifest_sha256": predecessor[0],
+                                       "binary_sha256": predecessor[1],
+                                       "build_identity": build_identity}
+            return body
+
+        def load(root, name):
+            return json.loads((root / name).read_text()), root / name
+
+        a, b, c = ("src-a", "bin-a"), ("src-b", "bin-b"), ("src-c", "bin-c")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "a.json").write_text(json.dumps(receipt(a)))
+            (root / "b.json").write_text(json.dumps(receipt(b, a, str(root / "a.json"))))
+            # A relative build_identity resolves against the receipt that names it.
+            (root / "c.json").write_text(json.dumps(receipt(c, b, "b.json")))
+            self.assertEqual(stage.receipt_predecessors(*load(root, "c.json")), [b, a])
+            # No recorded predecessor: nothing to bind beyond the candidate.
+            self.assertEqual(stage.receipt_predecessors(receipt(c), root / "c.json"), [])
+            # A named receipt that cannot be read ends the walk after the first hop, which
+            # is what an older receipt and the fixture receipts give.
+            (root / "d.json").write_text(json.dumps(
+                receipt(("src-d", "bin-d"), c, str(root / "missing.json"))))
+            self.assertEqual(stage.receipt_predecessors(*load(root, "d.json")), [c])
+            # A readable receipt that attests a different pair refuses the whole chain.
+            (root / "e.json").write_text(json.dumps(
+                receipt(("src-e", "bin-e"), ("src-b", "bin-x"), str(root / "b.json"))))
+            with self.assertRaisesRegex(ValueError, "does not attest"):
+                stage.receipt_predecessors(*load(root, "e.json"))
+            # A cycle refuses the chain.
+            (root / "x.json").write_text(json.dumps(
+                receipt(("src-x", "bin-x"), ("src-y", "bin-y"), str(root / "y.json"))))
+            (root / "y.json").write_text(json.dumps(
+                receipt(("src-y", "bin-y"), ("src-x", "bin-x"), str(root / "x.json"))))
+            with self.assertRaisesRegex(ValueError, "cyclic"):
+                stage.receipt_predecessors(*load(root, "x.json"))
+            # The depth is bounded.
+            with self.assertRaisesRegex(ValueError, "deeper than"):
+                stage.receipt_predecessors(*load(root, "c.json"), max_depth=1)
+
     def test_prior_stage_ticker_and_binary_path_are_free_but_must_be_consistent(self):
         candidate = ("src-a", "bin-a")
         with tempfile.TemporaryDirectory() as directory:

@@ -315,6 +315,60 @@ type owner struct {
 	// cancel costs one write, and a missed one costs an adding order left
 	// resting in a market the harness has stopped adding in.
 	cancelConfirmed [2]bool
+	// cancelUnverified is, per side of the one market, H-ORD-4's standing
+	// obligation: a cancel sweep on this side ended WITHOUT the complete
+	// verifying read confirming the side absent, and no later read has.
+	//
+	// It is the other half of `cancelConfirmed`, and it exists because of
+	// lip-14o. A reducer requoted before its first orders walk is named from
+	// `pending` and DELETEd; the exchange's resting list lags its own cancel by
+	// about 1.5 s (lip-kaf, lip-9tt), so the sweep comes back not absent and
+	// H-FAIL-3 keeps the entry in the risk model. Nothing then named it again:
+	// the only re-sweep `evaluateMarket` performed was for a side being turned
+	// OFF, and a side the state still WANTS was left to §6.5 -- which saw the
+	// phantom at the touch and asked for nothing. On 2026-09-30 that held
+	// q = -12 with no exit and no alarm for 20 min 48 s, and it would hold a
+	// planned drain at DRAIN_TIMEOUT for ever (`anyLiveOrder` counts
+	// `pending`). H-ORD-4 is explicit that an order still unconfirmed after
+	// the retry "stays live, fillable and in the cancellation obligation, and
+	// the next tick sweeps it again", and `rest.CancelAndSweep`'s own page
+	// bound (`sweepPageBound`) is written on the assumption that the caller
+	// does exactly that.
+	//
+	// Set by a cancel result that NAMED at least one order and is not
+	// `Absent` (a complete read that found one of them still resting, or no
+	// complete read at all). A sweep that named nothing -- the verifying read
+	// `build` issues for an UNKNOWN create with no id -- sets nothing: no
+	// DELETE was sent, and what the read found enters `sweptOrders` for the
+	// next DECISION to name. That distinction keeps a one-tick flicker from
+	// cancelling a correctly sized exit that §6.5 no longer wants moved.
+	// Cleared by one thing only: a later cancel result that IS absent,
+	// because exchange confirmation is the only thing that ends a
+	// cancellation obligation (H-FAIL-3, H-ORD-4c). A complete orders walk
+	// clears nothing here in either direction -- listing the order means the
+	// cancel did not take and the obligation stands; omitting it is not
+	// evidence (H-ORD-2a).
+	//
+	// While set, `evaluateMarket` re-sweeps the side: a standalone cancel on
+	// a side it is turning off (the existing path, widened to the latch), and
+	// the cancel leg of a cancel-confirm-place on a side it wants, so the
+	// obligation is discharged by the same verifying read that licenses the
+	// replacement. When the model no longer holds anything to name -- the
+	// order was listed, its DELETE took, the verifying read was incomplete
+	// and the next walk omitted it -- `build` lets the latch license the
+	// read-only sweep, because that read is exactly what discharges it.
+	// Cadence: every tick while the episode is younger than
+	// `position_poll_s` (the measured lag is 1.1-1.8 s), then once per
+	// `position_poll_s`; `enqueue`'s per-side dedup keeps one sweep in flight,
+	// and each sweep may issue up to two DELETEs and a named read
+	// (`rest.CancelAndSweep`). The SEV2 `CANCEL_UNVERIFIED` is raised once per
+	// episode rather than once per re-sweep; `SWEEP_PENDING` (SEV3) and
+	// `SWEEP_INCOMPLETE` (SEV1 at the bound) carry the rest.
+	cancelUnverified [2]bool
+	// cancelUnverifiedAt is when the current episode opened, for the cadence
+	// above; resweptAt is when this side was last re-swept on the latch.
+	cancelUnverifiedAt [2]time.Duration
+	resweptAt          [2]time.Duration
 	// absentOrders are ids still present in the last portfolio orders walk but
 	// subsequently proved absent by a complete cancel sweep. A replacement
 	// create clears cancelConfirmed, so that side-wide flag cannot also be the
@@ -2580,9 +2634,17 @@ func (o *owner) evaluateMarket(now time.Duration) {
 			// found empty is off, whatever `LiveOrders` still says until the
 			// next walk refreshes it, and reissuing the cancel every tick until
 			// then is churn against the §16 budget rather than diligence.
+			//
+			// `cancelUnverified` is the third trigger (lip-14o): a DELETE this
+			// process sent here and never saw confirmed. It can outlive both
+			// of the others -- the order was listed, its DELETE took, the
+			// verifying read was incomplete, and the next walk omitted it --
+			// and H-ORD-4 keeps the side in the obligation until a complete
+			// read says otherwise. `build` lets the latch license that read.
 			if !o.cancelConfirmed[side] &&
 				(o.atRisk(side) > 0 ||
-					(role == quote.RoleAdding && o.sweptOn(side))) {
+					(role == quote.RoleAdding &&
+						(o.sweptOn(side) || o.cancelUnverified[side]))) {
 
 				o.enqueueCancel(now, side, role)
 			}
@@ -2661,6 +2723,52 @@ func (o *owner) evaluateMarket(now time.Duration) {
 				Market: o.ticker(), Side: side, Role: quote.RoleReducing,
 				Kind: quote.KindCancelConfirmPlace, Reason: quote.ReasonReduce,
 			})
+			continue
+		}
+		// H-ORD-4 on a side the state WANTS (lip-14o). A cancel this process
+		// sent on this side came back without a complete read confirming it
+		// absent, and nothing has confirmed it since: the order "stays live,
+		// fillable and in the cancellation obligation, and the next tick
+		// sweeps it again". The `!wanted` branch above has always done that
+		// for a side being turned off; a wanted side was left to §6.5, which
+		// sees the unconfirmed order at the touch through `restingOn` and asks
+		// for nothing -- the phantom that held q = -12 with no exit for 20 min
+		// on 2026-09-30.
+		//
+		// The re-sweep is the cancel leg of a cancel-confirm-place, never a
+		// standalone cancel: H-QUE-2 has no row for one on a reducing side,
+		// and on either side the replacement should follow from the same
+		// verifying read that discharges the obligation -- an `Absent` result
+		// drops the dependent placement and §6.5 re-derives it after the
+		// H-ORD-4b truth cycle. It sits ABOVE the `!actionable` guard with
+		// the overshoot branch, for the same reason: its first leg is a cancel
+		// (I1). The `cancelConfirmed` term is the ordinary dedup against a
+		// read that has already found the side empty.
+		//
+		// Cadence. Every tick while the episode is younger than
+		// `position_poll_s`, which covers the measured 1.1-1.8 s lag several
+		// times over; after that, once per `position_poll_s`. An order the
+		// exchange keeps listing for longer than `sweepPageBound` has already
+		// paged SEV1, and sweeping it four times a second from then on would
+		// spend the §16 budget -- up to two DELETEs and a named read per sweep
+		// -- on a condition the operator is already being told about.
+		// `enqueue`'s per-side dedup keeps one sweep in flight either way.
+		// The `continue` is unconditional: while the obligation stands, §6.5
+		// must not decide the side from a model that still carries the order.
+		if o.cancelUnverified[side] && !o.cancelConfirmed[side] {
+			if now-o.cancelUnverifiedAt[side] < o.p.PositionPoll ||
+				now-o.resweptAt[side] >= o.p.PositionPoll {
+
+				o.resweptAt[side] = now
+				reason := quote.ReasonRequote
+				if role == quote.RoleReducing {
+					reason = quote.ReasonReduce
+				}
+				o.enqueue(now, quote.Intent{
+					Market: o.ticker(), Side: side, Role: role,
+					Kind: quote.KindCancelConfirmPlace, Reason: reason,
+				})
+			}
 			continue
 		}
 		_, roleActionable := o.pricingBook(role)
@@ -3013,7 +3121,17 @@ func (o *owner) build(d quote.Dispatch) (writeRequest, error) {
 			// Refusing instead would report a WRITE_NOT_BUILDABLE SEV2 per tick
 			// and leave an order live and fillable for up to `position_poll_s`
 			// with the harness believing it had asked for it back.
-			if d.Market != o.ticker() || o.atRisk(d.Side) <= 0 {
+			//
+			// The latch is the third licence (lip-14o). A DELETE this process
+			// sent and never saw confirmed can leave the model holding nothing
+			// to name -- the order was listed, its DELETE took, the verifying
+			// read was incomplete, and the next walk omitted it -- while
+			// H-ORD-4 still keeps the side in the obligation. Refusing here
+			// would raise WRITE_NOT_BUILDABLE on every tick and never produce
+			// the one result that clears the latch, so the side would never
+			// decide its exit again. The read-only sweep IS that result.
+			if d.Market != o.ticker() ||
+				(o.atRisk(d.Side) <= 0 && !o.cancelUnverified[d.Side]) {
 				return writeRequest{}, fmt.Errorf(
 					"nothing of ours rests on %s/%s", d.Market, d.Side)
 			}
@@ -3615,6 +3733,33 @@ func (o *owner) applyWriteResult(res writeResult) {
 					delete(o.pending, coid)
 				}
 			}
+			// The same, by COID, for an order the acknowledgement never
+			// identified. An UNKNOWN create that the exchange took is listed
+			// under its coid by a verifying read (`sweptOrders`), and a later
+			// cancel names it from there with that coid attached. A complete
+			// read that listed the coid is H-ORD-2 clause 3's "found resting";
+			// this sweep's complete read confirming the id absent is its
+			// "found cancelled". Both ends are positive identification, never
+			// absence (H-ORD-2a). Without this the id-less entry outlives the
+			// order it stands for and holds the side and the drain for the
+			// life of the process (lip-14o review). An entry whose coid no
+			// read ever listed is untouched, exactly as above.
+			requestedCoids := make(map[string]struct{}, len(res.Req.Orders))
+			for _, ord := range res.Req.Orders {
+				if ord.ClientOrderID != "" && ord.Ticker == res.Req.Market &&
+					ord.Side == res.Req.Side {
+					requestedCoids[ord.ClientOrderID] = struct{}{}
+				}
+			}
+			for coid, p := range o.pending {
+				if o.pendingTicker(p) != res.Req.Market || p.side != res.Req.Side {
+					continue
+				}
+				if _, named := requestedCoids[coid]; named {
+					o.resolveTurnoverOrder(coid)
+					delete(o.pending, coid)
+				}
+			}
 			// H-ORD-4 and H-FAIL-3: only the complete verifying sweep can
 			// discharge the cancellation obligation. A 2xx alone cannot. The
 			// dependent intent was discarded above so a fresh position walk will
@@ -3622,6 +3767,10 @@ func (o *owner) applyWriteResult(res writeResult) {
 			// newer orders walk; otherwise §5.2 would keep cancelling the same
 			// stale LiveOrders id on every owner tick.
 			o.cancelConfirmed[res.Req.Side] = true
+			// The same complete read discharges H-ORD-4's standing
+			// obligation: nothing of ours rests here, so there is nothing
+			// left to sweep again.
+			o.cancelUnverified[res.Req.Side] = false
 			return
 		}
 		// Not verified absent. The intents are RELEASED for the reason above:
@@ -3638,12 +3787,31 @@ func (o *owner) applyWriteResult(res writeResult) {
 		for _, id := range res.Req.IDs {
 			o.r.queue.Drop(id)
 		}
+		// H-ORD-4: a side on which a DELETE was sent and not confirmed stays
+		// in the cancellation obligation and is swept again on the next tick,
+		// whatever its role (lip-14o). The latch is what `evaluateMarket`
+		// reads; it is set here and cleared only by the `Absent` branch
+		// above. A sweep that named NOTHING sent no DELETE: its read's finding
+		// is in `sweptOrders` for the next decision to name, and latching on
+		// it would cancel, on a one-tick flicker, an exit §6.5 no longer wants
+		// moved. One SEV2 per episode: the re-sweeps that follow are the
+		// obligation's own retries, and `rest.CancelAndSweep` already journals
+		// each of them as SWEEP_PENDING and pages SWEEP_INCOMPLETE at the
+		// bound.
+		if len(res.Req.Orders) > 0 {
+			if o.cancelUnverified[res.Req.Side] {
+				return
+			}
+			o.cancelUnverified[res.Req.Side] = true
+			o.cancelUnverifiedAt[res.Req.Side] = o.r.ex.Mono()
+		}
 		o.r.anom.raise(risk.Anomaly{
 			Class: "CANCEL_UNVERIFIED", Sev: risk.SEV2, Ticker: res.Req.Market,
 			Text: fmt.Sprintf("the cancel of %d order(s) on %s/%s did not come "+
 				"back verified absent (%s); H-FAIL-3 keeps every one of them in "+
 				"the risk model and in every aggregate cap until the exchange "+
-				"confirms it gone, and §6.5 re-decides the side on the next tick",
+				"confirms it gone, and the side is swept again on every tick "+
+				"until a complete read does (H-ORD-4); reported once per episode",
 				len(res.Req.Orders), res.Req.Market, res.Req.Side,
 				res.Sweep.Outcome),
 		})

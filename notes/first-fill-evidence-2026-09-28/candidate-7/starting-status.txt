@@ -1,0 +1,25 @@
+ M go/cmd/harness/run.go
+ M go/cmd/harness/turnover_runtime.go
+ M scripts/harness_negative_control.py
+ M scripts/operator_stage.py
+ M scripts/safety_mutations.json
+ M scripts/test_operator_stage.py
+?? go/cmd/harness/phantom_reducer_test.go
+?? notes/active-continuation-2026-09-26/candidate/harness
+?? notes/first-fill-evidence-2026-09-28/candidate-3/harness
+?? notes/first-fill-evidence-2026-09-28/candidate-4/harness
+?? notes/first-fill-evidence-2026-09-28/candidate-5/harness
+?? notes/first-fill-evidence-2026-09-28/candidate-6-prereview/harness
+?? notes/first-fill-evidence-2026-09-28/candidate-6/harness
+?? notes/first-fill-evidence-2026-09-28/candidate-7-prereview/
+?? notes/first-fill-evidence-2026-09-28/lip-14o-phantom-reducer/
+?? notes/first-fill-evidence-2026-09-28/operator-handoff-candidate-7.md
+?? notes/first-fill-evidence-2026-09-28/operator-stages/first-KXEPLRELEGATION-27-MCI-20260929T205526.227001Z/tools/
+?? notes/first-fill-evidence-2026-09-28/operator-stages/r2-KXDANCINGWITHTHESTARS-26DEC31-EFRE-20260930T205542.400043Z/tools/
+?? notes/first-fill-evidence-2026-09-28/scope-candidate-5/incentives
+?? notes/live-continuation-evidence-2026-09-26/q01-v3/harness-candidate-v3
+?? notes/live-readiness-2026-09-26/harness-candidate-v2
+?? notes/production-turnover-2026-09-27/q01-cr2-attempt2-2026-09-27/tools/accountcheck
+?? notes/production-turnover-2026-09-27/runtime-evidence-2026-09-27/candidate/harness
+?? notes/production-turnover-2026-09-28/candidate-2/harness
+?? notes/production-turnover-2026-09-28/candidate/harness

@@ -36,6 +36,9 @@ type marketRuntime struct {
 	reduceNoted         bool
 	reducerCancelPinged [2]bool
 	cancelConfirmed     [2]bool
+	cancelUnverified    [2]bool
+	cancelUnverifiedAt  [2]time.Duration
+	resweptAt           [2]time.Duration
 }
 
 func (o *owner) ticker() string {
@@ -101,6 +104,9 @@ func (o *owner) saveMarket() {
 	m.reduceNoted = o.reduceNoted
 	m.reducerCancelPinged = o.reducerCancelPinged
 	m.cancelConfirmed = o.cancelConfirmed
+	m.cancelUnverified = o.cancelUnverified
+	m.cancelUnverifiedAt = o.cancelUnverifiedAt
+	m.resweptAt = o.resweptAt
 }
 func (o *owner) loadMarket(t string) {
 	m := o.markets[t]
@@ -127,6 +133,9 @@ func (o *owner) loadMarket(t string) {
 	o.reduceNoted = m.reduceNoted
 	o.reducerCancelPinged = m.reducerCancelPinged
 	o.cancelConfirmed = m.cancelConfirmed
+	o.cancelUnverified = m.cancelUnverified
+	o.cancelUnverifiedAt = m.cancelUnverifiedAt
+	o.resweptAt = m.resweptAt
 }
 func (o *owner) marketContext(t string) func() {
 	if o.markets == nil || t == o.ticker() || !o.manages(t) {

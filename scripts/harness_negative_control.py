@@ -4408,6 +4408,44 @@ MUTATIONS.extend([
 ])
 
 
+# lip-14o, the phantom reducer. H-ORD-4: an order whose cancel was sent and
+# not confirmed absent "stays live, fillable and in the cancellation
+# obligation, and the next tick sweeps it again" -- on a side the state still
+# wants, as the cancel leg of a cancel-confirm-place, not only on a side being
+# turned off. Candidate-6 did the latter only, and a reducer requoted inside
+# the exchange's list lag became an acked, never-listed `pending` entry that
+# §6.5 read as our order at the touch: q = -12 with no exit and no alarm for
+# 20 min 48 s on 2026-09-30, and a planned drain that could never finish.
+MUTATIONS.extend([
+    # Direction 1 of the defect: the wanted-side re-sweep is removed, so the
+    # unverified cancel is never swept again and the phantom stands until the
+    # touch happens to move.
+    ("M-14O-NORESWEEP",
+     "never re-sweep a wanted side holding an unverified cancel, leaving the acked never-listed reducer as a phantom at the touch",
+     [("cmd/harness/run.go",
+       "\t\tif o.cancelUnverified[side] && !o.cancelConfirmed[side] {\n",
+       "\t\tif false && o.cancelUnverified[side] && !o.cancelConfirmed[side] {\n")],
+     "TestUnverifiedReducerRequoteIsResweptAndTheReducerReturns"),
+    # Direction 2, the one the bead considered and H-ORD-4c forbids: a
+    # complete orders walk that omits the order ends the obligation. Absence
+    # is not evidence (H-ORD-2a); only a verifying read may clear the latch.
+    ("M-14O-CLEAR-ON-WALK",
+     "let a complete orders walk discharge the cancellation obligation by absence, so the unverified side is never swept again",
+     [("cmd/harness/run.go",
+       "\t\to.cancelConfirmed = [2]bool{}\n"
+       "\t\tfor _, state := range o.markets {\n"
+       "\t\t\tstate.cancelConfirmed = [2]bool{}\n"
+       "\t\t}\n",
+       "\t\to.cancelConfirmed = [2]bool{}\n"
+       "\t\to.cancelUnverified = [2]bool{}\n"
+       "\t\tfor _, state := range o.markets {\n"
+       "\t\t\tstate.cancelConfirmed = [2]bool{}\n"
+       "\t\t\tstate.cancelUnverified = [2]bool{}\n"
+       "\t\t}\n")],
+     "TestUnverifiedReducerRequoteIsResweptAndTheReducerReturns"),
+])
+
+
 MUTATIONS.extend([
     ("M-F16-STUCK-DURATION", "double configured stuck duration at owner consumer",
      [("cmd/harness/run.go", "\t\to.p.TruthMaxAge, o.p.Stuck); ok {", "\t\to.p.TruthMaxAge, 2*o.p.Stuck); ok {")],

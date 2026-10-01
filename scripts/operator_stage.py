@@ -349,17 +349,74 @@ def receipt_predecessor(receipt: dict[str, Any]) -> tuple[str, str] | None:
     return pair
 
 
+PREDECESSOR_CHAIN_MAX = 8
+
+
+def receipt_predecessors(receipt: dict[str, Any], receipt_path: Path,
+                         max_depth: int = PREDECESSOR_CHAIN_MAX) -> list[tuple[str, str]]:
+    """Every predecessor the candidate's receipt chain records, nearest first.
+
+    The first hop is the pair the candidate's own receipt records, exactly as
+    ``receipt_predecessor`` reads it: the operator's statement, needing no other file. Each
+    further hop must be ATTESTED: the receipt the previous hop names in ``build_identity``
+    (absolute, or relative to the receipt that names it) must read as a receipt whose own
+    source_manifest_sha256 and binary_sha256 are the pair recorded for it, and the walk then
+    continues from that receipt's own predecessor. A named receipt that cannot be read ends
+    the walk after the hops already established, which is what an older receipt or a fixture
+    without one gives; a readable receipt that attests a different pair, a cycle, or a chain
+    deeper than ``max_depth`` refuses the whole chain, because an inconsistent lineage is
+    worse than a short one.
+
+    Candidate-7 (lip-14o) is why the walk exists: its first-fill stage was run by candidate-5,
+    two receipts back, and the one-hop allowance written for candidate-6 would have refused
+    the same evidence one generation later.
+    """
+    chain: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    current, current_path = receipt, receipt_path
+    while True:
+        pair = receipt_predecessor(current)
+        if pair is None:
+            return chain
+        if pair in seen:
+            raise ValueError("candidate build receipt predecessor chain is cyclic")
+        if len(chain) >= max_depth:
+            raise ValueError(f"candidate build receipt predecessor chain is deeper than "
+                             f"{max_depth} receipts")
+        chain.append(pair)
+        seen.add(pair)
+        named = current["predecessor"].get("build_identity")
+        if not isinstance(named, str) or not named:
+            return chain
+        next_path = Path(named)
+        if not next_path.is_absolute():
+            next_path = current_path.parent / next_path
+        try:
+            following = json.loads(next_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return chain
+        if not isinstance(following, dict):
+            return chain
+        attested = (following.get("source_manifest_sha256"), following.get("binary_sha256"))
+        if attested != pair:
+            raise ValueError(f"predecessor build receipt {next_path} does not attest the pair "
+                             "the candidate chain records for it")
+        current, current_path = following, next_path
+
+
 def load_prior_stage(prior_config: Path, candidate: tuple[str, str],
-                     predecessor: tuple[str, str] | None = None
+                     predecessor: tuple[str, str] | list[tuple[str, str]] | None = None
                      ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Bind R2 to one first-stage identity and its dedicated, non-symlink runtime.
 
-    ``candidate`` and ``predecessor`` are (source_manifest_sha256, binary_sha256) pairs: the
-    current candidate and the one its build receipt records as its predecessor, if any. The
-    first stage must have run exactly one of them, both fields together, so a mixed pair is
-    refused. R2 provisions its own store on its own market, so the first stage's ticker and
-    binary path are not constrained. The returned identity gains ``identity_sha256`` and
-    ``binding`` (``same_candidate`` or ``predecessor``).
+    ``candidate`` is the current (source_manifest_sha256, binary_sha256) pair and
+    ``predecessor`` is the one its build receipt records, or the whole recorded chain from
+    ``receipt_predecessors``, nearest first. The first stage must have run exactly one of
+    them, both fields together, so a mixed pair is refused. R2 provisions its own store on
+    its own market, so the first stage's ticker and binary path are not constrained. The
+    returned identity gains ``identity_sha256``, ``binding`` (``same_candidate`` or
+    ``predecessor``) and ``predecessor_depth`` (0 for the candidate itself, N for the Nth
+    receipt back).
     """
     prior_path = prior_config.absolute()
     stage_dir = prior_path.parent
@@ -388,13 +445,19 @@ def load_prior_stage(prior_config: Path, candidate: tuple[str, str],
             or identity.get("config_sha256") != config_hash):
         raise ValueError("prior config does not match first-stage candidate identity")
     prior_pair = (identity.get("source_manifest_sha256"), identity.get("binary_sha256"))
+    if predecessor is None:
+        chain: list[tuple[str, str]] = []
+    elif isinstance(predecessor, tuple):
+        chain = [predecessor]
+    else:
+        chain = list(predecessor)
     if prior_pair == candidate:
-        binding = "same_candidate"
-    elif predecessor is not None and prior_pair == predecessor:
-        binding = "predecessor"
+        binding, depth = "same_candidate", 0
+    elif prior_pair in chain:
+        binding, depth = "predecessor", chain.index(prior_pair) + 1
     else:
         raise ValueError("first stage ran neither the current candidate nor its recorded "
-                         "predecessor (source manifest and binary must match together)")
+                         "predecessor chain (source manifest and binary must match together)")
     try:
         parse_time(identity["created_at_utc"])
     except (KeyError, TypeError, ValueError) as exc:
@@ -411,6 +474,7 @@ def load_prior_stage(prior_config: Path, candidate: tuple[str, str],
             raise ValueError(f"prior config {key} path is not the first-stage runtime path")
     identity["identity_sha256"] = sha256(identity_path)
     identity["binding"] = binding
+    identity["predecessor_depth"] = depth
     return config, identity
 
 
@@ -547,12 +611,13 @@ def prepare(args: argparse.Namespace, *, runner: Callable[..., Any] = subprocess
     else:
         # R2 provisions its own store on a freshly chosen market: the config is a copy of the
         # first stage's, moved to this stage's runtime (below) with its own rung, heartbeat,
-        # ticker and S. That first stage ran this candidate or, one hop back, the predecessor
-        # the candidate receipt records, and the operator receipt attests that first stage,
-        # not this candidate.
+        # ticker and S. That first stage ran this candidate or a predecessor in the chain the
+        # candidate receipt records (each hop past the first attested by the predecessor's
+        # own receipt), and the operator receipt attests that first stage, not this candidate.
         prior_path = Path(args.prior_config).absolute()
         config, prior_identity = load_prior_stage(
-            prior_path, (source_hash, binary_hash), receipt_predecessor(build_receipt))
+            prior_path, (source_hash, binary_hash),
+            receipt_predecessors(build_receipt, Path(args.candidate_receipt).resolve()))
         config["rung"] = "pilot"
         r2_receipt = load_r2_receipt(Path(args.r2_receipt).absolute(), prior_identity["ticker"],
                                      prior_identity["source_manifest_sha256"],
@@ -672,6 +737,7 @@ def prepare(args: argparse.Namespace, *, runner: Callable[..., Any] = subprocess
         identity["first_stage_identity_sha256"] = prior_identity["identity_sha256"]
         identity["first_stage_config"] = str(prior_path)
         identity["first_stage_binding"] = prior_identity["binding"]
+        identity["first_stage_predecessor_depth"] = prior_identity["predecessor_depth"]
         identity["first_stage_ticker"] = prior_identity["ticker"]
         identity["first_stage_binary_sha256"] = prior_identity["binary_sha256"]
         identity["first_stage_source_manifest_sha256"] = prior_identity["source_manifest_sha256"]
